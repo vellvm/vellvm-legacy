@@ -11,6 +11,7 @@ Require Import symexe_def.
 Require Import symexe_lib.
 Require Import alist.
 Require Import ZArith.
+Require Import vellvm_tactics.
 
 Export SimpleSE.
 Export LLVMgv.
@@ -41,12 +42,14 @@ Lemma genericvalues__imply__value2Sterm_denote : forall l0 TD lc0 Mem0 smap1 lc
   values2GVs TD l0 lc gl = Some gvs0 ->
   sterms_denote_genericvalues TD lc0 gl Mem0
     (make_list_sterm
-      (map_list_sz_value (fun sz' v' => (sz', value2Sterm smap1 v')) l0))
+      (List.map (fun p : sz * value => 
+        let '(sz', v') := p in (sz', value2Sterm smap1 v')) l0))
     gvs0.
 Proof.
   induction l0; intros; simpl in *.
     inversion H1; subst; auto.
-
+    
+    simpl_prod.
     remember (getOperandValue TD v lc gl) as ogv.
     destruct ogv; try solve [inversion H1].
     remember (values2GVs TD l0 lc gl) as ogvs.

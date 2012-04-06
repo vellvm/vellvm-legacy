@@ -31,17 +31,17 @@ match goal with
    remember lk as R; destruct R; try inv H
 | H: context [if ?lk then _ else _] |- _ =>
    remember lk as R; destruct R; try inv H
-| |- context [(if ?lk then _ else _)] => 
+| |- context [(if ?lk then _ else _)] =>
    remember lk as R; destruct R; subst; auto
 | |- context [if ?lk then _ else _] => remember lk as R; destruct R; subst; auto
 end.
 
 Ltac destruct_let :=
   match goal with
-  | _: context [match ?e with 
+  | _: context [match ?e with
                 | (_,_) => _
                 end] |- _ => destruct e
-  | |- context [match ?e with 
+  | |- context [match ?e with
                 | (_,_) => _
                 end] => destruct e
   end.
@@ -176,7 +176,7 @@ match goal with
 | H: match ?lk with
      | Some _ => Some _
      | None => _
-     end = Some _ |- _ => 
+     end = Some _ |- _ =>
    let r := fresh "r" in
    remember lk as R; destruct R as [r|]; inv H; symmetry_ctx
 end.
@@ -224,10 +224,113 @@ Ltac destruct_if' :=
 match goal with
 | H: context [(if ?lk then _ else _)] |- _ =>
   match type of lk with
-  | sumbool (@eq ?t ?e ?e) (not (@eq ?t ?e ?e)) => 
+  | sumbool (@eq ?t ?e ?e) (not (@eq ?t ?e ?e)) =>
       destruct lk; try congruence
   | _ => destruct_if
   end
 | |- _ => destruct_if
 end.
 
+(* If a split is being destructed, name each of its components
+   and destruct it *)
+Tactic Notation "simpl_split" ident(l1) ident(l2) :=
+  match goal with
+    | H : context[let '(_, _) := ?l in _] |- _ =>
+      match l with
+        | split _ =>
+          remember l as R; destruct R as [l1 l2]
+      end
+  end.
+
+Tactic Notation "simpl_split" :=
+  let l1 := fresh "l1" in
+  let l2 := fresh "l2" in
+    simpl_split l1 l2.
+
+(* Break a tuple into its constituent parts *)
+Ltac simpl_prod :=
+  repeat match goal with
+           | [ p : (_ * _)%type |- _ ] =>
+             destruct p
+         end.
+
+(* Use hypothesis H, cleaning it afterwards *)
+Ltac apply_and_clean H :=
+  clear - H;
+  intros; eapply H; eauto; try subst; trivial;
+  clear H.
+
+(* If the goal involves term t, remove everything in the context
+   that is not related to t. *)
+Ltac remove_irrelevant t :=
+  try match goal with
+        | [ |- context[t] ] =>
+          repeat match goal with
+                   | [ H : ?P |- _ ] => 
+                     match P with
+                       | context[t] => fail 1
+                       | _ => clear H
+                     end
+                 end;
+          repeat match goal with
+                   | [ |- ?P -> ?Q ] => intro
+                 end
+      end.
+
+(* Solve "forall-like" goals on lists by induction. Specifically,
+   it was made to solve the goal whenever it looks like
+
+   H : forall a, In a (List.map ... la) -> P a b c
+   ------------------------------------------------
+     forall p,
+       In p (List.map (fun a => (a, b, c)) la) ->
+       let '(a, b, c) := p in P a b c
+
+   This is used to convert from the new premises in well-formedness
+   judgements to backward-compatible versions like wf_value_list.
+*)
+
+Ltac solve_forall_like_ind :=
+  match goal with
+    | [ l : list _ |- forall p, In p ?l' -> _ ] =>
+      match l' with
+        | context[l] =>
+          intros p Hp; simpl_prod;
+          induction l; simpl_prod; simpl in *; try tauto;
+
+          (* Either our element is the consed one, or we need to use
+             the induction hypothesis *)
+          repeat match goal with
+                   | [ H : _ = _ \/ _ |- _ ] =>
+                     destruct H as [H | H];
+                     [try inversion H; clear H; subst|]
+                 end;
+
+          (* Try to solve for the newly consed element *)
+          try match goal with
+                | [ H : context[_ \/ _ -> _] |- _ ] =>
+                  solve [apply H; left; trivial]
+              end;
+
+          (* Try to solve the for the list tail *)
+          match goal with
+            | [ H : context[In _ _ -> _] |- _ ] =>
+              apply H;
+                solve [ trivial |
+                  match goal with
+                    | [ H : context[_ = _ \/ _ -> _]
+                        |- context[In _ _ -> _] ] =>
+                      intros; apply H; right; trivial
+                  end
+                ]
+          end
+      end
+  end.
+
+
+(* Guess which of the hypothesis will solve this case *)
+Ltac guess_hyp converter :=
+  match goal with
+    | [ H : _ |- _ ] =>
+      apply_and_clean H; converter; solve_forall_like_ind
+  end.

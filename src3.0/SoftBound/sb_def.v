@@ -23,8 +23,7 @@ match c with
     | _ => Some (const_castop castop_bitcast c p8,
                  const_castop castop_bitcast
                    (const_gep false c
-                   (Cons_list_const (const_int Size.ThirtyTwo
-                   (INTEGER.of_Z 32%Z 1%Z false)) Nil_list_const)) p8)
+                   [(const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 1%Z false))]) p8)
     end
 | const_gep _ pc _ => get_const_metadata pc
 | const_castop castop_bitcast pc (typ_pointer _) => get_const_metadata pc

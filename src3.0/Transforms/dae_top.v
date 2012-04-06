@@ -195,11 +195,11 @@ Proof.
   destruct Terminator0; auto.
     destruct ES1, ES2; try solve [auto | inv Hstsim'].
       simpl in Hfinal.
-      inTmnOp_isnt_stuck v' H6 Hwfcfg2 Hwfpp2.
+      inTmnOp_isnt_stuck value5 H6 Hwfcfg2 Hwfpp2.
       destruct H2 as [_ [_ H2]].
-      assert (wf_value S2 (module_intro los2 nts2 gl2) CurFunction v t) as Hwft.
+      assert (wf_value S2 (module_intro los2 nts2 gl2) CurFunction value5 typ5) as Hwft.
         admit. (* wf *)
-      assert (value_doesnt_use_pid pinfo CurFunction v) as Hnotin.
+      assert (value_doesnt_use_pid pinfo CurFunction value5) as Hnotin.
         destruct H5 as [l5 [ps2 [cs21 H5]]]; subst;
         destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
         destruct Hwfpp1 as 
@@ -263,11 +263,11 @@ Proof.
     destruct Terminator0; auto.
       destruct ES1, ES2; try solve [auto | inv Hstsim'].
         simpl in Hfinal.
-        inTmnOp_isnt_stuck v' H5 Hwfcfg1 Hwfpp1.
+        inTmnOp_isnt_stuck value5 H5 Hwfcfg1 Hwfpp1.
         destruct H2 as [_ [_ H2]].
-        assert (wf_value S1 (module_intro los2 nts2 gl1) CurFunction v t) as Hwft.
+        assert (wf_value S1 (module_intro los2 nts2 gl1) CurFunction value5 typ5) as Hwft.
           admit. (* wf *)
-        assert (value_doesnt_use_pid pinfo CurFunction v) as Hnotin.
+        assert (value_doesnt_use_pid pinfo CurFunction value5) as Hnotin.
           destruct H5 as [l5 [ps2 [cs21 H5]]]; subst;
           destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
           destruct Hwfpp1 as 
@@ -524,6 +524,7 @@ Ltac undefined_state__State_simulation_r2l_tac3 :=
     destruct ECS as [|[] ECS]; try tauto;
     destruct Hstsim as [Hstsim _];
     destruct Hstsim as [? [Htmn [? [? [? [? [? Hstsim]]]]]]]; subst;
+    let l5 := fresh "l5" in
     destruct H3 as [l5 [ps5 [cs5 EQ]]]; subst
   end.
 
@@ -693,9 +694,9 @@ Proof.
       inv_mbind; destruct Hundef as [gn [EQ Hundef]]; inv EQ; inv_mbind;
       undefined_state__State_simulation_r2l_tac41;
       undefined_state__d_State_simulation_r2l_tac43;
-      undefined_state__d_State_simulation_r2l_tac42 v;
+      undefined_state__d_State_simulation_r2l_tac42 value5;
       repeat fill_ctxhole; exists gvs; split; auto;
-      remember (malloc (los2, nts2) Mem0 s gvs a) as R;
+      remember (malloc (los2, nts2) Mem0 s gvs align5) as R;
       destruct R as [[]|]; auto;
       symmetry in HeqR2;
       eapply mem_simulation__malloc_l2r' in HeqR2; eauto 2;
@@ -708,7 +709,7 @@ Proof.
     inv_mbind; destruct Hundef as [gn [EQ Hundef]]; inv EQ; inv_mbind.
     undefined_state__State_simulation_r2l_tac41.
     undefined_state__d_State_simulation_r2l_tac43.
-    undefined_state__d_State_simulation_r2l_tac42 v.
+    undefined_state__d_State_simulation_r2l_tac42 value5.
     repeat fill_ctxhole; exists gvs. split; auto.
     remember (free (los2, nts2) Mem0 gvs) as R.
     destruct R; auto.
@@ -723,9 +724,9 @@ Proof.
     inv_mbind; destruct Hundef as [gvs [EQ Hundef]]; inv EQ; inv_mbind.
     undefined_state__State_simulation_r2l_tac41.
     undefined_state__d_State_simulation_r2l_tac43. 
-    undefined_state__d_State_simulation_r2l_tac42 v.
+    undefined_state__d_State_simulation_r2l_tac42 value1.
     repeat fill_ctxhole; exists gvs0. split; auto.
-    remember (mload (los2, nts2) Mem0 gvs0 t a) as R.
+    remember (mload (los2, nts2) Mem0 gvs0 typ5 align5) as R.
     destruct R; auto.
     symmetry in HeqR1. simpl in H2.
     eapply simulation__mload_l2r in HeqR1; eauto.
@@ -739,11 +740,11 @@ Proof.
       inv EQ1; inv EQ2; inv_mbind.
     undefined_state__State_simulation_r2l_tac41.
     undefined_state__d_State_simulation_r2l_tac43. 
-    undefined_state__d_State_simulation_r2l_tac42 v.
-    undefined_state__d_State_simulation_r2l_tac42 v0.
+    undefined_state__d_State_simulation_r2l_tac42 value1.
+    undefined_state__d_State_simulation_r2l_tac42 value2.
     repeat fill_ctxhole; exists gvs; exists gvs0.
     split; auto.
-    remember (mstore (los2, nts2) Mem0 gvs0 t gvs a) as R.
+    remember (mstore (los2, nts2) Mem0 gvs0 typ5 gvs align5) as R.
     destruct R; auto.
     symmetry in HeqR2. simpl in H2.
     eapply simulation__mstore_l2r in HeqR2; eauto.
@@ -759,18 +760,18 @@ Proof.
     inv_mbind.
     eapply cmds_simulation_cons_inv' in Hstsim; subst; eauto.
     destruct Hstsim as [cs2' [J1 J2]]; subst.
-    undefined_state__d_State_simulation_r2l_tac42 v0.
+    undefined_state__d_State_simulation_r2l_tac42 value0.
       destruct H4 as [l1 [ps1 [cs11 H4]]]; subst.
       destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]].
       destruct Hwfpp1 as [_ [[_ [HbInF1 [HfInPs1 _]]] _]].
       destruct H2 as [H21 [H22 H23]].
-      assert (exists t, wf_value S1 (module_intro los2 nts2 gl1) CurFunction0 v0 t) 
+      assert (exists t, wf_value S1 (module_intro los2 nts2 gl1) CurFunction0 value0 t) 
         as Hwfv.
         eapply wf_system__wf_fdef in HfInPs1; eauto.
         eapply wf_fdef__wf_cmd in HbInF1; eauto using in_middle.
         eapply wf_cmd__wf_value in HbInF1; eauto; simpl; auto.
       destruct Hwfv as [tv Hwfv].
-      eapply simulation__getOperandValue with (v:=v0); try solve [
+      eapply simulation__getOperandValue with (v:=value0); try solve [
         eauto 2 |
         eapply used_in_fdef__cmd_value_doesnt_use_pid; eauto 4 using in_middle;
           simpl; auto
@@ -783,7 +784,7 @@ Proof.
       destruct Hundef as [gvs0 [EQ' Hundef]].
       dgvs_instantiate_inv.
       assert (exists gvs, 
-                Opsem.params2GVs (los2,nts2) p Locals0 fs2 = Some gvs) as G'.
+                Opsem.params2GVs (los2,nts2) params5 Locals0 fs2 = Some gvs) as G'.
         destruct H4 as [l5 [ps2 [cs21 H4]]]; subst.
         destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
         destruct Hwfpp1 as [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [Hinscope1 _]]]]] _]].
@@ -801,6 +802,7 @@ Proof.
         assert (Hwfc:=HbInF1).
         eapply wf_fdef__wf_cmd in Hwfc; eauto using in_middle.
         inv Hwfc.
+        find_wf_value_list.
         eapply reg_simulation__params2GVs; 
           eauto 2 using wf_system__wf_fdef, wf_system__uniqFdef; 
             try solve [simpl; auto].
@@ -814,10 +816,10 @@ Proof.
         eapply TopSim.lookupExFdecViaPtr_inj__simulation_l2r' in H; eauto.
         rewrite <- HeqR1 in H. inv H. 
         exists gvs'. split; auto.
-        remember (callExternalOrIntrinsics (los2, nts2) fs2 Mem0 i1 t0 
-          (args2Typs a) d gvs') as R.
+        remember (callExternalOrIntrinsics (los2, nts2) fs2 Mem0 id0 typ0
+          (args2Typs args5) deckind5 gvs') as R.
         destruct R as [[[]]|]; auto.
-        remember (Opsem.exCallUpdateLocals (los2, nts2) t n i0 o Locals0) as R.
+        remember (Opsem.exCallUpdateLocals (los2, nts2) typ5 noret5 id5 o Locals0) as R.
         destruct R; auto.
         simpl in H2.
         eapply callExternalFunction__mem_simulation_l2r in H2; eauto.

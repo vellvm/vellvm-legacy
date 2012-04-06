@@ -12,7 +12,7 @@ Require Import Coqlib.
 Require Import Floats.
 Require Import alist.
 
-Module LLVMsyntax.
+Module LLVMsyntax_base.
 
 Local Open Scope nat_scope.
 
@@ -569,7 +569,7 @@ opt_fdef {{ tex \mathit{opt_{fdef} } }} :: 'opt_fdef_'	::=  			{{ com option fde
   | ( opt_fdef )					:: S :: paren		{{ coq [[ opt_fdef ]] }}
 
 namedt :: 'namedt_'         				::=			{{ com named type }}
-       										{{ coq (prod id list_typ) }}
+       										{{ coq (prod id (list typ)) }}
   | id = { </ typj // j /> }                            ::   :: intro           {{ coq ([[id]],[[ </ typj // j /> ]]) }}
   | ( namedt )						:: S :: paren		{{ coq [[ namedt ]] }}
 
@@ -669,116 +669,7 @@ terminals :: 'terminals_' ::=
 embed
 {{ coq
 
-Tactic Notation "cmd_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "insn_bop" | c "insn_fbop" |
-    c "insn_extractvalue" | c "insn_insertvalue" |
-    c "insn_malloc" | c "insn_free" |
-    c "insn_alloca" | c "insn_load" | c "insn_store" | c "insn_gep" |
-    c "insn_trunc" | c "insn_ext" | c "insn_cast" |
-    c "insn_icmp" | c "insn_fcmp" | c "insn_select" |
-    c "insn_call" ].
-
-Tactic Notation "product_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "product_gvar" | c "product_fdec" | c "product_fdef" ].
-
-Tactic Notation "typ_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "typ_int" | c "typ_floatingpoint" |
-    c "typ_void" | c "typ_label" |
-    c "typ_metadata" | c "typ_array" |
-    c "typ_function" | c "typ_struct" | c "typ_pointer" |
-    c "typ_namedt" | c "typ_nil" | c "typ_cons" ].
-
-Scheme const_rec2 := Induction for const Sort Set
-  with list_const_rec2 := Induction for list_const Sort Set.
-
-Definition const_mutrec P P' :=
-  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21=>
-      (pair (@const_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21)
-            (@list_const_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21)).
-
-Scheme typ_rec2 := Induction for typ Sort Set
-  with list_typ_rec2 := Induction for list_typ Sort Set.
-
-Definition typ_mutrec P P' :=
-  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 =>
-      (pair (@typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12)
-            (@list_typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12)).
-
-Scheme const_ind2 := Induction for const Sort Prop
-  with list_const_ind2 := Induction for list_const Sort Prop.
-
-Combined Scheme const_mutind from const_ind2, list_const_ind2.
-
-Scheme typ_ind2 := Induction for typ Sort Prop
-  with list_typ_ind2 := Induction for list_typ Sort Prop.
-
-Combined Scheme typ_mutind from typ_ind2, list_typ_ind2.
-
-
-End LLVMsyntax.
-
-Ltac destruct_cmd cmd :=
-let i0 := fresh "i0" in
-let i1 := fresh "i1" in
-let b := fresh "b" in
-let s0 := fresh "s0" in
-let v := fresh "v" in
-let v0 := fresh "v0" in
-let v1 := fresh "v1" in
-let f0 := fresh "f0" in
-let f1 := fresh "f1" in
-let t := fresh "t" in
-let t0 := fresh "t0" in
-let t1 := fresh "t1" in
-let l2 := fresh "l2" in
-let a := fresh "a" in
-let p := fresh "p" in
-let n := fresh "n" in
-let c := fresh "c" in
-let e := fresh "e" in
-destruct cmd as [i0 b s0 v v0|i0 f0 f1 v v0|i0 t v l2 t0|i0 t v t0 v0 l2|
-                 i0 t v a|i0 t v|i0 t v a|i0 t v a|i0 t v v0 a|i0 i1 t v l2 t0|
-                 i0 t t0 v t1|i0 e t v t0|i0 c t v t0|i0 c t v v0|
-                 i0 f0 f1 v v0|i0 v t v0 v1|i0 n c t0 v0 v p].
-
-Ltac destruct_typ t :=
-let s0 := fresh "s0" in
-let f := fresh "f" in
-let t0 := fresh "t0" in
-let lt0 := fresh "lt0" in
-let i0 := fresh "i0" in
-destruct t as [s0 | f | | | | s0 t0 | t0 lt0 | lt0 | t0 | i0 ].
-
-Ltac destruct_const cst :=
-let Int5 := fresh "Int5" in
-let i0 := fresh "i0" in
-let b := fresh "b" in
-let sz5 := fresh "sz5" in
-let f0 := fresh "f0" in
-let f1 := fresh "f1" in
-let t := fresh "t" in
-let t0 := fresh "t0" in
-let l2 := fresh "l2" in
-let c0 := fresh "c0" in
-let c1 := fresh "c1" in
-let c2 := fresh "c2" in
-let e := fresh "e" in
-let cs0 := fresh "cs0" in
-destruct cst as [t|sz5 Int5|f0 f1|t|t|t cs0|t cs0|t i0|t c0 t0|e c0 t0|c0 c1 t0|
-                 i0 c0 cs0|c0 c1 c2|c0 c1 c2|f0 c1 c2|c0 cs0|c0 c1 cs0|
-                 b c0 c1|f0 c0 c1].
-
-Ltac destruct_tmn tmn :=
-let id5 := fresh "id5" in
-let t := fresh "t" in
-let value5 := fresh "value5" in
-let l2 := fresh "l2" in
-let l3 := fresh "l3" in
-let i0 := fresh "i0" in
-destruct tmn as [id5 t value5 | id5 | id5 value5 l2 l3 | i0 l2 | ].
+End LLVMsyntax_base.
 
 }}
 

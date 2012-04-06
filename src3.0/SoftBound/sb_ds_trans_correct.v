@@ -769,7 +769,7 @@ Proof.
     [M2' [M2'' [Hsbase [Hsbound [Hmsim3 [Hwfmi3 [Hgbase Hgbound]]]]]]]; auto.
   eapply free_allocas_sim in Hmsim3; eauto.
   destruct Hmsim3 as [M2''' [Hfree2' [Hmsim2' Hwfmi2']]].
-  destruct n.
+  destruct noret5.
   SCase "nret = true".
     inv Hcall'.
     inv H1.
@@ -813,9 +813,9 @@ Proof.
           repeat (split; auto).
 
   SCase "nret = false".
-    assert (In i0 (getFdefLocs (fdef_intro fh1' bs1'))) as Hin.
+    assert (In id5 (getFdefLocs (fdef_intro fh1' bs1'))) as Hin.
       eauto using getCmdID_in_getFdefLocs.
-    remember (lift_op1 DGVs (fit_gv (los, nts) t) gr t) as Fit.
+    remember (lift_op1 DGVs (fit_gv (los, nts) typ5) gr typ5) as Fit.
     destruct Fit; tinv H1. simpl in Hcall'.
     symmetry in Heqogr.
     eapply simulation__getOperandValue in Heqogr;
@@ -828,16 +828,16 @@ Proof.
     destruct HeqFit as [gr2' [HeqFit HinjFit]].
 
     unfold isReturnPointerTypB in *.
-    destruct (isPointerTypB t); inv H1.
+    destruct (isPointerTypB typ5); inv H1.
     SSCase "ct is ptr".
-      remember (lookupAL (id * id) rm2' i0) as R.
+      remember (lookupAL (id * id) rm2' id5) as R.
       destruct R as [[bid0 eid0]|]; inv Hcall'.
 
       exists (Opsem.mkState
         ((Opsem.mkEC (fdef_intro fh2' bs2') B2'
             (cs23' ++ cs24') tmn2'
             (updateAddALs _ lc2'
-              ((i0,gr2')::(bid0,bgv2)::(eid0,egv2)::nil))
+              ((id5,gr2')::(bid0,bgv2)::(eid0,egv2)::nil))
             als2'):: ECs2)
         M2''').
       exists mi.
@@ -904,7 +904,7 @@ Proof.
 
       exists (Opsem.mkState
         ((Opsem.mkEC (fdef_intro fh2' bs2') B2'
-            (cs23' ++ cs24') tmn2' (updateAddALs _ lc2' ((i0,gr2')::nil))
+            (cs23' ++ cs24') tmn2' (updateAddALs _ lc2' ((id5,gr2')::nil))
             als2'):: ECs2)
         M2''').
       exists mi.
@@ -939,7 +939,7 @@ Proof.
                                    cmds_at_block_tails_next').
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
-          apply reg_simulation__updateAddAL_lc with (i0:=i0)(gv:=g)
+          apply reg_simulation__updateAddAL_lc with (i0:=id5)(gv:=g)
             (gv':= gr2') (ex_ids3:=ex_ids') in Hrsim';
             eauto using simulation___cgv2gv.
           Transparent updateAddALs. simpl.
@@ -1007,7 +1007,7 @@ Proof.
   destruct_ctx_return.
   inv Htcmds.
   simpl in H1.
-  destruct n; inv H1.
+  destruct noret5; inv H1.
   unfold call_suffix in Hcall'. inv Hcall'.
   inv Httmn.
   eapply free_allocas_sim in HsimM; eauto.

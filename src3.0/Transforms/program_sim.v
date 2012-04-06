@@ -329,7 +329,7 @@ Proof.
         inv H3.
         constructor.
           destruct a; auto.      
-            destruct (fdef_dec f f0); subst; auto.
+            destruct (fdef_dec f fdef5); subst; auto.
              contradict H2.
              simpl. auto.
           apply IHPs2; auto.
@@ -338,7 +338,7 @@ Proof.
     inv H.
     constructor; auto.
       destruct a; auto.      
-      destruct (fdef_dec f f0); subst; auto.
+      destruct (fdef_dec f fdef5); subst; auto.
         contradict H2.
         rewrite getProductsIDs_app. simpl.
         apply In_middle.

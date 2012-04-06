@@ -462,11 +462,11 @@ Definition exCallUpdateLocals TD (rt:typ) (noret:bool) (rid:id)
   | true => Some lc
   end.
 
-Fixpoint values2GVs (TD:TargetData) (lv:list_sz_value) (locals:GVsMap)
+Fixpoint values2GVs (TD:TargetData) (lv:list (sz * value)) (locals:GVsMap)
   (globals:GVMap) : option (list GVs):=
 match lv with
-| Nil_list_sz_value => Some nil
-| Cons_list_sz_value _ v lv' =>
+| nil => Some nil
+| (_, v) :: lv' =>
   match (getOperandValue TD v locals globals) with
   | Some GV =>
     match (values2GVs TD lv' locals globals) with
@@ -563,7 +563,7 @@ Definition GEP (TD:TargetData) (ty:typ) (mas:GVs) (vidxs:list GenericValue)
 GVsSig.(lift_op1) (gep TD ty vidxs inbounds ty') mas (typ_pointer ty').
 
 Definition extractGenericValue (TD:TargetData) (t:typ) (gvs : GVs)
-  (cidxs : list_const) : option GVs :=
+  (cidxs : list const) : option GVs :=
 match (intConsts2Nats TD cidxs) with
 | None => None
 | Some idxs =>
@@ -574,7 +574,7 @@ match (intConsts2Nats TD cidxs) with
 end.
 
 Definition insertGenericValue (TD:TargetData) (t:typ) (gvs:GVs)
-  (cidxs:list_const) (t0:typ) (gvs0:GVs) : option GVs :=
+  (cidxs:list const) (t0:typ) (gvs0:GVs) : option GVs :=
 match (intConsts2Nats TD cidxs) with
 | None => None
 | Some idxs =>

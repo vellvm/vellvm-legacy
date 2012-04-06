@@ -305,9 +305,12 @@ Proof.
     assert (lookupTypViaIDFromFdef F' i0 = Some t0) as J.
       eapply uniqF__lookupTypViaIDFromFdef with
         (c:=insn_call i0 false c t0 v0 v
-                 (map_list_typ_attributes_value
-                    (fun (typ_' : typ) attr (value_'' : value) =>
-                     (typ_', attr, value_'')) typ'_attributes'_value''_list))
+                (List.map
+                   (fun pat_ : typ * attributes * value =>
+                    let (p, value_'') := pat_ in
+                    let (typ_', attributes_') := p in
+                    (typ_', attributes_', value_''))
+                   typ'_attributes'_value''_list))
         (i0:=i0)(t0:=t0)in HBinF2; eauto.
         apply in_or_app. right. simpl. auto.
     clear HBinF2.
@@ -335,9 +338,12 @@ Proof.
     assert (lookupTypViaIDFromFdef F' i0 = Some t0) as J.
       eapply uniqF__lookupTypViaIDFromFdef with
         (c:=insn_call i0 false c t0 v0 v
-                 (map_list_typ_attributes_value
-                    (fun (typ_' : typ) attr (value_'' : value) =>
-                     (typ_', attr, value_'')) typ'_attributes'_value''_list))
+                (List.map
+                   (fun pat_ : typ * attributes * value =>
+                    let (p, value_'') := pat_ in
+                    let (typ_', attributes_') := p in
+                    (typ_', attributes_', value_''))
+                   typ'_attributes'_value''_list))
         (i0:=i0)(t0:=t0) in HBinF2; eauto.
         apply in_or_app. right. simpl. auto.
     clear HBinF2.
@@ -1209,6 +1215,7 @@ Case "sCall".
     | H21: wf_insn_base _ _ _ |- _ => inv H21
     end.
     eapply initLocals__wf_rmetadata in H0; eauto.
+      find_wf_value_list.
       eapply wf_value_list__in_params__wf_value; eauto.
 
     exists l'. exists ps'. exists nil. simpl_env. auto.
@@ -1320,9 +1327,7 @@ Lemma get_const_metadata_isnt_stuck_helper : forall TD gl t0 i0 b sz0
                _const2GV TD gl
                  (const_castop castop_bitcast
                     (const_gep false (const_gid t0 i0)
-                       (Cons_list_const
-                          (const_int Size.ThirtyTwo (INTEGER.of_Z 32 1 false))
-                          Nil_list_const)) p8)
+                      ([const_int Size.ThirtyTwo (INTEGER.of_Z 32 1 false)])) p8)
              with
              | ret (gv, t) => ret (? gv # t ?)
              | merror => merror
@@ -1359,16 +1364,16 @@ Proof.
   generalize dependent ct.
   induction vc; intros; try solve [inversion J2].
     simpl in HeqJ3.
-    remember (lookupAL GenericValue gl i0) as R.
+    remember (lookupAL GenericValue gl id5) as R.
     destruct R; inv HeqJ3.
     symmetry in HeqR.
     assert (Hwfc':=Hwfc).
     inv Hwfc'.
     unfold wf_global_ptr in Hwfg.
     assert (Hlk:=HeqR).
-    apply Hwfg with (typ0:=t) in HeqR; simpl; auto.
+    apply Hwfg with (typ0:=typ5) in HeqR; simpl; auto.
     destruct HeqR as [b [sz [J1 [J5 [J3 J4]]]]]; subst.
-    destruct t; inv J2;
+    destruct typ5; inv J2;
       try solve [eapply get_const_metadata_isnt_stuck_helper; eauto].
 
       simpl. rewrite Hlk. simpl.
@@ -1376,12 +1381,12 @@ Proof.
       exists b. exists (Int.zero 31). exists (Int.zero 31).
       split; auto.
 
-    destruct c; tinv J2.
-    destruct t; tinv J2.
+    destruct castop5; tinv J2.
+    destruct typ5; tinv J2.
     simpl in *. inv Hwfc.
     remember (_const2GV TD gl vc) as R.
     destruct R as [[]|]; tinv HeqJ3.
-    destruct t0; inv HeqJ3.
+    destruct t; inv HeqJ3.
     destruct TD. inv H4.
     eapply IHvc with (ct:=typ_pointer typ1); auto.
 
@@ -1486,6 +1491,7 @@ Proof.
     assert (HwfV:=HeqR0).
     symmetry in HwfV. destruct b.
     match goal with | H5 : wf_insn _ _ _ _ _ |- _ => inv H5 end.
+    find_wf_value_list.
     eapply wf_value_list__getValueViaLabelFromValuels__wf_value in HwfV; eauto.
     remember (isPointerTypB t) as R.
     destruct R; eauto.
@@ -2829,4 +2835,3 @@ Proof.
 Qed.
 
 End SBspecPP. End SBspecPP.
-

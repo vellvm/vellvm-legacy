@@ -1365,7 +1365,7 @@ Proof.
              ({|
               Opsem.CurFunction := F;
               Opsem.CurBB := B;
-              Opsem.CurCmds := insn_alloca (PI_id pinfo) t0 v a :: cs;
+              Opsem.CurCmds := insn_alloca (PI_id pinfo) typ5 value5 align5 :: cs;
               Opsem.Terminator := tmn2;
               Opsem.Locals := lc2;
               Opsem.Allocas := als2 |} :: EC)) as Hin.
@@ -1495,7 +1495,7 @@ Proof.
   unfold in_SAS_tail.
   simpl. intros.
   destruct v; inv Hneq.
-  destruct (id_dec i0 (PI_id pinfo)); subst; inv H0.
+  destruct (id_dec id5 (PI_id pinfo)); subst; inv H0.
   destruct (@EC_follow_dead_store_dec pinfo sasinfo EC) as [J | J].
     elimtype False.
     destruct J as [J1 [J2 J3]].
@@ -2445,4 +2445,3 @@ SCase "sExCall".
 Transparent inscope_of_tmn inscope_of_cmd.
 
 Qed.
-

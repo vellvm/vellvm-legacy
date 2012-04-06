@@ -203,7 +203,7 @@ Proof.
   destruct c; auto.
   simpl in H.
   destruct (fdef_dec (PI_f pinfo) CurFunction); subst; auto.
-  destruct (id_dec i0 (SAS_sid1 pinfo sasinfo)); subst; auto.
+  destruct (id_dec id5 (SAS_sid1 pinfo sasinfo)); subst; auto.
 Qed.
 
 Lemma s_isFinialState__sas_State_simulation_r2l':
@@ -468,6 +468,7 @@ Ltac undefined_state__State_simulation_r2l_tac3 :=
     destruct ECS as [|[] ECS]; try tauto;
     destruct Hstsim as [Hstsim _];
     destruct Hstsim as [? [Htmn [? [? [H8 [? [? Hstsim]]]]]]]; subst;
+    let l5 := fresh "l5" in
     destruct H8 as [l5 [ps5 [cs5 EQ]]]; subst
   end.
 
@@ -681,7 +682,13 @@ Proof.
       undefined_state__State_simulation_r2l_tac41;
       undefined_state__d_State_simulation_r2l_tac43;
       repeat fill_ctxhole; exists gn; split; auto;
-      remember (malloc (los2, nts2) Mem0 s gn a) as R;
+      match goal with 
+        | |- context[?t] =>
+          match type of t with 
+            | option _ =>
+              remember t as R
+          end
+      end;
       destruct R as [[]|]; auto;
       symmetry in HeqR2;
       eapply mem_simulation__malloc_l2r' in HeqR2; eauto 2;
@@ -708,8 +715,14 @@ Proof.
     inv_mbind; destruct Hundef as [gvs [EQ Hundef]]; inv EQ; inv_mbind.
     undefined_state__State_simulation_r2l_tac41.
     undefined_state__d_State_simulation_r2l_tac43. 
-    repeat fill_ctxhole; exists gvs. split; auto.
-    remember (mload (los2, nts2) Mem0 gvs t a) as R.
+    repeat fill_ctxhole; exists gvs. split; auto;
+    match goal with 
+      | |- context[?t] =>
+        match type of t with 
+          | option _ =>
+            remember t as R
+        end
+    end;
     destruct R; auto.
     symmetry in HeqR1. simpl in H2.
     eapply mem_simulation__mload_l2r in HeqR1; eauto.
@@ -725,7 +738,13 @@ Proof.
     undefined_state__d_State_simulation_r2l_tac43. 
     repeat fill_ctxhole; exists gv; exists mgv.
     split; auto.
-    remember (mstore (los2, nts2) Mem0 mgv t gv a) as R.
+    match goal with 
+      | |- context[?t] =>
+        match type of t with 
+          | option _ =>
+            remember t as R
+        end
+    end;
     destruct R; auto.
     symmetry in HeqR2. simpl in H2.
     eapply mem_simulation__mstore_l2r in HeqR2; eauto.
@@ -752,10 +771,21 @@ Proof.
       erewrite TopSim.lookupExFdecViaPtr__simulation_r2l; eauto.
       simpl.
       exists l1. split; auto.
-      remember (callExternalOrIntrinsics (los2, nts2) fs2 Mem0 i1 t0 
-          (args2Typs a) d l1) as R.
+      match goal with 
+        | |- context[?t] =>
+          match type of t with 
+            | option _ =>
+              remember t as R
+          end
+      end;
       destruct R as [[[]]|]; auto.
-      remember (Opsem.exCallUpdateLocals (los2, nts2) t n i0 o Locals) as R.
+      match goal with 
+        | |- context[?t] =>
+          match type of t with 
+            | option _ =>
+              remember t as R
+          end
+      end;
       destruct R; auto.
       eapply callExternalFunction__mem_simulation_l2r in H2; eauto.
         destruct H2 as [M2' [oresult2 [tr2 [W1 [W2 [W3 W4]]]]]]; subst.
@@ -1088,4 +1118,3 @@ end.
     exists (tr**E0). exists FS1'.
     econstructor; eauto using (@OpsemProps.sop_star_trans DGVs).   
 Qed.
-

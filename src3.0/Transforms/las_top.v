@@ -250,6 +250,7 @@ Ltac undefined_state__State_simulation_r2l_tac3 :=
     destruct ECS as [|[] ECS]; try tauto;
     destruct Hstsim as [Hstsim _];
     destruct Hstsim as [? [Htmn [? [? [? [? [? Hstsim]]]]]]]; subst;
+    let l5 := fresh "l5" in
     destruct H3 as [l5 [ps5 [cs5 EQ]]]; subst
   end.
 
@@ -736,4 +737,3 @@ end.
     exists tr. exists FS1.
     econstructor; eauto.
 Qed.
-

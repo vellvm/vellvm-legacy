@@ -20,12 +20,25 @@ Require Import Kildall.
 Require Import typings.
 Require Import infrastructure_props.
 Require Import analysis.
+Require Import util.
 
 Import LLVMinfra.
 Import LLVMtd.
 Import LLVMtypings.
 Import LLVMgv.
 Import AtomSet.
+
+(* Basic inversion lemmas *)
+
+Lemma wf_value_list_cons_iff p l :
+  wf_value_list (p :: l) <->
+  wf_value_list l /\
+  let '(s, m, f, v, t) := p in wf_value s m f v t.
+Proof.
+  unfold wf_value_list; repeat rewrite <- Forall_forall; split; intros H.
+  inversion H; subst. eauto.
+  inversion H; constructor; eauto.
+Qed.
 
 (********************************************)
 (** * Inversion of well-formedness *)
@@ -112,11 +125,11 @@ Lemma entryBlock_has_no_pred: forall s m F B l0 l3 ps cs tmn
   (Hlkup: lookupBlockViaLabelFromFdef F l0 = Some B),
   False.
 Proof.
-  intros. 
+  intros.
   destruct B as [l1 ps1 cs1 tmn1].
   apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
   destruct Hlkup as [EQ HBinF']; subst.
-  destruct F as [fh bs]. 
+  destruct F as [fh bs].
   simpl in HBinF. clear HBinF'.
   eapply getEntryBlock_inv in Hentry; eauto.
 Qed.
@@ -366,7 +379,7 @@ Lemma wf_value__wf_typ : forall s los nts ps f v t,
   wf_typ s (los, nts) t /\ feasible_typ (los, nts) t.
 Proof.
   intros.
-  inv H; eauto using wf_typ__feasible_typ. 
+  inv H; eauto using wf_typ__feasible_typ.
 Qed.
 
 Lemma entryBlock_has_no_phinodes : forall s f l1 ps1 cs1 tmn1 los nts ps,
@@ -403,7 +416,7 @@ Proof.
   match goal with
   | H5: check_list_value_l _ _ _ |- _ =>
     unfold check_list_value_l in H5;
-    remember (split (unmake_list_value_l value_l_list)) as R;
+    remember (split value_l_list) as R;
     destruct R;
     destruct H5 as [J1 [J2 J3]]
   end.
@@ -425,59 +438,62 @@ Proof.
 Qed.
 
 Lemma wf_operand_list__wf_operand : forall id_list fdef5 block5 insn5 id_ n,
-  wf_operand_list (make_list_fdef_block_insn_id (map_list_id
-    (fun id_ : id => (fdef5, block5, insn5, id_)) id_list)) ->
-  nth_list_id n id_list = Some id_ ->
+  wf_operand_list
+  (List.map
+    (fun id_ : id => (fdef5, block5, insn5, id_)) id_list) ->
+  nth_error id_list n = Some id_ ->
   wf_operand fdef5 block5 insn5 id_.
 Proof.
   induction id_list; intros fdef5 block5 insn5 id_ n Hwfops Hnth.
     destruct n; inversion Hnth.
 
-    simpl in Hwfops.
-    inv Hwfops.
+    unfold wf_operand_list in *. simpl in Hwfops.
     destruct n; inv Hnth; eauto.
+      apply (Hwfops (_, _, _, _)). eauto.
+      eapply IHid_list; eauto. intros p Hp. apply Hwfops. eauto.
 Qed.
 
 Lemma wf_phi_operands__elim : forall f b i0 t0 vls0 vid1 l1 n,
   wf_phi_operands f b i0 t0 vls0 ->
-  nth_list_value_l n vls0 = Some (value_id vid1, l1) ->
+  nth_error vls0 n = Some (value_id vid1, l1) ->
   exists b1,
     lookupBlockViaLabelFromFdef f l1 = Some b1 /\
-    ((exists vb, 
+    ((exists vb,
        lookupBlockViaIDFromFdef f vid1 = Some vb /\
        (blockDominates f vb b1 \/ not (isReachableFromEntry f b))) \/
     In vid1 (getArgsIDsOfFdef f)).
 Proof.
   induction vls0; intros.
     destruct n; inversion H0.
-    destruct v; inv H; destruct n; inv H0; eauto.
+    destruct t0; inv H; destruct n; inv H0; eauto.
 Qed.
 
 Lemma wf_value_list__getValueViaLabelFromValuels__wf_value : forall
   (s : system) (m : module) (f : fdef) (l1 : l) (t0 : typ) v l2
   (H2 : wf_value_list
-         (make_list_system_module_fdef_value_typ
-            (map_list_value_l
-               (fun (value_ : value) (_ : l) => (s, m, f, value_, t0)) l2)))
+    (List.map
+      (fun (p : value * l) => 
+        let '(v, _) := p in (s, m, f, v, t0)) l2))
   (J : getValueViaLabelFromValuels l2 l1 = ret v),
   wf_value s m f v t0.
 Proof.
   intros.
   induction l2; simpl in *.
-    inversion J.
+    inversion J. destruct a.
 
-    inv H2.
+    unfold wf_value_list in *. simpl in H2.
     destruct (l0==l1); subst; eauto.
-      inv J. auto.
+      inv J. eapply (H2 (_, _, _, _, _)). auto.
+      apply IHl2; auto.
+      intros p Hp. apply H2. right. auto.
 Qed.
 
 Lemma wf_value_list__valueInListValue__wf_value : forall s m f v value_list
   (J : valueInListValue v value_list)
   (H1 : wf_value_list
-         (make_list_system_module_fdef_value_typ
-            (map_list_sz_value
-               (fun (sz_:sz) (value_ : value) =>
-                (s, m, f, value_, typ_int Size.ThirtyTwo)) value_list))),
+          (List.map
+            (fun (p : sz * value) =>
+              (s, m, f, snd p, typ_int Size.ThirtyTwo)) value_list)),
   exists t : typ, wf_value s m f v t.
 Proof.
   intros.
@@ -485,56 +501,67 @@ Proof.
   induction value_list; simpl in *.
     inversion J.
 
-    inv H1.
+    unfold wf_value_list in *. simpl in *.
     destruct J as [J | J]; subst; eauto.
+      exists (typ_int Size.ThirtyTwo).
+        apply (H1 (_, _, _, _, _)).
+        left. trivial.
+      apply IHvalue_list. trivial.
+      intros p Hp. apply H1. right. trivial.
 Qed.
 
 Lemma wf_value_list__valueInParams__wf_value : forall s m f v tv_list
   (H4 : wf_value_list
-         (make_list_system_module_fdef_value_typ
-            (map_list_typ_attributes_value
-               (fun (typ_' : typ) attr (value_'' : value) =>
-                (s, m, f, value_'', typ_')) tv_list)))
+          (List.map
+            (fun (p : typ * _ * value) =>
+              let '(typ_', attr, value_'') := p in
+                (s, m, f, value_'', typ_')) tv_list))
   (HvInOps : valueInParams v
-              (map_list_typ_attributes_value
-                 (fun (typ_' : typ) attr (value_'' : value) =>
-                  (typ_', attr, value_''))
+              (List.map
+                 (fun p : typ * _ * value =>
+                   let '(typ_', attr, value_'') := p in
+                     (typ_', attr, value_''))
                  tv_list)),
   exists t : typ, wf_value s m f v t.
 Proof.
   intros.
   unfold valueInParams in *.
   induction tv_list; simpl in *.
-    inversion HvInOps.
+    inversion HvInOps. destruct a as [[? ?] ?].
 
-    inv H4.
-    remember (split (map_list_typ_attributes_value
-                          (fun (typ_' : typ) attr (value_'' : value) =>
-                           (typ_', attr, value_'')) tv_list)) as R.
+    unfold wf_value_list in *. simpl in H4.
+    remember (split
+                (List.map
+                  (fun p : typ * _ * value =>
+                   let '(typ_', attr, value_'') := p in
+                     (typ_', attr, value_'')) tv_list)) as R.
     destruct R.
-    inv HvInOps; eauto.
+    simpl in HvInOps. destruct HvInOps.
+      subst. exists t. apply (H4 (_, _, _, _, _)). left. trivial.
+      apply IHtv_list; trivial. intros p Hp. apply H4. right. trivial.
 Qed.
 
 Lemma wf_value_list__in_params__wf_value : forall S m F tvs
   (H18: wf_value_list
-          (make_list_system_module_fdef_value_typ
-             (map_list_typ_attributes_value
-                (fun (typ_' : typ) attr (value_'' : value) =>
-                 (S, m, F, value_'', typ_'))
-                tvs)))
+          (List.map
+                (fun p : (typ * attributes * value) =>
+                  let '(typ_', attr, value_'') := p in
+                    (S, m, F, value_'', typ_'))
+                tvs))
   (t1 : typ) a1 (v1 : value),
     In (t1, a1, v1)
-     (map_list_typ_attributes_value
-        (fun (typ_' : typ) attr (value_'' : value) => (typ_', attr, value_''))
+     (List.map
+        (fun p : typ * attributes * value =>
+          let '(typ_', attr, value_'') := p in (typ_', attr, value_''))
         tvs) ->
     wf_value S m F v1 t1.
 Proof.
   induction tvs; simpl; intros.
-    inv H.
+    inv H. destruct a as [[? ?] ?].
 
-    inv H18.
     destruct H as [H | H]; eauto.
-      inv H; auto.
+      inv H. apply (H18 (_, _, _, _, _)). left. trivial.
+      eapply IHtvs; eauto. intros p Hp. apply H18. right. trivial.
 Qed.
 
 Lemma wf_cmd__wf_value : forall s m f b c v,
@@ -551,26 +578,26 @@ Proof.
     end
   ].
 
-    destruct HvInOps as [HvInOps | HvInOps]; subst; eauto.
-      eapply wf_value_list__valueInListValue__wf_value; eauto.
-
     destruct HvInOps as [HvInOps | [HvInOps | HvInOps]]; subst; eauto.
 
     destruct HvInOps as [HvInOps | HvInOps]; subst; eauto.
       eapply wf_value_list__valueInParams__wf_value; eauto.
+      unfold wf_value_list in *.
+      remove_irrelevant wf_value.
+      solve_forall_like_ind.
 Qed.
 
 Lemma wf_operand_list__elim : forall ops f1 b1 insn1 id1,
   wf_operand_list ops ->
-  In (f1, b1, insn1, id1) (unmake_list_fdef_block_insn_id ops) ->
+  In (f1, b1, insn1, id1) ops ->
   wf_operand f1 b1 insn1 id1.
 Proof.
   induction ops; intros f1 b1 insn1 id1 Hwfops Hin; simpl in *.
     inversion Hin.
 
-    inv Hwfops.
-    destruct Hin as [Hin | Hin]; auto.
-      inv Hin; auto.
+    destruct Hin as [Hin | Hin]; subst; apply (Hwfops (_, _, _, _)).
+      left. trivial.
+      right. trivial.
 Qed.
 
 Lemma wf_insn__wf_insn_base : forall s m f b insn,
@@ -587,9 +614,9 @@ Qed.
 Lemma wf_value_list__getValueViaBlockFromValuels__wf_value : forall
   (s : system)  (m : module)  (f : fdef) b (t0 : typ) v l2
   (H2 : wf_value_list
-         (make_list_system_module_fdef_value_typ
-            (map_list_value_l
-               (fun (value_ : value) (_ : l) => (s, m, f, value_, t0)) l2)))
+          (List.map
+            (fun (p : value * l) =>
+              let '(v, _) := p in (s, m, f, v, t0)) l2))
   (J : getValueViaBlockFromValuels l2 b = ret v),
   wf_value s m f v t0.
 Proof.
@@ -613,23 +640,25 @@ Qed.
 
 Lemma wf_typ_list__in_args__wf_typ : forall s td typ_attributes_id_list
   (H18: wf_typ_list
-          (make_list_system_targetdata_typ
-             (map_list_typ_attributes_id
-                (fun (typ_ : typ) (_ : attributes) (_ : id) => (s, td, typ_))
-                typ_attributes_id_list)))
+          (List.map
+            (fun (p : typ * attributes * id) =>
+              let '(t, _, _) := p in (s, td, t)) typ_attributes_id_list))
   t a i0,
     In (t, a, i0)
-       (map_list_typ_attributes_id
-         (fun (typ_ : typ) (attributes_ : attributes) (id_ : id) =>
-          (typ_, attributes_, id_)) typ_attributes_id_list) ->
+       (List.map
+         (fun p : typ * attributes * id =>
+           let '(typ_, attributes_, id_) := p in
+             (typ_, attributes_, id_)) typ_attributes_id_list) ->
     wf_typ s td t.
 Proof.
   induction typ_attributes_id_list; simpl; intros.
     inv H.
 
-    inv H18.
+    destruct a as [[? ?] ?].
     destruct H as [H | H]; eauto.
-      inv H; auto.
+      inv H. apply (H18 (_, _, _)). left. trivial.
+      eapply IHtyp_attributes_id_list; eauto.
+      intros p Hp. apply H18. right. trivial.
 Qed.
 
 Lemma wf_trunc__wf_typ : forall s los nts ps f b i0 t t0 v t1
@@ -638,7 +667,7 @@ Lemma wf_trunc__wf_typ : forall s los nts ps f b i0 t t0 v t1
   wf_typ s (los, nts) t1 /\ feasible_typ (los, nts) t1.
 Proof.
   intros.
-  inv H; eauto using wf_typ__feasible_typ. 
+  inv H; eauto using wf_typ__feasible_typ.
 Qed.
 
 Lemma wf_trunc__wf_value : forall s los nts ps f b i0 t t0 v t1
@@ -656,7 +685,7 @@ Lemma wf_ext__wf_typ : forall s los nts ps f b i0 e t0 v t1
   wf_typ s (los, nts) t1 /\ feasible_typ (los, nts) t1.
 Proof.
   intros.
-  inv H; eauto using wf_typ__feasible_typ. 
+  inv H; eauto using wf_typ__feasible_typ.
 Qed.
 
 Lemma wf_ext__wf_value : forall s los nts ps f b i0 e t0 v t1
@@ -2494,13 +2523,15 @@ Proof.
     inv Hwfi. simpl in *.
     apply In_list_prj1__getValueViaLabelFromValuels in HvInOps.
       destruct HvInOps as [l1 HvInOps].
+
+      find_wf_value_list.
       eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H0; eauto.
 
       match goal with
       | H9: _ /\ check_list_value_l _ _ _ |- _ =>
         destruct H9 as [_ H5];
         unfold check_list_value_l in H5;
-        remember (split (unmake_list_value_l value_l_list)) as R;
+        remember (split value_l_list) as R;
         destruct R;
         destruct H5 as [_ [_ H5]]; auto
       end.
@@ -2547,42 +2578,18 @@ Proof.
     apply wf_fdef__wf_tmn; auto.
 Qed.
 
-(*
-Lemma wf_styp_independent :
-  forall (sys1 sys2 : system) td (t : typ),
-    wf_styp sys1 td t -> wf_styp sys2 td t.
-Proof.
-  intros sys1 sys2 td.
-  set (P  := fun t => wf_styp sys1 td t -> wf_styp sys2 td t).
-  set (Pl := fun (sys : system) ts =>
-    wf_styp_list 
-      (make_list_system_targetdata_typ 
-        (map_list_typ (fun t => (sys, td, t)) ts))).
-  set (Pls := fun ts => Pl sys1 ts -> Pl sys2 ts).
-  apply (typ_ind2 P Pls); subst P Pl Pls; simpl;
-    [intros t H|intros t H|intros H|intros H|intros H|
-      intros sz t IH H|intros t IH l Hl v H|intros l Hl H|
-        intros t IH H|intros i H|intros H|intros t IH l IHl H];
-    try (inversion H; subst; constructor; auto);
-    try (apply IH; auto).
-
-  apply wf_styp_namedt with (lookupTypViaTIDFromSystem sys2 i); trivial.
-Qed.
-*)
-
 Definition wf_list_targetdata_typ (S:system) (TD:targetdata) gl lsd :=
   forall S1 TD1, In (S1,TD1) lsd -> wf_global TD S1 gl /\ S = S1 /\ TD = TD1.
 
-Lemma const2GV_typsize_mutind_array : forall const_list system5 typ5 
-  (los : list layout) (nts : list namedt) gl 
+Lemma const2GV_typsize_mutind_array : forall const_list system5
+  (typ5 : typ)
+  (los : list layout) (nts : list namedt) gl
   (lsdc : list (system * targetdata * const)) lt
   (HeqR0 : (lsdc, lt) =
           split
-            (unmake_list_system_targetdata_const_typ
-               (make_list_system_targetdata_const_typ
-                  (map_list_const
-                     (fun const_ : const =>
-                      (system5, (los, nts), const_, typ5)) const_list))))
+            (List.map
+              (fun const_ : const =>
+                (system5, (los, nts), const_, typ5)) const_list))
   (lsd : list (system * targetdata)) lc
   (HeqR' : (lsd, lc) = split lsdc)
   ls (ld : list targetdata)
@@ -2600,32 +2607,14 @@ Proof.
   generalize dependent lsd.
   induction const_list; intros; simpl in *.
     inv HeqR0. inv HeqR'. inv H.
-    
-    remember (@split (prod (prod system targetdata) const) typ
-                (unmake_list_system_targetdata_const_typ
-                   (make_list_system_targetdata_const_typ
-                      (@map_list_const
-                         (prod
-                            (prod
-                               (prod system
-                                  (prod (list layout) (list namedt))) const)
-                            typ)
-                         (fun const_ : const =>
-                          @pair
-                            (prod
-                               (prod system
-                                  (prod (list layout) (list namedt))) const)
-                            typ
-                            (@pair
-                               (prod system
-                                  (prod (list layout) (list namedt))) const
-                               (@pair system
-                                  (prod (list layout) (list namedt)) system5
-                                  (@pair (list layout) (list namedt) los nts))
-                               const_) typ5) const_list)))) as R.
+
+    remember (split
+                 (List.map
+                    (fun const_ : const =>
+                     (system5, (los, nts), const_, typ5)) const_list)) as R.
     destruct R.
     inv HeqR0. simpl in HeqR'.
-    remember (split l0) as R1.
+    remember (@split (system * targetdata) _ l0) as R1.
     destruct R1.
     inv HeqR'. simpl in HeqR''.
     remember (split l2) as R2.
@@ -2639,11 +2628,10 @@ Lemma const2GV_typsize_mutind_struct : forall const_typ_list system5 los nts gl
   lsdc lt
   (HeqR : (lsdc, lt) =
          split
-           (unmake_list_system_targetdata_const_typ
-              (make_list_system_targetdata_const_typ
-                 (map_list_const_typ
-                    (fun (const_ : const) (typ_ : typ) =>
-                     (system5, (los, nts), const_, typ_)) const_typ_list))))
+           (List.map
+             (fun (p : const * typ) =>
+               let '(c, t) := p in
+               (system5, (los, nts), c, t)) const_typ_list))
   lsd lc
   (HeqR' : (lsd, lc) = split lsdc)
   (H3 : wf_global (los, nts) system5 gl),
@@ -2658,19 +2646,12 @@ Proof.
     inv HeqR. simpl in HeqR'. inv HeqR'.
     unfold wf_list_targetdata_typ.
     intros S TD Hin. inversion Hin.
-    
-    remember (split
-              (unmake_list_system_targetdata_const_typ
-                 (make_list_system_targetdata_const_typ
-                    (map_list_const_typ
-                       (fun (const_ : const) (typ_ : typ) =>
-                        (system5, (los, nts), const_, typ_))
-                       const_typ_list)))) as R1. 
-    destruct R1. inv HeqR. simpl in HeqR'.
-    remember (split l0) as R2.
-    destruct R2. inv HeqR'.
+
+    destruct a. simpl_split lsdc' lt'.
+    inv HeqR. simpl in HeqR'. 
+    simpl_split lsd' lc'. inv HeqR'.
     unfold wf_list_targetdata_typ in *.
-    intros S TD Hin. 
+    intros S TD Hin.
     simpl in Hin.
     destruct Hin as [Hin | Hin]; eauto.
       inv Hin. split; auto.
@@ -2680,30 +2661,29 @@ Lemma wf_list_targetdata_typ_cons_inv : forall S TD gl S'  TD' lsd,
   wf_list_targetdata_typ S TD gl ((S', TD') :: lsd) ->
   wf_list_targetdata_typ S TD gl lsd /\ S' = S /\ TD' = TD /\ wf_global TD S gl.
 Proof.
-  intros. 
+  intros.
   unfold wf_list_targetdata_typ in *.
   assert (In (S', TD') ((S', TD') :: lsd)) as J. simpl. auto.
-  apply H in J. 
+  apply H in J.
   destruct J as [J1 [J2 J3]]; subst.
   split.
-    intros S1 TD1 Hin.    
+    intros S1 TD1 Hin.
     apply H. simpl. auto.
   split; auto.
 Qed.
- 
+
 Definition wf_list_targetdata_typ' (S:system) (TD:targetdata) lsd :=
   forall S1 TD1, In (S1,TD1) lsd -> S = S1 /\ TD = TD1.
 
-Lemma const2GV_typsize_mutind_array' : forall const_list system5 typ5 
-  (los : list layout) (nts : list namedt)  
+Lemma const2GV_typsize_mutind_array' : forall const_list system5
+  (typ5 : typ)
+  (los : list layout) (nts : list namedt)
   (lsdc : list (system * targetdata * const)) lt
   (HeqR0 : (lsdc, lt) =
           split
-            (unmake_list_system_targetdata_const_typ
-               (make_list_system_targetdata_const_typ
-                  (map_list_const
-                     (fun const_ : const =>
-                      (system5, (los, nts), const_, typ5)) const_list))))
+            (List.map
+              (fun const_ : const =>
+                (system5, (los, nts), const_, typ5)) const_list))
   (lsd : list (system * targetdata)) lc
   (HeqR' : (lsd, lc) = split lsdc)
   ls (ld : list targetdata)
@@ -2720,32 +2700,14 @@ Proof.
   generalize dependent lsd.
   induction const_list; intros; simpl in *.
     inv HeqR0. inv HeqR'. inv H.
-    
-    remember (@split (prod (prod system targetdata) const) typ
-                (unmake_list_system_targetdata_const_typ
-                   (make_list_system_targetdata_const_typ
-                      (@map_list_const
-                         (prod
-                            (prod
-                               (prod system
-                                  (prod (list layout) (list namedt))) const)
-                            typ)
-                         (fun const_ : const =>
-                          @pair
-                            (prod
-                               (prod system
-                                  (prod (list layout) (list namedt))) const)
-                            typ
-                            (@pair
-                               (prod system
-                                  (prod (list layout) (list namedt))) const
-                               (@pair system
-                                  (prod (list layout) (list namedt)) system5
-                                  (@pair (list layout) (list namedt) los nts))
-                               const_) typ5) const_list)))) as R.
+
+    remember (split
+                 (List.map
+                    (fun const_ : const =>
+                     (system5, (los, nts), const_, typ5)) const_list)) as R.
     destruct R.
     inv HeqR0. simpl in HeqR'.
-    remember (split l0) as R1.
+    remember (@split (system * targetdata) _ l0) as R1.
     destruct R1.
     inv HeqR'. simpl in HeqR''.
     remember (split l2) as R2.
@@ -2759,11 +2721,10 @@ Lemma const2GV_typsize_mutind_struct' : forall const_typ_list system5 los nts
   lsdc lt
   (HeqR : (lsdc, lt) =
          split
-           (unmake_list_system_targetdata_const_typ
-              (make_list_system_targetdata_const_typ
-                 (map_list_const_typ
-                    (fun (const_ : const) (typ_ : typ) =>
-                     (system5, (los, nts), const_, typ_)) const_typ_list))))
+           (List.map
+             (fun (p : const * typ) =>
+               let '(c, t) := p in
+                 (system5, (los, nts), c, t)) const_typ_list))
   lsd lc
   (HeqR' : (lsd, lc) = split lsdc),
   wf_list_targetdata_typ' system5 (los, nts) lsd.
@@ -2773,23 +2734,15 @@ Proof.
   generalize dependent lt.
   generalize dependent lc.
   generalize dependent lsd.
-  induction const_typ_list; simpl; intros.
+  induction const_typ_list as [|[? ?] l]; simpl; intros.
     inv HeqR. simpl in HeqR'. inv HeqR'.
     unfold wf_list_targetdata_typ.
     intros S TD Hin. inversion Hin.
-    
-    remember (split
-              (unmake_list_system_targetdata_const_typ
-                 (make_list_system_targetdata_const_typ
-                    (map_list_const_typ
-                       (fun (const_ : const) (typ_ : typ) =>
-                        (system5, (los, nts), const_, typ_))
-                       const_typ_list)))) as R1. 
-    destruct R1. inv HeqR. simpl in HeqR'.
-    remember (split l0) as R2.
-    destruct R2. inv HeqR'.
+
+    simpl_split. inv HeqR. simpl in *. 
+    simpl_split. inv HeqR'.
     unfold wf_list_targetdata_typ' in *.
-    intros S TD Hin. 
+    intros S TD Hin.
     simpl in Hin.
     destruct Hin as [Hin | Hin]; eauto.
       inv Hin. split; auto.
@@ -2799,40 +2752,32 @@ Lemma wf_list_targetdata_typ_cons_inv' : forall S TD S'  TD' lsd,
   wf_list_targetdata_typ' S TD ((S', TD') :: lsd) ->
   wf_list_targetdata_typ' S TD lsd /\ S' = S /\ TD' = TD.
 Proof.
-  intros. 
+  intros.
   unfold wf_list_targetdata_typ' in *.
   assert (In (S', TD') ((S', TD') :: lsd)) as J. simpl. auto.
-  apply H in J. 
+  apply H in J.
   destruct J as [J1 J2]; subst.
   split.
-    intros S1 TD1 Hin.    
+    intros S1 TD1 Hin.
     apply H. simpl. auto.
   split; auto.
 Qed.
 
-Lemma wf_value_list__nth_list_value_l__wf_value : forall
-  (s : system) (m : module) (f : fdef) (l1 : l) (t0 : typ) v n l2
-  (H2 : wf_value_list
-         (make_list_system_module_fdef_value_typ
-            (map_list_value_l
-               (fun (value_ : value) (_ : l) => (s, m, f, value_, t0)) l2)))
-  lv (J : nth_list_value_l n l2 = ret (v, lv)),
-  wf_value s m f v t0.
-Proof.
-  induction n; simpl; intros.
-    destruct l2; inv J. inv H2. auto.
-
-    destruct l2; tinv J. inv H2. eauto.
-Qed.
-
 Lemma wf_phinodes__nth_list_value_l__wf_value: forall s m f b ps id1 t1 vls1
   n v lv (Hwfps: wf_phinodes s m f b ps) (Hin: In (insn_phi id1 t1 vls1) ps)
-  (Hnth: nth_list_value_l n vls1 = Some (v, lv)),
+  (Hnth: nth_error vls1 n = Some (v, lv)),
   wf_value s m f v t1.
 Proof.
   intros.
   eapply wf_phinodes__wf_phinode in Hwfps; eauto. inv Hwfps.
-  eapply wf_value_list__nth_list_value_l__wf_value in Hnth; eauto.
+  clear H10 H11 Hin.
+  generalize dependent vls1.
+  induction n as [|n]; simpl; intros; auto.
+    destruct vls1 as [|[val l0] vls1]; inv Hnth.
+      apply H2. left. trivial.
+    destruct vls1 as [|[vla l0] vls1]; inv Hnth.
+      apply IHn with vls1; auto.
+      intros v' Hv'. apply H2. right. trivial.
 Qed.
 
 Lemma block_in_scope__strict: forall (l' : l) (ps' : phinodes) (cs' : cmds)
@@ -2865,7 +2810,7 @@ Proof.
   apply destruct_insnInFdefBlockB in Hlkup.
   destruct Hlkup as [J1 J2].
   destruct b.
-  destruct instr. 
+  destruct instr.
     contradict HnPhi. constructor.
 
     apply InCmdsB_in in J1.
@@ -2887,22 +2832,23 @@ Proof.
     intro. inv H1.
 Qed.
 
-Lemma in_unmake_list_id__nth_list_id: forall i0 tl hd id_list 
-  (H1 : hd ++ i0 :: tl  = unmake_list_id id_list),
-  exists n : nat, nth_list_id n id_list = ret i0.
+Lemma in_unmake_list_id__nth_list_id: forall i0 tl hd
+  (id_list : list id)
+  (H1 : hd ++ i0 :: tl  = id_list),
+  exists n : nat, nth_error id_list n = ret i0.
 Proof.
   induction hd; simpl; intros.
     exists 0%nat. destruct id_list; inv H1. simpl. auto.
-    
-    destruct id_list; inv H1. 
-    apply IHhd in H2. destruct H2 as [n H2].
-    exists (S n). simpl. auto.
+
+    destruct id_list; inversion H1.
+    edestruct IHhd as [n H]; eauto.
+    exists (S n). simpl. subst. auto.
 Qed.
 
-Lemma values2ids__nth_list_id: forall (i0 : id) (id_list : list_id) l0 hd  
+Lemma values2ids__nth_list_id: forall (i0 : id) (id_list : list id) l0 hd
   (i3 : In i0 (values2ids l0))
-  (H1 : hd ++ values2ids l0 = unmake_list_id id_list),
-  exists n : nat, nth_list_id n id_list = ret i0.
+  (H1 : hd ++ values2ids l0 = id_list),
+  exists n : nat, nth_error id_list n = ret i0.
 Proof.
   induction l0; simpl; intros.
     tauto.
@@ -2910,18 +2856,19 @@ Proof.
     destruct a.
       simpl in i3.
       destruct i3 as [EQ | Hin]; subst.
-        eapply in_unmake_list_id__nth_list_id; eauto.        
+        eapply in_unmake_list_id__nth_list_id; eauto.
 
-        apply IHl0 with (hd:=hd++[i1]); auto.
+        apply IHl0 with (hd0:=hd++[id5]); auto.
         simpl_env. simpl. auto.
 
       apply IHl0 with (hd:=hd); auto.
 Qed.
 
-Lemma getParamsOperand__nth_list_id: forall (i0 : id) (id_list : list_id) p hd  
+Lemma getParamsOperand__nth_list_id: forall (i0 : id)
+  (id_list : list id) p hd
   (i3 : In i0 (getParamsOperand p))
-  (H1 : hd ++ getParamsOperand p = unmake_list_id id_list),
-  exists n : nat, nth_list_id n id_list = ret i0.
+  (H1 : hd ++ getParamsOperand p = id_list),
+  exists n : nat, nth_error id_list n = ret i0.
 Proof.
   unfold getParamsOperand.
   intros. destruct (split p).
@@ -2930,52 +2877,32 @@ Qed.
 
 Lemma getCmdOperands__nth_list_id : forall i0 c1 id_list
   (i1 : In i0 (getCmdOperands c1))
-  (H1 : getInsnOperands (insn_cmd c1) = unmake_list_id id_list),
-  exists n : nat, nth_list_id n id_list = ret i0.
+  (H1 : getInsnOperands (insn_cmd c1) = id_list),
+  exists n : nat, nth_error id_list n = ret i0.
 Proof.
 
-Ltac tac1 := match goal with
-| H1: _ :: _ = unmake_list_id ?id_list |- _ =>
-    destruct id_list; inv H1; auto
-end.
+intros i c id_list Hin Heq. subst id_list.
 
-Ltac tac2 := match goal with
-| H1: ?i1 :: ?i2 :: ?i0 :: _ = unmake_list_id ?id_list |- 
-  exists _:_, nth_list_id _ ?id_list = Some ?i0 =>
-  exists 2%nat; repeat tac1
-| H1: ?i1 :: ?i0 :: _ = unmake_list_id ?id_list |- 
-  exists _:_, nth_list_id _ ?id_list = Some ?i0 =>
-  exists 1%nat; repeat tac1
-| H1: ?i0 :: _ = unmake_list_id ?id_list |- 
-  exists _:_, nth_list_id _ ?id_list = Some ?i0 =>
-  exists 0%nat; repeat tac1
-end.
-
-Ltac tac3 := match goal with
-| i2: ?i1 = ?i0 \/ _,
-  H1: _ :: _ = unmake_list_id ?id_list |- 
-  exists _:_, nth_list_id _ ?id_list = Some ?i0 =>
-  destruct i2 as [Heq | i2]; subst; try solve [tac2 | tauto]
-end.
-
-  destruct c1; simpl; intros;
-    unfold getValueIDs in H1;
-    repeat match goal with
-    | v:value |- _ => destruct v 
-    end;
-    simpl in *; try solve [repeat tac3 | tauto].
-
-    destruct i3 as [Heq | i3]; subst.
-      exists 0%nat. destruct id_list; inv H1; auto.
-      simpl_env in H1. eapply values2ids__nth_list_id; eauto.
-
-    eapply values2ids__nth_list_id with (hd:=nil); eauto.
-
-    destruct i2 as [Heq | i2]; subst.
-      exists 0%nat. destruct id_list; inv H1; auto.
-      simpl_env in H1. eapply getParamsOperand__nth_list_id; eauto.
-
-    eapply getParamsOperand__nth_list_id with (hd:=nil); eauto.
+destruct c; simpl; intros; unfold getValueIDs in *;
+repeat match goal with
+         | v:value |- _ => destruct v
+       end;
+simpl in *;
+repeat match goal with
+         | H : _ \/ _ |- _ => destruct H
+         | H : False |- _ => contradict H
+       end;
+subst;
+try solve [
+  exists 0%nat; trivial |
+  exists 1%nat; trivial |
+  exists 2%nat; trivial ];
+try match goal with
+      | H : In _ _ |- _ =>
+        rewrite nth_error_in in H;
+        destruct H as [n Hn];
+        solve [ exists n; trivial | exists (S n); trivial ]
+    end.
 Qed.
 
 Lemma in_getArgsIDsOfFdef__inscope_of_tmn: forall defs f b tmn id1
@@ -2985,7 +2912,7 @@ Proof.
   intros. destruct b as [l1 ? ? ?].
   unfold inscope_of_tmn in Hinscope.
   remember ((dom_analyze f) !! l1) as R.
-  destruct R. 
+  destruct R.
   apply fold_left__spec in Hinscope.
   destruct Hinscope as [Hinscope _].
   apply Hinscope. solve_in_list.
@@ -3007,7 +2934,7 @@ Proof.
   intros. destruct b as [l1 ? ? ?].
   unfold inscope_of_id in Hinscope.
   remember ((dom_analyze f) !! l1) as R.
-  destruct R. 
+  destruct R.
   apply fold_left__spec in Hinscope.
   destruct Hinscope as [Hinscope _].
   apply Hinscope. apply in_getArgsIDsOfFdef__init_scope; auto.
@@ -3020,13 +2947,13 @@ Proof.
   intros. destruct b as [l1 ? ? ?].
   unfold inscope_of_cmd, inscope_of_id in Hinscope.
   remember ((dom_analyze f) !! l1) as R.
-  destruct R. 
+  destruct R.
   apply fold_left__spec in Hinscope.
   destruct Hinscope as [Hinscope _].
   apply Hinscope. apply in_getArgsIDsOfFdef__init_scope; auto.
 Qed.
 
-Lemma operands_of_cmd__cannot_be__phis_that_cmd_doms: forall (l' : l) 
+Lemma operands_of_cmd__cannot_be__phis_that_cmd_doms: forall (l' : l)
   (ps' : phinodes) (cs' : cmds) (F : fdef) (tmn' : terminator) (b : block)
   (Hreach' : isReachableFromEntry F (block_intro l' ps' cs' tmn')) s m
   (Hlkup : ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l')
@@ -3036,7 +2963,7 @@ Lemma operands_of_cmd__cannot_be__phis_that_cmd_doms: forall (l' : l)
                  DomDS.L.bs_bound := inbound' |} = (dom_analyze F) !! l')
   (Hinscope : fold_left (inscope_of_block F l') contents'
                (ret (getPhiNodesIDs ps' ++ getArgsIDsOfFdef F)) = ret ids0')
-  (id1 : atom) (Hid1 : In id1 ids0') 
+  (id1 : atom) (Hid1 : In id1 ids0')
   (Hnotin' : ~ In id1 (getPhiNodesIDs ps' ++ getArgsIDsOfFdef F))
   (i0 : atom) (HeqR1' : In i0 (getPhiNodesIDs ps')) (c1 : cmd)
   (Hlkc1 : lookupInsnViaIDFromFdef F id1 = ret insn_cmd c1)
@@ -3050,10 +2977,10 @@ Proof.
     eapply wf_fdef__wf_insn_base; eauto.
   destruct HwfI as [b1 HwfI].
   inv HwfI.
-  assert (exists n, nth_list_id n id_list = Some i0) as Hnth.
+  assert (exists n, nth_error id_list n = Some i0) as Hnth.
     eapply getCmdOperands__nth_list_id; eauto.
   destruct Hnth as [n Hnth].
-  eapply wf_operand_list__wf_operand in Hnth; eauto.
+  apply (wf_operand_list__wf_operand _ F b1 (insn_cmd c1)) in Hnth.
   inv Hnth.
   match goal with
   | H10: (exists _:_, _) \/ In _ (getArgsIDsOfFdef _) |- _ =>
@@ -3088,6 +3015,10 @@ Proof.
       solve_blockInFdefB.
     eapply getBlocksLocs__notin__getArgsIDs in HBinF; eauto.
     solve_in_list.
+  Case "wf_operand".
+    unfold wf_operand_list.
+    remove_irrelevant wf_operand.
+    solve_forall_like_ind.
 Qed.
 
 Lemma isReachableFromEntry_successors : forall f l3 ps cs tmn l' b'
@@ -3102,7 +3033,7 @@ Proof.
   unfold isReachableFromEntry in *. destruct b'.
   apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
   destruct Hlkup as [Hlkup _]. subst.
-  eapply reachable_successors; eauto. 
+  eapply reachable_successors; eauto.
 Qed.
 
 Lemma strict_operands__in_scope: forall f (l1 : l) (ps1 : phinodes)
@@ -3120,7 +3051,7 @@ Lemma strict_operands__in_scope: forall f (l1 : l) (ps1 : phinodes)
   (HwfF : wf_fdef s m f) (Huniq: uniqFdef f) instr
   (HinOps : In id1 (getInsnOperands instr))
   (H:insnInFdefBlockB instr f (block_intro l1 ps1 cs1 tmn1) = true)
-  (block' : block) 
+  (block' : block)
   (H4 : lookupBlockViaIDFromFdef f id1 = ret block')
   (J': blockStrictDominates f block' (block_intro l1 ps1 cs1 tmn1)),
   In id1 defs.
@@ -3129,17 +3060,19 @@ Proof.
   unfold blockStrictDominates in J'.
   rewrite <- HeqR in J'.
   destruct block'.
-  assert (In l0 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as J.
+  assert (In l5 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as J.
     simpl in Hreach.
     apply insnInFdefBlockB__blockInFdefB in H.
-    eapply sdom_isnt_refl with (l':=l0) in Hreach; eauto.
+    eapply sdom_isnt_refl with (l':=l5) in Hreach; eauto.
       apply ListSet.set_diff_intro; auto.
       simpl. intro J. destruct J as [J | J]; auto.
       rewrite <- HeqR. simpl. auto.
-  assert (lookupBlockViaLabelFromFdef f l0 = ret block_intro l0 p c t) as J1.
+  assert (lookupBlockViaLabelFromFdef f l5 = 
+    ret block_intro l5 phinodes5 cmds5 terminator5) as J1.
      apply blockInFdefB_lookupBlockViaLabelFromFdef; auto.
      eapply lookupBlockViaIDFromFdef__blockInFdefB; eauto.
-  apply Hinscope with (b1:=block_intro l0 p c t) in J; auto.
+  apply Hinscope with
+    (b1:=block_intro l5 phinodes5 cmds5 terminator5) in J; auto.
     apply J.
     eapply lookupBlockViaIDFromFdef__InGetBlockIDs; eauto.
 Qed.
@@ -3177,7 +3110,7 @@ Proof.
     destruct Hinscope as [Hinscope _].
     apply Hinscope.
     eapply insnDominates_spec6; eauto.
-  
+
     SCase "blkDom".
     destruct Hinscope as [_ [Hinscope _]].
     eapply strict_operands__in_scope; eauto.
@@ -3185,7 +3118,7 @@ Proof.
     eapply in_getArgsIDsOfFdef__inscope_of_tmn; eauto.
 Qed.
 
-Lemma cmd_operands__in_scope: forall (f : fdef) (b : block) (c : cmd) 
+Lemma cmd_operands__in_scope: forall (f : fdef) (b : block) (c : cmd)
   (defs : list atom) (id1 : id) (Hnodup : NoDup (getBlockLocs b))
   (Hreach : isReachableFromEntry f b)
   (Hinscope : ret defs = inscope_of_cmd f b c)
@@ -3204,14 +3137,14 @@ Proof.
   Case "id1 isnt args".
   unfold inscope_of_cmd, inscope_of_id in Hinscope.
   destruct b. destruct f as [[f t0 i0 a v] b].
-  remember ((dom_analyze (fdef_intro (fheader_intro f t0 i0 a v) b)) !! l0) as R.
+  remember ((dom_analyze (fdef_intro (fheader_intro f t0 i0 a v) b)) !! l5) as R.
   destruct R.
   symmetry in Hinscope.
-  assert (~ In (getCmdLoc c) (getPhiNodesIDs p)) as Hnotin.
+  assert (~ In (getCmdLoc c) (getPhiNodesIDs phinodes5)) as Hnotin.
     simpl in Hnodup.
     eapply NoDup_disjoint; eauto.
     apply destruct_insnInFdefBlockB in H.
-    destruct H. simpl in H.          
+    destruct H. simpl in H.
     solve_in_list.
   apply fold_left__spec in Hinscope.
   match goal with
@@ -3228,7 +3161,7 @@ Proof.
       ; subst.
       SSCase "p >> ".
         solve_in_list.
-  
+
       SSCase "c >> ".
       clear - J2 Hnodup.
       apply in_or_app. right.
@@ -3241,7 +3174,7 @@ Proof.
         rewrite_env ((cs1 ++ c1' :: cs2) ++ c :: cs3) in Hnodup.
         apply NoDup__In_cmds_dominates_cmd; auto.
           solve_in_list.
-  
+
     SCase "blkDom".
     destruct Hinscope as [_ [Hinscope _]].
     eapply strict_operands__in_scope; eauto.
@@ -3253,19 +3186,18 @@ Lemma cmd_doesnt_use_self: forall (F1 : fdef) (l3 : l) (ps1 : phinodes)
   (cs : list cmd) (tmn1 : terminator)
   (Hreach : isReachableFromEntry F1 (block_intro l3 ps1 cs tmn1))
   (HBinF1 : blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true) s m
-  (HwfF1 : wf_fdef s m F1) (Huniq: uniqFdef F1) (c1 : cmd) (b1 : block) 
-  (id_list : list_id)
+  (HwfF1 : wf_fdef s m F1) (Huniq: uniqFdef F1) (c1 : cmd) (b1 : block)
+  (id_list : list id)
   (H : insnInFdefBlockB (insn_cmd c1) F1 b1 = true)
   (H2 : wf_operand_list
-         (make_list_fdef_block_insn_id
-            (map_list_id (fun id_ : id => (F1, b1, insn_cmd c1, id_)) id_list)))
-  (H1 : getInsnOperands (insn_cmd c1) = unmake_list_id id_list)
+          (List.map (fun id_ : id => (F1, b1, insn_cmd c1, id_)) id_list))
+  (H1 : getInsnOperands (insn_cmd c1) = id_list)
   (Hreach': isReachableFromEntry F1 b1),
   ~ In (getCmdLoc c1) (getCmdOperands c1).
 Proof.
   intros.
   destruct (in_dec id_dec (getCmdLoc c1) (getCmdOperands c1)); auto.
-  assert (exists n, nth_list_id n id_list = Some (getCmdLoc c1)) as Hnth.
+  assert (exists n, nth_error id_list n = Some (getCmdLoc c1)) as Hnth.
     eapply getCmdOperands__nth_list_id; eauto.
   destruct Hnth as [n Hnth].
   eapply wf_operand_list__wf_operand in Hnth; eauto.
@@ -3280,7 +3212,7 @@ Proof.
   subst.
   match goal with
   | H7: _ \/ _ \/ _ |- _ =>
-    destruct H7 as [H7 | [H7 | H7]]; auto; contradict H7 
+    destruct H7 as [H7 | [H7 | H7]]; auto; contradict H7
   end.
     SCase "insnDom".
        assert (H':=H).
@@ -3307,9 +3239,15 @@ Proof.
   revert H0. destruct b.
   eapply cmd_doesnt_use_self; eauto.
     solve_blockInFdefB.
+  unfold wf_operand_list.
+  remove_irrelevant wf_operand.
+  generalize H8.
+  generalize (getInsnOperands (insn_cmd c0)).
+  clear H8. intros is H. unfold ids in *.
+  solve_forall_like_ind.
 Qed.
 
-Lemma c1_in_scope_of_c2__c1_insnDominates_c2: forall (ids1 : list atom) 
+Lemma c1_in_scope_of_c2__c1_insnDominates_c2: forall (ids1 : list atom)
   (F1 : fdef) (c : cmd) s m (HwfF1 : wf_fdef s m F1) (Huniq: uniqFdef F1)
   (bs_contents : ListSet.set atom)
   (c1 : cmd) (Hin : In (getCmdLoc c1) ids1) (l0 : l) (p : phinodes) (c0 : cmds)
@@ -3337,21 +3275,21 @@ Proof.
       solve_in_list.
     clear Hin.
     assert (getCmdID c1 <> None) as foo.
-      eapply In_cmds_dominates_cmd_fdef__getCmdID_eq_getCmdLoc 
+      eapply In_cmds_dominates_cmd_fdef__getCmdID_eq_getCmdLoc
         with (id0:=getCmdLoc c) in H; eauto.
         congruence.
     eapply cmds_dominates_cmd__insnDominates; eauto.
 
   SSCase "2".
     destruct b1.
-    assert (l1 = l2) as EQ.
+    assert (l1 = l5) as EQ.
       apply lookupBlockViaLabelFromFdef_inv in J2; auto.
       destruct J2; auto.
     subst.
     eapply lookupBlockViaLabelFromFdef__lookupBlockViaIDFromFdef in J2;
       eauto.
     assert (getCmdID c1 <> None) as foo.
-      eapply lookupInsnViaIDFromFdef_lookupBlockViaIDFromFdef__getInsnID 
+      eapply lookupInsnViaIDFromFdef_lookupBlockViaIDFromFdef__getInsnID
         with (insn1:=insn_cmd c1) in J3; eauto.
         simpl in J3. congruence.
 
@@ -3399,22 +3337,22 @@ Proof.
         assert (block_intro l0 p c0 t = block_intro l3 ps1 cs tmn1) as EQ.
           eapply insnInFdefBlockB__lookupBlockViaIDFromFdef__eq; eauto.
         inv EQ.
-        eapply In_cmds_dominates_cmd_fdef__getCmdID_eq_getCmdLoc 
+        eapply In_cmds_dominates_cmd_fdef__getCmdID_eq_getCmdLoc
           with (id0:=getCmdLoc c) in H0; eauto.
       apply insnInFdefBlockB__lookupBlockViaIDFromFdef in H0; auto.
       simpl in H0. rewrite H0 in HBinF1. inv HBinF1. congruence.
       simpl.
       eapply cmds_dominates_cmd_spec' with (id0:=getCmdLoc c); eauto.
-  
+
     destruct b1.
-    assert (l1 = l2) as EQ.
+    assert (l1 = l5) as EQ.
       apply lookupBlockViaLabelFromFdef_inv in J2; auto.
       destruct J2; auto.
     subst.
     eapply lookupBlockViaLabelFromFdef__lookupBlockViaIDFromFdef in J2;
       eauto.
     assert (getCmdID c1 <> None) as foo.
-      eapply lookupInsnViaIDFromFdef_lookupBlockViaIDFromFdef__getInsnID 
+      eapply lookupInsnViaIDFromFdef_lookupBlockViaIDFromFdef__getInsnID
         with (insn1:=insn_cmd c1) in J2; eauto.
         simpl in J2. congruence.
 
@@ -3436,18 +3374,17 @@ Lemma cmd_doesnt_use_nondom_operands: forall (ids1 : list atom)
   (HcInB : cmdInBlockB c B1 = true)
   (HInscope : ret ids1 = inscope_of_id F1 B1 (getCmdLoc c))
   (c1 : cmd) (Hin : In (getCmdLoc c1) ids1)
-  (b1 : block) (id_list : list_id)
+  (b1 : block) (id_list : list id)
   (H : insnInFdefBlockB (insn_cmd c1) F1 b1 = true)
   (H2 : wf_operand_list
-         (make_list_fdef_block_insn_id
-            (map_list_id (fun id_ : id => (F1, b1, insn_cmd c1, id_)) id_list)))
-  (H1 : getInsnOperands (insn_cmd c1) = unmake_list_id id_list)
+          (List.map (fun id_ : id => (F1, b1, insn_cmd c1, id_)) id_list))
+  (H1 : getInsnOperands (insn_cmd c1) = id_list)
   (Hreach' : isReachableFromEntry F1 b1),
   ~ In (getCmdLoc c) (getCmdOperands c1).
 Proof.
   intros.
   destruct (in_dec id_dec (getCmdLoc c) (getCmdOperands c1)); auto.
-  assert (exists n, nth_list_id n id_list = Some (getCmdLoc c)) as Hnth.
+  assert (exists n, nth_error id_list n = Some (getCmdLoc c)) as Hnth.
     eapply getCmdOperands__nth_list_id; eauto.
   destruct Hnth as [n' Hnth].
   eapply wf_operand_list__wf_operand in Hnth; eauto.
@@ -3461,8 +3398,8 @@ Proof.
   destruct B1 as [l1 p0 c2 t0]. simpl in HInscope.
   assert (~ In (getCmdLoc c) (getPhiNodesIDs p0)) as Hnotin.
     apply uniqFdef__uniqBlockLocs in HBinF2; auto.
-    simpl in HBinF2. 
-    eapply NoDup_disjoint in HBinF2; eauto. 
+    simpl in HBinF2.
+    eapply NoDup_disjoint in HBinF2; eauto.
     simpl in HcInB. solve_in_list.
   rewrite init_scope_spec1 in HInscope; auto.
   remember ((dom_analyze F1) !! l1) as R.
@@ -3497,7 +3434,7 @@ Proof.
       eapply uniqFdef__uniqBlockLocs; eauto.
       eapply insnDominates_spec5 in Hdom; eauto.
       apply insnInFdefBlockB__insnInBlockB in H; auto.
-  
+
   SCase "2".
     assert (block_intro l1 p0 c2 t0 = block_intro l3 ps1 cs tmn1) as EQ.
       apply In_InCmdsB in HinCs.
@@ -3511,11 +3448,11 @@ Proof.
       simpl in Hreach'. apply insnInFdefBlockB__blockInFdefB in H.
       eapply sdom_isnt_refl with (l':=l3) in Hreach'; eauto.
         rewrite <- HeqR0. simpl. auto.
-  
+
     assert (In l0 bs_contents) as Hindom'.
       clear - H0 HeqR HInscope Hin Hneq HBinF1 HwfF1 Huniq. destruct F1 as [[]].
       eapply l1_strict_in_scope_of_l2__l1_blockDominates_l2 in HInscope; eauto.
-  
+
     assert (In l3 (DomDS.L.bs_contents (bound_fdef F1)
            ((dom_analyze F1) !! l0))) as Hindom.
       match goal with
@@ -3537,7 +3474,7 @@ Lemma incoming_value__in_scope: forall (f : fdef) (l0 : l)
   (t : list atom) (l1 : l) (ps1 : phinodes) (cs1 : cmds) (tmn1 : terminator)
   (HeqR : ret t = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1)
   (HuniqF : uniqFdef f) (ps' : phinodes) (cs' : cmds) (tmn' : terminator)
-  (i0 : id) (l2 : list_value_l)
+  (i0 : id) (l2 : list (value * l))
   (Hreach : isReachableFromEntry f (block_intro l0 ps' cs' tmn'))
   (HbInF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true) t0
   (H7 : wf_phinode f (block_intro l0 ps' cs' tmn') (insn_phi i0 t0 l2))
@@ -3558,7 +3495,7 @@ Proof.
     clear - Hlkb1 HbInF HuniqF.
     apply blockInFdefB_lookupBlockViaLabelFromFdef in HbInF; auto.
     rewrite HbInF in Hlkb1. inv Hlkb1; auto.
-  
+
   subst.
   clear - Hdom HeqR J Hreach HbInF Hlkvb Hlkb1 HuniqF.
   destruct Hdom as [J3 | J3]; try solve [contradict Hreach; auto].
@@ -3567,13 +3504,13 @@ Proof.
   destruct vb.
   unfold inscope_of_tmn in HeqR.
   destruct f as [[fa ty fid la va] bs].
-  remember ((dom_analyze 
+  remember ((dom_analyze
     (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l1) as R1.
   destruct R1.
   symmetry in HeqR.
   apply fold_left__spec in HeqR.
-  destruct (eq_atom_dec l3 l1); subst.
-  SCase "l3=l1".
+  destruct (eq_atom_dec l5 l1); subst.
+  SCase "l5=l1".
     destruct HeqR as [HeqR _].
     clear - J HeqR Hlkb1 J3 Hlkvb HbInF HuniqF.
     assert (J':=Hlkvb).
@@ -3585,15 +3522,15 @@ Proof.
     apply lookupBlockViaIDFromFdef__InGetBlockIDs in J'.
     simpl in J'.
     apply HeqR; auto. solve_in_list.
-  
-  SCase "l3<>l1".
+
+  SCase "l5<>l1".
     destruct J3 as [J3 | Heq]; subst; try congruence.
-    assert (In l3 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as G.
+    assert (In l5 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as G.
       apply ListSet.set_diff_intro; auto.
         simpl. intro JJ. destruct JJ as [JJ | JJ]; auto.
     assert (
       lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro fa ty fid la va) bs)
-        l3 = ret block_intro l3 p c t0) as J1.
+        l5 = ret block_intro l5 phinodes5 cmds5 terminator5) as J1.
       clear - Hlkvb HuniqF.
       apply lookupBlockViaIDFromFdef__blockInFdefB in Hlkvb.
       apply blockInFdefB_lookupBlockViaLabelFromFdef in Hlkvb; auto.
@@ -3607,7 +3544,7 @@ Proof.
 Qed.
 
 Lemma inscope_of_block_inscope_of_block__inscope_of_block: forall (f : fdef)
-  (t : list atom) (l1 : l) (ps1 : phinodes) (cs1 : cmds) s m 
+  (t : list atom) (l1 : l) (ps1 : phinodes) (cs1 : cmds) s m
   (tmn1 : terminator) id1 (id2 : id) (HwfF : wf_fdef s m f)
   (bs_contents : ListSet.set atom) (Huniq: uniqFdef f)
   (bs_bound : incl bs_contents (bound_fdef f))
@@ -3660,9 +3597,9 @@ Proof.
       eapply blockInFdefB_uniq in HbInF; eauto.
       destruct HbInF as [Heq1 [Heq2 Heq3]]; subst. auto.
     inv EQ.
-    eapply blockStrictDominates_isnt_refl in Hreach; 
+    eapply blockStrictDominates_isnt_refl in Hreach;
       try solve [eauto | contradict Hdom''; auto].
-  
+
     simpl in Hdom''. rewrite <- HeqR3 in Hdom''.
     apply fold_left__intro with (l2:=l3)(B:=block_intro l3 p0 c3 t1)
       in HeqR'; auto.
@@ -3672,7 +3609,7 @@ Proof.
       eapply blockInFdefB_lookupBlockViaLabelFromFdef; eauto.
 Qed.
 
-Lemma idDominates_inscope_of_cmd__inscope_of_cmd: forall (f : fdef) 
+Lemma idDominates_inscope_of_cmd__inscope_of_cmd: forall (f : fdef)
   (t : list atom) (l1 : l) (ps1 : phinodes) (cs1 : cmds) (cs : cmds) s m
   (tmn1 : terminator) id1 (instr1 : insn)
   (c : cmd) (id2 : id) (HwfF : wf_fdef s m f)
@@ -3696,16 +3633,16 @@ Proof.
   destruct R; tinv J1.
   unfold inscope_of_id in HeqR2.
   destruct b. destruct f as [[fa ty fid la va] bs].
-  remember ((dom_analyze 
+  remember ((dom_analyze
     (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l1) as R1.
-  remember ((dom_analyze 
-    (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l2) as R2.
+  remember ((dom_analyze
+    (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l5) as R2.
   destruct R1, R2.
 
   assert (~ In (getCmdLoc c) (getPhiNodesIDs ps1)) as Hnotin.
     apply uniqFdef__uniqBlockLocs in HbInF; auto.
-    simpl in HbInF. 
-    eapply NoDup_disjoint in HbInF; eauto. 
+    simpl in HbInF.
+    eapply NoDup_disjoint in HbInF; eauto.
     solve_in_list.
   rewrite init_scope_spec1 in HeqR; auto.
 
@@ -3735,22 +3672,22 @@ Proof.
       clear - Huniq HeqR1 J14 J15 J1 HeqR' J13 Hnotin2.
       apply init_scope_spec2 in J1; auto.
       eapply cmds_dominates_cmd_inscope_of_block__inscope_of_block; eauto.
-        solve_in_list.     
+        solve_in_list.
   Case "2".
     destruct Hid2InScope as [J12 | [b2 [l2' [J13 [J14 J15]]]]].
     SCase "2.1".
       clear - HeqR1 HbInF Huniq HeqR' J12 J10 J11 J11' HeqR3 HeqR4 Hnotin1.
-      eapply inscope_of_block_cmds_dominates_cmd__inscope_of_cmd 
+      eapply inscope_of_block_cmds_dominates_cmd__inscope_of_cmd
         with (bs_bound:=bs_bound); eauto.
         solve_in_list.
    SCase "2.2".
-      clear - HwfF HeqR1 J14 J15 J11 J13 HeqR4 HeqR3 J10 Hreach HbInF HeqR' J11' Huniq.  
+      clear - HwfF HeqR1 J14 J15 J11 J13 HeqR4 HeqR3 J10 Hreach HbInF HeqR' J11' Huniq.
       eapply inscope_of_block_inscope_of_block__inscope_of_block
         with (bs_bound:=bs_bound); eauto.
 Qed.
 
-Lemma idDominates_inscope_of_tmn__inscope_of_tmn: forall (f : fdef) 
-  (t : list atom) (l1 : l) (ps1 : phinodes) (cs1 : cmds) s m 
+Lemma idDominates_inscope_of_tmn__inscope_of_tmn: forall (f : fdef)
+  (t : list atom) (l1 : l) (ps1 : phinodes) (cs1 : cmds) s m
   (tmn1 : terminator) id1 insn1 (id2 : id) (HwfF : wf_fdef s m f)
   (HeqR : inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1 =
           ret t) (Huniq: uniqFdef f)
@@ -3772,10 +3709,10 @@ Proof.
   destruct R; tinv J1.
   unfold inscope_of_id in HeqR2.
   destruct b. destruct f as [[fa ty fid la va] bs].
-  remember ((dom_analyze 
+  remember ((dom_analyze
     (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l1) as R1.
-  remember ((dom_analyze 
-    (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l2) as R2.
+  remember ((dom_analyze
+    (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l5) as R2.
   destruct R1, R2.
   assert (HeqR':=HeqR).
   apply fold_left__spec in HeqR.
@@ -3813,15 +3750,14 @@ Proof.
         with (bs_contents:=bs_contents); eauto.
 Qed.
 
-Lemma make_list_fdef_block_insn_id_spec: forall id1 f b instr id_list,
-  In id1 (unmake_list_id id_list) ->
+Lemma make_list_fdef_block_insn_id_spec:
+  forall id1 (f : fdef) (b : block) (instr : insn) id_list,
+  In id1 (id_list) ->
   In (f, b, instr, id1)
-     (unmake_list_fdef_block_insn_id
-        (make_list_fdef_block_insn_id
-           (map_list_id
-              (fun id_ : id =>
-               (f, b, instr, id_))
-              id_list))).
+     (List.map
+       (fun id_ : id =>
+         (f, b, instr, id_))
+       id_list).
 Proof.
   induction id_list; simpl; intros; auto.
     destruct H as [H | H]; subst; auto.
@@ -3837,7 +3773,7 @@ Proof.
   intros.
   destruct b.
   assert (HBinF':=HBinF).
-  apply IngetCmdsIDs__lookupCmdViaIDFromFdef with 
+  apply IngetCmdsIDs__lookupCmdViaIDFromFdef with
     (c1:=c) in HBinF; try solve [auto | solve_in_list].
   eapply wf_fdef__wf_insn_base in HBinF; eauto.
   destruct HBinF as [b1 Hwfi].
@@ -3853,32 +3789,45 @@ Proof.
     simpl in H.
     apply cmdInBlockB__inGetBlockLocs in H; auto.
 
-    simpl. apply in_or_app. right. apply in_or_app. left. 
+    simpl. apply in_or_app. right. apply in_or_app. left.
     solve_in_list.
 
   subst.
   match goal with
-  | _: _ = inscope_of_id _ ?b _ |- _ =>
+  | [ _ : _ = inscope_of_id _ ?b _,
+      f : fdef,
+      c : cmd |- _ ] =>
+      assert (wf_operand_list 
+        (List.map (fun i => (f, b, (insn_cmd c), i))
+          (getInsnOperands (insn_cmd c)))) as H6';
+      try solve [solve_wf_operand]
+  end.
+
+  match goal with
+  | _ : _ = inscope_of_id _ ?b _ |- _ =>
   apply wf_operand_list__elim with (f1:=f)(b1:=b)
     (insn1:=insn_cmd c) (id1:=id1)
-    in H6; try solve [
+    in H6'; try solve [
       auto |
-      apply make_list_fdef_block_insn_id_spec; try solve 
+      apply make_list_fdef_block_insn_id_spec; try solve
         [match goal with
          | EQ: ?A = ?B |- In _ ?B => rewrite <- EQ; simpl; auto
          end]
       ]
   end.
+
   eapply cmd_operands__in_scope; eauto; simpl; auto.
     solve_NoDup.
+  apply make_list_fdef_block_insn_id_spec.
+  simpl. auto.
 Qed.
 
-Lemma terminator_operands__in_scope': forall (S : system) (m : module) l0 ps0 cs0 
-  t0 f (HwfF : wf_fdef S m f) (Huniq : uniqFdef f) 
+Lemma terminator_operands__in_scope': forall (S : system) (m : module) l0 ps0 cs0
+  t0 f (HwfF : wf_fdef S m f) (Huniq : uniqFdef f)
   (Hreach : isReachableFromEntry f (block_intro l0 ps0 cs0 t0))
   (HBinF: blockInFdefB (block_intro l0 ps0 cs0 t0) f = true)
-  (l1 : list atom) 
-  (HeqR : ret l1 = inscope_of_tmn f (block_intro l0 ps0 cs0 t0) t0) id1 
+  (l1 : list atom)
+  (HeqR : ret l1 = inscope_of_tmn f (block_intro l0 ps0 cs0 t0) t0) id1
   (Hin: In id1 (getTerminatorOperands t0)),
   In id1 l1.
 Proof.
@@ -3906,22 +3855,33 @@ Proof.
 
   subst.
   match goal with
+  | [ _ : _ = inscope_of_tmn _ ?b _,
+      f : fdef,
+      t : terminator |- _ ] =>
+      assert (wf_operand_list 
+        (List.map (fun i => (f, b, (insn_terminator t), i))
+          (getInsnOperands (insn_terminator t)))) as H6';
+      try solve [solve_wf_operand]
+  end.
+
+  match goal with
   | _: _ = inscope_of_tmn _ ?b _ |- _ =>
   apply wf_operand_list__elim with (f1:=f)(b1:=b)
     (insn1:=insn_terminator t0) (id1:=id1)
-    in H6; try solve [
+    in H6'; try solve [
       auto |
-      apply make_list_fdef_block_insn_id_spec; try solve 
+      apply make_list_fdef_block_insn_id_spec; try solve
         [match goal with
          | EQ: ?A = ?B |- In _ ?B => rewrite <- EQ; simpl; auto
          end]
       ]
   end.
   eapply terminator_operands__in_scope; eauto; simpl; auto.
+  apply make_list_fdef_block_insn_id_spec. simpl. auto.
 Qed.
 
 Lemma idDominates_acyclic: forall s m f (HwfF:wf_fdef s m f)
-  (HuniqF: uniqFdef f) id1 id2 
+  (HuniqF: uniqFdef f) id1 id2
   (Hdom1: idDominates f id1 id2) (Hdom2: idDominates f id2 id1)
   (Hreach: (forall b, lookupBlockViaIDFromFdef f id1 = Some b ->
                       isReachableFromEntry f b)),
@@ -3941,7 +3901,7 @@ Proof.
   destruct b as [l3 ps3 cs3 tmn3].
   remember ((dom_analyze f) !! l2) as R2.
   remember ((dom_analyze f) !! l3) as R3.
-  destruct R2, R3. 
+  destruct R2, R3.
   apply fold_left__spec in HeqR2.
   apply fold_left__spec in HeqR0.
   destruct HeqR2 as [_ [_ HeqR2]].
@@ -3960,7 +3920,7 @@ Proof.
   Case "local".
       unfold init_scope in Hdom1.
       destruct_if; try tauto.
-      assert (block_intro l2 ps2 cs2 tmn2 = 
+      assert (block_intro l2 ps2 cs2 tmn2 =
                 block_intro l3 ps3 cs3 tmn3) as EQ.
         eapply block_eq2 with (id1:=id1); eauto.
          simpl.
@@ -3975,15 +3935,15 @@ Proof.
         assert (NoDup (getCmdsLocs cs3)) as Hnodup.
           solve_NoDup.
         assert (In id2 (cmds_dominates_cmd cs3 id1)) as Hin2.
-          apply in_app_or in Hdom2. 
+          apply in_app_or in Hdom2.
           destruct Hdom2 as [Hdom2 | Hdom2]; try solve [contradict Hdom2; auto].
-          apply in_app_or in Hdom2. 
+          apply in_app_or in Hdom2.
           destruct Hdom2 as [Hdom2 | Hdom2]; try solve [contradict Hdom2; auto].
           auto.
         assert (In id1 (cmds_dominates_cmd cs3 id2)) as Hin1.
-          apply in_app_or in Hdom1. 
+          apply in_app_or in Hdom1.
           destruct Hdom1 as [Hdom1 | Hdom1]; try solve [contradict Hdom1; auto].
-          apply in_app_or in Hdom1. 
+          apply in_app_or in Hdom1.
           destruct Hdom1 as [Hdom1 | Hdom1]; try solve [contradict Hdom1; auto].
           auto.
         assert (In id1 (getCmdsLocs cs3) /\ In id2 (getCmdsLocs cs3)) as Hin.
@@ -4014,7 +3974,7 @@ Proof.
       SCase "local".
         unfold init_scope in Hdom2.
         destruct_if; try tauto.
-        assert (block_intro l2 ps2 cs2 tmn2 = 
+        assert (block_intro l2 ps2 cs2 tmn2 =
                   block_intro l3 ps3 cs3 tmn3) as EQ.
           eapply block_eq2 with (id1:=id2); eauto 1.
             simpl.
@@ -4025,10 +3985,10 @@ Proof.
         apply ListSet.set_diff_elim2 in J1; auto.
         simpl in J1. auto.
       SCase "remote".
-        assert (b2 = block_intro l2 ps2 cs2 tmn2) as EQ. 
+        assert (b2 = block_intro l2 ps2 cs2 tmn2) as EQ.
           eapply block_eq2 with (id1:=id2); eauto 1.
             solve_blockInFdefB.
-            solve_in_list. 
+            solve_in_list.
         subst.
         apply lookupBlockViaLabelFromFdef_inv in J5; auto.
         destruct J5; subst.
@@ -4050,19 +4010,18 @@ Lemma any_cmd_doesnt_use_following_operands: forall
   (Hreach : isReachableFromEntry F1 (block_intro l3 ps1 cs tmn1))
   (HBinF1 : blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true)
   s m (HwfF1 : wf_fdef s m F1) (Huniq: uniqFdef F1)
-  (c1 : cmd) cs1 cs2 cs3 
+  (c1 : cmd) cs1 cs2 cs3
   (Hfollow: cs = cs1 ++ c1 :: cs2 ++ c :: cs3)
-  (id_list : list_id)
+  (id_list : list id)
   (H2 : wf_operand_list
-         (make_list_fdef_block_insn_id
-            (map_list_id (fun id_ : id => 
-              (F1, (block_intro l3 ps1 cs tmn1), insn_cmd c1, id_)) id_list)))
-  (H1 : getInsnOperands (insn_cmd c1) = unmake_list_id id_list),
+          (List.map (fun id_ : id =>
+            (F1, (block_intro l3 ps1 cs tmn1), insn_cmd c1, id_)) id_list))
+  (H1 : getInsnOperands (insn_cmd c1) = id_list),
   ~ In (getCmdLoc c) (getCmdOperands c1).
 Proof.
-  intros. subst.
+  intros. subst cs.
   destruct (in_dec id_dec (getCmdLoc c) (getCmdOperands c1)); auto.
-  assert (exists n, nth_list_id n id_list = Some (getCmdLoc c)) as Hnth.
+  assert (exists n, nth_error id_list n = Some (getCmdLoc c)) as Hnth.
     eapply getCmdOperands__nth_list_id; eauto.
   destruct Hnth as [n' Hnth].
   eapply wf_operand_list__wf_operand in Hnth; eauto.
@@ -4079,21 +4038,21 @@ Proof.
     apply getCmdLoc_in_getCmdsLocs. solve_in_list.
   assert (~ In (getCmdLoc c) (getPhiNodesIDs ps1)) as Hnotin.
     apply uniqFdef__uniqBlockLocs in HBinF1; auto.
-    simpl in HBinF1. 
-    eapply NoDup_disjoint in HBinF1; eauto. 
+    simpl in HBinF1.
+    eapply NoDup_disjoint in HBinF1; eauto.
   match goal with
   | H7: _ \/ _ \/ _ |- _ =>
     destruct H7 as [H7 | [H7 | H7]]; auto
   end.
   SCase "1".
-    assert (NoDup (getBlockLocs 
+    assert (NoDup (getBlockLocs
       (block_intro l3 ps1 (cs1 ++ c1 :: cs2 ++ c :: cs3) tmn1))) as Hnodup.
       solve_NoDup.
     elimtype False.
     eapply insnDominates_spec7; eauto.
-  
+
   SCase "2".
-    assert (block' = block_intro l3 ps1 (cs1 ++ c1 :: cs2 ++ c :: cs3) tmn1) 
+    assert (block' = block_intro l3 ps1 (cs1 ++ c1 :: cs2 ++ c :: cs3) tmn1)
       as EQ.
       eapply block_eq2 with (id1:=getCmdLoc c); eauto 1.
         solve_blockInFdefB.
@@ -4106,7 +4065,7 @@ Proof.
     contradict H5.
     replace (getCmdLoc c) with (getInsnLoc (insn_cmd c)); auto.
     match goal with
-    | H: blockInFdefB ?b1 _ = true |- _ => 
+    | H: blockInFdefB ?b1 _ = true |- _ =>
       eapply getInsnLoc__notin__getArgsIDs'' with (b:=b1); eauto 1
     end.
       apply insnInFdefBlockB_intro; auto.

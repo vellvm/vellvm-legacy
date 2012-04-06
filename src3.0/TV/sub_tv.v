@@ -99,58 +99,63 @@ Axiom tv_fid_injective1 : forall fid1 fid2 fid1' fid2',
 Axiom tv_fid_injective2 : forall fid1 fid2 fid1' fid2',
   fid1 <> fid2 -> tv_fid fid1 fid1' -> tv_fid fid2 fid2' -> fid1' <> fid2'.
 
-Fixpoint tv_const fid (c c':const) : bool :=
-match (c, c') with
-| (const_zeroinitializer t0, const_zeroinitializer t0') => tv_typ t0 t0'
-| (const_int _ _, const_int _ _)
-| (const_floatpoint _ _, const_floatpoint _ _)
-| (const_undef _, const_undef _)
-| (const_null _, const_null _) => eq_const c c'
-| (const_arr t0 cs0, const_arr t0' cs0') =>
-    tv_typ t0 t0' && tv_list_const fid cs0 cs0'
-| (const_struct t0 cs0, const_struct t0' cs0') =>
-    tv_typ t0 t0' && tv_list_const fid cs0 cs0'
-| (const_gid _ id0, const_gid _ id0') =>
-    tv_fid id0 id0' || tv_id fid id0 id0'
-| (const_truncop to0 c0 t0, const_truncop to0' c0' t0') =>
-    sumbool2bool _ _ (truncop_dec to0 to0') && tv_const fid c0 c0' &&
-    tv_typ t0 t0'
-| (const_extop eo0 c0 t0, const_extop eo0' c0' t0') =>
-    sumbool2bool _ _ (extop_dec eo0 eo0') && tv_const fid c0 c0' &&
-    tv_typ t0 t0'
-| (const_castop co0 c0 t0, const_castop co0' c0' t0') =>
-    sumbool2bool _ _ (castop_dec co0 co0') && tv_const fid c0 c0' &&
-    tv_typ t0 t0'
-| (const_gep ib0 c0 cs0, const_gep ib0' c0' cs0') =>
-    sumbool2bool _ _ (inbounds_dec ib0 ib0') && tv_const fid c0 c0' &&
-    tv_list_const fid cs0 cs0'
-| (const_select c0 c1 c2, const_select c0' c1' c2') =>
-    tv_const fid c0 c0' && tv_const fid c1 c1' && tv_const fid c2 c2'
-| (const_icmp cd0 c0 c1, const_icmp cd0' c0' c1') =>
-    sumbool2bool _ _ (cond_dec cd0 cd0') &&
-    tv_const fid c0 c0' && tv_const fid c1 c1'
-| (const_fcmp fd0 c0 c1, const_fcmp fd0' c0' c1') =>
-    sumbool2bool _ _ (fcond_dec fd0 fd0') &&
-    tv_const fid c0 c0' && tv_const fid c1 c1'
-| (const_extractvalue c0 cs0, const_extractvalue c0' cs0') =>
-    tv_const fid c0 c0' && tv_list_const fid cs0 cs0'
-| (const_insertvalue c0 c1 cs0, const_insertvalue c0' c1' cs0') =>
-    tv_const fid c0 c0' && tv_const fid c c1' && tv_list_const fid cs0 cs0'
-| (const_bop b0 c0 c1, const_bop b0' c0' c1') =>
-    sumbool2bool _ _ (bop_dec b0 b0') &&
-    tv_const fid c0 c0' && tv_const fid c1 c1'
-| (const_fbop f0 c0 c1, const_fbop f0' c0' c1') =>
+Definition tv_list_const_aux (tv_const : id -> const -> const -> bool) (fid : id) :=
+fix tv_list_const_aux (cs cs':list const) {struct cs} : bool :=
+match cs, cs' with
+| nil, nil => true
+| c0 :: cs0, c0' :: cs0' =>
+    tv_const fid c0 c0' && tv_list_const_aux cs0 cs0'
+| _, _ => false
+end.
+
+Fixpoint tv_const fid (c c':const) {struct c} : bool :=
+match c, c' with
+| const_zeroinitializer t0, const_zeroinitializer t0' => tv_typ t0 t0'
+| const_int _ _, const_int _ _
+| const_floatpoint _ _, const_floatpoint _ _
+| const_undef _, const_undef _
+| const_null _, const_null _ => eq_const c c'
+| const_arr t0 cs0, const_arr t0' cs0' =>
+   tv_typ t0 t0' && tv_list_const_aux tv_const fid cs0 cs0'
+| const_struct t0 cs0, const_struct t0' cs0' =>
+   tv_typ t0 t0' && tv_list_const_aux tv_const fid cs0 cs0'
+| const_gid _ id0, const_gid _ id0' =>
+   tv_fid id0 id0' || tv_id fid id0 id0'
+| const_truncop to0 c0 t0, const_truncop to0' c0' t0' =>
+   sumbool2bool _ _ (truncop_dec to0 to0') && tv_const fid c0 c0' &&
+   tv_typ t0 t0'
+| const_extop eo0 c0 t0, const_extop eo0' c0' t0' =>
+   sumbool2bool _ _ (extop_dec eo0 eo0') && tv_const fid c0 c0' &&
+   tv_typ t0 t0'
+| const_castop co0 c0 t0, const_castop co0' c0' t0' =>
+   sumbool2bool _ _ (castop_dec co0 co0') && tv_const fid c0 c0' &&
+   tv_typ t0 t0'
+| const_gep ib0 c0 cs0, const_gep ib0' c0' cs0' =>
+   sumbool2bool _ _ (inbounds_dec ib0 ib0') && tv_const fid c0 c0' &&
+   tv_list_const_aux tv_const fid cs0 cs0'
+| const_select c0 c1 c2, const_select c0' c1' c2' =>
+   tv_const fid c0 c0' && tv_const fid c1 c1' && tv_const fid c2 c2'
+| const_icmp cd0 c0 c1, const_icmp cd0' c0' c1' =>
+   sumbool2bool _ _ (cond_dec cd0 cd0') &&
+   tv_const fid c0 c0' && tv_const fid c1 c1'
+| const_fcmp fd0 c0 c1, const_fcmp fd0' c0' c1' =>
+   sumbool2bool _ _ (fcond_dec fd0 fd0') &&
+   tv_const fid c0 c0' && tv_const fid c1 c1'
+| const_extractvalue c0 cs0, const_extractvalue c0' cs0' =>
+   tv_const fid c0 c0' && tv_list_const_aux tv_const fid cs0 cs0'
+| const_insertvalue c0 c1 cs0, const_insertvalue c0' c1' cs0' =>
+   tv_const fid c0 c0' && tv_const fid c1 c1' && tv_list_const_aux tv_const fid cs0 cs0'
+| const_bop b0 c0 c1, const_bop b0' c0' c1' =>
+   sumbool2bool _ _ (bop_dec b0 b0') &&
+   tv_const fid c0 c0' && tv_const fid c1 c1'
+| const_fbop f0 c0 c1, const_fbop f0' c0' c1' =>
     sumbool2bool _ _ (fbop_dec f0 f0') &&
     tv_const fid c0 c0' && tv_const fid c1 c1'
-| _ => false
-end
-with tv_list_const fid (cs cs':list_const) : bool :=
-match (cs, cs') with
-| (Nil_list_const, Nil_list_const) => true
-| (Cons_list_const c0 cs0, Cons_list_const c0' cs0') =>
-    tv_const fid c0 c0' && tv_list_const fid cs0 cs0'
-| _ => false
+| _, _ => false
 end.
+
+Definition tv_list_const :=
+  tv_list_const_aux tv_const.
 
 Definition tv_value fid v1 v2 : bool :=
 match (v1, v2) with
@@ -425,10 +430,10 @@ match (sbs1, sbs2) with
 | _ => false
 end.
 
-Fixpoint tv_list_value_l fid (vls1 vls2:list_value_l) : bool :=
+Fixpoint tv_list_value_l fid (vls1 vls2:list (value * l)) : bool :=
 match (vls1, vls2) with
-| (Nil_list_value_l, Nil_list_value_l) => true
-| (Cons_list_value_l v1 l1 vls1, Cons_list_value_l v2 l2 vls2) =>
+| (nil, nil) => true
+| ((v1, l1) :: vls1, (v2, l2) :: vls2) =>
     tv_value fid v1 v2 && eq_l l1 l2 && tv_list_value_l fid vls1 vls2
 | _ => false
 end.
@@ -513,8 +518,7 @@ Definition tv_fheader nts1 (f1 f2:fheader) :=
                *)
               let ts1 := args2Typs a1 in
               let ts2' := args2Typs a2' in
-              (sumbool2bool _ _ (prefix_dec _ typ_dec (unmake_list_typ ts1)
-                (unmake_list_typ ts2')))
+              (sumbool2bool _ _ (prefix_dec _ typ_dec ts1 ts2'))
             else
               (sumbool2bool _ _ (prefix_dec _ arg_dec a1 a2'))
         | None => false
@@ -575,7 +579,16 @@ end.
 (***********************************************)
 (* Sub TV (guessing renamings) *)
 
-Fixpoint rtv_const (c c':const) : bool :=
+Definition rtv_list_const_aux (rtv_const : const -> const -> bool) :=
+fix rtv_list_const (cs cs':list const) : bool :=
+match (cs, cs') with
+| (nil, nil) => true
+| (c0 :: cs0, c0' :: cs0') =>
+    rtv_const c0 c0' && rtv_list_const cs0 cs0'
+| _ => false
+end.
+  
+Fixpoint rtv_const (c c':const) {struct c} : bool :=
 match (c, c') with
 | (const_zeroinitializer t0, const_zeroinitializer t0') => tv_typ t0 t0'
 | (const_int _ _, const_int _ _)
@@ -583,9 +596,9 @@ match (c, c') with
 | (const_undef _, const_undef _)
 | (const_null _, const_null _) => eq_const c c'
 | (const_arr t0 cs0, const_arr t0' cs0') =>
-    tv_typ t0 t0' && rtv_list_const cs0 cs0'
+    tv_typ t0 t0' && rtv_list_const_aux rtv_const cs0 cs0'
 | (const_struct t0 cs0, const_struct t0' cs0') =>
-    tv_typ t0 t0' && rtv_list_const cs0 cs0'
+    tv_typ t0 t0' && rtv_list_const_aux rtv_const cs0 cs0'
 | (const_gid _ id0, const_gid _ id0') =>
     tv_fid id0 id0' ||
     eq_id id0 id0' (* assuming global variables are not renamed *)
@@ -600,7 +613,7 @@ match (c, c') with
     tv_typ t0 t0'
 | (const_gep ib0 c0 cs0, const_gep ib0' c0' cs0') =>
     sumbool2bool _ _ (inbounds_dec ib0 ib0') && rtv_const c0 c0' &&
-    rtv_list_const cs0 cs0'
+    rtv_list_const_aux rtv_const cs0 cs0'
 | (const_select c0 c1 c2, const_select c0' c1' c2') =>
     rtv_const c0 c0' && rtv_const c1 c1' && rtv_const c2 c2'
 | (const_icmp cd0 c0 c1, const_icmp cd0' c0' c1') =>
@@ -610,9 +623,9 @@ match (c, c') with
     sumbool2bool _ _ (fcond_dec fd0 fd0') &&
     rtv_const c0 c0' && rtv_const c1 c1'
 | (const_extractvalue c0 cs0, const_extractvalue c0' cs0') =>
-    rtv_const c0 c0' && rtv_list_const cs0 cs0'
+    rtv_const c0 c0' && rtv_list_const_aux rtv_const cs0 cs0'
 | (const_insertvalue c0 c1 cs0, const_insertvalue c0' c1' cs0') =>
-    rtv_const c0 c0' && rtv_const c c1' && rtv_list_const cs0 cs0'
+    rtv_const c0 c0' && rtv_const c1 c1' && rtv_list_const_aux rtv_const cs0 cs0'
 | (const_bop b0 c0 c1, const_bop b0' c0' c1') =>
     sumbool2bool _ _ (bop_dec b0 b0') &&
     rtv_const c0 c0' && rtv_const c1 c1'
@@ -620,14 +633,10 @@ match (c, c') with
     sumbool2bool _ _ (fbop_dec f0 f0') &&
     rtv_const c0 c0' && rtv_const c1 c1'
 | _ => false
-end
-with rtv_list_const (cs cs':list_const) : bool :=
-match (cs, cs') with
-| (Nil_list_const, Nil_list_const) => true
-| (Cons_list_const c0 cs0, Cons_list_const c0' cs0') =>
-    rtv_const c0 c0' && rtv_list_const cs0 cs0'
-| _ => false
 end.
+
+Definition rtv_list_const :=
+  rtv_list_const_aux rtv_const.
 
 (* mapping from an input local variable to its output local variable within
    a function. *)
@@ -956,10 +965,10 @@ match (sbs1, sbs2) with
 | _ => None
 end.
 
-Fixpoint rtv_list_value_l r (vls1 vls2:list_value_l) : option renaming :=
+Fixpoint rtv_list_value_l r (vls1 vls2:list (value * l)) : option renaming :=
 match (vls1, vls2) with
-| (Nil_list_value_l, Nil_list_value_l) => Some r
-| (Cons_list_value_l v1 l1 vls1, Cons_list_value_l v2 l2 vls2) =>
+| (nil, nil) => Some r
+| ((v1, l1) :: vls1, (v2, l2) :: vls2) =>
     if eq_l l1 l2 then
       rtv_value r v1 v2 >>=
       fun r => rtv_list_value_l r vls1 vls2
@@ -1170,7 +1179,7 @@ match (base, bound, ptr) with
      eq_sterm st10 st20
 | (sterm_val (value_const (const_gid _ _ as c1)),
    sterm_val (value_const (const_gep _ (const_gid _ _ as c2)
-     (Cons_list_const (const_int _ i2) Nil_list_const))),
+     ((const_int _ i2) :: nil))),
    sterm_val (value_const (const_gid _ _ as c3))) =>
      eq_const c1 c2 && eq_const c1 c3 && eq_INT_Z i2 1%Z
 | (sterm_load sm1 _ st1 _, sterm_load sm2 _ st2 _, st3) =>
@@ -1348,7 +1357,7 @@ match sm with
                castop_ptrtoint
                (const_gep false
                  (const_null t)
-                   (Cons_list_const (const_int _ i0) Nil_list_const)
+                   ((const_int _ i0) :: nil)
                )
               (typ_int sz)
              )
@@ -1641,7 +1650,7 @@ match (bv, ev, pv) with
     is_metadata fid l1 O bid eid pid im
 | (value_const (const_gid _ _ as c1),
    value_const (const_gep _ (const_gid _ _ as c2)
-     (Cons_list_const (const_int _ i2) Nil_list_const)),
+     ((const_int _ i2) :: nil)),
    value_const (const_gid _ _ as c3)) =>
      eq_const c1 c2 && eq_const c1 c3 && eq_INT_Z i2 1%Z
 | (value_const (const_null t0),
@@ -1673,10 +1682,10 @@ match (bv, ev, pv) with
 | _ => false
 end.
 
-Fixpoint mtv_list_value_l Ps2 fid (bvls evls pvls:list_value_l) im : bool :=
+Fixpoint mtv_list_value_l Ps2 fid (bvls evls pvls:list (value * l)) im : bool :=
 match bvls with
-| Nil_list_value_l => true
-| Cons_list_value_l bv bl bvls' =>
+| nil => true
+| (bv, bl) :: bvls' =>
     match (getValueViaLabelFromValuels evls bl,
            getValueViaLabelFromValuels pvls bl) with
     | (Some ev, Some pv) => mtv_bep_value Ps2 fid bl bv ev pv im

@@ -317,6 +317,7 @@ Proof.
   induction idxs; simpl; intros.
     inv H0. exists nil. auto.
 
+    simpl_prod.
     remember (getOperandValue TD v lc1 gl) as R.
     destruct R; tinv H0.
     remember (values2GVs TD idxs lc1 gl) as R1.

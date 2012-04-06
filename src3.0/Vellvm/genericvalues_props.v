@@ -44,18 +44,19 @@ Definition flatten_typ_aux_total_prop S TD t :=
 
 Definition flatten_typs_aux_total_prop sdt :=
   wf_styp_list sdt ->
-  let 'lsdt := unmake_list_system_targetdata_typ sdt in
+  let 'lsdt := sdt in
   let '(lsd, lt) := split lsdt in
   forall S TD los nts nts' acc
   (Hsize: exists sz, exists al, 
-     getListTypeSizeInBits_and_Alignment (los, nts') true (make_list_typ lt) = 
+     getListTypeSizeInBits_and_Alignment (los, nts') true lt = 
        Some (sz, al))
   (Hnc: forall id5,
           lookupAL _ nts id5 <> None ->
           exists gv5, lookupAL _ acc id5 = Some (Some gv5)),
   TD = (los, nts) ->
   eq_system_targetdata S TD lsd ->
-  exists gvs, flatten_typs_aux (los, nts') acc (make_list_typ lt) = Some gvs.
+  exists gvs, flatten_typs_aux (los, nts') acc lt = Some gvs.
+
 
 Lemma flatten_typ_aux_total_mutrec :
   (forall S TD t, flatten_typ_aux_total_prop S TD t) /\
@@ -66,14 +67,8 @@ Proof.
                         flatten_typs_aux_total_prop) Case);
     intros; subst; simpl in *; uniq_result; eauto.
 Case "wf_styp_structure".
-  remember (split
-              (unmake_list_system_targetdata_typ
-                (make_list_system_targetdata_typ
-                   (map_list_typ
-                      (fun typ_ : typ => (system5, (los, nts):targetdata, typ_))
-                      typ_list)))) as R.
-  destruct R as [lsd lt].
-  assert (make_list_typ lt = typ_list) as EQ1. 
+  simpl_split lsd lt.
+  assert (lt = typ_list) as EQ1. 
     eapply make_list_typ_spec2; eauto.
   subst.
   assert (eq_system_targetdata system5 (los, nts) lsd) as EQ2.
@@ -82,6 +77,7 @@ Case "wf_styp_structure".
   destruct Hsize as [sz [al Hsize]].
   inv_mbind. 
   eapply H1 with (nts':=nts') in Hnc; eauto.
+  fold flatten_typs_aux.
   fill_ctxhole. destruct x; eauto.
 Case "wf_styp_array".
   destruct sz5; eauto.
@@ -96,7 +92,7 @@ Case "wf_styp_namedt".
   destruct (@Hnc id5) as [gv5 J]; try congruence.
     fill_ctxhole. eauto.  
 Case "wf_styp_cons".
-  remember (split (unmake_list_system_targetdata_typ l')) as R.
+  remember (split l') as R.
   destruct R as [lsd lt]. simpl.
   intros. subst.
   apply eq_system_targetdata_cons_inv in H4. 
@@ -310,16 +306,16 @@ Definition const2GV_isnt_stuck_Prop S TD c t :=
 
 Definition consts2GV_isnt_stuck_Prop sdct :=
   wf_const_list sdct ->
-  let 'lsdct := unmake_list_system_targetdata_const_typ sdct in
+  let 'lsdct := sdct in
   let '(lsdc, lt) := split lsdct in
   let '(lsd, lc) := split lsdc in
   let '(ls, ld) := split lsd in
   forall S TD gl (Hty: uniq (snd TD)), 
   wf_list_targetdata_typ S TD gl lsd ->
   (forall t, (forall t0, In t0 lt -> t0 = t) ->
-    exists gv, _list_const_arr2GV TD gl t (make_list_const lc) = Some gv) /\
-  (exists gv, _list_const_struct2GV TD gl (make_list_const lc) = 
-    Some (gv, (make_list_typ lt))).
+    exists gv, _list_const_arr2GV TD gl t lc = Some gv) /\
+  (exists gv, _list_const_struct2GV TD gl lc = 
+    Some (gv, lt)).
 
 Lemma const2GV_isnt_stuck_mutind : 
   (forall S td c t, @const2GV_isnt_stuck_Prop S td c t) /\
@@ -343,47 +339,29 @@ Case "wfconst_undef".
     rewrite H; eauto
   end.
 Case "wfconst_array".
-  remember (split
-             (unmake_list_system_targetdata_const_typ
-                (make_list_system_targetdata_const_typ
-                   (map_list_const
-                      (fun const_ : LLVMsyntax.const => 
-                        (system5, targetdata5, const_, typ5))
-                      const_list)))) as R.
-  destruct R as [lsdc lt].
-  remember (split lsdc) as R'.
-  destruct R' as [lsd lc].
-  remember (split lsd) as R''.
-  destruct R'' as [ls ld].
+  simpl_split lsdc lt.
+  simpl_split lsd lc.
+  simpl_split ls ld.
   destruct (@H0 system5 targetdata5 gl) as [J1 [gv2 J2]]; 
     try solve [destruct targetdata5; eauto using const2GV_typsize_mutind_array].
-    assert (make_list_const lc = const_list) as EQ.
+    assert (lc = const_list) as EQ.
       eapply make_list_const_spec2; eauto.
     rewrite H1. rewrite <- EQ. unfold Size.to_nat in *. 
     destruct (@J1 typ5) as [gv1 J3]; eauto using make_list_const_spec4.
-    rewrite J3.
+    fold _list_const_arr2GV. rewrite J3.
     destruct sz5; eauto.
 
 Case "wfconst_struct".
-  remember (split
-             (unmake_list_system_targetdata_const_typ
-                (make_list_system_targetdata_const_typ
-                   (map_list_const_typ
-                     (fun (const_ : LLVMsyntax.const) (typ_ : LLVMsyntax.typ) => 
-                        (system5, (layouts5, namedts5):targetdata, const_, typ_))
-                      const_typ_list)))) as R.
-  destruct R as [lsdc lt].
-  remember (split lsdc) as R'.
-  destruct R' as [lsd lc].
-  remember (split lsd) as R''.
-  destruct R'' as [ls ld].
+  simpl_split lsdc lt.
+  simpl_split lsd lc.
+  simpl_split ls ld.
   erewrite <- map_list_const_typ_spec1 in H2; eauto.
-  destruct (@H0 system5 (layouts5, namedts5) gl) as [_ [gv2 J2]];
+  destruct (@H0 system5 (layouts5, namedts5) gl) as [_ [gv2 J2]]; 
     try solve [eauto using const2GV_typsize_mutind_struct |
                eapply typ_eq_list_typ_spec1; eauto |
                eapply typ_eq_list_typ_spec1'; eauto].
     erewrite <- map_list_const_typ_spec2; eauto.
-    repeat fill_ctxhole.
+    fold _list_const_struct2GV. repeat fill_ctxhole.
     destruct gv2; eauto.
 
 Case "wfconst_gid".
@@ -602,15 +580,9 @@ Case "wfconst_fbop".
   destruct floating_point5; try solve [eauto | elim_wrong_wf_typ].
   destruct v; eauto.
 Case "wfconst_cons".
-  remember (split (unmake_list_system_targetdata_const_typ l')) as R1.
-  destruct R1 as [lsdc lt].
-  simpl.  
-  remember (split lsdc) as R2.
-  destruct R2 as [lsd lc].
-  simpl.  
-  remember (split lsd) as R3.
-  destruct R3 as [ls ld].
-  simpl.
+  simpl_split lsdc lt. simpl.
+  simpl_split lsd lc. simpl.
+  simpl_split ls ld. simpl.
   intros S TD gl Huniq Hwfl.
   assert (wf_list_targetdata_typ S TD gl lsd /\ system5 = S /\ targetdata5 = TD
             /\ wf_global TD S gl) 
@@ -853,11 +825,11 @@ Definition zeroconst2GV_aux__getTypeSizeInBits_prop S TD t
 
 Definition zeroconsts2GV_aux__getListTypeSizeInBits_prop sdt :=
   wf_styp_list sdt ->
-  let 'lsdt := unmake_list_system_targetdata_typ sdt in
+  let 'lsdt := sdt in
   let '(lsd, lt) := split lsdt in
-  forall S TD acc los nts' (Hty: feasible_typs (los, nts') (make_list_typ lt))
+  forall S TD acc los nts' (Hty: feasible_typs (los, nts') lt)
   nts (Heq: TD = (los, nts)) gv (Hsub: exists nts0, nts'=nts0++nts)
-  (Hz: zeroconsts2GV_aux (los,nts') acc (make_list_typ lt) = Some gv)
+  (Hz: zeroconsts2GV_aux (los,nts') acc lt = Some gv)
   (Huniq:uniq nts')
   (Hnc: forall id5 gv5 lt5 sz al, 
           lookupAL _ acc id5 = Some (Some gv5) ->
@@ -869,7 +841,7 @@ Definition zeroconsts2GV_aux__getListTypeSizeInBits_prop sdt :=
   (Heq': eq_system_targetdata S TD lsd) sz al
   (Hsize: _getListTypeSizeInBits_and_Alignment los 
      (getTypeSizeInBits_and_Alignment_for_namedts (los, nts') true) 
-       (make_list_typ lt) = Some (sz, al)),
+       lt = Some (sz, al)),
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv.
 
 Lemma zeroconst2GV_aux_typsize_mutrec :
@@ -885,14 +857,8 @@ Case "wf_styp_int".
   simpl. eapply int_typsize'; eauto.
 
 Case "wf_styp_structure".
-  remember (split
-              (unmake_list_system_targetdata_typ
-                (make_list_system_targetdata_typ
-                   (map_list_typ
-                      (fun typ_ : typ => (system5, (los, nts):targetdata, typ_))
-                      typ_list)))) as R.
-  destruct R as [lsd lt].
-  assert (make_list_typ lt = typ_list) as EQ1. 
+  simpl_split lsd lt.
+  assert (lt = typ_list) as EQ1. 
     eapply make_list_typ_spec2; eauto.
   subst.
   assert (eq_system_targetdata system5 (los, nts) lsd) as EQ2.
@@ -954,7 +920,7 @@ Case "wf_styp_array".
 
 Case "wf_styp_namedt".
   inv_mbind. 
-  remember (lookupAL list_typ nts id5) as R.
+  remember (lookupAL _ nts id5) as R.
   destruct R as [lt|]; try congruence. symmetry_ctx.
   assert (G:=HeqR0).
   apply lookupAL_middle_inv in HeqR0.
@@ -977,12 +943,12 @@ Case "wf_styp_nil".
   intros. uniq_result. simpl. auto.
 
 Case "wf_styp_cons".
-  remember (split (unmake_list_system_targetdata_typ l')) as R.
+  remember (split l') as R.
   destruct R as [lsd lt]. simpl.
   intros. subst.
   apply eq_system_targetdata_cons_inv in Heq'. 
   destruct Heq' as [H4 [EQ1 EQ2]]; subst.
-  remember (zeroconsts2GV_aux (los, nts') acc (make_list_typ lt)) as R1.
+  remember (zeroconsts2GV_aux (los, nts') acc lt) as R1.
   destruct R1; tinv Hz.
   remember (zeroconst2GV_aux (los, nts') acc typ_) as R2.
   destruct R2; tinv Hz.
@@ -1030,7 +996,7 @@ Definition zeroconst2GV_aux_weaken_prop (t:typ) := forall TD nm1 nm2 r,
   zeroconst2GV_aux TD nm1 t = Some r ->
   zeroconst2GV_aux TD (nm2++nm1) t = Some r.
 
-Definition zeroconsts2GV_aux_weaken_prop (lt:list_typ) := 
+Definition zeroconsts2GV_aux_weaken_prop (lt:list typ) := 
   forall TD nm1 nm2 r,
   uniq (nm2++nm1) ->
   zeroconsts2GV_aux TD nm1 lt = Some r ->
@@ -1237,11 +1203,11 @@ Definition flatten_typ_aux__getTypeSizeInBits_prop S TD (t:typ) :=
 
 Definition flatten_typs_aux__getListTypeSizeInBits_prop sdt :=
   wf_styp_list sdt ->
-  let 'lsdt := unmake_list_system_targetdata_typ sdt in
+  let 'lsdt := sdt in
   let '(lsd, lt) := split lsdt in
   forall S TD acc los nts' mc nts
-  (Hty: flatten_typs_aux (los,nts') acc (make_list_typ lt) = Some mc)
-  (Hft: LLVMtd.feasible_typs (los,nts') (make_list_typ lt))
+  (Hty: flatten_typs_aux (los,nts') acc lt = Some mc)
+  (Hft: LLVMtd.feasible_typs (los,nts') lt)
   (Heq: TD = (los, nts)) (Hsub: exists nts0, nts'=nts0++nts)
   (Huniq:uniq nts')
   (Hnc: forall id5 gv5 lt5 sz al, 
@@ -1254,7 +1220,7 @@ Definition flatten_typs_aux__getListTypeSizeInBits_prop sdt :=
   (Heq': eq_system_targetdata S TD lsd) sz al
   (Hsize: _getListTypeSizeInBits_and_Alignment los 
      (getTypeSizeInBits_and_Alignment_for_namedts (los, nts') true) 
-       (make_list_typ lt) = Some (sz, al)),
+       lt = Some (sz, al)),
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeMC mc.
 
 Lemma flatten_typ_aux_typsize_mutrec :
@@ -1271,14 +1237,8 @@ Case "wf_styp_int".
   simpl. eapply int_typsize'; eauto.
 
 Case "wf_styp_structure".
-  remember (split
-              (unmake_list_system_targetdata_typ
-                (make_list_system_targetdata_typ
-                   (map_list_typ
-                      (fun typ_ : typ => (system5, (los, nts):targetdata, typ_))
-                      typ_list)))) as R.
-  destruct R as [lsd lt].
-  assert (make_list_typ lt = typ_list) as EQ1. 
+  simpl_split lsd lt.
+  assert (lt = typ_list) as EQ1. 
     eapply make_list_typ_spec2; eauto.
   subst.
   assert (eq_system_targetdata system5 (los, nts) lsd) as EQ2.
@@ -1340,7 +1300,7 @@ Case "wf_styp_array".
 
 Case "wf_styp_namedt".
   inv_mbind. 
-  remember (lookupAL list_typ nts id5) as R.
+  remember (lookupAL _ nts id5) as R.
   destruct R as [lt|]; try congruence. symmetry_ctx.
   assert (G:=HeqR0).
   apply lookupAL_middle_inv in HeqR0.
@@ -1363,12 +1323,12 @@ Case "wf_styp_nil".
   intros. uniq_result. simpl. auto.
 
 Case "wf_styp_cons".
-  remember (split (unmake_list_system_targetdata_typ l')) as R.
+  remember (split l') as R.
   destruct R as [lsd lt]. simpl.
   intros. subst.
   apply eq_system_targetdata_cons_inv in Heq'. 
   destruct Heq' as [H4 [EQ1 EQ2]]; subst.
-  remember (flatten_typs_aux (los, nts') acc (make_list_typ lt)) as R1.
+  remember (flatten_typs_aux (los, nts') acc lt) as R1.
   destruct R1; tinv Hty.
   remember (flatten_typ_aux (los, nts') acc typ_) as R2.
   destruct R2; tinv Hty.
@@ -1416,7 +1376,7 @@ Definition flatten_typ_aux_weaken_prop (t:typ) := forall TD nm1 nm2 r,
   flatten_typ_aux TD nm1 t = Some r ->
   flatten_typ_aux TD (nm2++nm1) t = Some r.
 
-Definition flatten_typs_aux_weaken_prop (lt:list_typ) := 
+Definition flatten_typs_aux_weaken_prop (lt:list typ) := 
   forall TD nm1 nm2 r,
   uniq (nm2++nm1) ->
   flatten_typs_aux TD nm1 lt = Some r ->
@@ -1873,7 +1833,7 @@ Definition const2GV__getTypeSizeInBits_Prop S TD c t :=
 
 Definition consts2GV__getTypeSizeInBits_Prop sdct :=
   wf_const_list sdct ->
-  let 'lsdct := unmake_list_system_targetdata_const_typ sdct in
+  let 'lsdct := sdct in
   let '(lsdc, lt) := split lsdct in
   let '(lsd, lc) := split lsdc in
   let '(ls, ld) := split lsd in
@@ -1881,13 +1841,13 @@ Definition consts2GV__getTypeSizeInBits_Prop sdct :=
   (Hwf: wf_list_targetdata_typ S TD gl lsd),
   (forall gv t (Hft: feasible_typ TD t)
     (Heq: forall t0, In t0 lt -> t0 = t)
-    (Hc2g: _list_const_arr2GV TD gl t (make_list_const lc) = Some gv),
+    (Hc2g: _list_const_arr2GV TD gl t lc = Some gv),
    exists sz, 
     getTypeAllocSize TD t = Some sz /\
     (sz * length lc)%nat = sizeGenericValue gv) /\
   (forall gv lt'
-   (Hc2g: _list_const_struct2GV TD gl (make_list_const lc) = Some (gv, lt')),
-   lt' = make_list_typ lt /\
+   (Hc2g: _list_const_struct2GV TD gl lc = Some (gv, lt')),
+   lt' = lt /\
    exists sz, exists al,
     _getListTypeSizeInBits_and_Alignment los 
       (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) lt' = 
@@ -1938,20 +1898,12 @@ Case "wfconst_null".
     unfold getPointerSizeInBits. simpl. auto.
 
 Case "wfconst_array". Focus.
+  fold _list_const_arr2GV in *.
   remember (_list_const_arr2GV (los, nts) gl typ5 const_list) as R.
   destruct R; inv Hc2g.
-  remember (split
-             (unmake_list_system_targetdata_const_typ
-                (make_list_system_targetdata_const_typ
-                   (map_list_const
-                      (fun const_ : const =>
-                       (system5, (los, nts):targetdata, const_, typ5)) 
-                      const_list)))) as R.
-  destruct R as [lsdc lt]. 
-  remember (split lsdc) as R'.
-  destruct R' as [lsd lc].
-  remember (split lsd) as R''.
-  destruct R'' as [ls ld].
+  simpl_split lsdc lt.
+  simpl_split lsd lc.
+  simpl_split ls ld.
   rewrite H1 in H4. unfold Size.to_nat in *.
   destruct sz5; inv H4.
     split; auto.
@@ -1962,7 +1914,7 @@ Case "wfconst_array". Focus.
     destruct (@H0 system5 (los,nts) los nts gl) as [J1 J2]; 
       eauto using const2GV_typsize_mutind_array.
     symmetry in HeqR.
-    assert (make_list_const lc = const_list) as EQ.
+    assert (lc = const_list) as EQ.
       eapply make_list_const_spec2; eauto.
     rewrite <- EQ in HeqR.
     assert (feasible_typ (los, nts) typ5) as Hft.
@@ -1979,43 +1931,38 @@ Case "wfconst_array". Focus.
     exists (RoundUpAlignment
                (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz0) 8)) al0 * 8 *
              S sz5)%nat. exists al0.
-    rewrite length_unmake_make_list_const in H1. rewrite H1.
+    rewrite H1.
     split; auto.
       rewrite ZRdiv_prop8. auto.
 
 Unfocus.
 
 Case "wfconst_struct". Focus.
-  remember (split 
-              (unmake_list_system_targetdata_const_typ
-                 (make_list_system_targetdata_const_typ
-                    (map_list_const_typ
-                      (fun (const_ : const) (typ_ : typ) =>
-                       (system5, (layouts5, namedts5):targetdata, const_, typ_))
-                      const_typ_list)))) as R.
-  destruct R as [lsdc lt]. 
-  remember (split lsdc) as R'.
-  destruct R' as [lsd lc].
-  remember (split lsd) as R''.
-  destruct R'' as [ls ld].
-  remember (_list_const_struct2GV (los, nts) gl
-           (make_list_const
-              (map_list_const_typ (fun (const_ : const) (_ : typ) => const_)
-                 const_typ_list))) as R1.
-  destruct R1 as [[gv0 ts]|]; inv Hc2g.
+  simpl_split lsdc lt.
+  simpl_split lsd lc.
+  simpl_split ls ld.
+  match goal with
+    | [ H : match ?t with 
+              | ret _ => _
+              | merror => _
+            end = _ |- _ ] =>
+    remember t as R1;
+    destruct R1 as [[gv0 ts]|];
+    inv Hc2g
+  end.
   uniq_result.
   destruct (@H0 system5 (los,nts) los nts gl) as [J1 J2]; 
     eauto using const2GV_typsize_mutind_struct.
 
-  symmetry in HeqR1.
-  erewrite <- map_list_const_typ_spec2 in HeqR1; eauto.
+  symmetry in HeqR2.
+  erewrite <- map_list_const_typ_spec2 in HeqR2; eauto.
   erewrite <- map_list_const_typ_spec1 in H2; eauto.
-  apply J2 in HeqR1; eauto.
+  apply J2 in HeqR2; eauto.
   clear J1 J2 H.
-  destruct HeqR1 as [J5 [sz [al [J6 J7]]]]; subst.
+  destruct HeqR2 as [J5 [sz [al [J6 J7]]]]; subst.
   rewrite H2 in H5.
   erewrite <- typ_eq_list_typ_spec2; try solve [eauto | tauto].
-  simpl. rewrite J6.
+  simpl. fold _getListTypeSizeInBits_and_Alignment. rewrite J6.
   destruct gv0; inv H5.
     split; auto.
       destruct sz.
@@ -2275,19 +2222,13 @@ Case "wfconst_nil".
     simpl. split; eauto.    
 
 Case "wfconst_cons".
-  remember (split (unmake_list_system_targetdata_const_typ l')) as R1.
-  destruct R1 as [lsdc lt].
-  simpl.  
-  remember (split lsdc) as R2.
-  destruct R2 as [lsd lc].
-  simpl.  
-  remember (split lsd) as R3.
-  destruct R3 as [ls ld].
-  simpl.
+  simpl_split lsdc lt. simpl.
+  simpl_split lsd lc. simpl.
+  simpl_split ls ld. simpl.
   intros S TD los nts gl EQ Hwfl; subst.
   split.
     intros gv t Hft Hin Hc2g.
-    remember (_list_const_arr2GV (los, nts) gl t (make_list_const lc)) as R.
+    remember (_list_const_arr2GV (los, nts) gl t lc) as R.
     destruct R; try solve [inv Hc2g].
     remember (_const2GV (los, nts) gl const_) as R'.
     destruct R' as [[gv0 t0]|]; try solve [inv Hc2g].
@@ -2303,21 +2244,21 @@ Case "wfconst_cons".
     apply H0 in HeqR'; auto.
     destruct HeqR' as [Heq [sz [al [J5 J6]]]]; subst.
     eapply H2 in J1; eauto. destruct J1 as [J1 _]. clear H0 H2.
-    symmetry in HeqR.
-    apply J1 in HeqR; auto.
-    destruct HeqR as [sz0 [J7 J8]].
+    symmetry in HeqR2.
+    apply J1 in HeqR2; auto.
+    destruct HeqR2 as [sz0 [J7 J8]].
     simpl_env.
     rewrite sizeGenericValue__app.
     rewrite sizeGenericValue__app.
     rewrite sizeGenericValue__uninits.
     rewrite <- J8. rewrite <- J6.
-    rewrite J7 in HeqR0. inv HeqR0.
+    rewrite J7 in HeqR3. inv HeqR3.
     rewrite plus_assoc.
     erewrite getTypeAllocSize_roundup; eauto.
     ring.
 
     intros gv lt' Hc2g.
-    remember (_list_const_struct2GV (los, nts) gl (make_list_const lc)) as R.
+    remember (_list_const_struct2GV (los, nts) gl lc) as R.
     destruct R as [[gv1 ts1]|]; try solve [inv Hc2g].
     remember (_const2GV (los, nts) gl const_) as R'.
     destruct R' as [[gv0 t0]|]; try solve [inv Hc2g].
@@ -2329,9 +2270,9 @@ Case "wfconst_cons".
     apply H0 in HeqR'; auto.
     destruct HeqR' as [Heq [sz [al [J5 J6]]]]; subst.
     eapply H2 in J1'; eauto. destruct J1' as [_ J1']. clear H0 H2.
-    symmetry in HeqR.
-    apply J1' in HeqR; auto.
-    destruct HeqR as [Heq [sz0 [al0 [J7 J8]]]]; subst.
+    symmetry in HeqR2.
+    apply J1' in HeqR2; auto.
+    destruct HeqR2 as [Heq [sz0 [al0 [J7 J8]]]]; subst.
     split; auto.
     rewrite sizeGenericValue__app.
     rewrite sizeGenericValue__app.
@@ -2558,6 +2499,7 @@ Lemma flatten_struct_typ_eq: forall TD ts,
   end.
 Proof.
   intros. destruct TD. simpl.
+  fold flatten_typs_aux.
   destruct (flatten_typs_aux (l0, n) (flatten_typ_for_namedts (l0, n) l0 n) ts)
     as [[]|]; auto.
 Qed.
@@ -2595,7 +2537,7 @@ Definition zeroconst2GV_aux__matches_chunks_prop S TD t :=
 
 Definition zeroconsts2GV_aux__matches_chunks_prop sdt :=
   wf_styp_list sdt ->
-  let 'lsdt := unmake_list_system_targetdata_typ sdt in
+  let 'lsdt := sdt in
   let '(lsd, lt) := split lsdt in
   forall S TD los nts acc gv (Heq: TD = (los, nts)) nts' 
   (Hsub:exists nts0, nts'=nts0++nts) (Huniq: uniq nts')
@@ -2603,10 +2545,10 @@ Definition zeroconsts2GV_aux__matches_chunks_prop sdt :=
           lookupAL _ nts id5 = Some lt5 ->
           lookupAL _ acc id5 = Some (Some gv5) ->
           gv_chunks_match_typ (los,nts') gv5 (typ_struct lt5))
-  (Hz: zeroconsts2GV_aux (los,nts') acc (make_list_typ lt) = Some gv)
-  (Hprop: exists mc, flatten_typs (los, nts') (make_list_typ lt) = Some mc)
+  (Hz: zeroconsts2GV_aux (los,nts') acc lt = Some gv)
+  (Hprop: exists mc, flatten_typs (los, nts') lt = Some mc)
   (Heq': eq_system_targetdata S TD lsd),
-  gv_chunks_match_list_typ (los,nts') gv (make_list_typ lt).
+  gv_chunks_match_list_typ (los,nts') gv lt.
 
 Lemma zeroconst2GV_aux_matches_chunks_mutrec :
   (forall S TD t, zeroconst2GV_aux__matches_chunks_prop S TD t) /\
@@ -2629,25 +2571,20 @@ Proof.
     ].
 
 Case "wf_styp_structure".
-  remember (split
-              (unmake_list_system_targetdata_typ
-                (make_list_system_targetdata_typ
-                   (map_list_typ
-                      (fun typ_ : typ => (system5, (los, nts):targetdata, typ_))
-                      typ_list)))) as R.
-  destruct R as [lsd lt].
-  assert (make_list_typ lt = typ_list) as EQ1. 
+  simpl_split lsd lt.
+  assert (lt = typ_list) as EQ1. 
     eapply make_list_typ_spec2; eauto.
   subst.
   assert (eq_system_targetdata system5 (los, nts) lsd) as EQ2.
     eapply wf_styp__feasible_typ_aux_mutrec_struct; eauto.
-  subst. 
+  subst.
   inv_mbind. symmetry_ctx.
   eapply_clear H1 in HeqR0; 
-    try solve [eauto | destruct Hprop as [mc Hprop2]; inv_mbind; eauto].
+    [|solve [eauto | fold flatten_typs_aux in *; destruct Hprop as [mc Hprop2]; inv_mbind; eauto]].
   unfold gv_chunks_match_typ. 
   unfold gv_chunks_match_list_typ in HeqR0. 
   unfold AssocList, namedt, id, layouts in *. simpl in *.
+  fold flatten_typs_aux in *.
   inv_mbind. 
   destruct l0; inv HeqR0; uniq_result; simpl in *. 
     apply uninits_match_uninitMCs.
@@ -2675,7 +2612,7 @@ Case "wf_styp_array".
 
 Case "wf_styp_namedt".
   inv_mbind. 
-  remember (lookupAL list_typ nts id5) as R.
+  remember (lookupAL _ nts id5) as R.
   destruct R as [lt|]; try congruence. symmetry_ctx.
   assert (G:=HeqR0).
   eapply Hnc in G; eauto.
@@ -2696,8 +2633,7 @@ Case "wf_styp_nil".
   unfold gv_chunks_match_list_typ. simpl. auto.
  
 Case "wf_styp_cons".
-  remember (split (unmake_list_system_targetdata_typ l')) as R.
-  destruct R as [lsd lt]. simpl.
+  simpl_split lsd lt. simpl. 
   intros. subst.
   apply eq_system_targetdata_cons_inv in Heq'. 
   destruct Heq' as [H4 [EQ1 EQ2]]; subst.
@@ -3040,7 +2976,7 @@ Definition const2GV__matches_chunks_Prop S TD c t :=
 
 Definition consts2GV__matches_chunks_Prop sdct :=
   wf_const_list sdct ->
-  let 'lsdct := unmake_list_system_targetdata_const_typ sdct in
+  let 'lsdct := sdct in
   let '(lsdc, lt) := split lsdct in
   let '(lsd, lc) := split lsdc in
   let '(ls, ld) := split lsd in
@@ -3048,14 +2984,14 @@ Definition consts2GV__matches_chunks_Prop sdct :=
   wf_list_targetdata_typ S TD gl lsd ->
   (forall gv t, 
     (forall t0, In t0 lt -> t0 = t) ->
-   _list_const_arr2GV TD gl t (make_list_const lc) = Some gv ->
+   _list_const_arr2GV TD gl t lc = Some gv ->
    match (length lc) with
    | S _ => gv_chunks_match_typ TD gv (typ_array (length lc) t)
    | _ => Forall2 vm_matches_typ gv nil
    end) /\
   (forall gv lt', 
-   _list_const_struct2GV TD gl (make_list_const lc) = Some (gv, lt') ->
-   lt' = make_list_typ lt /\
+   _list_const_struct2GV TD gl lc = Some (gv, lt') ->
+   lt' = lt /\
    gv_chunks_match_list_typ TD gv lt').
 
 Lemma const2GV_matches_chunks_mutind : 
@@ -3110,18 +3046,9 @@ Case "wfconst_null".
 
 Case "wfconst_array". Focus.
   inv_mbind.
-  remember (split
-             (unmake_list_system_targetdata_const_typ
-                (make_list_system_targetdata_const_typ
-                   (map_list_const
-                      (fun const_ : const =>
-                       (system5, targetdata5:targetdata, const_, typ5)) 
-                      const_list)))) as R.
-  destruct R as [lsdc lt]. 
-  remember (split lsdc) as R'.
-  destruct R' as [lsd lc].
-  remember (split lsd) as R''.
-  destruct R'' as [ls ld].
+  simpl_split lsdc lt.
+  simpl_split lsd lc.
+  simpl_split ls ld.
   match goal with
   | H3: match _ with
         | 0%nat => _
@@ -3139,10 +3066,9 @@ Case "wfconst_array". Focus.
     destruct (@H0 system5 targetdata5 gl) as [J1 J2]; try solve 
       [destruct targetdata5; eauto using const2GV_typsize_mutind_array].
     symmetry in HeqR.
-    assert (make_list_const lc = const_list) as EQ.
+    assert (lc = const_list) as EQ.
       eapply make_list_const_spec2; eauto.
     rewrite <- EQ in HeqR. subst.
-    rewrite length_unmake_make_list_const in H1. 
     apply J1 in HeqR; eauto using make_list_const_spec4.
       unfold gv_chunks_match_typ. simpl.
       rewrite H1 in HeqR. clear - HeqR. 
@@ -3150,31 +3076,26 @@ Case "wfconst_array". Focus.
 Unfocus.
 
 Case "wfconst_struct". Focus.
-  remember (split 
-              (unmake_list_system_targetdata_const_typ
-                 (make_list_system_targetdata_const_typ
-                    (map_list_const_typ
-                      (fun (const_ : const) (typ_ : typ) =>
-                       (system5, (layouts5, namedts5):targetdata, const_, typ_))
-                      const_typ_list)))) as R.
-  destruct R as [lsdc lt]. 
-  remember (split lsdc) as R'.
-  destruct R' as [lsd lc].
-  remember (split lsd) as R''.
-  destruct R'' as [ls ld].
-  remember (_list_const_struct2GV (layouts5, namedts5) gl
-           (make_list_const
-              (map_list_const_typ (fun (const_ : const) (_ : typ) => const_)
-                 const_typ_list))) as R1.
-  destruct R1 as [[gv0 ts]|]; inv H5.
+  simpl_split lsdc lt.
+  simpl_split lsd lc.
+  simpl_split ls ld.
+  match goal with
+    | [ H : match ?t with
+              | ret _ => _
+              | merror => _
+            end = ret _ |- _ ] =>
+    remember t as R1;
+    destruct R1 as [[gv0 ts]|];
+    inv H5
+  end.
   destruct (@H0 system5 (layouts5, namedts5) gl) as [J1 J2];
     eauto using const2GV_typsize_mutind_struct.
 
-  symmetry in HeqR1.
-  erewrite <- map_list_const_typ_spec2 in HeqR1; eauto.
+  symmetry in HeqR2.
+  erewrite <- map_list_const_typ_spec2 in HeqR2; eauto.
   erewrite <- map_list_const_typ_spec1 in H2; eauto.
-  apply J2 in HeqR1; eauto.
-  destruct HeqR1 as [J6 J7]; subst.
+  apply J2 in HeqR2; eauto.
+  destruct HeqR2 as [J6 J7]; subst.
   match goal with
   | H2': (if _ then _ else _) = _ |- _ => rewrite H2 in H2'
   end.
@@ -3185,8 +3106,9 @@ Case "wfconst_struct". Focus.
     inv J7. 
     unfold typ_eq_list_typ in H2.
     destruct t'; tinv H2.
-      destruct (list_typ_dec l0 (make_list_typ lt)); subst; tinv H2.
+      destruct (list_typ_dec l0 lt); subst; tinv H2.
       simpl. simpl in HeqR0. 
+      fold flatten_typs_aux. unfold flatten_typs in *.
       fill_ctxhole. 
       apply uninits_match_uninitMCs.
 
@@ -3194,20 +3116,24 @@ Case "wfconst_struct". Focus.
       apply flatten_typ_total in H4.
       destruct H4 as [gv w1].
       inv_mbind. fill_ctxhole.
-      destruct (list_typ_dec l0 (make_list_typ lt)); subst; tinv H2.
+      destruct (list_typ_dec l0 lt); subst; tinv H2.
       eapply flatten_struct__eq__namedt with (mc1:=uninitMCs 1) in w1; eauto. 
         subst.
         apply uninits_match_uninitMCs.
       
         simpl. simpl in HeqR0. 
         unfold AssocList, namedts, namedt, id, layouts in *. 
-        rewrite HeqR0. auto.
+        unfold flatten_typs in HeqR2. 
+        fold flatten_typs_aux.
+        rewrite HeqR2. auto.
 
     inv J7. 
     unfold typ_eq_list_typ in H2.
     destruct t'; tinv H2.
-      destruct (list_typ_dec l0 (make_list_typ lt)); subst; tinv H2.
-      simpl. simpl in HeqR0. 
+      destruct (list_typ_dec l0 lt); subst; tinv H2.
+      simpl. simpl in HeqR0.
+      unfold flatten_typs in *.
+      fold flatten_typs_aux.
       fill_ctxhole. 
       constructor; auto.
       
@@ -3215,13 +3141,15 @@ Case "wfconst_struct". Focus.
       apply flatten_typ_total in H4.
       destruct H4 as [gv w1].
       inv_mbind. fill_ctxhole.
-      destruct (list_typ_dec l0 (make_list_typ lt)); subst; tinv H2.
+      destruct (list_typ_dec l0 lt); subst; tinv H2.
       eapply flatten_struct__eq__namedt with (mc1:=y::l') in w1; eauto. 
         subst. constructor; auto.
       
         simpl. simpl in HeqR0. 
         unfold AssocList, namedts, namedt, id, layouts in *. 
-        rewrite HeqR0. auto.
+        unfold flatten_typs in *.
+        fold flatten_typs_aux.
+        rewrite HeqR2. auto.
 
 Unfocus.
 
@@ -3465,19 +3393,13 @@ Case "wfconst_nil".
     split; eauto.    
 
 Case "wfconst_cons".
-  remember (split (unmake_list_system_targetdata_const_typ l')) as R1.
-  destruct R1 as [lsdc lt].
-  simpl.  
-  remember (split lsdc) as R2.
-  destruct R2 as [lsd lc].
-  simpl.  
-  remember (split lsd) as R3.
-  destruct R3 as [ls ld].
-  simpl.
+  simpl_split lsdc lt. simpl.
+  simpl_split lsd lc. simpl.
+  simpl_split ls ld. simpl.
   intros S TD gl HwfTD; subst.
-  split. 
+  split.
     intros gv t Hin Hc2g.
-    remember (_list_const_arr2GV TD gl t (make_list_const lc)) as R.
+    remember (_list_const_arr2GV TD gl t lc) as R.
     destruct R; try solve [inv Hc2g].
     remember (_const2GV TD gl const_) as R'.
     destruct R' as [[gv0 t0]|]; try solve [inv Hc2g].
@@ -3492,22 +3414,22 @@ Case "wfconst_cons".
     apply H0 in HeqR'; auto.
     destruct HeqR' as [J5 J6]; subst.
     eapply H2 in J1; eauto. destruct J1 as [J1 _]. clear H0 H2.
-    symmetry in HeqR.
-    apply J1 in HeqR; auto.
+    symmetry in HeqR2.
+    apply J1 in HeqR2; auto.
       destruct TD. 
-      unfold gv_chunks_match_typ in HeqR, J6.
-      unfold gv_chunks_match_typ. simpl. simpl in HeqR, J6.
-      inv_mbind. rewrite <- HeqR0.
+      unfold gv_chunks_match_typ in HeqR2, J6.
+      unfold gv_chunks_match_typ. simpl. simpl in HeqR2, J6.
+      inv_mbind. rewrite <- HeqR3.
       simpl_env.
       repeat (apply match_chunks_app; auto).
         destruct (length lc); simpl; auto.
-        rewrite <- HeqR0 in HeqR. auto. 
+        rewrite <- HeqR3 in HeqR2. auto. 
 
         erewrite match_chunks_eq_size; eauto.
         apply uninits_match_uninitMCs.
 
     intros gv lt' Hc2g.
-    remember (_list_const_struct2GV TD gl (make_list_const lc)) as R.
+    remember (_list_const_struct2GV TD gl lc) as R.
     destruct R as [[gv1 ts1]|]; try solve [inv Hc2g].
     remember (_const2GV TD gl const_) as R'.
     destruct R' as [[gv0 t0]|]; try solve [inv Hc2g].
@@ -3519,9 +3441,9 @@ Case "wfconst_cons".
     apply H0 in HeqR'; auto.
     destruct HeqR' as [J5 J6]; subst.
     eapply H2 in J1'; eauto. destruct J1' as [_ J1']. clear H0 H2.
-    symmetry in HeqR.
-    apply J1' in HeqR; auto.
-    destruct HeqR as [J7 J8]; subst.
+    symmetry in HeqR2.
+    apply J1' in HeqR2; auto.
+    destruct HeqR2 as [J7 J8]; subst.
     split; auto.
       unfold gv_chunks_match_typ in J6.
       unfold gv_chunks_match_list_typ in *. 

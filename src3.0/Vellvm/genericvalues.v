@@ -14,6 +14,7 @@ Require Import targetdata.
 Require Import ZArith.
 Require Import Floats.
 Require Import vellvm_tactics.
+Require Import util.
 
 Module LLVMgv.
 
@@ -78,8 +79,27 @@ match mc with
 | c::mc' => (size_chunk_nat c + sizeMC mc')%nat
 end.
 
-Fixpoint flatten_typ_aux (TD:TargetData) 
-  (acc:list (id*option (list memory_chunk))) (t:typ) 
+Definition flatten_typs_aux_
+  (flatten_typ_aux :
+    TargetData -> list (id * option (list memory_chunk)) ->
+    typ -> option (list memory_chunk)) :=
+fix flatten_typs_aux (TD:TargetData) acc (lt:list typ)
+  : option (list memory_chunk) :=
+match lt with
+| nil => Some nil
+| t :: lt' =>
+  match (flatten_typs_aux TD acc lt', flatten_typ_aux TD acc t) with
+  | (Some mc, Some mc0) =>
+       match getTypeAllocSize TD t with
+       | Some asz => Some (mc0++uninitMCs (asz - sizeMC mc0)++mc)
+       | _ => None
+       end
+  | _ => None
+  end
+end.
+
+Fixpoint flatten_typ_aux (TD:TargetData)
+  (acc:list (id*option (list memory_chunk))) (t:typ)
   : option (list memory_chunk) :=
 match t with
 | typ_int sz => Some (Mint (Size.to_nat sz - 1) :: nil)
@@ -108,7 +128,7 @@ match t with
     end
   end
 | typ_struct ts =>
-  match flatten_typs_aux TD acc ts with
+  match flatten_typs_aux_ flatten_typ_aux TD acc ts with
   | Some nil => Some (uninitMCs 1)
   | Some gv0 => Some gv0
   | None => None
@@ -120,22 +140,10 @@ match t with
   | Some re => re
   | _ => None
   end
-end
-with flatten_typs_aux (TD:TargetData) acc (lt:list_typ) 
-  : option (list memory_chunk) :=
-match lt with
-| Nil_list_typ => Some nil
-| Cons_list_typ t lt' =>
-  match (flatten_typs_aux TD acc lt', flatten_typ_aux TD acc t) with
-  | (Some mc, Some mc0) =>
-       match getTypeAllocSize TD t with
-       | Some asz => Some (mc0++uninitMCs (asz - sizeMC mc0)++mc)
-       | _ => None
-       end
-  | _ => None
-  end
-end
-.
+end.
+
+Definition flatten_typs_aux :=
+  flatten_typs_aux_ flatten_typ_aux.
 
 Fixpoint flatten_typ_for_namedts TD (los:layouts) (nts:namedts) 
   : list (id*option (list memory_chunk)) :=
@@ -150,13 +158,13 @@ Definition flatten_typ (TD:TargetData) (t:typ) : option (list memory_chunk) :=
 let '(los, nts) := TD in
 flatten_typ_aux TD (flatten_typ_for_namedts TD los nts) t.
 
-Definition flatten_typs (TD:TargetData) (lt:list_typ) 
+Definition flatten_typs (TD:TargetData) (lt:list typ)
   : option (list memory_chunk) :=
 let '(los, nts) := TD in
 flatten_typs_aux TD (flatten_typ_for_namedts TD los nts) lt.
 
 Definition gv_has_type (TD:LLVMtd.TargetData) (gv:GenericValue) 
-  (t:LLVMsyntax.typ) : Prop :=
+  (t:typ) : Prop :=
 match flatten_typ TD t with
 | None => False
 | Some ts =>
@@ -310,7 +318,7 @@ end.
 
 (* FIXME : bounds check *)
 Definition extractGenericValue (TD:TargetData) (t:typ) (gv : GenericValue)
-  (cidxs : list_const) : option GenericValue :=
+  (cidxs : list const) : option GenericValue :=
 match (intConsts2Nats TD cidxs) with
 | None => None
 | Some idxs =>
@@ -324,7 +332,7 @@ match (intConsts2Nats TD cidxs) with
 end.
 
 Definition insertGenericValue (TD:TargetData) (t:typ) (gv:GenericValue)
-  (cidxs:list_const) (t0:typ) (gv0:GenericValue) : option GenericValue :=
+  (cidxs:list const) (t0:typ) (gv0:GenericValue) : option GenericValue :=
 match (intConsts2Nats TD cidxs) with
 | None => None
 | Some idxs =>
@@ -628,7 +636,25 @@ match n with
 | S n' => gv++repeatGV gv n'
 end.
 
-Fixpoint zeroconst2GV_aux (TD:TargetData) (acc:list (id*option GenericValue)) 
+Definition zeroconsts2GV_aux_
+  (zeroconst2GV_aux :
+    TargetData -> list (id * option GenericValue) ->
+    typ -> option GenericValue) :=
+fix zeroconsts2GV_aux (TD:TargetData) acc (lt:list typ) : option GenericValue :=
+match lt with
+| nil => Some nil
+| t :: lt' =>
+  match (zeroconsts2GV_aux TD acc lt', zeroconst2GV_aux TD acc t) with
+  | (Some gv, Some gv0) =>
+       match getTypeAllocSize TD t with
+       | Some asz => Some (gv0++uninits (asz - sizeGenericValue gv0)++gv)
+       | _ => None
+       end
+  | _ => None
+  end
+end.
+
+Fixpoint zeroconst2GV_aux (TD:TargetData) (acc:list (id*option GenericValue))
   (t:typ) : option GenericValue :=
 match t with
 | typ_int sz =>
@@ -659,7 +685,7 @@ match t with
     end
   end
 | typ_struct ts =>
-  match zeroconsts2GV_aux TD acc ts with
+  match zeroconsts2GV_aux_ zeroconst2GV_aux TD acc ts with
   | Some nil => Some (uninits 1)
   | Some gv0 => Some gv0
   | None => None
@@ -671,21 +697,10 @@ match t with
   | Some re => re
   | _ => None
   end
-end
-with zeroconsts2GV_aux (TD:TargetData) acc (lt:list_typ) : option GenericValue :=
-match lt with
-| Nil_list_typ => Some nil
-| Cons_list_typ t lt' =>
-  match (zeroconsts2GV_aux TD acc lt', zeroconst2GV_aux TD acc t) with
-  | (Some gv, Some gv0) =>
-       match getTypeAllocSize TD t with
-       | Some asz => Some (gv0++uninits (asz - sizeGenericValue gv0)++gv)
-       | _ => None
-       end
-  | _ => None
-  end
-end
-.
+end.
+
+Definition zeroconsts2GV_aux :=
+  zeroconsts2GV_aux_ zeroconst2GV_aux.
 
 Fixpoint zeroconst2GV_for_namedts TD (los:layouts) (nts:namedts) 
   : list (id*option GenericValue) :=
@@ -700,10 +715,51 @@ Definition zeroconst2GV (TD:TargetData) (t:typ) : option GenericValue :=
 let '(los, nts) := TD in
 zeroconst2GV_aux TD (zeroconst2GV_for_namedts TD los nts) t.
 
-Definition zeroconsts2GV (TD:TargetData) (lt:list_typ) 
+Definition zeroconsts2GV (TD:TargetData) (lt:list typ)
   : option GenericValue :=
 let '(los, nts) := TD in
 zeroconsts2GV_aux TD (zeroconst2GV_for_namedts TD los nts) lt.
+
+Definition _list_const_arr2GV_
+  (_const2GV : TargetData -> GVMap ->
+    const -> option (GenericValue * typ)) :=
+fix _list_const_arr2GV (TD:TargetData) (gl:GVMap) (t:typ) (cs:list const)
+  : option GenericValue :=
+match cs with
+| nil => Some nil
+| c :: lc' =>
+  match (_list_const_arr2GV TD gl t lc', _const2GV TD gl c) with
+  | (Some gv, Some (gv0, t0)) =>
+      if typ_dec t t0 then
+             match getTypeAllocSize TD t0 with
+             | Some asz0 =>
+                 Some (gv0++uninits (asz0 - sizeGenericValue gv0) ++ gv)
+             | _ => None
+             end
+      else None
+  | _ => None
+  end
+end.
+
+Definition _list_const_struct2GV_
+  (_const2GV : TargetData -> GVMap ->
+    const -> option (GenericValue * typ)) :=
+fix _list_const_struct2GV (TD:TargetData) (gl:GVMap) (cs:list const)
+  : option (GenericValue * list typ) :=
+match cs with
+| nil => Some (nil, nil)
+| c :: lc' =>
+  match (_list_const_struct2GV TD gl lc', _const2GV TD gl c) with
+  | (Some (gv, ts), Some (gv0,t0)) =>
+       match getTypeAllocSize TD t0 with
+       | Some asz =>
+            Some (gv0++uninits (asz - sizeGenericValue gv0)++gv,
+                  t0 :: ts)
+       | _ => None
+       end
+  | _ => None
+  end
+end.
 
 Fixpoint _const2GV (TD:TargetData) (gl:GVMap) (c:const)
   : option (GenericValue*typ) :=
@@ -733,18 +789,18 @@ match c with
          Some (val2GV TD (Vptr Mem.nullptr (Int.repr 31 0)) (Mint 31),
                typ_pointer t)
 | const_arr t lc =>
-         match _list_const_arr2GV TD gl t lc with
+         match _list_const_arr2GV_ _const2GV TD gl t lc with
          | Some gv =>
-             match length (unmake_list_const lc) with
+             match length lc with
              | O => Some (uninits 1,
-                            typ_array (length (unmake_list_const lc)) t)
+                            typ_array (length lc) t)
              | _ => Some (gv,
-                            typ_array (length (unmake_list_const lc)) t)
+                            typ_array (length lc) t)
              end
          | _ => None
          end
-| const_struct t lc => 
-         match (_list_const_struct2GV TD gl lc) with
+| const_struct t lc =>
+         match (_list_const_struct2GV_ _const2GV TD gl lc) with
          | None => None
          | Some (gv0, ts) =>
              let '(_, nts) := TD in
@@ -882,41 +938,13 @@ match c with
            end
          | _, _ => None
          end
-end
-with _list_const_arr2GV (TD:TargetData) (gl:GVMap) (t:typ) (cs:list_const)
-  : option GenericValue :=
-match cs with
-| Nil_list_const => Some nil
-| Cons_list_const c lc' =>
-  match (_list_const_arr2GV TD gl t lc', _const2GV TD gl c) with
-  | (Some gv, Some (gv0, t0)) =>
-      if typ_dec t t0 then
-             match getTypeAllocSize TD t0 with
-             | Some asz0 =>
-                 Some (gv0++uninits (asz0 - sizeGenericValue gv0) ++ gv)
-             | _ => None
-             end
-      else None
-  | _ => None
-  end
-end
-with _list_const_struct2GV (TD:TargetData) (gl:GVMap) (cs:list_const)
-  : option (GenericValue*list_typ) :=
-match cs with
-| Nil_list_const => Some (nil, Nil_list_typ)
-| Cons_list_const c lc' =>
-  match (_list_const_struct2GV TD gl lc', _const2GV TD gl c) with
-  | (Some (gv, ts), Some (gv0,t0)) =>
-       match getTypeAllocSize TD t0 with
-       | Some asz =>
-            Some (gv0++uninits (asz - sizeGenericValue gv0)++gv,
-                  Cons_list_typ t0 ts)
-       | _ => None
-       end
-  | _ => None
-  end
-end
-.
+end.
+
+Definition _list_const_struct2GV :=
+  _list_const_struct2GV_ _const2GV.
+
+Definition _list_const_arr2GV :=
+  _list_const_arr2GV_ _const2GV.
 
 Definition cundef_gv gv t : GenericValue :=
 match t with
@@ -991,11 +1019,11 @@ match lp with
     end
 end.
 
-Fixpoint values2GVs (TD:TargetData) (lv:list_sz_value) (locals:GVMap)
+Fixpoint values2GVs (TD:TargetData) (lv:list (sz * value)) (locals:GVMap)
   (globals:GVMap) : option (list GenericValue):=
 match lv with
-| Nil_list_sz_value => Some nil
-| Cons_list_sz_value _ v lv' =>
+| nil => Some nil
+| (_, v) :: lv' =>
   match (getOperandValue TD v locals globals) with
   | Some GV =>
     match (values2GVs TD lv' locals globals) with
@@ -1006,11 +1034,11 @@ match lv with
   end
 end.
 
-Fixpoint intValues2Nats (TD:TargetData) (lv:list_sz_value) (locals:GVMap)
+Fixpoint intValues2Nats (TD:TargetData) (lv:list (sz * value)) (locals:GVMap)
   (globals:GVMap) : option (list Z):=
 match lv with
-| Nil_list_sz_value => Some nil
-| Cons_list_sz_value _ v lv' =>
+| nil => Some nil
+| (_, v) :: lv' =>
   match (getOperandValue TD v locals globals) with
   | Some GV =>
     match (GV2int TD Size.ThirtyTwo GV) with
@@ -1179,8 +1207,8 @@ match flatten_typ TD t with
 | Some ts => List.Forall2 vm_matches_typ gv ts
 end.
 
-Definition gv_chunks_match_list_typ (TD:TargetData) (gv:GenericValue) 
-  (ts:list_typ) : Prop :=
+Definition gv_chunks_match_list_typ (TD:TargetData) (gv:GenericValue)
+  (ts:list typ) : Prop :=
 match flatten_typs TD ts with
 | None => False
 | Some mcs => List.Forall2 vm_matches_typ gv mcs
@@ -1289,7 +1317,7 @@ Proof.
   induction const_list; simpl; intros.
     inv HeqR1. simpl in HeqR2. inv HeqR2. inv e0; auto.
 
-    destruct_const c; tinv HeqR1.
+    destruct_const a; tinv HeqR1.
     destruct (Size.dec sz5 Size.ThirtyTwo); tinv HeqR1.
     remember (intConsts2Nats TD const_list) as R3.
     destruct R3; inv HeqR1.
@@ -1302,7 +1330,7 @@ Proof.
         (INTEGER.to_Z Int5)) 0); inv HeqR2; eauto.
       unfold INTEGER.to_nat in e0.
       unfold INTEGER.to_Z in H0.
-      destruct (nth_list_typ (Coqlib.nat_of_Z Int5) l1); inv e0.
+      destruct (nth_error l1 (Coqlib.nat_of_Z Int5)); inv e0.
       simpl in H0. eauto.
 Qed.
 
@@ -1811,6 +1839,7 @@ Proof.
   induction l0; intros; simpl in *.
     inversion H. exists nil. auto.
 
+    destruct a as [s v].
     remember (getOperandValue TD v lc gl) as ogv.
     destruct ogv; try solve [inversion H].
     remember (GV2int TD Size.ThirtyTwo g) as on.
@@ -1833,6 +1862,7 @@ Proof.
   induction l0; intros lc gl TD gvs0 H; simpl in *.
     inversion H. auto.
 
+    destruct a as [s v].
     destruct (getOperandValue TD v lc gl); try solve [inversion H].
       remember (values2GVs TD l0 lc gl)as ogv.
       destruct ogv; inversion H; subst.
@@ -1875,10 +1905,15 @@ Proof.
     assert (J':=J);
     apply H0 with (TD:=TD)(gl1:=gl1)(gl2:=gl2) in J;
     rewrite J; auto
-  ].
+  ]; fold _list_const_struct2GV.
 
+  apply H with (TD:=TD)(gl1:=gl1)(gl2:=gl2) in H0.
+  rewrite (proj2 H0). auto.
+
+  assert (J:=H1).
   apply H with (TD:=TD)(gl1:=gl1)(gl2:=gl2) in H1.
-  rewrite H1. auto.
+  rewrite H1.
+  assert (J':=J). trivial.
 
   assert (J:=H2).
   apply H with (TD:=TD)(gl1:=gl1)(gl2:=gl2) in H2.
@@ -2034,6 +2069,7 @@ Lemma intValues2Nats_eqAL : forall l0 lc1 gl lc2 TD,
   intValues2Nats TD  l0 lc1 gl = intValues2Nats TD l0 lc2 gl.
 Proof.
   induction l0; intros lc1 gl lc2 TD HeqAL; simpl; auto.
+    destruct a.
     rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v); auto.
     erewrite IHl0; eauto.
 Qed.
@@ -2043,6 +2079,7 @@ Lemma values2GVs_eqAL : forall l0 lc1 gl lc2 TD,
   values2GVs TD l0 lc1 gl = values2GVs TD l0 lc2 gl.
 Proof.
   induction l0; intros lc1 gl lc2 TD HeqAL; simpl; auto.
+    destruct a.
     rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v); auto.
     erewrite IHl0; eauto.
 Qed.

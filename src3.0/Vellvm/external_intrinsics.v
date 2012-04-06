@@ -1137,9 +1137,9 @@ end.
 
 Definition callExternalOrIntrinsics (TD:TargetData) 
   (gl:list (atom*GenericValue)) (M:mem) (fid:id) 
-  (tret: typ) (targs: list_typ) (dck:deckind) 
+  (tret: typ) (targs: list typ) (dck:deckind) 
   (parameters: list GenericValue) : option ((option GenericValue)*trace*mem) :=
-let targs' := unmake_list_typ targs in
+let targs' := targs in
 match dck with
 | deckind_intrinsic iid => 
     add_empty_trace (callIntrinsics TD gl M iid tret targs' parameters)

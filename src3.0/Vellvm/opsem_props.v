@@ -21,6 +21,7 @@ Require Import AST.
 Require Import Maps.
 Require Import opsem.
 Require Import vellvm_tactics.
+Require Import util.
 
 Module OpsemProps. Section OpsemProps.
 
@@ -1019,26 +1020,10 @@ Lemma values2GVs_eqAL : forall l0 lc1 gl lc2 TD,
   eqAL _ lc1 lc2 ->
   @values2GVs GVsSig TD l0 lc1 gl = values2GVs TD l0 lc2 gl.
 Proof.
-  induction l0; intros lc1 gl lc2 TD HeqAL; simpl; auto.
+  induction l0 as [|[s v] l0]; intros lc1 gl lc2 TD HeqAL; simpl; auto.
     rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v); auto.
     erewrite IHl0; eauto.
 Qed.
-(*
-Lemma lookupFdefViaGV_inversion : forall TD Ps gl lc fs fv f,
-  lookupFdefViaGV TD Ps gl lc fs fv = Some f ->
-  exists fptr, exists fn,
-    getOperandValue TD fv lc gl = Some fptr /\
-    lookupFdefViaGVFromFunTable fs fptr = Some fn /\
-    lookupFdefViaIDFromProducts Ps fn = Some f.
-Proof.
-  intros.
-  unfold lookupFdefViaGV in H.
-  destruct (getOperandValue TD fv lc gl); tinv H.
-  simpl in H. exists g.
-  destruct (lookupFdefViaGVFromFunTable fs g); tinv H.
-  simpl in H. exists i0. eauto.
-Qed.
-*)
 
 Lemma eqAL_callUpdateLocals : forall TD noret0 rid oResult lc1 lc2 gl lc1'
   lc2' rt,
@@ -1722,7 +1707,7 @@ Lemma getIncomingValuesForBlockFromPHINodes_spec9: forall TD gl lc b id0 gvs0
   lookupAL _ l0 id0 = ret gvs0 ->
   exists id1, exists t1, exists vls1, exists v, exists n,
     In (insn_phi id1 t1 vls1) ps' /\
-    nth_list_value_l n vls1 = Some (v, getBlockLabel b) /\
+    nth_error vls1 n = Some (v, getBlockLabel b) /\
     Opsem.getOperandValue TD v lc gl= Some gvs0.
 Proof.
   induction ps' as [|[i0 t l0]]; simpl; intros.
@@ -1825,4 +1810,3 @@ Proof.
 Qed.
 
 End OpsemProps. End OpsemProps.
-

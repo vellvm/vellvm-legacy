@@ -265,7 +265,8 @@ Local Opaque isReachableFromEntry.
   match goal with | H13: wf_insn_base _ _ _ |- _ => inv H13 end.
   assert (H0':=H0).
   apply destruct_insnInFdefBlockB in H0'. destruct H0' as [HcInB HcInF].
-  rewrite <- EQ1 in *. 
+  rewrite <- EQ1 in *.
+  find_wf_operand_list.
   eapply any_cmd_doesnt_use_following_operands 
     with (c1:=insn_store SI_id0 (PI_typ pinfo) SI_value0
                  (value_id (PI_id pinfo)) (PI_align pinfo))
@@ -1079,4 +1080,3 @@ Proof.
   intros.
   admit. (* pid isnt in args *)
 Qed.
-

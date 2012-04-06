@@ -404,7 +404,7 @@ Proof.
         constructor.
           destruct a; auto.      
             unfold fdef_simulation. 
-            destruct (fdef_dec (PI_f pinfo) f); try congruence.
+            destruct (fdef_dec (PI_f pinfo) fdef5); try congruence.
               subst.
               contradict H2.
               simpl. auto.
@@ -415,7 +415,7 @@ Proof.
     constructor; auto.
       destruct a; auto.      
       unfold fdef_simulation. 
-      destruct (fdef_dec (PI_f pinfo) f); try congruence.
+      destruct (fdef_dec (PI_f pinfo) fdef5); try congruence.
         subst.
         contradict H2.
         rewrite getProductsIDs_app. simpl.
@@ -596,7 +596,7 @@ end.
       phinodes_placement_undef_tac2.
       right; right; right; right. right. left.
       destruct (fdef_dec (PI_f pinfo) CurFunction0); subst.
-        destruct (is_temporary_dec i0 (PI_newids pinfo)) as [e | n].
+        destruct (is_temporary_dec id5 (PI_newids pinfo)) as [e | n].
           apply cmds_simulation_same_tail_inv in Hsim; auto.
             destruct Hsim as 
               [lid [pid [sid [EQ1 [EQ2 [EQ3 [EQ4 [EQ5 EQ6]]]]]]]]; subst.
@@ -633,7 +633,7 @@ end.
       phinodes_placement_undef_tac2.
       right; right; right; right. right. right. left.
       destruct (fdef_dec (PI_f pinfo) CurFunction0); subst.
-        destruct (is_temporary_dec i0 (PI_newids pinfo)) as [e | n].
+        destruct (is_temporary_dec id5 (PI_newids pinfo)) as [e | n].
           apply cmds_simulation_same_head_inv in Hsim; auto.
             destruct Hsim as 
               [l2 [ps1 [tmn1 [lid [pid [sid 
@@ -690,7 +690,7 @@ end.
     remember (OpsemAux.lookupExFdecViaPtr gl2 FunTable fptr) as R.
     destruct R as [[[]]|].
       assert (OpsemAux.lookupExFdecViaPtr gl1 FunTable fptr = 
-        Some (fdec_intro (fheader_intro f t1 i1 a v1) d)) as K.
+        Some (fdec_intro (fheader_intro fnattrs5 typ0 id0 args5 varg0) deckind5)) as K.
         symmetry in HeqR1.
         eapply lookupExFdecViaPtr__simulation in HeqR1; eauto.
           tauto.
@@ -698,12 +698,12 @@ end.
       fill_ctxhole.
       inv_mbind.
       erewrite params2GVs__simulation; eauto.
-        fill_ctxhole. exists l2.
+        fill_ctxhole. exists l1.
         split; auto.
         destruct Hundef as [gvs [EQ Hundef]].
         dgvs_instantiate_inv.
-        remember (callExternalOrIntrinsics (los2, nts2) fs2 Mem i1 t1
-                   (args2Typs a) d l2) as R.
+        remember (callExternalOrIntrinsics (los2, nts2) fs2 Mem id0 typ0
+                   (args2Typs args5) deckind5 l1) as R.
         destruct R as [[[]]|]; auto.
         inv_mbind.
         erewrite simulation__exCallUpdateLocals_None; eauto.
@@ -808,4 +808,3 @@ end.
     exists tr. exists FS1.
     econstructor; eauto.
 Qed.
-

@@ -72,19 +72,19 @@ match ps with
 | insn_phi id0 t0 vls :: ps' =>
     (if (id_dec id0 pid) || (in_dec id_dec id0 newpids) then
       insn_phi id0 t0
-        (make_list_value_l
-          (map_list_value_l
-            (fun v1 l1 =>
+      (List.map
+        (fun p : value * l =>
+          let '(v1, l1) := p in
                (if (l_dec l0 l1)
                 then vm_get_alloca vm
-                else v1, l1)) vls))
+                else v1, l1)) vls)
     else insn_phi id0 t0
-        (make_list_value_l
-          (map_list_value_l
-            (fun v1 l1 =>
+          (List.map
+            (fun p : value * l =>
+              let '(v1, l1) := p in
                (if (l_dec l0 l1)
                 then vm_subst_value vm v1
-                else v1, l1)) vls)))::
+                else v1, l1)) vls))::
     ssa_renaming_phis_operands l0 ps' pid newpids vm
 end.
 
@@ -166,10 +166,9 @@ let '(bs', _, newpids) :=
              (insn_phi pid' ty
                (fold_left
                   (fun acc p =>
-                     Cons_list_value_l
-                       (if In_dec l_dec p rd then value_id pid
-                       else value_const (const_undef ty)) p acc)
-                   pds Nil_list_value_l)::ps)
+                    ((if In_dec l_dec p rd then value_id pid
+                      else value_const (const_undef ty)), p) :: acc)
+                   pds nil)::ps)
              cs tmn::bs', pid'::ex_ids', pid'::newpids)
        | _ => (b::bs', ex_ids', newpids)
        end) (List.rev bs) (nil, ex_ids, nil)) in
@@ -236,13 +235,11 @@ Definition gen_phinode (pid':id) (ty:typ) (nids:ATree.t (id*id*id)) (pds:list l)
   insn_phi pid' ty
     (fold_left
        (fun acc p =>
-          Cons_list_value_l
-            (match ATree.get p nids with
+            ((match ATree.get p nids with
              | Some (lid0, _, _) => value_id lid0
              | None => value_const (const_undef ty)
-             end)
-             p acc)
-        pds Nil_list_value_l).
+             end), p) :: acc)
+        pds nil).
 
 Definition phinodes_placement_block (pid:id) (ty:typ) (al:align)
   (nids:ATree.t (id*id*id)) (succs preds:ATree.t (list l)) (b:block) : block :=
@@ -437,7 +434,7 @@ end.
 Definition eliminate_phi (f:fdef) (pn:phinode): fdef * bool:=
 let '(insn_phi pid _ vls) := pn in 
 let ndpvs := 
-  remove_redundancy nil (value_id pid::list_prj1 _ _ (unmake_list_value_l vls)) 
+  remove_redundancy nil (value_id pid::list_prj1 _ _ vls) 
 in
 match ndpvs with
 | value_id id1 as v1::v2::nil =>

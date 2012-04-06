@@ -15,7 +15,7 @@ MAKECOQ=make -f Makefile.coq COQLIBS="$(COQLIBS)"
 
 all: theories extraction ocaml
 
-theories: Makefile.coq Vellvm/syntax.v Vellvm/typing_rules.v
+theories: Makefile.coq Vellvm/syntax_base.v Vellvm/typing_rules.v
 	+$(MAKECOQ)
 
 extraction: theories
@@ -28,7 +28,7 @@ Makefile.coq: Make
 	coq_makefile -f Make -o Makefile.coq
 	sed -e 's/-slash //' -i Makefile.coq
 
-%.vo: Makefile.coq Vellvm/syntax.v Vellvm/typing_rules.v
+%.vo: Makefile.coq Vellvm/syntax_base.v Vellvm/typing_rules.v
 	+$(MAKECOQ) "$@"
 
 ocaml: theories extraction
@@ -41,7 +41,7 @@ ocaml: theories extraction
 
 clean:
 	rm -rf Vellvm/main.pdf Vellvm/main.log Vellvm/main.aux \
-		Vellvm/syntax.v Vellvm/typing_rules.v Vellvm/m_*.ott
+		Vellvm/syntax_base.v Vellvm/typing_rules.v Vellvm/m_*.ott
 	+make -f Makefile.coq clean
 	+make -C ./Extraction clean
 	+make -f Makefile.ocaml -C Extraction clean
@@ -51,23 +51,23 @@ ocamlclean:
 	+make -C ./Extraction -f Makefile.ocaml clean
 	ocamlbuild -clean
 
-Vellvm/syntax.v : Vellvm/syntax.ott
+Vellvm/syntax_base.v : Vellvm/syntax_base.ott
 	cd Vellvm && \
-	$(OTT) -coq_expand_list_types true -i syntax.ott -o syntax.v
+	$(OTT) -coq_expand_list_types false -i syntax_base.ott -o syntax_base.v
 
-Vellvm/typing_rules.v: Vellvm/syntax.ott Vellvm/typing_rules.ott
+Vellvm/typing_rules.v: Vellvm/syntax_base.ott Vellvm/typing_rules.ott
 	cd Vellvm && \
-	$(OTT) -merge false -coq_expand_list_types true \
-            -i syntax.ott -o _tmp_syntax.v \
+	$(OTT) -merge false -coq_expand_list_types false \
+            -i syntax_base.ott -o _tmp_syntax_base.v \
 	    -i typing_rules.ott -o typing_rules.v && \
-	rm _tmp_syntax.v
+	rm _tmp_syntax_base.v
 
-Vellvm/def.tex: Vellvm/syntax.ott Vellvm/m_typings.ott Vellvm/main.tex
+Vellvm/def.tex: Vellvm/syntax_base.ott Vellvm/m_typings.ott Vellvm/main.tex
 	cd Vellvm && \
 	$(OTT) -merge false -o def.tex \
           -tex_show_meta false \
           -tex_wrap false \
-            syntax.ott m_typings.ott
+            syntax_base.ott m_typings.ott
 
 Vellvm/main.pdf: Vellvm/def.tex Vellvm/main.tex Vellvm/macros.sty
 	cd Vellvm && \

@@ -67,12 +67,14 @@
 ./Vellvm/opsem.v
 ./Vellvm/opsem_wf.v
 ./Vellvm/static.v
+./Vellvm/syntax_base.v
 ./Vellvm/syntax.v
 ./Vellvm/targetdata_props.v
 ./Vellvm/targetdata.v
 ./Vellvm/typing_rules.v
 ./Vellvm/typings_props.v
 ./Vellvm/typings.v
+./Vellvm/util.v
 ./Vellvm/vellvm_tactics.v
 ./Vellvm/vellvm.v
 

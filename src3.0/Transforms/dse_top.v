@@ -195,12 +195,12 @@ Proof.
   destruct CurCmds; auto.
   simpl in H.
   destruct c; try tauto.
-  destruct v0; try tauto.
+  destruct value2; try tauto.
   intros.
   destruct (fdef_dec (PI_f pinfo) CurFunction); try congruence.
   simpl.
-  destruct (id_dec (PI_id pinfo) i1); subst; try tauto. 
-  destruct (id_dec i1 (PI_id pinfo)); subst; tauto.
+  destruct (id_dec (PI_id pinfo) id0); subst; try tauto. 
+  destruct (id_dec id0 (PI_id pinfo)); subst; tauto.
 Qed.
 
 Lemma s_isFinialState__dse_State_simulation_r2l':
@@ -273,11 +273,11 @@ Proof.
     split; auto.
       intros.
       destruct x; tinv H.
-      destruct v0; tinv H.
+      destruct value2; tinv H.
       simpl in H.
       destruct_if.
       destruct_if.
-      destruct (id_dec i1 (PI_id pinfo)); auto. inv H.
+      destruct (id_dec id0 (PI_id pinfo)); auto. inv H.
 Qed.
 
 Lemma removable_State__non_removable_State: forall pinfo f b tmn ES1 c cs1 lc 
@@ -312,7 +312,7 @@ Proof.
     as [cs11 [cs12 [J1 [J2 J3]]]]; subst.
   exists (c::cs11). exists cs12.
   destruct c; try tauto.
-  destruct v0; try tauto.
+  destruct value2; try tauto.
   destruct_if; try tauto.
   destruct_if; try tauto.
   split; auto.
@@ -324,7 +324,7 @@ Proof.
     intros.
     destruct cs12; auto.
     destruct c; auto.
-    destruct v1; auto.
+    destruct value2; auto.
     simpl in J3.
     destruct_if; auto.
     destruct (id_dec (PI_id pinfo) (PI_id pinfo)); auto.
@@ -532,7 +532,7 @@ Proof.
   destruct cs1; auto.
   simpl in *.
   destruct c; try congruence.
-  destruct v0; try congruence.
+  destruct value2; try congruence.
   destruct_if; try tauto.
 Qed.
 
@@ -560,7 +560,7 @@ Proof.
   destruct cs; tinv H1.
   simpl in *.
   destruct c0; inv H1; eauto.
-  destruct v0; inv H0; eauto.
+  destruct value2; inv H0; eauto.
   destruct_if; try tauto. eauto.
 Qed.
 
@@ -594,6 +594,7 @@ Ltac undefined_state__State_simulation_r2l_tac3 :=
     destruct ECS as [|[] ECS]; try tauto;
     destruct Hstsim as [Hstsim _];
     destruct Hstsim as [? [Htmn [? [? [H8 [? [? Hstsim]]]]]]]; subst;
+    let l5 := fresh "l5" in
     destruct H8 as [l5 [ps5 [cs5 EQ]]]; subst
   end.
 
@@ -784,7 +785,7 @@ Proof.
       undefined_state__State_simulation_r2l_tac41;
       undefined_state__d_State_simulation_r2l_tac43;
       repeat fill_ctxhole; exists gn; split; auto;
-      remember (malloc (los2, nts2) Mem0 s gn a) as R;
+      remember (malloc (los2, nts2) Mem0 s gn align5) as R;
       destruct R as [[]|]; auto;
       symmetry in HeqR2;
       eapply mem_simulation__malloc_l2r' in HeqR2; eauto 2;
@@ -812,7 +813,7 @@ Proof.
     undefined_state__State_simulation_r2l_tac41.
     undefined_state__d_State_simulation_r2l_tac43. 
     repeat fill_ctxhole; exists gvs. split; auto.
-    remember (mload (los2, nts2) Mem0 gvs t a) as R.
+    remember (mload (los2, nts2) Mem0 gvs typ5 align5) as R.
     destruct R; auto.
     symmetry in HeqR1. simpl in H2.
     eapply mem_simulation__mload_l2r in HeqR1; eauto.
@@ -828,7 +829,7 @@ Proof.
     undefined_state__d_State_simulation_r2l_tac43. 
     repeat fill_ctxhole; exists gv; exists mgv.
     split; auto.
-    remember (mstore (los2, nts2) Mem0 mgv t gv a) as R.
+    remember (mstore (los2, nts2) Mem0 mgv typ5 gv align5) as R.
     destruct R; auto.
     symmetry in HeqR2. simpl in H2.
     eapply mem_simulation__mstore_l2r in HeqR2; eauto.
@@ -855,10 +856,10 @@ Proof.
       erewrite TopSim.lookupExFdecViaPtr__simulation_r2l; eauto.
       simpl.
       exists l1. split; auto.
-      remember (callExternalOrIntrinsics (los2, nts2) fs2 Mem0 i1 t0 
-          (args2Typs a) d l1) as R.
+      remember (callExternalOrIntrinsics (los2, nts2) fs2 Mem0 id0 typ0
+          (args2Typs args5) deckind5 l1) as R.
       destruct R as [[[]]|]; auto.
-      remember (Opsem.exCallUpdateLocals (los2, nts2) t n i0 o Locals) as R.
+      remember (Opsem.exCallUpdateLocals (los2, nts2) typ5 noret5 id5 o Locals) as R.
       destruct R; auto.
       eapply callExternalFunction__mem_simulation_l2r in H2; eauto.
         destruct H2 as [M2' [oresult2 [tr2 [W1 [W2 [W3 W4]]]]]]; subst.
@@ -1105,4 +1106,3 @@ end.
     exists (tr**E0). exists FS1'.
     econstructor; eauto using (@OpsemProps.sop_star_trans DGVs).   
 Qed.
-

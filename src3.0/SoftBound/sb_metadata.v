@@ -653,7 +653,7 @@ Lemma get_const_metadata_gid__wf_data : forall S TD Mem0 gl t i0 bblk bofs eofs
   LLVMgv.const2GV TD gl
        (const_castop castop_bitcast
          (const_gep false (const_gid t i0)
-            (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)) p8)
+            [const_int Size.ThirtyTwo 1]) p8)
     = ret ((Vptr bblk eofs, em)::nil) ->
   wf_data TD Mem0 bblk bofs eofs.
 Proof.
@@ -661,9 +661,8 @@ Proof.
   unfold LLVMgv.const2GV in H3.
   remember (_const2GV TD gl
     (const_castop castop_bitcast
-      (const_gep false (const_gid t i0)
-        (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)) p8))
-    as R0.
+      (const_gep false (const_gid t i0) [const_int Size.ThirtyTwo 1])
+      p8)) as R0.
   simpl in HeqR0.
   destruct R0 as [[gv ?]|]; inv H3.
   unfold LLVMgv.const2GV in H2.
@@ -763,23 +762,23 @@ Proof.
     try solve [inversion H1].
 
   inv Hwfc.
-  destruct_typ t; inv H1; 
+  destruct_typ typ5; inv H1; 
     try solve [ 
       eapply get_const_metadata_gid__wf_data; eauto using wf_const_gid
     ].
 
     unfold LLVMgv.const2GV in H2, H3.
     remember (_const2GV TD gl (const_castop castop_bitcast (const_gid
-      (typ_function t0 lt0 v) i0) p8)) as R.
+      (typ_function t0 lt0 varg5) id5) p8)) as R.
     destruct R; try solve [inversion H2 | inversion H3].
     destruct p. inv H2. inv H3.
     unfold GV2ptr.
     unfold _const2GV in HeqR.
-    remember (lookupAL GenericValue gl i0) as R1.
+    remember (lookupAL GenericValue gl id5) as R1.
     destruct R1; inv HeqR.
     assert (exists b, exists sz,
       g0 = (Values.Vptr b (Int.zero 31), AST.Mint 31)::nil /\
-      getTypeAllocSize TD (typ_function t0 lt0 v) = Some sz /\
+      getTypeAllocSize TD (typ_function t0 lt0 varg5) = Some sz /\
       Mem.bounds Mem0 b = (0, Z_of_nat sz) /\
       b < Mem.nextblock Mem0 /\
       (blk_temporal_safe Mem0 b -> Mem.range_perm Mem0 b 0 (Z_of_nat sz) Writable))
@@ -791,8 +790,8 @@ Proof.
     eapply eq_gv_is_wf_data; eauto.
 
   simpl in H1.
-  destruct c; try solve [inversion H1].
-  destruct t; try solve [inversion H1].
+  destruct castop5; try solve [inversion H1].
+  destruct typ5; try solve [inversion H1].
   inv Hwfc.
   eapply IHc; eauto.
 
@@ -1196,6 +1195,7 @@ Proof.
         symmetry in HeqR1.
         inv H7.
         destruct b. simpl in HeqR0.
+        find_wf_value_list.
         eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H4; eauto.
         eapply wf_rmetadata__get_reg_metadata in HeqR1; eauto.
 

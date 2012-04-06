@@ -450,11 +450,11 @@ match (bv, ev, pv) with
 | _ => accum
 end.
 
-Fixpoint metadata_from_list_value_l (bvls evls pvls:list_value_l) im
+Fixpoint metadata_from_list_value_l (bvls evls pvls: list (value * l)) im
   (accum:lnbeps) : lnbeps :=
 match bvls with
-| Nil_list_value_l => accum
-| Cons_list_value_l bv bl bvls' =>
+| nil => accum
+| (bv, bl) :: bvls' =>
     metadata_from_list_value_l bvls' evls pvls im
       (match (getValueViaLabelFromValuels evls bl,
              getValueViaLabelFromValuels pvls bl) with

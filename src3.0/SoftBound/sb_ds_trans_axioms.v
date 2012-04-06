@@ -194,7 +194,7 @@ Axiom set_mmetadata_fn__prop : forall TD Mem1 lc2 als2 Mem2 S2 Ps2 F2
   (forall b0, Mem.bounds Mem1 b0 = Mem.bounds Mem2 b0).
 
 Axiom dstk_spec : forall TD gl M, 
-  callExternalOrIntrinsics TD gl M dstk_fid dstk_typ Nil_list_typ
+  callExternalOrIntrinsics TD gl M dstk_fid dstk_typ nil
     (deckind_external eid_other) nil = Some (None, events.E0, M).
 
 Axiom dstk_is_found : forall TD Ps gl lc fs,
@@ -211,18 +211,18 @@ Axiom stk_ret_sim : forall TD gl M1 M2 mi mgb MM bgv egv,
   mem_simulation mi TD mgb MM M1 M2 ->
   wf_sb_mi mgb mi M1 M2 ->
   exists M2',  exists M2'',
-    callExternalOrIntrinsics TD gl M2 ssb_fid ssb_typ Nil_list_typ
+    callExternalOrIntrinsics TD gl M2 ssb_fid ssb_typ nil
       (deckind_external eid_other) (bgv::int2GV 0%Z::nil) 
         = Some (None, events.E0, M2') /\
-    callExternalOrIntrinsics TD gl M2' sse_fid sse_typ Nil_list_typ
+    callExternalOrIntrinsics TD gl M2' sse_fid sse_typ nil
       (deckind_external eid_other) (egv::int2GV 0%Z::nil) 
         = Some (None, events.E0, M2'') /\
     mem_simulation mi TD mgb MM M1 M2'' /\
     wf_sb_mi mgb mi M1 M2'' /\
-    callExternalOrIntrinsics TD gl M2'' gsb_fid gsb_typ Nil_list_typ
+    callExternalOrIntrinsics TD gl M2'' gsb_fid gsb_typ nil
       (deckind_external eid_other) [int2GV 0%Z] 
         = Some (Some bgv, events.E0, M2'') /\
-    callExternalOrIntrinsics TD gl M2'' gse_fid gse_typ Nil_list_typ
+    callExternalOrIntrinsics TD gl M2'' gse_fid gse_typ nil
       (deckind_external eid_other) [int2GV 0%Z] 
         = Some (Some egv, events.E0, M2'').
 
@@ -255,17 +255,17 @@ Axiom gse_is_found : forall TD Ps gl lc fs,
       (deckind_external eid_other)).
 
 Axiom free_doesnt_change_gsb : forall TD M1 z gv M2 als gl,
-  callExternalOrIntrinsics TD gl M1 gsb_fid gsb_typ Nil_list_typ
+  callExternalOrIntrinsics TD gl M1 gsb_fid gsb_typ nil
     (deckind_external eid_other) [int2GV z] = ret (ret gv, events.E0, M1) ->
   free_allocas TD M1 als = ret M2 ->
-  callExternalOrIntrinsics TD gl M2 gsb_fid gsb_typ Nil_list_typ
+  callExternalOrIntrinsics TD gl M2 gsb_fid gsb_typ nil
     (deckind_external eid_other) [int2GV z] = ret (ret gv, events.E0, M2).
 
 Axiom free_doesnt_change_gse : forall TD M1 z gv M2 als gl,
-  callExternalOrIntrinsics TD gl M1 gse_fid gse_typ Nil_list_typ
+  callExternalOrIntrinsics TD gl M1 gse_fid gse_typ nil
     (deckind_external eid_other) [int2GV z] = ret (ret gv, events.E0, M1) ->
   free_allocas TD M1 als = ret M2 ->
-  callExternalOrIntrinsics TD gl M2 gse_fid gse_typ Nil_list_typ
+  callExternalOrIntrinsics TD gl M2 gse_fid gse_typ nil
     (deckind_external eid_other) [int2GV z] = ret (ret gv, events.E0, M2).
 
 Axiom wrapper_fid_is_identical : forall fid, wrapper_fid fid = fid.
@@ -356,16 +356,16 @@ Axiom shadow_stack_exfdec : forall la lc' mi lc2 lp cs1 nts los fptr
 
 Axiom free_allocas_preserves_gsb : forall M2 TD als2 M2' lp re gl,
   free_allocas TD M2 als2 = ret M2' ->
-  callExternalOrIntrinsics TD gl M2 gsb_fid gsb_typ Nil_list_typ
+  callExternalOrIntrinsics TD gl M2 gsb_fid gsb_typ nil
     (deckind_external eid_other) lp = Some (re, events.E0, M2) ->
-  callExternalOrIntrinsics TD gl M2' gsb_fid gsb_typ Nil_list_typ
+  callExternalOrIntrinsics TD gl M2' gsb_fid gsb_typ nil
     (deckind_external eid_other) lp = Some (re, events.E0, M2').
 
 Axiom free_allocas_preserves_gse : forall M2 TD als2 M2' lp re gl,
   free_allocas TD M2 als2 = ret M2' ->
-  callExternalOrIntrinsics TD gl M2 gse_fid gse_typ Nil_list_typ
+  callExternalOrIntrinsics TD gl M2 gse_fid gse_typ nil
     (deckind_external eid_other) lp = Some (re, events.E0, M2) ->
-  callExternalOrIntrinsics TD gl M2' gse_fid gse_typ Nil_list_typ
+  callExternalOrIntrinsics TD gl M2' gse_fid gse_typ nil
     (deckind_external eid_other) lp = Some (re, events.E0, M2').
 
 Axiom store_doesnt_change_gmmd : forall M2 b2 ofs v0 Mem2' lc2 gl als
@@ -397,6 +397,3 @@ Axiom store_doesnt_change_gmmd : forall M2 b2 ofs v0 Mem2' lc2 gl als
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC)
         Mem2')
     E0.
-
-
-

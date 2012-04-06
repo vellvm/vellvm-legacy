@@ -1862,7 +1862,7 @@ Proof.
   remember (inscope_of_id f b id2) as R.
   destruct R; tinv H.
   unfold inscope_of_id in HeqR0.
-  destruct b.
+  destruct b as [l1 p c t].
   remember (Maps.AMap.get l1 (dom_analyze f)) as R.
   destruct R. destruct f as [[fa ty fid la va] bs].
   symmetry in HeqR0.
@@ -1894,9 +1894,10 @@ Proof.
   unfold idDominates, blockDominates in *. intros.
   rewrite H in Hdom.
   remember (inscope_of_id f b2 id2) as R2.
-  destruct R2; tinv Hdom.
+  destruct R2 as [lst|]; tinv Hdom.
   unfold inscope_of_id in *.
-  destruct b1. destruct b2.
+  destruct b1 as [l1 p c t].
+  destruct b2 as [l2 p0 c0 t0].
   remember (Maps.AMap.get l2 (dom_analyze f)) as R.
   destruct R. destruct f as [[fa ty fid la va] bs].
   symmetry in HeqR2.
@@ -2089,7 +2090,8 @@ Proof.
   intros.
   assert (H1':=H1).
   eapply idDominates_insnDominates__blockDominates in H1; eauto.
-  destruct b1, b.
+  destruct b1 as [l0 p c t].
+  destruct b as [l1 p0 c0 t0].
   destruct (l_dec l0 l1); subst.
     left.
     assert (block_intro l1 p c t = block_intro l1 p0 c0 t0) as EQ.
@@ -2133,7 +2135,7 @@ Proof.
   apply Hinscope in Hid1.
   destruct Hid1 as [Hid1 | [b1 [l1 [J1 [J2 J3]]]]]; try congruence.
   destruct b1.
-  assert (l1 = l2) as EQ.
+  assert (l1 = l5) as EQ.
     apply lookupBlockViaLabelFromFdef_inv in J2; auto.
     destruct J2; auto.
   subst.
@@ -2486,9 +2488,9 @@ Proof.
   unfold inscope_of_id. 
   destruct f as [fh bs]. destruct b.
   intros. 
-  destruct ((dom_analyze (fdef_intro fh bs)) !! l0).
+  destruct ((dom_analyze (fdef_intro fh bs)) !! l5).
   eapply fold_left__bound_blocks 
-    with (fh:=fh)(l0:=l0)(init:=init_scope (fdef_intro fh bs) p c id0) 
+    with (fh:=fh)(l0:=l5)(init:=init_scope (fdef_intro fh bs) phinodes5 cmds5 id0) 
     in bs_bound; eauto.
   destruct bs_bound. simpl. congruence.
 Qed.
@@ -2701,23 +2703,23 @@ Proof.
 Qed.
 
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
-    list_value_l -> Prop :=
-| wf_phi_operands_nil : wf_phi_operands f b id0 t0 Nil_list_value_l
-| wf_phi_operands_cons_vid : forall vid1 l1 vls b1,    
+    list (value * l) -> Prop :=
+| wf_phi_operands_nil : wf_phi_operands f b id0 t0 nil
+| wf_phi_operands_cons_vid : forall vid1 l1 vls b1 vb,
+    lookupBlockViaIDFromFdef f vid1 = Some vb ->
     lookupBlockViaLabelFromFdef f l1 = Some b1 ->
     ((exists vb, lookupBlockViaIDFromFdef f vid1 = Some vb /\ 
        (blockDominates f vb b1 \/ not (isReachableFromEntry f b))) \/ 
      In vid1 (getArgsIDsOfFdef f)) ->
     wf_phi_operands f b id0 t0 vls ->
-    wf_phi_operands f b id0 t0 (Cons_list_value_l (value_id vid1) l1 vls)
+    wf_phi_operands f b id0 t0 ((value_id vid1, l1) :: vls)
 | wf_phi_operands_cons_vc : forall c1 l1 vls,
     wf_phi_operands f b id0 t0 vls ->
-    wf_phi_operands f b id0 t0 (Cons_list_value_l (value_const c1) l1 vls).
+    wf_phi_operands f b id0 t0 ((value_const c1, l1) :: vls).
 
-Definition check_list_value_l (f:fdef) (b:block) (vls:list_value_l) :=
+Definition check_list_value_l (f:fdef) (b:block) (vls: list (value * l)) :=
   let ud := genBlockUseDef_fdef f in
-  let vls1 := unmake_list_value_l vls in
-  let '(vs1,ls1) := List.split vls1 in
+  let '(vs1,ls1) := List.split vls in
   let ls2 := predOfBlock b ud in
   (length ls2 > 0)%nat /\
   AtomSet.set_eq _ ls1 ls2 /\
@@ -2726,4 +2728,3 @@ Definition check_list_value_l (f:fdef) (b:block) (vls:list_value_l) :=
 Definition wf_phinode (f:fdef) (b:block) (p:phinode) :=
 let '(insn_phi id0 t0 vls0) := p in
 wf_phi_operands f b id0 t0 vls0 /\ check_list_value_l f b vls0.
-

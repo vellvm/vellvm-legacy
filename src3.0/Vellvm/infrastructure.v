@@ -19,6 +19,7 @@ Require Import Memory.
 Require Import Kildall.
 Require Import Lattice.
 Require Import targetdata.
+Require Import util.
 
 Module LLVMinfra.
 
@@ -217,7 +218,7 @@ Fixpoint mgetoffset_aux (TD:LLVMtd.TargetData) (t:typ) (idxs:list Z) (accum:Z)
          match (LLVMtd.getStructElementOffset TD t (Coqlib.nat_of_Z idx))
          with
          | Some ofs =>
-             do t' <- nth_list_typ (Coqlib.nat_of_Z idx) lt;
+             do t' <- nth_error lt (Coqlib.nat_of_Z idx);
                mgetoffset_aux TD t' idxs' (accum + (Z_of_nat ofs))
          | _ => None
          end
@@ -231,11 +232,11 @@ Definition mgetoffset (TD:LLVMtd.TargetData) (t:typ) (idxs:list Z)
 do ut <- Constant.typ2utyp nts t;*)
 mgetoffset_aux TD t idxs 0.
 
-Fixpoint intConsts2Nats (TD:LLVMtd.TargetData) (lv:list_const)
+Fixpoint intConsts2Nats (TD:LLVMtd.TargetData) (lv:list const)
   : option (list Z):=
 match lv with
-| Nil_list_const => Some nil
-| Cons_list_const (const_int sz0 n) lv' =>
+| nil => Some nil
+| (const_int sz0 n) :: lv' =>
   if Size.dec sz0 Size.ThirtyTwo
   then
     match (intConsts2Nats TD lv') with
@@ -248,16 +249,16 @@ end.
 
 (** Statically idx for struct must be int, and idx for arr can be
     anything without checking bounds. *)
-Fixpoint getSubTypFromConstIdxs (idxs : list_const) (t : typ) : option typ :=
+Fixpoint getSubTypFromConstIdxs (idxs : list const) (t : typ) : option typ :=
 match idxs with
-| Nil_list_const => Some t
-| Cons_list_const idx idxs' =>
+| nil => Some t
+| idx :: idxs' =>
   match t with
   | typ_array sz t' => getSubTypFromConstIdxs idxs' t'
   | typ_struct lt =>
     match idx with
     | (const_int sz i) =>
-      match (nth_list_typ (INTEGER.to_nat i) lt) with
+      match (nth_error lt (INTEGER.to_nat i)) with
       | Some t' => getSubTypFromConstIdxs idxs' t'
       | None => None
       end
@@ -267,9 +268,9 @@ match idxs with
   end
 end.
 
-Definition getConstGEPTyp (idxs : list_const) (t : typ) : option typ :=
+Definition getConstGEPTyp (idxs : list const) (t : typ) : option typ :=
 match (idxs, t) with
-| (Cons_list_const idx idxs', typ_pointer t0)  =>
+| (idx :: idxs', typ_pointer t0)  =>
      (* The input t is already an element of a pointer typ *)
      match (getSubTypFromConstIdxs idxs' t0) with
      | Some t' => Some (typ_pointer t')
@@ -278,16 +279,17 @@ match (idxs, t) with
 | _ => None
 end.
 
-Fixpoint getSubTypFromValueIdxs (idxs : list_sz_value) (t : typ) : option typ :=
+Fixpoint getSubTypFromValueIdxs
+  (idxs : list (sz * value)) (t : typ) : option typ :=
 match idxs with
-| Nil_list_sz_value => Some t
-| Cons_list_sz_value _ idx idxs' =>
+| nil => Some t
+| (_, idx) :: idxs' =>
   match t with
   | typ_array sz t' => getSubTypFromValueIdxs idxs' t'
   | typ_struct lt =>
     match idx with
     | value_const (const_int sz i) =>
-      match (nth_list_typ (INTEGER.to_nat i) lt) with
+      match (nth_error lt (INTEGER.to_nat i)) with
       | Some t' => getSubTypFromValueIdxs idxs' t'
       | None => None
       end
@@ -297,10 +299,10 @@ match idxs with
   end
 end.
 
-Definition getGEPTyp (idxs : list_sz_value) (t : typ) : option typ :=
+Definition getGEPTyp (idxs : list (sz * value)) (t : typ) : option typ :=
 match idxs with
-| Nil_list_sz_value => None
-| Cons_list_sz_value _ idx idxs' =>
+| nil => None
+| (_, idx) :: idxs' =>
      (* The input t is already an element of a pointer typ *)
      match (getSubTypFromValueIdxs idxs' t) with
      | Some t' => Some (typ_pointer t')
@@ -405,7 +407,7 @@ match i with
 | insn_load _ _ v _ => getValueIDs v
 | insn_store _ _ v1 v2 _ => getValueIDs v1 ++ getValueIDs v2
 | insn_gep _ _ _ v vs _ =>
-    getValueIDs v ++ values2ids (map_list_sz_value (fun _ v => v) vs)
+    getValueIDs v ++ values2ids (map snd vs)
 | insn_trunc _ _ _ v _ => getValueIDs v
 | insn_ext _ _ _ v1 typ2 => getValueIDs v1
 | insn_cast _ _ _ v _ => getValueIDs v
@@ -415,8 +417,8 @@ match i with
 | insn_call _ _ _ _ _ v0 lp => getValueIDs v0 ++ getParamsOperand lp
 end.
 
-Definition valueInListValue (v0:value) (vs:list_sz_value) : Prop :=
-In v0 (map_list_sz_value (fun _ v => v) vs).
+Definition valueInListValue (v0:value) (vs:list (sz * value)) : Prop :=
+In v0 (map snd vs).
 
 Definition valueInParams (v0:value) (lp:params) : Prop :=
 let '(_, vs) := split lp in In v0 vs.
@@ -454,7 +456,7 @@ end.
 Definition valueInInsnOperands (v0:value) (instr:insn) : Prop :=
 match instr with
 | insn_phinode (insn_phi _ _ ls) =>
-    In v0 (list_prj1 _ _ (unmake_list_value_l ls))
+    In v0 (list_prj1 _ _ ls)
 | insn_cmd c => valueInCmdOperands v0 c
 | insn_terminator tmn => valueInTmnOperands v0 tmn
 end.
@@ -472,7 +474,7 @@ end.
 
 Definition getPhiNodeOperands (i:phinode) : ids :=
 match i with
-| insn_phi _ _ ls => values2ids (list_prj1 _ _ (unmake_list_value_l ls))
+| insn_phi _ _ ls => values2ids (list_prj1 _ _ ls)
 end.
 
 Definition getInsnOperands (i:insn) : ids :=
@@ -519,7 +521,7 @@ end.
 
 Definition getPhiNodeLabels (i:phinode) : ls :=
 match i with
-| insn_phi _ _ ls => list_prj2 _ _ (unmake_list_value_l ls)
+| insn_phi _ _ ls => list_prj2 _ _ ls
 end.
 
 Definition getInsnLabels (i:insn) : ls :=
@@ -529,10 +531,10 @@ match i with
 | insn_terminator tmn => getTerminatorLabels tmn
 end.
 
-Fixpoint args2Typs (la:args) : list_typ :=
+Fixpoint args2Typs (la:args) : list typ :=
 match la with
-| nil => Nil_list_typ
-| (t, _, id)::la' => Cons_list_typ t (args2Typs la')
+| nil => nil
+| (t, _, id)::la' => t :: (args2Typs la')
 end.
 
 Definition getFheaderTyp (fh:fheader) : typ :=
@@ -600,15 +602,16 @@ match fd with
 | fdef_intro fh _ => getFheaderID fh
 end.
 
-Fixpoint getLabelViaIDFromList (ls:list_value_l) (branch:id) : option l :=
+Fixpoint getLabelViaIDFromList
+  (ls: list (value * l)) (branch:id) : option l :=
 match ls with
-| Nil_list_value_l => None
-| Cons_list_value_l (value_id id) l ls' =>
+| nil => None
+| ((value_id id), l) :: ls' =>
   match (eq_dec id branch) with
   | left _ => Some l
   | right _ => getLabelViaIDFromList ls' branch
   end
-| Cons_list_value_l _ l ls' => getLabelViaIDFromList ls' branch
+| (_, l) :: ls' => getLabelViaIDFromList ls' branch
 end.
 
 Definition getLabelViaIDFromPhiNode (phi:phinode) (branch:id) : option l :=
@@ -616,10 +619,10 @@ match phi with
 | insn_phi _ _ ls => getLabelViaIDFromList ls branch
 end.
 
-Fixpoint getLabelsFromIdls (idls:list_value_l) : ls :=
+Fixpoint getLabelsFromIdls (idls:list (value * l)) : ls :=
 match idls with
-| Nil_list_value_l => lempty_set
-| Cons_list_value_l _ l idls' => lset_add l (getLabelsFromIdls idls')
+| nil => lempty_set
+| (_, l) :: idls' => lset_add l (getLabelsFromIdls idls')
 end.
 
 Definition getLabelsFromPhiNode (phi:phinode) : ls :=
@@ -633,16 +636,16 @@ match phis with
 | phi::phis' => lset_union (getLabelsFromPhiNode phi) (getLabelsFromPhiNodes phis')
 end.
 
-Definition getIDLabelsFromPhiNode p : list_value_l :=
+Definition getIDLabelsFromPhiNode p : list (value * l) :=
 match p with
 | insn_phi _ _ idls => idls
 end.
 
 Fixpoint getLabelViaIDFromIDLabels idls id : option l :=
 match idls with
-| Nil_list_value_l => None
-| Cons_list_value_l (value_id id0) l0 idls' => if eq_dec id id0 then Some l0 else getLabelViaIDFromIDLabels idls' id
-| Cons_list_value_l _ l0 idls' => getLabelViaIDFromIDLabels idls' id
+| nil => None
+| (value_id id0, l0) :: idls' => if eq_dec id id0 then Some l0 else getLabelViaIDFromIDLabels idls' id
+| (_, l0) :: idls' => getLabelViaIDFromIDLabels idls' id
 end.
 
 Definition _getLabelViaIDPhiNode p id : option l :=
@@ -687,16 +690,16 @@ match Caller with
 | _ => None
 end.
 
-Fixpoint getValueViaLabelFromValuels (vls:list_value_l) (l0:l) : option value :=
+Fixpoint getValueViaLabelFromValuels (vls:list (value * l)) (l0:l) : option value :=
 match vls with
-| Nil_list_value_l => None
-| Cons_list_value_l v l1 vls'=>
+| nil => None
+| (v, l1) :: vls'=>
   if (eq_dec l1 l0)
   then Some v
   else getValueViaLabelFromValuels vls' l0
 end.
 
-Definition getValueViaBlockFromValuels (vls:list_value_l) (b:block) : option value :=
+Definition getValueViaBlockFromValuels (vls:list (value * l)) (b:block) : option value :=
 match b with
 | block_intro l _ _ _ => getValueViaLabelFromValuels vls l
 end.
@@ -771,7 +774,7 @@ match b with
   match (lookupPhiNodeViaIDFromPhiNodes ps id0) with
   | None =>
       match (lookupCmdViaIDFromCmds cs id0) with
-      | None => if (eq_dec (getTerminatorID t) id0) 
+      | None => if (eq_dec (getTerminatorID t) id0)
                 then Some (insn_terminator t) else None
       | Some c => Some (insn_cmd c)
       end
@@ -1584,6 +1587,9 @@ Ltac destruct_dec_tac f :=
   | |- { _ ?a1 ?b1 ?c1 ?d1 ?e1 ?f1 = _ ?a2 ?b2 ?c2 ?d2 ?e2 ?f2 } +
        { _ ?a1 ?b1 ?c1 ?d1 ?e1 ?f1 <> _ ?a2 ?b2 ?c2 ?d2 ?e2 ?f2 } =>
       f a1 a2; f b1 b2; f c1 c2; f d1 d2; f e1 e2; f f1 f2
+  | |- {?a1 :: ?b1 = ?a2 :: ?b2} +
+       {?a1 :: ?b1 <> ?a2 :: ?b2} =>
+      f a1 a2; f b1 b2
   end; subst; try solve [auto | done_right].
 
 Ltac typ_mutrec_dec_subs_tac :=
@@ -1593,9 +1599,9 @@ Ltac typ_mutrec_dec_subs_tac :=
       match goal with
       | H:forall t2 : typ, {a1 = t2} + {a1 <> t2} |- _ => destruct (@H a2)
       end
-    | list_typ =>
+    | list typ =>
       match goal with
-      | H:forall t2 : list_typ, {a1 = t2} + {a1 <> t2} |- _ =>
+      | H:forall t2 : list typ, {a1 = t2} + {a1 <> t2} |- _ =>
           destruct (@H a2); clear H
       end
     | _ => destruct_wrt_type1 a1 a2
@@ -1605,7 +1611,7 @@ Ltac typ_mutrec_dec_subs_tac :=
 Ltac typ_mutrec_dec_tac := destruct_top_tac; typ_mutrec_dec_subs_tac.
 
 Definition typ_dec_prop (t1:typ) := forall t2, {t1=t2} + {~t1=t2}.
-Definition list_typ_dec_prop (lt1:list_typ) :=
+Definition list_typ_dec_prop (lt1:list typ) :=
   forall lt2, {lt1=lt2} + {~lt1=lt2}.
 
 Lemma typ_mutrec_dec :
@@ -1617,12 +1623,12 @@ Proof.
     intros; try solve [abstract typ_mutrec_dec_tac].
 Qed.
 
-Lemma typ_dec : forall (t1 t2:typ), {t1=t2} + {~t1=t2}.
+Lemma typ_dec : forall (t1 t2:typ), {t1=t2} + {t1<>t2}.
 Proof.
   destruct typ_mutrec_dec; auto.
 Qed.
 
-Lemma list_typ_dec : forall (lt1 lt2:list_typ), {lt1=lt2} + {~lt1=lt2}.
+Lemma list_typ_dec : forall (lt1 lt2:list typ), {lt1=lt2} + {~lt1=lt2}.
 Proof.
   destruct typ_mutrec_dec; auto.
 Qed.
@@ -1663,7 +1669,7 @@ Proof.
 Qed.
 
 Definition const_dec_prop (c1:const) := forall c2, {c1=c2} + {~c1=c2}.
-Definition list_const_dec_prop (lc1:list_const) :=
+Definition list_const_dec_prop (lc1:list const) :=
   forall lc2, {lc1=lc2} + {~lc1=lc2}.
 
 Ltac destruct_wrt_type2 a1 a2:=
@@ -1679,7 +1685,7 @@ match type of a1 with
 | truncop => destruct (@truncop_dec a1 a2)
 | castop => destruct (@castop_dec a1 a2)
 | inbounds => destruct (@inbounds_dec a1 a2)
-| list_typ => destruct (@list_typ_dec a1 a2)
+| list typ => destruct (@list_typ_dec a1 a2)
 | cond => destruct (@cond_dec a1 a2)
 | fcond => destruct (@fcond_dec a1 a2)
 | fbop => destruct (@fbop_dec a1 a2)
@@ -1694,9 +1700,9 @@ Ltac const_mutrec_dec_subs_tac :=
       match goal with
       | H:forall t2 : const, {a1 = t2} + {a1 <> t2} |- _ => destruct (@H a2)
       end
-    | list_const =>
+    | list const =>
       match goal with
-      | H:forall t2 : list_const, {a1 = t2} + {a1 <> t2} |- _ =>
+      | H:forall t2 : list const, {a1 = t2} + {a1 <> t2} |- _ =>
           destruct (@H a2); clear H
       end
     | _ => destruct_wrt_type2 a1 a2
@@ -1719,7 +1725,7 @@ Proof.
   destruct const_mutrec_dec; auto.
 Qed.
 
-Lemma list_const_dec : forall (lc1 lc2:list_const), {lc1=lc2} + {~lc1=lc2}.
+Lemma list_const_dec : forall (lc1 lc2:list const), {lc1=lc2} + {~lc1=lc2}.
 Proof.
   destruct const_mutrec_dec; auto.
 Qed.
@@ -1752,22 +1758,20 @@ Proof.
     destruct (@value_dec v v0); subst; try solve [auto | done_right].
 Qed.
 
-Lemma list_value_l_dec : forall (l1 l2:list_value_l), {l1=l2}+{~l1=l2}.
-Proof.
-  induction l1.
-    destruct l2; subst; try solve [subst; auto | done_right].
-
-    destruct l2; subst; try solve [done_right].
-    destruct (@value_dec v v0); subst; try solve [done_right].
-    destruct (@l_dec l0 l2); subst; try solve [done_right].
-    destruct (@IHl1 l3); subst; try solve [auto | done_right].
-Qed.
-
-Lemma list_value_dec : forall (lv1 lv2:list_sz_value), {lv1=lv2}+{~lv1=lv2}.
+Lemma list_value_l_dec : forall (l1 l2:list (value * l)), {l1=l2}+{~l1=l2}.
 Proof.
   decide equality.
-    destruct (@value_dec v v0); subst; try solve [auto | done_right].
-    destruct (@Size.dec s s0); subst; try solve [auto | done_right].
+  decide equality.
+  decide equality.
+  apply const_dec.
+Qed.
+
+Lemma list_value_dec : forall (lv1 lv2: list (sz * value)), {lv1=lv2}+{~lv1=lv2}.
+Proof.
+  decide equality.
+  decide equality.
+  apply value_dec.
+  apply eq_nat_dec.
 Qed.
 
 Lemma callconv_dec : forall (cc1 cc2:callconv), {cc1=cc2}+{~cc1=cc2}.
@@ -1780,12 +1784,12 @@ match type of a1 with
 | l => destruct (@id_dec a1 a2)
 | value => destruct (@value_dec a1 a2)
 | const => destruct (@const_dec a1 a2)
-| list_const => destruct (@list_const_dec a1 a2)
+| list const => destruct (@list_const_dec a1 a2)
 | attribute => destruct (@attribute_dec a1 a2)
 | attributes => destruct (@attributes_dec a1 a2)
 | params => destruct (@params_dec a1 a2)
-| list_sz_value => destruct (@list_value_dec a1 a2)
-| list_value_l => destruct (@list_value_l_dec a1 a2)
+| list (sz * value) => destruct (@list_value_dec a1 a2)
+| list (value * l) => destruct (@list_value_l_dec a1 a2)
 | callconv => destruct (@callconv_dec a1 a2)
 | align => destruct (Align.dec a1 a2)
 | noret => destruct (@noret_dec a1 a2)
@@ -1803,9 +1807,9 @@ Proof.
     try solve [done_right | auto | abstract insn_dec_tac].
   Case "insn_call".
     match goal with
-    | |- {insn_call ?i0 ?n ?c ?rt ?va ?v ?p = 
+    | |- {insn_call ?i0 ?n ?c ?rt ?va ?v ?p =
             insn_call ?i1 ?n0 ?c0 ?rt0 ?va0 ?v0 ?p0} +
-         {insn_call ?i0 ?n ?c ?rt ?va ?v ?p <> 
+         {insn_call ?i0 ?n ?c ?rt ?va ?v ?p <>
             insn_call ?i1 ?n0 ?c0 ?rt0 ?va0 ?v0 ?p0} =>
       destruct_wrt_type3 i0 i1; subst; try solve [done_right];
       destruct_wrt_type3 v v0; subst; try solve [done_right];
@@ -2092,7 +2096,7 @@ Definition paramsEqB (lp lp':params) := sumbool2bool _ _ (params_dec lp lp').
 
 Definition lEqB i i' := sumbool2bool _ _ (l_dec i i').
 
-Definition list_value_lEqB (idls idls':list_value_l) :=
+Definition list_value_lEqB (idls idls':list (value * l)) :=
   sumbool2bool _ _ (list_value_l_dec idls idls').
 
 Definition list_valueEqB idxs idxs' :=
@@ -2516,21 +2520,23 @@ Notation "i =tmn= i'" := (terminatorEqB i i') (at level 50).
 (* Check to make sure that if there is more than one entry for a
    particular basic block in this PHI node, that the incoming values
    are all identical. *)
-Fixpoint lookupIdsViaLabelFromIdls (idls:list_value_l) (l0:l) : list id :=
+Fixpoint lookupIdsViaLabelFromIdls
+  (idls:list (value * l)) (l0:l) : list id :=
 match idls with
-| Nil_list_value_l => nil
-| Cons_list_value_l (value_id id1) l1 idls' =>
+| nil => nil
+| (value_id id1, l1) :: idls' =>
   if (eq_dec l0 l1)
   then set_add eq_dec id1 (lookupIdsViaLabelFromIdls idls' l0)
   else (lookupIdsViaLabelFromIdls idls' l0)
-| Cons_list_value_l _ l1 idls' =>
+| (_, l1) :: idls' =>
   lookupIdsViaLabelFromIdls idls' l0
 end.
 
-Fixpoint _checkIdenticalIncomingValues (idls idls0:list_value_l) : Prop :=
+Fixpoint _checkIdenticalIncomingValues
+  (idls idls0:list (value * l)) : Prop :=
 match idls with
-| Nil_list_value_l => True
-| Cons_list_value_l _ l idls' =>
+| nil => True
+| (_, l) :: idls' =>
   (length (lookupIdsViaLabelFromIdls idls0 l) <= 1)%nat /\
   (_checkIdenticalIncomingValues idls' idls0)
 end.
@@ -2700,8 +2706,8 @@ Fixpoint getTyp (c:const) : option typ :=
  | const_arr t lc =>
    Some
    (match lc with
-   | Nil_list_const => typ_array Size.Zero t
-   | Cons_list_const c' lc' => typ_array (Size.from_nat (length (unmake_list_const lc))) t
+   | nil => typ_array Size.Zero t
+   | c' :: lc' => typ_array (Size.from_nat (length lc)) t
    end)
  | const_struct t lc => Some t
 (*
@@ -2730,17 +2736,19 @@ Fixpoint getTyp (c:const) : option typ :=
  | const_insertvalue c c' lc => getTyp c
  | const_bop _ c1 c2 => getTyp c1
  | const_fbop _ c1 c2 => getTyp c1
- end
-with getList_typ (cs:list_const) : option list_typ :=
-match cs with
-| Nil_list_const => Some Nil_list_typ
-| Cons_list_const c cs' =>
-  match (getTyp c, getList_typ cs') with
-  | (Some t, Some ts') => Some (Cons_list_typ t ts')
-  | (_, _) => None
-  end
-end.
+ end.
 
+Definition gen_utyps_maps_aux_
+  (gen_utyp_maps_aux : id -> list (id * typ) -> typ -> option typ) :=
+fix gen_utyps_maps_aux
+(cid:id) (m:list(id*typ)) (ts:list typ) : option (list typ) :=
+match ts with
+  | nil => Some nil
+  | t0 :: ts0 =>
+    do ut0 <- gen_utyp_maps_aux cid m t0;
+    do uts0 <- gen_utyps_maps_aux cid m ts0;
+    ret (ut0 :: uts0)
+end.
 
 Fixpoint gen_utyp_maps_aux (cid:id) (m:list(id*typ)) (t:typ) : option typ :=
  match t with
@@ -2749,13 +2757,16 @@ Fixpoint gen_utyp_maps_aux (cid:id) (m:list(id*typ)) (t:typ) : option typ :=
  | typ_void => Some typ_void
  | typ_label => Some typ_label
  | typ_metadata => Some typ_metadata
- | typ_array s t0 => do ut0 <- gen_utyp_maps_aux cid m t0; ret (typ_array s ut0)
+ | typ_array s t0 =>
+   do ut0 <- gen_utyp_maps_aux cid m t0;
+   ret (typ_array s ut0)
  | typ_function t0 ts0 va =>
      do ut0 <- gen_utyp_maps_aux cid m t0;
-     do uts0 <- gen_utyps_maps_aux cid m ts0;
+     do uts0 <- gen_utyps_maps_aux_ gen_utyp_maps_aux cid m ts0;
         ret (typ_function ut0 uts0 va)
  | typ_struct ts0 =>
-     do uts0 <- gen_utyps_maps_aux cid m ts0; ret (typ_struct uts0)
+     do uts0 <- gen_utyps_maps_aux_ gen_utyp_maps_aux cid m ts0;
+     ret (typ_struct uts0)
  | typ_pointer t0 =>
      match gen_utyp_maps_aux cid m t0 with
      | Some ut0 => Some (typ_pointer ut0)
@@ -2767,16 +2778,10 @@ Fixpoint gen_utyp_maps_aux (cid:id) (m:list(id*typ)) (t:typ) : option typ :=
      end
 (* | typ_opaque => Some typ_opaque *)
  | typ_namedt i => lookupAL _ m i
- end
-with gen_utyps_maps_aux (cid:id) (m:list(id*typ)) (ts:list_typ) : option list_typ
-   :=
- match ts with
- | Nil_list_typ => Some Nil_list_typ
- | Cons_list_typ t0 ts0 =>
-     do ut0 <- gen_utyp_maps_aux cid m t0;
-     do uts0 <- gen_utyps_maps_aux cid m ts0;
-     ret (Cons_list_typ ut0 uts0)
  end.
+
+Definition gen_utyps_maps_aux :=
+  gen_utyps_maps_aux_ gen_utyp_maps_aux.
 
 Fixpoint gen_utyp_maps (nts:namedts) : list (id*typ) :=
 match nts with
@@ -2789,6 +2794,17 @@ match nts with
   end
 end.
 
+Definition typs2utyps_aux_
+  (typ2utyp_aux : list (id * typ) -> typ -> option typ) :=
+fix typs2utyps_aux (m:list(id*typ)) (ts:list typ) : option (list typ) :=
+ match ts with
+ | nil => Some nil
+ | t0 :: ts0 =>
+     do ut0 <- typ2utyp_aux m t0;
+     do uts0 <- typs2utyps_aux m ts0;
+     ret (ut0 :: uts0)
+ end.
+
 Fixpoint typ2utyp_aux (m:list(id*typ)) (t:typ) : option typ :=
  match t with
  | typ_int s => Some (typ_int s)
@@ -2799,27 +2815,35 @@ Fixpoint typ2utyp_aux (m:list(id*typ)) (t:typ) : option typ :=
  | typ_array s t0 => do ut0 <- typ2utyp_aux m t0; ret (typ_array s ut0)
  | typ_function t0 ts0 va =>
      do ut0 <- typ2utyp_aux m t0;
-     do uts0 <- typs2utyps_aux m ts0;
+     do uts0 <- typs2utyps_aux_ typ2utyp_aux m ts0;
         ret (typ_function ut0 uts0 va)
- | typ_struct ts0 => do uts0 <- typs2utyps_aux m ts0; ret (typ_struct uts0)
- | typ_pointer t0 => do ut0 <- typ2utyp_aux m t0; ret (typ_pointer ut0)
+ | typ_struct ts0 =>
+   do uts0 <- typs2utyps_aux_ typ2utyp_aux m ts0;
+   ret (typ_struct uts0)
+ | typ_pointer t0 =>
+   do ut0 <- typ2utyp_aux m t0;
+   ret (typ_pointer ut0)
 (* | typ_opaque => Some typ_opaque *)
  | typ_namedt i => lookupAL _ m i
- end
-with typs2utyps_aux (m:list(id*typ)) (ts:list_typ) : option list_typ :=
- match ts with
- | Nil_list_typ => Some Nil_list_typ
- | Cons_list_typ t0 ts0 =>
-     do ut0 <- typ2utyp_aux m t0;
-     do uts0 <- typs2utyps_aux m ts0;
-     ret (Cons_list_typ ut0 uts0)
  end.
+
+Definition typs2utyps_aux :=
+  typs2utyps_aux_ typ2utyp_aux.
 
 Definition typ2utyp' (nts:namedts) (t:typ) : option typ :=
 let m := gen_utyp_maps (List.rev nts) in
 typ2utyp_aux m t.
 
 Fixpoint subst_typ (i':id) (t' t:typ) : typ :=
+
+  let subst_typs :=
+    fix subst_typs (i':id) (t':typ) (ts:list typ) : list typ :=
+    match ts with
+    | nil => nil
+    | t0 :: ts0 =>
+     (subst_typ i' t' t0) :: (subst_typs i' t' ts0)
+    end in
+
  match t with
  | typ_int _ | typ_floatpoint _ | typ_void | typ_label | typ_metadata => t
  | typ_array s t0 => typ_array s (subst_typ i' t' t0)
@@ -2828,12 +2852,6 @@ Fixpoint subst_typ (i':id) (t' t:typ) : typ :=
  | typ_struct ts0 => typ_struct (subst_typs i' t' ts0)
  | typ_pointer t0 => typ_pointer (subst_typ i' t' t0)
  | typ_namedt i => if (eq_atom_dec i i') then t' else t
- end
-with subst_typs (i':id) (t':typ) (ts:list_typ) : list_typ :=
- match ts with
- | Nil_list_typ => Nil_list_typ
- | Cons_list_typ t0 ts0 =>
-     Cons_list_typ (subst_typ i' t' t0) (subst_typs i' t' ts0)
  end.
 
 Fixpoint subst_typ_by_nts (nts:namedts) (t:typ) : typ :=
@@ -2922,15 +2940,6 @@ End ReturnInst.
 
 Module CallSite <: SigCallSite.
 
-(*
-Definition getCalledFunction (i:cmd) (s:system) : option fdef :=
- match i with
- (* | insn_invoke _ _ fid _ _ _ => lookupFdefViaIDFromSystemC s fid *)
- | insn_call _ _ _ _ fid _ => lookupFdefViaIDFromSystem s fid
- | _ => None
- end.
-*)
-
  Definition getFdefTyp (fd:fdef) : typ := getFdefTyp fd.
 
  Definition arg_size (fd:fdef) : nat :=
@@ -2959,19 +2968,6 @@ Module CallInst <: SigCallInst.
  Include Instruction.
 
 End CallInst.
-
-(*
-Module InvokeInst <: SigInvokeInst.
- Include Instruction.
-
- Definition getNormalDest (s:system) (i:insn) : option block :=
- match (getNormalDestFromInvokeInsnC i) with
- | None => None
- | Some l => lookupBlockViaLabelFromSystem s l
- end.
-
-End InvokeInst.
-*)
 
 Module BinaryOperator <: SigBinaryOperator.
  Include Instruction.
@@ -3005,13 +3001,13 @@ Module PHINode <: SigPHINode.
 
  Definition getNumIncomingValues (i:phinode) : nat :=
  match i with
- | (insn_phi _ _ ln) => (length (unmake_list_value_l ln))
+ | (insn_phi _ _ ln) => (length ln)
  end.
 
  Definition getIncomingValueType (f:fdef) (i:phinode) (n:nat) : option typ :=
  match i with
  | (insn_phi _ _ ln) =>
-    match (nth_list_value_l n ln) with
+    match (nth_error ln n) with
     | Some (value_id id, _) => lookupTypViaIDFromFdef f id
     | Some (value_const c, _) => Constant.getTyp c
     | None => None
@@ -3043,6 +3039,12 @@ Module Typ <: SigType.
     get the actual size for a particular target, it is reasonable to use the
     TargetData subsystem to do this. *)
  Fixpoint isSized (t:typ) : bool :=
+   let isSizedListTyp :=
+     fix isSizedListTyp (lt : list typ) : bool :=
+     match lt with
+     | nil => true
+     | t :: lt' => isSized t && isSizedListTyp lt'
+     end in
  match t with
  | typ_int _ => true
  | typ_floatpoint _ => true
@@ -3050,11 +3052,6 @@ Module Typ <: SigType.
  | typ_struct lt => isSizedListTyp lt
  | typ_pointer _ => true
  | _ => false
- end
- with isSizedListTyp (lt : list_typ) : bool :=
- match lt with
- | Nil_list_typ => true
- | Cons_list_typ t lt' => isSized t && isSizedListTyp lt'
  end.
 
   Definition getPrimitiveSizeInBits (t:typ) : sz :=
@@ -3075,7 +3072,7 @@ Module FunctionType <: SigFunctionType.
  Definition getNumParams (t:typ) : option nat :=
  match t with
  | (typ_function _ lt _) =>
-     Some (length (unmake_list_typ lt))
+     Some (length lt)
  | _ => None
  end.
 
@@ -3084,7 +3081,7 @@ Module FunctionType <: SigFunctionType.
  Definition getParamType (t:typ) (i:nat) : option typ :=
  match t with
  | (typ_function _ lt _) =>
-    match (nth_list_typ i lt) with
+    match (nth_error lt i) with
     | Some t => Some t
     | None => None
     end
@@ -3140,7 +3137,7 @@ forall s a (abi_or_pref:bool),
   LLVMtd.getTypeSizeInBits_and_Alignment TD abi_or_pref t = Some (s,a) ->
   (a > 0)%nat.
 
-Definition typ_eq_list_typ (nts:namedts) (t1:typ) (ts2:list_typ) : bool :=
+Definition typ_eq_list_typ (nts:namedts) (t1:typ) (ts2:list typ) : bool :=
 match t1 with
 | typ_struct ts1 => list_typ_dec ts1 ts2
 | typ_namedt nid1 =>
@@ -3151,16 +3148,16 @@ match t1 with
 | _ => false
 end.
 
-Definition wf_intrinsics_id (iid:intrinsic_id) (rt:typ) (pt:list_typ) (va:varg)
+Definition wf_intrinsics_id (iid:intrinsic_id) (rt:typ) (pt:list typ) (va:varg)
   : Prop :=
 True.
 
-Definition wf_external_id (eid:external_id) (rt:typ) (pt:list_typ) (va:varg)
+Definition wf_external_id (eid:external_id) (rt:typ) (pt:list typ) (va:varg)
   : Prop :=
 match eid with
 | eid_malloc =>
     match rt, pt with
-    | typ_pointer (typ_int 8%nat), Cons_list_typ (typ_int sz) Nil_list_typ =>
+    | typ_pointer (typ_int 8%nat), (typ_int sz) :: nil =>
         match sz with
         | 32%nat | 64%nat => True
         | _ => False
@@ -3169,7 +3166,7 @@ match eid with
     end
 | eid_free =>
     match rt, pt with
-    | typ_void, Cons_list_typ (typ_pointer (typ_int 8%nat)) Nil_list_typ => True
+    | typ_void, (typ_pointer (typ_int 8%nat)) :: nil
     | _, _ => False
     end
 | eid_other => True
@@ -3195,6 +3192,3 @@ Inductive reflect (P:Prop) : bool -> Set :=
 .
 
 End LLVMinfra.
-
-
-

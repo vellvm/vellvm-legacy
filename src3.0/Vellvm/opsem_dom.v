@@ -438,23 +438,7 @@ Proof.
     Hinscope HwfDefs HwfF HuniqF HinOps Hlkup.
   apply wf_insn__wf_insn_base in HwfInstr;
     try solve [unfold isPhiNode; simpl; auto].
-  inv HwfInstr.
-
-  assert (
-     In (f, block_intro l1 ps1 cs1 tmn1, insn_terminator tmn1, id1)
-     (unmake_list_fdef_block_insn_id
-        (make_list_fdef_block_insn_id
-           (map_list_id
-              (fun id_ : id =>
-               (f, block_intro l1 ps1 cs1 tmn1, insn_terminator tmn1, id_))
-              id_list)))
-    ) as G.
-    rewrite H5 in HinOps. clear - HinOps.
-    induction id_list; simpl in *; auto.
-      destruct HinOps as [HinOps | HinOps]; subst; auto.
-
-  apply wf_operand_list__elim with (f1:=f)(b1:=block_intro l1 ps1 cs1 tmn1)
-    (insn1:=insn_terminator tmn1)(id1:=id1) in H6; auto.
+  inv HwfInstr. find_wf_operand_list. subst. find_wf_operand_by_id.
 
   assert (In id1 defs) as Hin.
     eapply terminator_operands__in_scope; eauto.
@@ -476,23 +460,7 @@ Proof.
     HwfDefs HwfF HuniqF HinOps Hlkup.
   apply wf_insn__wf_insn_base in HwfInstr;
     try solve [unfold isPhiNode; simpl; auto].
-  inv HwfInstr.
-
-  assert (
-     In (f, b, insn_cmd c, id1)
-     (unmake_list_fdef_block_insn_id
-        (make_list_fdef_block_insn_id
-           (map_list_id
-              (fun id_ : id =>
-               (f, b, insn_cmd c, id_))
-              id_list)))
-    ) as G.
-    rewrite H5 in HinOps. clear - HinOps.
-    induction id_list; simpl in *; auto.
-      destruct HinOps as [HinOps | HinOps]; subst; auto.
-
-  apply wf_operand_list__elim with (f1:=f)(b1:=b)(insn1:=insn_cmd c)(id1:=id1)
-    in H6; auto.
+  inv HwfInstr. find_wf_operand_list. subst. find_wf_operand_by_id.
 
   assert (In id1 defs) as Hin.
     eapply cmd_operands__in_scope; eauto.
@@ -709,6 +677,7 @@ Proof.
   Case "1".
     rewrite e in *.
     rewrite lookupAL_updateAddAL_eq in Hlk; auto.
+    find_wf_operand_list. subst.
     inv Hlk.
     destruct (@Hwfgvs c1) as [Heval Hreach']; auto.
     split; auto.
@@ -716,8 +685,9 @@ Proof.
       eapply cmd_doesnt_use_self; eauto.
 
   Case "2".
-    destruct Hin as [Eq | Hin]; subst; try solve [contradict n; auto].
+    destruct Hin as [Eq | Hin]; try solve [contradict n; auto].
     rewrite <- lookupAL_updateAddAL_neq in Hlk; auto.
+    find_wf_operand_list. subst.
     assert (Hlk':=Hlk).
     apply HwfDefs in Hlk; auto.
     destruct (@Hlk c1) as [Heval Hreach']; auto.
@@ -1454,8 +1424,9 @@ Case "sReturn".
           inv Hwfc. uniq_result.
           change i0 with
             (getCmdLoc (insn_call i0 false c rt va v
-              (map_list_typ_attributes_value
-                 (fun (typ_' : typ) attr (value_'' : value) =>
+              (List.map
+                 (fun p : typ * attributes * value =>
+                   let '(typ_', attr, value_'') := p in
                     (typ_', attr, value_''))
                  typ'_attributes'_value''_list))); auto.
           eapply wf_defs_updateAddAL; eauto.
@@ -1465,9 +1436,10 @@ Case "sReturn".
               clear - Hreach2 J HuniqF Hlkc1 HBinF2.
               eapply isReachableFromEntry_helper with (cs2:=[c0]++cs')
                 (cs1:=cs2')(c1:=insn_call i0 false c rt va v
-                     (map_list_typ_attributes_value
-                        (fun (typ_' : typ) attr (value_'' : value) =>
-                          (typ_', attr, value_''))
+                     (List.map
+                        (fun p : typ * attributes * value =>
+                          let '(typ_', attr, value_'') := p in
+                            (typ_', attr, value_''))
                         typ'_attributes'_value''_list)) in Hreach2;
                  eauto.
 

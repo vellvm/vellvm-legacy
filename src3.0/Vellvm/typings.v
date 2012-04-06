@@ -21,13 +21,136 @@ Require Import analysis.
 Require Import targetdata.
 Require Import alist.
 Require Import typing_rules.
+Require Import vellvm_tactics.
+Require Import util.
 
 Module LLVMtypings.
 
 Import LLVMsyntax.
 Import LLVMinfra.
-Export LLVMtyping_rules.
+Include LLVMtyping_rules.
 
+Definition wf_const_list (l : list (system * targetdata * const * typ)) :=
+  forall p, In p l -> match p with (s, td, c, t) => wf_const s td c t end.
+
+Definition wf_typ_list (l : list (system * targetdata * typ)) :=
+  forall p, In p l -> match p with (s, td, t) => wf_typ s td t end.
+
+Definition wf_operand_list (l : list (fdef * block * insn * id)) :=
+  forall p,
+    In p l ->
+    let '(f, b, ins, id0) := p in
+      wf_operand f b ins id0.
+
+Definition wf_value_list (l : list (system * module * fdef * value * typ)) :=
+  forall p,
+    In p l ->
+    let '(s, m, f, v, t) := p in
+      wf_value s m f v t.
+
+(* These tactics are used to convert from the new premises that don't
+   use inductive judgements such as the old version of wf_value_list
+   to a backwards-compatible version. *)
+
+Ltac solve_wf_typ :=
+  match goal with
+    | Hwftyp : context[wf_typ],
+      Hin : In ?e (List.map ?f ?l)
+      |- context[wf_typ] =>
+      apply Hwftyp;
+        match goal with
+          | |- In ?e' (List.map ?f' l) =>
+            change e' with (f' e)
+        end;
+        apply In_map;
+          rewrite map_id_ext in Hin; trivial;
+            intro; simpl_prod; trivial
+  end.
+
+Ltac solve_wf_value_list :=
+  unfold wf_value_list in *;
+  remove_irrelevant wf_value;
+  solve_forall_like_ind.
+
+Ltac find_wf_operand_list :=
+  match goal with
+    | l : list id,
+      H : forall i, In i ?l' -> wf_operand ?f ?b ?ins i
+        |- _ =>
+        match l' with
+          | context[l] =>
+            assert (wf_operand_list
+              (List.map (fun i => (f, b, ins, i)) l)) as H';
+            [ unfold wf_operand_list;
+              remove_irrelevant wf_operand;
+              solve_forall_like_ind | clear H; rename H' into H ]
+        end
+  end.
+
+Ltac find_wf_operand_by_id :=
+  match goal with
+    | i : id,
+      H : wf_operand_list (List.map ?f ?l)
+      |- _ =>
+      assert (In (f i) (List.map f l)) as G;
+      [ apply In_map | ]; trivial;
+      assert (H' := (H _ G)); simpl in H'
+  end.
+
+Ltac find_wf_value_list :=
+  match goal with
+    | H : context[In _ (List.map ?f ?lt) -> wf_value ?s ?m ?F _ ?t]
+      |- _ =>
+      match type of lt with
+        | list (value * _) =>
+          assert (H' : wf_value_list
+            (List.map (fun p => let '(v, _) := p in (s, m, F, v, t)) lt));
+          [ unfold wf_value_list;
+            remove_irrelevant wf_value;
+            solve_forall_like_ind | clear H; rename H' into H ]
+        | list (_ * value) =>
+                    assert (H' : wf_value_list
+            (List.map (fun p => let '(_, v) := p in (s, m, F, v, t)) lt));
+          [ unfold wf_value_list;
+            remove_irrelevant wf_value;
+            solve_forall_like_ind | clear H; rename H' into H ]
+      end
+    | H : context[In _ (List.map ?f ?lt) -> wf_value ?s ?m ?F _ _]
+      |- _ =>
+      match type of lt with
+        | list (typ * _ * value) =>
+          assert (H' : wf_value_list
+            (List.map (fun p => let '(t, _, v) := p in (s, m, F, v, t)) lt));
+          [ unfold wf_value_list;
+            remove_irrelevant wf_value;
+            solve_forall_like_ind | clear H; rename H' into H ]
+      end
+  end.
+
+Ltac find_wf_typ_list :=
+  match goal with
+    | H : context[In _ (List.map ?f ?lt) -> wf_typ ?s ?td _],
+      lt : list (typ * attributes * id)
+      |- _ =>
+      assert (H' : wf_typ_list
+        (List.map (fun p => let '(t, _, _) := p in (s, td, t)) lt));
+      [ unfold wf_typ_list;
+        remove_irrelevant wf_typ;
+        solve_forall_like_ind | clear H; rename H' into H ]
+  end.
+
+Ltac solve_wf_operand :=
+  unfold wf_operand_list;
+  remove_irrelevant wf_operand;
+  match goal with
+    | _ : context[In _ (List.map _ ?l)] |- _ =>
+      remember l as l';
+      match goal with
+        | H : l' = _ |- _ => clear H
+      end
+  end;
+  unfold ids in *;
+  solve_forall_like_ind.
 
 Tactic Notation "wfconst_cases" tactic(first) tactic(c) :=
   first;
@@ -41,10 +164,335 @@ Tactic Notation "wfconst_cases" tactic(first) tactic(c) :=
     c "wfconst_insertvalue" | c "wfconst_bop" | c "wfconst_fbop" |
     c "wfconst_nil" | c "wfconst_cons" ].
 
-Scheme wf_const_ind2 := Minimality for wf_const Sort Prop
-  with wf_const_list_ind2 := Minimality for wf_const_list Sort Prop.
+Section wf_const_ind.
+
+Variables
+  (P : system -> targetdata -> const -> typ -> Prop)
+  (P0 : list (system * targetdata * const * typ) -> Prop)
+  (f : forall (system5 : system) (targetdata5 : targetdata) (typ5 : typ),
+       wf_typ system5 targetdata5 typ5 ->
+       P system5 targetdata5 (const_zeroinitializer typ5) typ5)
+  (f0 : forall (system5 : system) (targetdata5 : targetdata)
+          (sz5 : sz) (Int5 : Int),
+        wf_typ system5 targetdata5 (typ_int sz5) ->
+        P system5 targetdata5 (const_int sz5 Int5) (typ_int sz5))
+  (f1 : forall (system5 : system) (targetdata5 : targetdata)
+          (floating_point5 : floating_point) (Float5 : Float),
+        wf_typ system5 targetdata5 (typ_floatpoint floating_point5) ->
+        P system5 targetdata5 (const_floatpoint floating_point5 Float5)
+          (typ_floatpoint floating_point5))
+  (f2 : forall (system5 : system) (targetdata5 : targetdata) (typ5 : typ),
+        wf_typ system5 targetdata5 typ5 ->
+        P system5 targetdata5 (const_undef typ5) typ5)
+  (f3 : forall (system5 : system) (targetdata5 : targetdata) (typ5 : typ),
+        wf_typ system5 targetdata5 (typ_pointer typ5) ->
+        P system5 targetdata5 (const_null typ5) (typ_pointer typ5))
+  (f4 : forall (const_list : list const) (system5 : system)
+          (targetdata5 : targetdata) (typ5 : typ) (sz5 : sz),
+        wf_const_list
+          (map
+            (fun const_ : const => (system5, targetdata5, const_, typ5))
+            const_list) ->
+        P0
+          (map
+            (fun const_ : const => (system5, targetdata5, const_, typ5))
+            const_list) ->
+        length const_list = Size.to_nat sz5 ->
+        wf_typ system5 targetdata5 (typ_array sz5 typ5) ->
+        P system5 targetdata5 (const_arr typ5 const_list)
+          (typ_array sz5 typ5))
+  (f5 : forall (const_typ_list : list (const * typ)) (system5 : system)
+          (layouts5 : layouts) (namedts5 : namedts)
+          (typ_5 : typ) (targetdata5 : targetdata),
+        wf_const_list
+          (map
+            (fun p : const * typ =>
+              let (const_, typ_) := p in
+              (system5, targetdata5, const_, typ_)) const_typ_list) ->
+        P0
+          (map
+            (fun p : const * typ =>
+              let (const_, typ_) := p in
+              (system5, targetdata5, const_, typ_)) const_typ_list) ->
+        wf_typ_list
+          (map
+            (fun p : const * typ =>
+              let (const_, typ_) := p in
+                (system5, targetdata5, typ_))
+            const_typ_list) ->
+        typ_eq_list_typ namedts5 typ_5
+          (map (fun p : const * typ =>
+            let (_, typ_) := p in typ_)
+                const_typ_list) = true ->
+        targetdata5 = (layouts5, namedts5) ->
+        wf_typ system5 targetdata5 typ_5 ->
+        P system5 (layouts5, namedts5)
+          (const_struct typ_5
+            (map
+              (fun p : const * typ =>
+                let (const_, _) := p in const_) const_typ_list))
+          typ_5)
+  (f6 : forall (system5 : system) (targetdata5 : targetdata)
+          (typ5 : typ) (id5 : id),
+        wf_typ system5 targetdata5 (typ_pointer typ5) ->
+        lookupTypViaGIDFromSystem system5 id5 = Some (typ_pointer typ5) ->
+        Constant.unifiable_typ targetdata5 typ5 ->
+        P system5 targetdata5 (const_gid typ5 id5) (typ_pointer typ5))
+  (f7 : forall (system5 : system) (targetdata5 : targetdata)
+          (const5 : const) (sz2 sz1 : sz),
+        wf_const system5 targetdata5 const5 (typ_int sz1) ->
+        P system5 targetdata5 const5 (typ_int sz1) ->
+        wf_typ system5 targetdata5 (typ_int sz2) ->
+        Size.lt sz2 sz1 ->
+        wf_typ system5 targetdata5 (typ_int sz1) ->
+        P system5 targetdata5
+          (const_truncop truncop_int const5 (typ_int sz2))
+          (typ_int sz2))
+  (f8 : forall (system5 : system) (targetdata5 : targetdata)
+          (const5 : const) (floating_point2 floating_point1 : floating_point),
+        wf_const system5 targetdata5 const5 (typ_floatpoint floating_point1) ->
+        P system5 targetdata5 const5 (typ_floatpoint floating_point1) ->
+        floating_point_order floating_point2 floating_point1 = true ->
+        wf_typ system5 targetdata5 (typ_floatpoint floating_point1) ->
+        wf_typ system5 targetdata5 (typ_floatpoint floating_point2) ->
+        P system5 targetdata5
+          (const_truncop truncop_int const5 (typ_floatpoint floating_point2))
+          (typ_floatpoint floating_point2))
+  (f9 : forall (system5 : system) (targetdata5 : targetdata)
+          (const5 : const) (sz2 sz1 : sz),
+        wf_const system5 targetdata5 const5 (typ_int sz1) ->
+        P system5 targetdata5 const5 (typ_int sz1) ->
+        wf_typ system5 targetdata5 (typ_int sz1) ->
+        wf_typ system5 targetdata5 (typ_int sz2) ->
+        Size.lt sz1 sz2 ->
+        P system5 targetdata5 (const_extop extop_z const5 (typ_int sz2))
+          (typ_int sz2))
+  (f10 : forall (system5 : system) (targetdata5 : targetdata)
+           (const5 : const) (sz2 sz1 : sz),
+         wf_const system5 targetdata5 const5 (typ_int sz1) ->
+         P system5 targetdata5 const5 (typ_int sz1) ->
+         wf_typ system5 targetdata5 (typ_int sz1) ->
+         wf_typ system5 targetdata5 (typ_int sz2) ->
+         Size.lt sz1 sz2 ->
+         P system5 targetdata5 (const_extop extop_s const5 (typ_int sz2))
+           (typ_int sz2))
+  (f11 : forall (system5 : system) (targetdata5 : targetdata)
+           (const5 : const)
+           (floating_point2 floating_point1 : floating_point),
+         wf_const system5 targetdata5 const5 (typ_floatpoint floating_point1) ->
+         P system5 targetdata5 const5 (typ_floatpoint floating_point1) ->
+         floating_point_order floating_point1 floating_point2 = true ->
+         wf_typ system5 targetdata5 (typ_floatpoint floating_point1) ->
+         wf_typ system5 targetdata5 (typ_floatpoint floating_point2) ->
+         P system5 targetdata5
+           (const_extop extop_fp const5 (typ_floatpoint floating_point2))
+           (typ_floatpoint floating_point2))
+  (f12 : forall (system5 : system) (targetdata5 : targetdata)
+           (const5 : const) (sz5 : sz) (typ5 : typ),
+         wf_const system5 targetdata5 const5 (typ_pointer typ5) ->
+         P system5 targetdata5 const5 (typ_pointer typ5) ->
+         wf_typ system5 targetdata5 (typ_pointer typ5) ->
+         wf_typ system5 targetdata5 (typ_int sz5) ->
+         P system5 targetdata5
+           (const_castop castop_ptrtoint const5 (typ_int sz5))
+           (typ_int sz5))
+  (f13 : forall (system5 : system) (targetdata5 : targetdata)
+           (const5 : const) (typ5 : typ) (sz5 : sz),
+         wf_const system5 targetdata5 const5 (typ_int sz5) ->
+         P system5 targetdata5 const5 (typ_int sz5) ->
+         wf_typ system5 targetdata5 (typ_int sz5) ->
+         wf_typ system5 targetdata5 (typ_pointer typ5) ->
+         P system5 targetdata5
+           (const_castop castop_inttoptr const5 (typ_pointer typ5))
+           (typ_pointer typ5))
+  (f14 : forall (system5 : system) (targetdata5 : targetdata)
+           (const5 : const) (typ2 typ1 : typ),
+         wf_const system5 targetdata5 const5 (typ_pointer typ1) ->
+         P system5 targetdata5 const5 (typ_pointer typ1) ->
+         wf_typ system5 targetdata5 (typ_pointer typ1) ->
+         wf_typ system5 targetdata5 (typ_pointer typ2) ->
+         P system5 targetdata5
+           (const_castop castop_bitcast const5 (typ_pointer typ2))
+           (typ_pointer typ2))
+  (f15 : forall (const_list : list const) (system5 : system)
+           (targetdata5 : targetdata) (inbounds5 : inbounds)
+           (const_5 : const) (typ' typ5 typ'' : typ),
+         wf_const system5 targetdata5 const_5 (typ_pointer typ5) ->
+         P system5 targetdata5 const_5 (typ_pointer typ5) ->
+         wf_typ system5 targetdata5 (typ_pointer typ5) ->
+         wf_const_list
+           (map (fun c => (system5, targetdata5, c, typ'')) const_list) ->
+         P0
+           (map (fun c => (system5, targetdata5, c, typ'')) const_list) ->
+         typ'' = typ_int Size.ThirtyTwo ->
+         getConstGEPTyp const_list (typ_pointer typ5) = Some typ' ->
+         wf_typ system5 targetdata5 typ' ->
+         P system5 targetdata5 (const_gep inbounds5 const_5 const_list) typ')
+  (f16 : forall (system5 : system) (targetdata5 : targetdata)
+           (const0 const1 const2 : const) (typ5 : typ)
+           (sz5 : sz),
+         wf_const system5 targetdata5 const0 (typ_int sz5) ->
+         P system5 targetdata5 const0 (typ_int sz5) ->
+         sz5 = Size.One ->
+         wf_const system5 targetdata5 const1 typ5 ->
+         P system5 targetdata5 const1 typ5 ->
+         wf_const system5 targetdata5 const2 typ5 ->
+         P system5 targetdata5 const2 typ5 ->
+         wf_typ system5 targetdata5 (typ_int sz5) ->
+         wf_typ system5 targetdata5 typ5 ->
+         P system5 targetdata5 (const_select const0 const1 const2) typ5)
+  (f17 : forall (system5 : system) (targetdata5 : targetdata)
+           (cond5 : cond) (const1 const2 : const) (sz5 : sz)
+           (typ5 : typ),
+         wf_const system5 targetdata5 const1 typ5 ->
+         P system5 targetdata5 const1 typ5 ->
+         wf_const system5 targetdata5 const2 typ5 ->
+         P system5 targetdata5 const2 typ5 ->
+         wf_typ system5 targetdata5 typ5 ->
+         Typ.isIntOrIntVector typ5 \/ isPointerTyp typ5 ->
+         wf_typ system5 targetdata5 (typ_int sz5) ->
+         sz5 = Size.One ->
+         P system5 targetdata5 (const_icmp cond5 const1 const2) (typ_int sz5))
+  (f18 : forall (system5 : system) (targetdata5 : targetdata)
+           (fcond5 : fcond) (const1 const2 : const)
+           (sz5 : sz) (floating_point5 : floating_point),
+         wf_fcond fcond5 = true ->
+         wf_const system5 targetdata5 const1 (typ_floatpoint floating_point5) ->
+         P system5 targetdata5 const1 (typ_floatpoint floating_point5) ->
+         wf_const system5 targetdata5 const2 (typ_floatpoint floating_point5) ->
+         P system5 targetdata5 const2 (typ_floatpoint floating_point5) ->
+         wf_typ system5 targetdata5 (typ_floatpoint floating_point5) ->
+         wf_typ system5 targetdata5 (typ_int sz5) ->
+         sz5 = Size.One ->
+         P system5 targetdata5 (const_fcmp fcond5 const1 const2)
+           (typ_int sz5))
+  (f19 : forall (const_list : list const) (system5 : system)
+           (targetdata5 : targetdata) (const_5 : const)
+           (typ' typ5 typ'' : typ),
+         wf_const system5 targetdata5 const_5 typ5 ->
+         P system5 targetdata5 const_5 typ5 ->
+         wf_typ system5 targetdata5 typ5 ->
+         wf_const_list
+           (map (fun c => (system5, targetdata5, c, typ''))
+             const_list) ->
+         P0
+           (map (fun c => (system5, targetdata5, c, typ''))
+             const_list) ->
+         typ'' = typ_int Size.ThirtyTwo ->
+         wf_typ system5 targetdata5 typ'' ->
+         (exists idxs : list BinInt.Z,
+            exists o : BinInt.Z,
+              intConsts2Nats targetdata5 const_list = Some idxs /\
+              mgetoffset targetdata5 typ5 idxs = Some (o, typ')) ->
+         wf_typ system5 targetdata5 typ' ->
+         P system5 targetdata5 (const_extractvalue const_5 const_list) typ')
+  (f20 : forall (const_list : list const) (system5 : system)
+           (targetdata5 : targetdata) (const_5 const' : const)
+           (typ5 typ' typ'' : typ),
+         wf_const system5 targetdata5 const_5 typ5 ->
+         P system5 targetdata5 const_5 typ5 ->
+         wf_const system5 targetdata5 const' typ' ->
+         P system5 targetdata5 const' typ' ->
+         wf_typ system5 targetdata5 typ' ->
+         wf_const_list
+           (map (fun c => (system5, targetdata5, c, typ''))
+             const_list) ->
+         P0
+           (map (fun c => (system5, targetdata5, c, typ''))
+             const_list) ->
+         typ'' = typ_int Size.ThirtyTwo ->
+         wf_typ system5 targetdata5 typ'' ->
+         (exists idxs : list BinInt.Z,
+            exists o : BinInt.Z,
+              intConsts2Nats targetdata5 const_list = Some idxs /\
+              mgetoffset targetdata5 typ5 idxs = Some (o, typ')) ->
+         wf_typ system5 targetdata5 typ5 ->
+         P system5 targetdata5 (const_insertvalue const_5 const' const_list)
+           typ5)
+  (f21 : forall (system5 : system) (targetdata5 : targetdata)
+           (bop5 : bop) (const1 const2 : const) (sz5 : sz),
+         wf_const system5 targetdata5 const1 (typ_int sz5) ->
+         P system5 targetdata5 const1 (typ_int sz5) ->
+         wf_const system5 targetdata5 const2 (typ_int sz5) ->
+         P system5 targetdata5 const2 (typ_int sz5) ->
+         wf_typ system5 targetdata5 (typ_int sz5) ->
+         P system5 targetdata5 (const_bop bop5 const1 const2) (typ_int sz5))
+  (f22 : forall (system5 : system) (targetdata5 : targetdata)
+           (fbop5 : fbop) (const1 const2 : const)
+           (floating_point5 : floating_point),
+         wf_const system5 targetdata5 const1 (typ_floatpoint floating_point5) ->
+         P system5 targetdata5 const1 (typ_floatpoint floating_point5) ->
+         wf_const system5 targetdata5 const2 (typ_floatpoint floating_point5) ->
+         P system5 targetdata5 const2 (typ_floatpoint floating_point5) ->
+         wf_typ system5 targetdata5 (typ_floatpoint floating_point5) ->
+         P system5 targetdata5 (const_fbop fbop5 const1 const2)
+           (typ_floatpoint floating_point5))
+  (f23 : P0 nil)
+  (f24 : forall (system5 : system) (targetdata5 : targetdata)
+           (const_ : const) (typ5 : typ)
+           (l' : list (system * targetdata * const * typ)),
+         wf_const system5 targetdata5 const_ typ5 ->
+         P system5 targetdata5 const_ typ5 ->
+         wf_const_list l' ->
+         P0 l' ->
+         P0 ((system5, targetdata5, const_, typ5) :: l')).
+
+(* An equivalent way of proving P0 *)
+Lemma P0_wf_const_equiv :
+  forall l,
+    wf_const_list l ->
+    (forall p : system * targetdata * const * typ,
+      In p l ->
+      let '(s, td, c, t) := p in
+        P s td c t) ->
+    P0 l.
+Proof.
+  clear - f23 f24.
+  intros l. induction l as [|[[[s td] c] t] l]. auto.
+  intros Hwf HP. apply f24.
+    apply (Hwf (s, td, c, t)). left. trivial.
+    apply (HP (s, td, c, t)). left. trivial.
+    intros p Hp. apply Hwf. right. trivial.
+    apply IHl.
+      intros p Hp. apply Hwf. right. trivial.
+      intros p Hp. apply HP. right. trivial.
+Qed.
+
+(* Initial context massage *)
+Ltac convert_context :=
+  try match goal with
+        | [ |- P0 _ ] => apply P0_wf_const_equiv
+      end;
+
+  unfold wf_const_list in *;
+  unfold wf_typ_list in *;
+
+  (* Clear hypothesis that complicate our induction and don't help *)
+  remove_irrelevant wf_const;
+  remove_irrelevant wf_typ;
+  try match goal with
+        | [ P : _ -> _ -> _ -> _ -> Prop |- _ ] =>
+          remove_irrelevant P
+      end.
+
+Lemma wf_const_ind2 : forall s td c t,
+  wf_const s td c t -> P s td c t.
+Proof.
+  apply wf_const_ind; auto; unfold Size.to_nat in *;
+    guess_hyp convert_context.
+Qed.
+
+Lemma wf_const_list_ind2 : forall l,
+  wf_const_list l -> P0 l.
+Proof.
+  intros l H. apply P0_wf_const_equiv; trivial.
+  intros. simpl_prod. apply wf_const_ind2.
+  eapply (H (_, _, _, _)). trivial.
+Qed.
 
 Combined Scheme wf_const_mutind from wf_const_ind2, wf_const_list_ind2.
+
+End wf_const_ind.
 
 Tactic Notation "wfstyp_cases" tactic(first) tactic(c) :=
   first;
@@ -53,13 +501,139 @@ Tactic Notation "wfstyp_cases" tactic(first) tactic(c) :=
     c "wf_styp_pointer" | c "wf_styp_namedt" | c "wf_styp_nil" |
     c  "wf_styp_cons" ].
 
-Scheme wf_styp_ind2 := Minimality for wf_styp Sort Prop
-  with wf_styp_list_ind2 := Minimality for wf_styp_list Sort Prop.
+Definition isValidArgumentTyp_list (l : list typ) :=
+  forall t, In t l -> isValidArgumentTyp t.
+
+Definition wf_styp_targetdata_paren_targetdata_def_list
+  (l : list (system * layouts * namedts * typ)) :=
+  forall p,
+    In p l ->
+    let '(s, los, nts, t) := p in
+      wf_styp s (los, nts) t.
+
+Definition isValidElementTyp_list (l : list typ) :=
+  forall t, In t l -> isValidElementTyp t.
+
+Definition wf_styp_list (l : list (system * targetdata * typ)) :=
+  forall p : system * targetdata * typ,
+    In p l ->
+    let '(s, td, t) := p in
+      wf_styp s td t.
+
+Section wf_styp_ind.
+
+Variables
+  (P : system -> targetdata -> typ -> Prop)
+  (P0 : list (system * targetdata * typ) -> Prop)
+  (f : forall (system5 : system) (layouts5 : layouts)
+         (namedts5 : namedts) (sz5 : sz),
+       Size.gt sz5 Size.Zero ->
+       LLVMtd.getIntAlignmentInfo layouts5 (Size.to_nat sz5) true > 0 ->
+       P system5 (layouts5, namedts5) (typ_int sz5))
+  (f0 : forall (system5 : system) (layouts5 : layouts) (namedts5 : namedts),
+        LLVMtd.getFloatAlignmentInfo layouts5 32 true > 0 ->
+        P system5 (layouts5, namedts5) (typ_floatpoint fp_float))
+  (f1 : forall (system5 : system) (layouts5 : layouts) (namedts5 : namedts),
+        LLVMtd.getFloatAlignmentInfo layouts5 64 true > 0 ->
+        P system5 (layouts5, namedts5) (typ_floatpoint fp_double))
+  (f2 : forall (typ_list : list typ) (system5 : system)
+          (layouts5 : layouts) (namedts5 : namedts)
+          (typ_5 : typ) (varg5 : varg),
+        isValidReturnTyp typ_5 ->
+        wf_styp system5 (layouts5, namedts5) typ_5 ->
+        P system5 (layouts5, namedts5) typ_5 ->
+        isValidArgumentTyp_list typ_list ->
+        wf_styp_targetdata_paren_targetdata_def_list
+          (map
+            (fun typ_ : typ => (system5, layouts5, namedts5, typ_))
+            typ_list) ->
+        LLVMtd.getPointerAlignmentInfo layouts5 true > 0 ->
+        P system5 (layouts5, namedts5)
+          (typ_pointer (typ_function typ_5 typ_list varg5)))
+  (f3 : forall (typ_list : list typ) (system5 : system)
+          (targetdata5 : targetdata),
+        isValidElementTyp_list typ_list ->
+        wf_styp_list
+          (map (fun typ_ : typ => (system5, targetdata5, typ_))
+            typ_list) ->
+        P0
+          (map (fun typ_ : typ => (system5, targetdata5, typ_))
+            typ_list) -> P system5 targetdata5 (typ_struct typ_list))
+  (f4 : forall (system5 : system) (targetdata5 : targetdata)
+          (sz5 : sz) (typ5 : typ),
+        wf_styp system5 targetdata5 typ5 ->
+        P system5 targetdata5 typ5 ->
+        isValidElementTyp typ5 -> P system5 targetdata5 (typ_array sz5 typ5))
+  (f5 : forall (system5 : system) (layouts5 : layouts)
+          (namedts5 : namedts) (typ5 : typ),
+        wf_styp system5 (layouts5, namedts5) typ5 ->
+        P system5 (layouts5, namedts5) typ5 ->
+        isValidElementTyp typ5 ->
+        LLVMtd.getPointerAlignmentInfo layouts5 true > 0 ->
+        P system5 (layouts5, namedts5) (typ_pointer typ5))
+  (f6 : forall (system5 : system) (layouts5 : layouts)
+          (namedts5 : namedts) (id5 : id),
+        lookupAL (list typ) namedts5 id5 <> None ->
+        P system5 (layouts5, namedts5) (typ_namedt id5))
+  (f7 : P0 nil)
+  (f8 : forall (system5 : system) (targetdata5 : targetdata)
+          (typ_ : typ) (l' : list (system * targetdata * typ)),
+        wf_styp system5 targetdata5 typ_ ->
+        P system5 targetdata5 typ_ ->
+        wf_styp_list l' ->
+        P0 l' ->
+        P0 ((system5, targetdata5, typ_) :: l')).
+
+Lemma P0_wf_styp_equiv :
+  forall l,
+    wf_styp_list l ->
+    (forall p, In p l ->
+      let '(s, td, t) := p in
+        P s td t) ->
+    P0 l.
+Proof.
+  clear - f7 f8. intros l Hwf HP.
+  induction l as [|[[s td] t] l IHl]. trivial.
+  apply f8.
+    apply (Hwf (_, _, _)). left. trivial.
+    apply (HP (_, _, _)). left. trivial.
+    intros p Hp. apply Hwf. right. trivial.
+    apply IHl. intros p Hp. apply Hwf. right. trivial.
+    intros p Hp. apply HP. right. trivial.
+Qed.
+
+
+(* Initial context massage *)
+Ltac convert_context :=
+  try match goal with
+        | [ |- P0 _ ] => apply P0_wf_styp_equiv
+      end;
+  unfold isValidElementTyp_list in *;
+  unfold isValidArgumentTyp_list in *;
+  unfold wf_styp_list in *;
+  unfold wf_styp_targetdata_paren_targetdata_def_list in *;
+
+  (* Clear hypothesis that complicate our induction and don't help *)
+  remove_irrelevant isValidArgumentTyp;
+  remove_irrelevant isValidElementTyp;
+  remove_irrelevant wf_styp.
+
+Lemma wf_styp_ind2 :
+  forall s td t, wf_styp s td t -> P s td t.
+Proof.
+  apply wf_styp_ind; auto; guess_hyp convert_context.
+Qed.
+
+Lemma wf_styp_list_ind2 :
+  forall l, wf_styp_list l -> P0 l.
+Proof.
+  intros l H. apply P0_wf_styp_equiv. trivial.
+  intros [[s td] t] Hp. apply wf_styp_ind2.
+  apply (H (_, _, _)); trivial.
+Qed.
 
 Combined Scheme wf_styp_mutind from wf_styp_ind2, wf_styp_list_ind2.
 
+End wf_styp_ind.
+
 End LLVMtypings.
-
-
-
-

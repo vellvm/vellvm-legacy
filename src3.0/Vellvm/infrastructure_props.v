@@ -9,6 +9,7 @@ Require Import Kildall.
 Require Import Maps.
 Require Import targetdata.
 Require Export vellvm_tactics.
+Require Import util.
 
 Import LLVMsyntax.
 Import LLVMinfra.
@@ -1495,13 +1496,13 @@ Qed.
 Lemma getValueViaLabelFromValuels__nth_list_value_l : forall
   (l1 : l)  v vls
   (J : getValueViaLabelFromValuels vls l1 = Some v),
-  exists n, nth_list_value_l n vls = Some (v, l1).
+  exists n, nth_error vls n = Some (v, l1).
 Proof.
   intros.
   induction vls; intros; simpl in *.
     inversion J.
 
-    destruct (l0 == l1); subst.
+    destruct a as [v0 l0]; destruct (l0 == l1); subst.
       inversion J; subst; simpl in *.
       exists 0%nat. auto.
 
@@ -1773,14 +1774,15 @@ Qed.
 
 Lemma getValueViaLabelFromValuels__In : forall vls v l1 vs1 ls1,
   getValueViaLabelFromValuels vls l1 = Some v ->
-  split (unmake_list_value_l vls) = (vs1, ls1) ->
+  split vls = (vs1, ls1) ->
   In l1 ls1.
 Proof.
   induction vls; intros; simpl in *.
     inversion H.
 
-    remember (split (unmake_list_value_l vls)) as R.
-    destruct R.
+    remember (split vls) as R.
+    destruct R as [vs ls].
+    destruct a as [v0 l0].
     inv H0.
     destruct (l0 == l1); subst.
       simpl. auto.
@@ -1790,15 +1792,16 @@ Qed.
 
 Lemma In__getValueViaLabelFromValuels : forall vls l1 vs1 ls1,
   In l1 ls1 ->
-  split (unmake_list_value_l vls) = (vs1, ls1) ->
+  split vls = (vs1, ls1) ->
   NoDup ls1 ->
   exists v, getValueViaLabelFromValuels vls l1 = Some v.
 Proof.
   induction vls; intros; simpl in *.
     inv H0. inversion H.
 
+    destruct a as [v0 l0].
     destruct (l0 == l1); subst; eauto.
-    remember (split (unmake_list_value_l vls)) as R.
+    remember (split vls) as R.
     destruct R.
     symmetry in HeqR.
     inv H0. inv H1.
@@ -1809,9 +1812,11 @@ Proof.
       eapply IHvls in H; eauto.
 Qed.
 
-Lemma in_app_list_value_right : forall l1 v l2,
-  In v (map_list_sz_value (fun sz1 v1 => v1) l2) ->
-  In v (map_list_sz_value (fun sz1 v1 => v1) (app_list_sz_value l1 l2)).
+(*
+Lemma in_app_list_value_right :
+  forall (l1 : list (sz * value)) (v : value) (l2 : list (sz * value)),
+  In v (List.map snd l2) ->
+  In v (List.map snd (l1 ++ l2)).
 Proof.
   induction l1; simpl; intros; auto.
 Qed.
@@ -1830,7 +1835,7 @@ Lemma cons_eq_app_list_value : forall sz1 a1 l1,
 Proof.
   intros. simpl. auto.
 Qed.
-
+*)
 Lemma valueInTmnOperands__InOps : forall vid tmn,
   valueInTmnOperands (value_id vid) tmn ->
   In vid (getInsnOperands (insn_terminator tmn)).
@@ -1845,12 +1850,14 @@ Proof.
   induction cs1; simpl; auto.
 Qed.
 
-Lemma valueInValues__InOps : forall vid l0,
-  In (value_id vid) (map_list_sz_value (fun _ v => v) l0) ->
-  In vid (values2ids (map_list_sz_value (fun _ v => v) l0)).
+Lemma valueInValues__InOps : forall vid (l0 : list (sz * value)),
+  In (value_id vid) (List.map snd l0) ->
+  In vid (values2ids (List.map snd l0)).
 Proof.
-  induction l0; intros; simpl in *; auto.
-    destruct H as [H | H]; subst; simpl; auto.
+  induction l0; intros; simpl in *;  auto.
+    destruct a.
+    destruct H as [H | H]; simpl in *; subst; simpl; auto.
+
     destruct v; simpl; eauto.
 Qed.
 
@@ -2382,7 +2389,7 @@ Proof.
   induction const_list; simpl; intros.
     inv HeqR1. simpl in HeqR2. inv HeqR2. auto.
 
-    destruct_const c; tinv HeqR1.
+    destruct_const a; tinv HeqR1.
     destruct (Size.dec sz5 Size.ThirtyTwo); tinv HeqR1.
     remember (intConsts2Nats TD const_list) as R3.
     destruct R3; inv HeqR1.
@@ -2393,7 +2400,7 @@ Proof.
       destruct (LLVMtd._getStructElementOffset TD l1 (Coqlib.nat_of_Z
         (INTEGER.to_Z Int5)) 0); inv HeqR2; eauto.
       unfold INTEGER.to_Z in H0. unfold INTEGER.to_nat.
-      destruct (nth_list_typ (Coqlib.nat_of_Z Int5) l1); tinv H0.
+      destruct (nth_error l1 (Coqlib.nat_of_Z Int5)); tinv H0.
       simpl in H0. eauto.
 Qed.
 
@@ -3159,7 +3166,7 @@ Lemma lookupTypViaIDFromPhiNodes__NotInPhiNodesIDs : forall la id1,
 Proof.
   induction la; intros; simpl in *; auto.
     destruct a. unfold lookupTypViaIDFromPhiNode in *. simpl in *.
-    destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 i0); subst.
+    destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 id5); subst.
       congruence.
 
       apply IHla in H. intro J.
@@ -3204,10 +3211,10 @@ Lemma lookupTypViaIDFromBlock__notInBlock : forall b i0,
   ~ In i0 (getBlockLocs b).
 Proof.
   destruct b. simpl; intros; auto.
-    remember (lookupTypViaIDFromPhiNodes p i0) as R.
+    remember (lookupTypViaIDFromPhiNodes phinodes5 i0) as R.
     destruct R.
       inv H.
-      remember (lookupTypViaIDFromCmds c i0) as R.
+      remember (lookupTypViaIDFromCmds cmds5 i0) as R.
       destruct R.
         inv H.
         symmetry in HeqR, HeqR0.
@@ -3399,7 +3406,7 @@ Proof.
 Qed.
 
 Lemma nth_list_sz_value__valueInListValue: forall nth idxs sz0 v0,
-  nth_list_sz_value nth idxs = Some (sz0, v0) ->
+  nth_error idxs nth = Some (sz0, v0) ->
   valueInListValue v0 idxs.
 Proof.
   induction nth; simpl; intros.
@@ -3473,9 +3480,9 @@ Lemma lookupInsnViaIDFromBlock__NotIn : forall id0 bs,
   ~ In id0 (getBlockLocs bs).
 Proof.
   destruct bs. simpl. intros.
-  remember (lookupPhiNodeViaIDFromPhiNodes p id0) as R.
+  remember (lookupPhiNodeViaIDFromPhiNodes phinodes5 id0) as R.
   destruct R; tinv H.
-  remember (lookupCmdViaIDFromCmds c id0) as R.
+  remember (lookupCmdViaIDFromCmds cmds5 id0) as R.
   destruct R; tinv H.
   destruct_if.
   symmetry in HeqR, HeqR0.
@@ -3516,6 +3523,9 @@ Proof.
 Qed.
 
 (*
+Lemma getCmdID__getCmdLoc: forall c, getCmdID c = Some (getCmdLoc c).
+Proof. destruct c; auto. Admitted.
+
 Lemma in_getCmdsLocs__in_getCmdsIDs: forall c1 cs
   (J : In (getCmdLoc c1) (getCmdsLocs cs)) (Huniq: NoDup (getCmdsLocs cs))
   (J' : lookupCmdViaIDFromCmds cs (getCmdLoc c1) = Some c1),
@@ -3990,26 +4000,28 @@ Qed.
 Lemma getValueViaLabelFromValuels__in_unmake_list_value_l: forall l1 v0 vls
   l2 l3,
   getValueViaLabelFromValuels vls l1 = Some v0 ->
-  (l2, l3) = split (unmake_list_value_l vls) ->
+  (l2, l3) = split vls ->
   In l1 l3.
 Proof.
   induction vls; simpl; intros.
     congruence.
 
-    destruct (split (unmake_list_value_l vls)).
+    destruct a as [v l0].
+    destruct (split vls).
     inv H0.
     simpl.
     destruct (l0 == l1); eauto.
 Qed.
 
 Lemma In_list_prj1__getValueViaLabelFromValuels: forall vls v,
-  (let '(_, ls1) := split (unmake_list_value_l vls) in NoDup ls1) ->
-  In v (list_prj1 value l (unmake_list_value_l vls)) ->
+  (let '(_, ls1) := split vls in NoDup ls1) ->
+  In v (list_prj1 value l vls) ->
   exists l1, getValueViaLabelFromValuels vls l1 = Some v.
 Proof.
   induction vls; intros; simpl in *.
     inv H0.
 
+    destruct a as [v0 l0].
     destruct H0 as [H0 | H0]; subst.
       exists l0.
       destruct (l0 == l0); subst; try congruence; auto.
@@ -4017,26 +4029,27 @@ Proof.
       apply IHvls in H0.
         destruct H0 as [l1 H0].
         exists l1. rewrite H0.
-        remember (split (unmake_list_value_l vls)) as R.
+        remember (split vls) as R.
         destruct R.
         eapply getValueViaLabelFromValuels__in_unmake_list_value_l in H0; eauto.
         inv H.
         destruct (l0 == l1); auto.
           subst. contradict H0; auto.
 
-        destruct (split (unmake_list_value_l vls)).
+        destruct (split vls).
         inv H; auto.
 Qed.
 
 Lemma getValueViaLabelFromValuels__In_list_prj1 :
   forall vls v l1,
   getValueViaLabelFromValuels vls l1 = Some v ->
-  In v (list_prj1 value l (unmake_list_value_l vls)).
+  In v (list_prj1 value l vls).
 Proof.
   induction vls; intros; simpl in *.
     congruence.
 
-    destruct (l0 == l1); subst; eauto.
+    destruct a as [v0 l0].
+    destruct (l0 == l1); simpl in *; subst; eauto.
       inv H. auto.
 Qed.
 
@@ -4342,12 +4355,12 @@ Proof.
     destruct R; eauto.
       inv H.
       destruct a. simpl in HeqR.
-      remember (lookupPhiNodeViaIDFromPhiNodes p id1) as R.
+      remember (lookupPhiNodeViaIDFromPhiNodes phinodes5 id1) as R.
       destruct R.
         inv HeqR.
         apply lookupPhiNodeViaIDFromPhiNodes__eqid in HeqR0; auto.
 
-        remember (lookupCmdViaIDFromCmds c id1) as R.
+        remember (lookupCmdViaIDFromCmds cmds5 id1) as R.
         destruct R; inv HeqR.
           apply lookupCmdViaIDFromCmds__eqid in HeqR1; auto.
 
@@ -4374,7 +4387,7 @@ Proof.
   destruct Huniq as [_ Huniq].
   bdestruct H0 as H1 H2.
   clear - Huniq H1 H2 H5.
-  induction b; simpl in *.
+  induction blocks5; simpl in *.
     congruence.
 
     binvt H2 as H3 H3.
@@ -4696,16 +4709,17 @@ Proof.
     inv H.
 Qed.
 
-Lemma InOps__valueInListValue: forall (vid : id) (l0 : list_sz_value)
+Lemma InOps__valueInListValue: forall (vid : id) (l0 : list (sz * value))
   (H : In vid
-        (values2ids (map_list_sz_value (fun (_ : sz) (v : value) => v) l0))),
+        (values2ids (List.map snd l0))),
   valueInListValue (value_id vid) l0.
 Proof.
-  unfold valueInListValue. 
+  unfold valueInListValue.
   induction l0; simpl in *; intros.
     inv H.
 
-    destruct v; auto.
+    destruct a as [v []]; simpl in *;
+    destruct v; auto;
       inv H; auto.
 Qed.      
 
@@ -4759,14 +4773,14 @@ Qed.
 
 Lemma InOps__valueInPhiNodeOperands: forall x vls
   (Hin' : In x
-    (values2ids (list_prj1 value l (unmake_list_value_l vls)))),
+    (values2ids (list_prj1 value l vls))),
   exists n1 : nat,
-    exists l2 : l, nth_list_value_l n1 vls = Some (value_id x, l2).
+    exists l2 : l, nth_error vls n1 = Some (value_id x, l2).
 Proof.
   induction vls; simpl; intros.
     inv Hin'.
 
-    destruct v.
+    destruct a as [[] l0].
       simpl in Hin'.
       destruct Hin' as [J | J]; subst.
         exists O. exists l0. simpl. auto.
@@ -4778,10 +4792,10 @@ Proof.
       exists (S n1). exists l2. simpl. auto.
 Qed.
 
-Lemma app_list_value_l_cons: forall vls1 vls2 v0 l0,
-  app_list_value_l vls1 (Cons_list_value_l v0 l0 vls2) =
-  app_list_value_l
-    (app_list_value_l vls1 (Cons_list_value_l v0 l0 Nil_list_value_l)) vls2.
+Lemma app_list_value_l_cons: forall (vls1 vls2 : list (value * l)) v0 l0,
+  app vls1 ((v0, l0) :: vls2) =
+  app
+    (app vls1 ((v0, l0) :: nil)) vls2.
 Proof.
   induction vls1; simpl; intros; auto.
     rewrite IHvls1; auto.
@@ -4820,7 +4834,8 @@ Proof.
         apply InCmdsB_in in J3.
         apply NoDup_inv in G1.
         destruct G1 as [_ G1].
-        apply NoDup_disjoint with (i0:=getTerminatorID t0) in G1; simpl; auto.
+        apply NoDup_disjoint with (i0:=getTerminatorID terminator5) in G1;
+          simpl; auto.
           intro J. apply G1. rewrite J. apply In_InCmdLocs; auto.
 
         intro J.
@@ -4935,7 +4950,7 @@ Proof.
   destruct b1.
   simpl.
   intros.
-  remember (lookupPhiNodeViaIDFromPhiNodes p id1) as R.
+  remember (lookupPhiNodeViaIDFromPhiNodes phinodes5 id1) as R.
   destruct R.
     inv H. 
     apply lookupPhiNodeViaIDFromPhiNodes__eqid in HeqR; auto.
@@ -4943,7 +4958,7 @@ Proof.
  
     symmetry in HeqR.
     apply lookupPhiNodeViaIDFromPhiNodes__NotIn in HeqR.
-    remember (lookupCmdViaIDFromCmds c id1) as R.
+    remember (lookupCmdViaIDFromCmds cmds5 id1) as R.
     destruct R; inv H.
       eapply lookupCmdViaIDFromCmds__getCmdID; eauto.
         solve_in_list.
@@ -4951,8 +4966,8 @@ Proof.
 
       destruct_if. 
       rewrite_env 
-      ((getPhiNodesIDs p ++ getCmdsLocs c) ++ [getTerminatorID t]) in Huniq.
-      eapply NoDup_disjoint with (i0:=getTerminatorID t) in Huniq; simpl; eauto.
+      ((getPhiNodesIDs phinodes5 ++ getCmdsLocs cmds5) ++ [getTerminatorID terminator5]) in Huniq.
+      eapply NoDup_disjoint with (i0:=getTerminatorID terminator5) in Huniq; simpl; eauto.
       contradict Huniq. solve_in_list.    
 Qed.
 
@@ -5467,4 +5482,3 @@ Proof.
       apply orb_true_iff.
       right. apply IHbs in HBinF. auto.
 Qed.
-

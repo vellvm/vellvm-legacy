@@ -518,7 +518,7 @@ Lemma SBpass_is_correct__dsGEP : forall
   (mi : MoreMem.meminj) (mgb : Values.block) (St : Opsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : DGVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : atom) (inbounds0 : bool)
-  (t : typ) (vp : value) (idxs : list_sz_value) (EC : list ExecutionContext)
+  (t : typ) (vp : value) (idxs : list (sz * value)) (EC : list ExecutionContext)
   (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
   (als : list mblock) Cfg t'
   (Hsim : sbState_simulates_State mi mgb {|
@@ -583,8 +583,8 @@ Proof.
   eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0;
     try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H0 as [gv' [H0 Hinj]].
-  eapply simulation__values2GVs with (mi:=mi)(Mem2:=M2) in H1;
-    try solve [eauto | get_wf_value_for_simop; eauto].
+  eapply simulation__values2GVs with (mi:=mi)(Mem2:=M2) in H1; eauto;
+    [ | solve [get_wf_value_for_simop; find_wf_value_list; eauto]].
   destruct H1 as [gvs' [H1 Hinj']].
   eapply simulation__GEP in H2; eauto.
   destruct H2 as [gvp2 [H2 Hinj'']].

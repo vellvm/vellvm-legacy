@@ -502,10 +502,10 @@ Qed.
 Lemma simulation__values2GVs : forall maxb mi lc lc2 los nts Mem Mem2 gl F idxs 
   gvs gvs' pinfo (Hprop: list_value_doesnt_use_pid pinfo F idxs) S ps
   (Ht: wf_value_list 
-    (make_list_system_module_fdef_value_typ 
-      (map_list_sz_value 
-        (fun (sz_:sz) (value_:value) => 
-         (S,(module_intro los nts ps),F,value_,typ_int Size.ThirtyTwo)) idxs))),
+    (List.map
+      (fun p : sz * value =>
+        let '(sz_, value_) := p in
+         (S,(module_intro los nts ps),F,value_,typ_int Size.ThirtyTwo)) idxs)),
   wf_globals maxb gl ->
   wf_sb_mi maxb mi Mem Mem2 ->
   reg_simulation pinfo mi F lc lc2 ->
@@ -516,7 +516,8 @@ Proof.
   induction idxs; simpl; intros.
     inv H2. inv H3. simpl. auto.
 
-    inv Ht.
+    simpl_prod.
+    rewrite wf_value_list_cons_iff in Ht. destruct Ht.
     inv_mbind'. symmetry_ctx.
     assert (list_value_doesnt_use_pid pinfo F idxs /\
             value_doesnt_use_pid pinfo F v) as J.
@@ -537,10 +538,10 @@ Lemma simulation__GEP : forall maxb mi los nts Mem Mem2 inbounds0 vidxs1 vidxs2
   (Hprop2: list_value_doesnt_use_pid pinfo F idxs)
   (Hv1: wf_value S (module_intro los nts ps) F v (typ_pointer t))
   (Ht: wf_value_list 
-    (make_list_system_module_fdef_value_typ 
-      (map_list_sz_value 
-        (fun (sz_:sz) (value_:value) => 
-         (S,(module_intro los nts ps),F,value_,typ_int Size.ThirtyTwo)) idxs))),
+    (List.map
+      (fun p : sz * value =>
+        let '(sz_, value_) := p in
+          (S,(module_intro los nts ps),F,value_,typ_int Size.ThirtyTwo)) idxs)),
   wf_globals maxb gl2 ->
   wf_sb_mi maxb mi Mem Mem2 ->
   reg_simulation pinfo mi F lc lc2 ->
@@ -1073,8 +1074,8 @@ Ltac reg_simulation_update_non_palloca_tac :=
       simpl; auto |
     eapply used_in_fdef__list_value_doesnt_use_pid; eauto using in_middle;
       simpl; auto |
-    get_wf_value_for_simop; eauto |
-    get_wf_value_for_simop'; eauto
+    get_wf_value_for_simop; try find_wf_value_list; eauto |
+    get_wf_value_for_simop'; try find_wf_value_list; eauto
     ].
 
 Ltac dse_is_sim_common_case :=
@@ -1088,7 +1089,7 @@ match goal with
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result;
   exists mi;
-  repeat_solve; try solve [
+  repeat_solve; solve [
     apply als_simulation_update_lc; auto |
     apply reg_simulation_update_non_palloca; auto;
      reg_simulation_update_non_palloca_tac |
@@ -1409,6 +1410,7 @@ SCase "sCall".
     assert (HBinF1':=HBinF1).
     eapply wf_system__wf_cmd in HBinF1'; eauto using in_middle.     
     inv HBinF1'.
+    find_wf_value_list.
     eapply reg_simulation__initLocals; eauto using mem_simulation__wf_sb_sim,
       used_in_fdef__params_dont_use_pid, WF_PhiInfo__args_dont_use_pid.
 
@@ -1484,4 +1486,3 @@ SCase "sExCall".
 Transparent inscope_of_tmn inscope_of_cmd.
 
 Qed.
-

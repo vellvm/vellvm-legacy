@@ -218,7 +218,7 @@ Proof.
   induction Hpsim; intros; auto.
     destruct x; subst; simpl; auto.
     destruct y; tinv H.
-    destruct f as [[]]. destruct f0 as [[]]. 
+    destruct fdef5 as [[]]. destruct fdef0 as [[]]. 
     apply fdef_simulation__inv in H. congruence.
 Qed.
 
@@ -244,7 +244,7 @@ Proof.
       apply orb_true_iff in H1.
       destruct H1 as [H1 | H1].
         apply productEqB_inv in H1. inv H1.
-        erewrite FSim.(det_right) with (f1:=f0)(f2:=f2)(f:=f); eauto.
+        erewrite FSim.(det_right) with (f1:=fdef0)(f2:=f2)(f:=fdef5); eauto.
         rewrite productEqB_refl. auto.
 
         rewrite IHForall2; auto.
@@ -337,12 +337,12 @@ Proof.
       match goal with
       | g:gvar |- _ => destruct g
       end; inv_mbind; try destruct_let; eauto.
-        destruct f as [[]].
+        destruct fdec5 as [[]].
         inv_mbind. eauto.
 
-      destruct f as [[]].
+      destruct fdef5 as [[]].
       destruct y; simpl in *; tinv H.
-      destruct f0 as [[]].
+      destruct fdef5 as [[]].
       inv_mbind. 
       apply FSim.(eq_fheader) in H.
       inv H. symmetry_ctx. fill_ctxhole. eauto.

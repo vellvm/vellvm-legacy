@@ -298,7 +298,50 @@ Fixpoint getFloatAlignmentInfo (los:layouts)  (BitWidth: nat) (ABIInfo: bool)
     getTypeSizeInBits_and_Alignment uses the result calculated by
       getTypeSizeInBits_and_Alignment_for_namedts
 *)
-Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat)))
+
+(* Since Coq doesn't allow mutual recursion with nested inductives, we
+   have to do a small hack to use nested fixpoints and bind both
+   functions to a toplevel name *)
+
+Definition _getListTypeSizeInBits_and_Alignment_aux
+  (_getTypeSizeInBits_and_Alignment :
+    layouts -> list (id * (nat * nat)) -> bool -> typ -> option (nat * nat)) :=
+fix _getListTypeSizeInBits_and_Alignment
+  (los:layouts) (nts:list (id*(nat*nat)))
+  (lt:list typ) {struct lt} : option (nat*nat) :=
+  let getTypeStoreSize :=
+      fun typeSizeInBits => nat_of_Z (ZRdiv (Z_of_nat typeSizeInBits) 8) in
+
+  let getTypeAllocSize :=
+      fun typeSizeInBits ABIalignment =>
+      (* Round up to the next alignment boundary *)
+      RoundUpAlignment (getTypeStoreSize typeSizeInBits) ABIalignment in
+
+  let getTypeAllocSizeInBits :=
+      fun typeSizeInBits ABIalignment =>
+      (getTypeAllocSize typeSizeInBits ABIalignment * 8)%nat in
+
+  match lt with
+  | nil => Some (0%nat, 0%nat)
+  | t :: lt' =>
+    (* getting ABI alignment *)
+    match (_getListTypeSizeInBits_and_Alignment los nts lt',
+           _getTypeSizeInBits_and_Alignment los nts true t) with
+    | (Some (struct_sz, struct_al), Some (sub_sz, sub_al)) =>
+          (* Add padding if necessary to align the data element properly. *)
+          (* Keep track of maximum alignment constraint. *)
+          (* Consume space for this data item *)
+          Some ((struct_sz + getTypeAllocSizeInBits sub_sz sub_al)%nat,
+                 match (le_lt_dec sub_al struct_al) with
+                 | left _ (* sub_al <= struct_al *) => struct_al
+                 | right _ (* struct_al < sub_al *) => sub_al
+                 end)
+    | _ => None
+    end
+  end.
+
+Fixpoint _getTypeSizeInBits_and_Alignment
+  (los:layouts) (nts:list (id*(nat*nat)))
   (abi_or_pref:bool) (t:typ) : option (nat*nat) :=
   let getTypeStoreSize :=
       fun typeSizeInBits => nat_of_Z (ZRdiv (Z_of_nat typeSizeInBits) 8) in
@@ -340,7 +383,7 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
 
   | typ_struct lt =>
     (* Loop over each of the elements, placing them in memory. *)
-    match (_getListTypeSizeInBits_and_Alignment los nts lt) with
+    match (_getListTypeSizeInBits_and_Alignment_aux _getTypeSizeInBits_and_Alignment los nts lt) with
     | None => None
     | (Some (sz, al)) =>
       (* Empty structures have alignment of 1 byte. *)
@@ -365,39 +408,10 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
   | typ_metadata => None
   | typ_function _ _ _ => None
   | typ_namedt id0 => lookupAL _ nts id0
-  end
-with _getListTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat)))
-  (lt:list_typ) : option (nat*nat) :=
-  let getTypeStoreSize :=
-      fun typeSizeInBits => nat_of_Z (ZRdiv (Z_of_nat typeSizeInBits) 8) in
-
-  let getTypeAllocSize :=
-      fun typeSizeInBits ABIalignment =>
-      (* Round up to the next alignment boundary *)
-      RoundUpAlignment (getTypeStoreSize typeSizeInBits) ABIalignment in
-
-  let getTypeAllocSizeInBits :=
-      fun typeSizeInBits ABIalignment =>
-      (getTypeAllocSize typeSizeInBits ABIalignment * 8)%nat in
-
-  match lt with
-  | Nil_list_typ => Some (0%nat, 0%nat)
-  | Cons_list_typ t lt' =>
-    (* getting ABI alignment *)
-    match (_getListTypeSizeInBits_and_Alignment los nts lt',
-           _getTypeSizeInBits_and_Alignment los nts true t) with
-    | (Some (struct_sz, struct_al), Some (sub_sz, sub_al)) =>
-          (* Add padding if necessary to align the data element properly. *)
-          (* Keep track of maximum alignment constraint. *)
-          (* Consume space for this data item *)
-          Some ((struct_sz + getTypeAllocSizeInBits sub_sz sub_al)%nat,
-                 match (le_lt_dec sub_al struct_al) with
-                 | left _ (* sub_al <= struct_al *) => struct_al
-                 | right _ (* struct_al < sub_al *) => sub_al
-                 end)
-    | _ => None
-    end
   end.
+
+Definition _getListTypeSizeInBits_and_Alignment :=
+  _getListTypeSizeInBits_and_Alignment_aux _getTypeSizeInBits_and_Alignment.
 
 (* calculate the TypeSizeInBits and Alignment for namedts
    Assumption: nts[i] should only use named types from nts[j] where j > i
@@ -446,7 +460,7 @@ Definition getTypeSizeInBits_and_Alignment (TD:TargetData) (abi_or_pref:bool)
 
 
 Definition getListTypeSizeInBits_and_Alignment (TD:TargetData) (abi_or_pref:bool)
-  (lt:list_typ) : option (nat*nat) :=
+  (lt:list typ) : option (nat*nat) :=
   let '(los, nts) := TD in
   _getListTypeSizeInBits_and_Alignment los
     (getTypeSizeInBits_and_Alignment_for_namedts TD abi_or_pref) lt.
@@ -563,11 +577,11 @@ match t with
 | _ => None
 end.
 
-Fixpoint _getStructElementOffset (TD:TargetData) (ts:list_typ) (idx:nat)
+Fixpoint _getStructElementOffset (TD:TargetData) (ts:list typ) (idx:nat)
          (ofs : nat) : option nat :=
 match (ts, idx) with
 | (_, O) => Some ofs
-| (Cons_list_typ t ts', S idx') =>
+| (t :: ts', S idx') =>
     match (getTypeAllocSize TD t, getABITypeAlignment TD t) with
     | (Some sub_sz, Some sub_al) =>
        _getStructElementOffset TD ts' idx' (ofs + RoundUpAlignment sub_sz sub_al)
@@ -595,11 +609,11 @@ end.
 
 (** getElementContainingOffset - Given a valid offset into the structure,
     return the structure index that contains it. *)
-Fixpoint _getStructElementContainingOffset (TD:TargetData) (ts:list_typ)
+Fixpoint _getStructElementContainingOffset (TD:TargetData) (ts:list typ)
   (offset:nat) (idx:nat) (cur : nat) : option nat :=
 match ts with
-| Nil_list_typ => None
-| Cons_list_typ t ts' =>
+| nil => None
+| t :: ts' =>
     match (getTypeAllocSize TD t, getABITypeAlignment TD t) with
     | (Some sub_sz, Some sub_al) =>
          match (le_lt_dec offset (RoundUpAlignment sub_sz sub_al + cur)) with
@@ -629,6 +643,19 @@ end.
 (* FIXME: abi_or_pref cannot always be true,
    We should use different flag when t types global or aggregate
 *)
+
+(* Same problem with nested fixpoints as before *)
+
+Definition feasible_typs_aux_
+  (feasible_typ_aux :
+    layouts -> list (id * Prop) -> typ -> Prop) :=
+fix feasible_typs_aux los nts (lt:list typ) : Prop :=
+match lt with
+| nil => True
+| t :: lt' =>
+    feasible_typ_aux los nts t /\ feasible_typs_aux los nts lt'
+end.
+
 Fixpoint feasible_typ_aux los (nts:list (id*Prop)) t : Prop :=
 match t with
 | typ_int sz => 
@@ -638,25 +665,24 @@ match t with
 | typ_floatpoint fp_float => (getFloatAlignmentInfo los 32%nat true > 0)%nat
 | typ_floatpoint fp_double => (getFloatAlignmentInfo los 64%nat true > 0)%nat
 | typ_array _ t' => feasible_typ_aux los nts t'
-| typ_struct ts => feasible_typs_aux los nts ts
-| typ_namedt nid => 
+| typ_struct ts => feasible_typs_aux_ feasible_typ_aux los nts ts
+| typ_namedt nid =>
     match lookupAL _ nts nid with
     | Some re => re
     | _ => False
     end
 | _ => False
-end
-with feasible_typs_aux los nts (lt:list_typ) : Prop :=
-match lt with
-| Nil_list_typ => True
-| Cons_list_typ t lt' => 
-    feasible_typ_aux los nts t /\ feasible_typs_aux los nts lt'
 end.
 
-Fixpoint feasible_typ_for_namedts (los:layouts) (nts:namedts) 
+Definition feasible_typs_aux :=
+  feasible_typs_aux_ feasible_typ_aux.
+
+Hint Unfold feasible_typs_aux.
+
+Fixpoint feasible_typ_for_namedts (los:layouts) (nts:namedts)
   : list (id*Prop) :=
 match nts with
-| nil => nil 
+| nil => nil
 | (id0, ts0)::nts' =>
   let results := feasible_typ_for_namedts los nts' in
   (id0, feasible_typ_aux los results (typ_struct ts0))::results
@@ -741,18 +767,18 @@ Proof.
 Qed.
 
 Lemma feasible_cons_typs_inv : forall TD t lt,
-  feasible_typs TD (Cons_list_typ t lt) -> 
+  feasible_typs TD (t :: lt) ->
   feasible_typ TD t /\ feasible_typs TD lt.
 Proof.
   intros. destruct TD as [los nts].
   simpl in *. auto.
 Qed.
 
-Lemma feasible_nil_typs: forall TD, feasible_typs TD Nil_list_typ.
+Lemma feasible_nil_typs: forall TD, feasible_typs TD nil.
 Proof. destruct TD; simpl; auto. Qed.
 
-Lemma feasible_cons_typs: forall TD t lt, 
-  feasible_typs TD (Cons_list_typ t lt) <-> 
+Lemma feasible_cons_typs: forall TD t lt,
+  feasible_typs TD (t :: lt) <->
   feasible_typ TD t /\ feasible_typs TD lt.
 Proof. destruct TD; simpl. intros. split; auto. Qed.
 
@@ -761,7 +787,7 @@ Definition feasible_typ_aux_weaken_prop (t:typ) := forall los nm1 nm2,
   feasible_typ_aux los nm1 t ->
   feasible_typ_aux los (nm2++nm1) t.
 
-Definition feasible_typs_aux_weaken_prop (lt:list_typ) := 
+Definition feasible_typs_aux_weaken_prop (lt:list typ) :=
   forall los nm1 nm2,
   uniq (nm2++nm1) ->
   feasible_typs_aux los nm1 lt ->
@@ -775,6 +801,8 @@ Proof.
     unfold feasible_typ_aux_weaken_prop, 
            feasible_typs_aux_weaken_prop) Case);
     intros; simpl in *; try solve [eauto | inversion H | inversion H1 ].
+Case "typ_struct".
+  apply H; trivial.
 Case "typ_namedt".
   inv_mbind.
   erewrite lookupAL_weaken; eauto.
@@ -842,7 +870,7 @@ Lemma feasible_typ_for_namedts_spec1: forall los nts2 lt2 i0 r nts1 nts
   feasible_typs_aux los (feasible_typ_for_namedts los nts2) lt2 = r.
 Proof.
   induction nts1 as [|[]]; intros; subst; simpl in *.
-    destruct (i0 == i0); try congruence; auto.
+    destruct (i0 == i0); unfold feasible_typs_aux; try congruence; auto.
 
     inv Huniq.
     simpl_env in H4.
@@ -868,9 +896,9 @@ Proof.
       eapply IHnts1 in H1; eauto.
 Qed.
 
-Lemma feasible_typ_spec1: forall (los : layouts) (i0 : id) 
-  (nts : namedts) (lt2 : list_typ) r
-  (HeqR : Some lt2 = lookupAL list_typ nts i0) (Huniq: uniq nts)
+Lemma feasible_typ_spec1: forall (los : layouts) (i0 : id)
+  (nts : namedts) (lt2 : list typ) r
+  (HeqR : Some lt2 = lookupAL (list typ) nts i0) (Huniq: uniq nts)
   (H:lookupAL _ (feasible_typ_for_namedts los nts) i0 = Some r),
   r -> feasible_typs_aux los (feasible_typ_for_namedts los nts) lt2.
 Proof.
@@ -885,7 +913,7 @@ Proof.
     (feasible_typ_for_namedts los ((nts1 ++ [(i0, lt2)]) ++ nts2)) 
     (typ_struct lt2)).
   eapply feasible_typ_aux_weakening; simpl_env; eauto.
-  simpl. rewrite H. auto.
+  simpl. fold feasible_typs_aux. rewrite H. auto.
 Qed.
 
 Definition feasible_typ_aux__getTypeSizeInBits_and_Alignment_prop' (t:typ) := 
@@ -900,15 +928,15 @@ Definition feasible_typ_aux__getTypeSizeInBits_and_Alignment_prop' (t:typ) :=
     _getTypeSizeInBits_and_Alignment los nm2 true t = Some (sz, al) /\ 
     (sz > 0)%nat /\ (al > 0)%nat.
 
-Definition feasible_typs_aux__getListTypeSizeInBits_and_Alignment_prop' 
-  (lt:list_typ) := forall los nm1 nm2,
-  feasible_typs_aux los nm1 lt -> 
+Definition feasible_typs_aux__getListTypeSizeInBits_and_Alignment_prop'
+  (lt:list typ) := forall los nm1 nm2,
+  feasible_typs_aux los nm1 lt ->
   (forall (i0 : id) (P : Prop) (HeqR : Some P = lookupAL Prop nm1 i0) (H : P),
    exists sz0 : nat,
      exists al : nat,
        lookupAL (nat * nat) nm2 i0 = Some (sz0, al) /\ 
        (sz0 > 0)%nat /\ (al > 0)%nat) ->
-  (forall t, In t (unmake_list_typ lt) -> feasible_typ_aux los nm1 t) /\
+  (forall t, In t lt -> feasible_typ_aux los nm1 t) /\
   exists sz, exists al,
     _getListTypeSizeInBits_and_Alignment los nm2 lt = Some (sz,al) /\
     ((sz > 0)%nat -> (al > 0)%nat).
@@ -925,7 +953,7 @@ Proof.
     simpl in *; try (destruct TD);
     try solve [eauto | inversion H | inversion H1 | destruct H; eauto].
 Case "typ_floatingpoint".
-  destruct f; try solve [inv H].
+  destruct f0; try solve [inv H].
     exists 32%nat. exists (getFloatAlignmentInfo los 32 true).
     split; auto. omega.
 
@@ -963,7 +991,7 @@ Case "typ_array".
 Case "typ_struct".
   eapply H in H0; eauto.
   destruct H0 as [J0 [sz [al [J1 J2]]]].
-  unfold getListTypeSizeInBits_and_Alignment in J1.
+  unfold _getListTypeSizeInBits_and_Alignment in J1.
   rewrite J1.
   destruct sz.
     exists 8%nat. exists 1%nat. split; auto. omega.
@@ -1028,15 +1056,15 @@ Proof.
   destruct feasible_typ_aux__getTypeSizeInBits_and_Alignment_mutrec'; auto.
 Qed.
 
-Lemma feasible_typs_aux__getListTypeSizeInBits_and_Alignment : 
-  forall (lt:list_typ) los nm1 nm2,
-  feasible_typs_aux los nm1 lt -> 
+Lemma feasible_typs_aux__getListTypeSizeInBits_and_Alignment :
+  forall (lt:list typ) los nm1 nm2,
+  feasible_typs_aux los nm1 lt ->
   (forall (i0 : id) (P : Prop) (HeqR : Some P = lookupAL Prop nm1 i0) (H : P),
    exists sz0 : nat,
      exists al : nat,
        lookupAL (nat * nat) nm2 i0 = Some (sz0, al) /\ 
        (sz0 > 0)%nat /\ (al > 0)%nat) ->
-  (forall t, In t (unmake_list_typ lt) -> feasible_typ_aux los nm1 t) /\
+  (forall t, In t lt -> feasible_typ_aux los nm1 t) /\
   exists sz, exists al,
     _getListTypeSizeInBits_and_Alignment los nm2 lt = Some (sz,al) /\
     ((sz > 0)%nat -> (al > 0)%nat).
@@ -1061,7 +1089,8 @@ Proof.
       inv H.
       eapply feasible_typs_aux__getListTypeSizeInBits_and_Alignment in H0; eauto.
       destruct H0 as [_ [sz [al [J1 J2]]]].
-      rewrite J1. 
+      unfold _getListTypeSizeInBits_and_Alignment in J1.
+      rewrite J1.
       destruct sz as [|sz].
         simpl. 
         destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i1 i1); 
@@ -1152,5 +1181,3 @@ forall abi_or_pref,
     lookupAL _ nts nid <> None -> lookupAL _ result nid <> None.
 
 End LLVMtd.
-
-

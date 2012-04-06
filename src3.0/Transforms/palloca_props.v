@@ -330,6 +330,7 @@ Proof.
   unfold wf_use_at_head.
   destruct p; simpl in *.
   induction l0; tinv H1.
+    simpl_prod.
     simpl in *.
     apply orb_false_iff in H0.
     destruct H0 as [J1 J2].
@@ -358,6 +359,7 @@ Proof.
   induction l0; simpl; intros.
     inv H0.
 
+    simpl_prod.
     apply orb_false_iff in H.
     destruct H as [J1 J2].
     inv H0; auto.
@@ -1102,12 +1104,11 @@ Proof.
 Qed.
 
 Definition gen_phinode_fun (nids:ATree.t (id * id * id)) ty :=
-  (fun (acc : list_value_l) (p : atom) =>
-      Cons_list_value_l
-        match nids ! p with
-        | ret (lid0, _, _) => value_id lid0
-        | merror => value_const (const_undef ty)
-        end p acc).
+  (fun (acc : list (value * l)) (p : atom) =>
+    (match nids ! p with
+       | ret (lid0, _, _) => value_id lid0
+       | merror => value_const (const_undef ty)
+     end, p) :: acc).
 
 Lemma WF_PhiInfo__getValueViaLabelFromValuels_aux: forall
   (nids:ATree.t (id * id * id)) l3 lid pid sid ty
@@ -1129,7 +1130,7 @@ Lemma WF_PhiInfo__getValueViaLabelFromValuels: forall
   (nids:ATree.t (id * id * id)) l3 lid pid sid ty
   (J:ret (lid, pid, sid) = nids ! l3) pds v,
   ret v = getValueViaLabelFromValuels
-   (fold_left (gen_phinode_fun nids ty) pds Nil_list_value_l) l3 ->
+   (fold_left (gen_phinode_fun nids ty) pds nil) l3 ->
   v = value_id lid.
 Proof.
   intros.
@@ -1545,7 +1546,7 @@ Lemma original_indxs_arent_tmps: forall pinfo F1 l1 ps1 cs11 id0 inbounds0 t v
             true),
   if fdef_dec (PI_f pinfo) F1 then
     forall nth sz0 v0,
-      nth_list_sz_value nth idxs = Some (sz0, v0) ->
+      nth_error idxs nth = Some (sz0, v0) ->
       value_has_no_tmps pinfo v0
   else True.
 Proof.

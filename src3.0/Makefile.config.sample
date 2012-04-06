@@ -1,4 +1,4 @@
-OTT = ott
+OTT = ott-0.21.2
 COQC = coqc
 COQDEP = coqdep
 COQDOC = coqdoc

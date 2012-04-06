@@ -2012,7 +2012,7 @@ Lemma values2GVs__simulation: forall pinfo lc1 lc2 gl F1 td idxs
   (Hntmp:
    if fdef_dec (PI_f pinfo) F1 then
      forall nth sz0 v0,
-       nth_list_sz_value nth idxs = Some (sz0, v0) ->
+       nth_error idxs nth = Some (sz0, v0) ->
        value_has_no_tmps pinfo v0
    else True),
   reg_simulation pinfo F1 lc1 lc2 ->
@@ -2022,7 +2022,7 @@ Proof.
   induction idxs as [|[]]; simpl; intros; auto.
     assert (if fdef_dec (PI_f pinfo) F1 then
               forall (nth : nat) (sz0 : sz) (v0 : value),
-                nth_list_sz_value nth idxs = ret (sz0, v0) ->
+                nth_error idxs nth = ret (sz0, v0) ->
                 value_has_no_tmps pinfo v0
             else True) as J.
       destruct (fdef_dec (PI_f pinfo) F1); auto.
@@ -2032,22 +2032,7 @@ Proof.
     assert (if fdef_dec (PI_f pinfo) F1
             then value_has_no_tmps pinfo v else True) as Hnt.
       destruct (fdef_dec (PI_f pinfo) F1); auto.
-      apply Hntmp with (nth:=O)(sz0:=0%nat)(v0:=v); auto.
-    erewrite simulation__getOperandValue; eauto.
-
-    assert (if fdef_dec (PI_f pinfo) F1 then
-              forall (nth : nat) (sz0 : sz) (v0 : value),
-                nth_list_sz_value nth idxs = ret (sz0, v0) ->
-                value_has_no_tmps pinfo v0
-            else True) as J.
-      destruct (fdef_dec (PI_f pinfo) F1); auto.
-      intros.
-      apply Hntmp with (nth:=S nth)(sz0:=sz0)(v0:=v0); auto.
-    rewrite IHidxs; auto.
-    assert (if fdef_dec (PI_f pinfo) F1
-            then value_has_no_tmps pinfo v else True) as Hnt.
-      destruct (fdef_dec (PI_f pinfo) F1); auto.
-      apply Hntmp with (nth:=O)(sz0:=S n)(v0:=v); auto.
+      apply Hntmp with (nth:=O)(sz0:=s)(v0:=v); auto.
     erewrite simulation__getOperandValue; eauto.
 Qed.
 

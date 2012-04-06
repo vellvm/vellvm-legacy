@@ -12,12 +12,12 @@ end.
 Notation "v {[ v' // id' ]}" :=
   ( subst_value id' v' v ) (at level 42, no associativity).
 
-Fixpoint subst_list_value (id':id) (v':value) (vl:list_sz_value)
-  : list_sz_value :=
+Fixpoint subst_list_value (id':id) (v':value) (vl:list (sz * value))
+  : list (sz * value) :=
 match vl with
-| Nil_list_sz_value => Nil_list_sz_value
-| Cons_list_sz_value sz0 v0 tl =>
-   Cons_list_sz_value sz0 (v0{[v'//id']}) (subst_list_value id' v' tl)
+| nil => nil
+| (sz0, v0) :: tl =>
+  (sz0, (v0{[v'//id']})) :: (subst_list_value id' v' tl)
 end.
 
 Definition subst_cmd (id':id) (v':value) (c:cmd) : cmd :=
@@ -59,12 +59,12 @@ match tmn with
 | _ => tmn
 end.
 
-Fixpoint subst_list_value_l (id':id) (v':value ) (l0:list_value_l)
-  : list_value_l :=
+Fixpoint subst_list_value_l (id':id) (v':value ) (l0:list (value * l))
+  : list (value * l) :=
 match l0 with
-| Nil_list_value_l => Nil_list_value_l
-| Cons_list_value_l v0 l0 tl =>
-   Cons_list_value_l (v0{[v'//id']}) l0 (subst_list_value_l id' v' tl)
+| nil => nil
+| (v0, l0) :: tl =>
+  ((v0{[v'//id']}), l0) :: (subst_list_value_l id' v' tl)
 end.
 
 Definition subst_phi (id':id) (v':value) (pn:phinode) : phinode :=
@@ -158,10 +158,10 @@ match v with
 | _ => false
 end.
 
-Fixpoint used_in_list_value (id0:id) (vl:list_sz_value) : bool :=
+Fixpoint used_in_list_value (id0:id) (vl:list (sz * value)) : bool :=
 match vl with
-| Nil_list_sz_value => false
-| Cons_list_sz_value _ v0 tl =>
+| nil => false
+| (_, v0) :: tl =>
     used_in_value id0 v0 || used_in_list_value id0 tl
 end.
 
@@ -199,10 +199,10 @@ match tmn with
 | _ => false
 end.
 
-Fixpoint used_in_list_value_l (id':id) (l0:list_value_l) : bool :=
+Fixpoint used_in_list_value_l (id':id) (l0:list (value * l)) : bool :=
 match l0 with
-| Nil_list_value_l => false
-| Cons_list_value_l v0 _ tl =>
+| nil => false
+| (v0, _) :: tl =>
     used_in_value id' v0 || used_in_list_value_l id' tl
 end.
 
@@ -282,11 +282,11 @@ match v with
 | _ => v
 end.
 
-Fixpoint rename_list_value (id1 id2:id) (vl:list_sz_value) : list_sz_value :=
+Fixpoint rename_list_value (id1 id2:id) (vl:list (sz * value)) : list (sz * value) :=
 match vl with
-| Nil_list_sz_value => Nil_list_sz_value
-| Cons_list_sz_value sz0 v0 tl =>
-    Cons_list_sz_value sz0 (rename_value id1 id2 v0)
+| nil => nil
+| (sz0, v0) :: tl =>
+    (sz0, (rename_value id1 id2 v0)) ::
       (rename_list_value id1 id2 tl)
 end.
 
@@ -349,12 +349,12 @@ match tmn with
 | insn_unreachable id0 => insn_unreachable (rename_id id1 id2 id0)
 end.
 
-Fixpoint rename_list_value_l (id1:id) (id2:id) (l0:list_value_l)
-  : list_value_l :=
+Fixpoint rename_list_value_l (id1:id) (id2:id) (l0:list (value * l))
+  : list (value * l) :=
 match l0 with
-| Nil_list_value_l => Nil_list_value_l
-| Cons_list_value_l v0 l0 tl =>
-   Cons_list_value_l (rename_value id1 id2 v0) l0
+| nil => nil
+| (v0, l0) :: tl =>
+   ((rename_value id1 id2 v0), l0) ::
      (rename_list_value_l id1 id2 tl)
 end.
 
@@ -434,11 +434,11 @@ Parameter init_expected_name : unit -> TNAME.
 Parameter check_bname : l -> TNAME -> option (l * TNAME).
 Parameter check_vname : id -> TNAME -> option (id * TNAME).
 
-Fixpoint renamel_list_value_l (l1 l2:l) (l0:list_value_l) : list_value_l :=
+Fixpoint renamel_list_value_l (l1 l2:l) (l0:list (value * l)) : list (value * l) :=
 match l0 with
-| Nil_list_value_l => Nil_list_value_l
-| Cons_list_value_l v0 l0 tl =>
-   Cons_list_value_l v0 (rename_id l1 l2 l0) (renamel_list_value_l l1 l2 tl)
+| nil => nil
+| (v0, l0) :: tl =>
+   (v0, (rename_id l1 l2 l0)) :: (renamel_list_value_l l1 l2 tl)
 end.
 
 Definition renamel_phi (l1 l2:l) (pn:phinode) : phinode :=
@@ -626,7 +626,7 @@ Proof.
     destruct v; auto.
       unfold valueInListValue in H0. simpl in H0. inv H0.
 
-    unfold valueInListValue in H0.
+    simpl_prod. unfold valueInListValue in H0.
     simpl in H0.
     binvf H as J3 J4; destruct H0 as [H0 | H0]; subst; auto.
 Qed.

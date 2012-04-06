@@ -155,13 +155,13 @@ formula :: 'formula_' ::=
     	     			{{ com opt_id alias }}
 				{{ coq [[opt_id]] = [[opt_id']] }}
   | length </ constj // j /> = sz :: M :: length_of_consts_is_sz
-                                {{ coq length (unmake_list_const [[ </ constj // j /> ]]) = Size.to_nat[[sz]] }}
+                                {{ coq length [[ </ constj // j /> ]] = Size.to_nat[[sz]] }}
   | ids <-> </ idj // j /> 	:: M :: ids_alias
     	      	   	        {{ com ids alias }}
-				{{ coq [[ids]] = unmake_list_id [[ </ idj // j /> ]] }}
+				{{ coq [[ids]] = [[ </ idj // j /> ]] }}
   | ls <-> </ lj // j /> 	:: M :: ls_alias
     	      	   	        {{ com ls alias }}
-				{{ coq [[ls]] = (unmake_list_l [[ </ lj // j /> ]] }}
+				{{ coq [[ls]] = [[ </ lj // j /> ]] }}
   | args <-> </ argj // j /> :: M :: args_alias
     	      	   	        {{ com args alias }}
 				{{ coq [[args]] = [[ </ argj // j /> ]] }}
@@ -516,7 +516,7 @@ Jwf_const :: '' ::=
 
       system , targetdata |-c const : int sz1
       system , targetdata |- int sz1
-      system , targetdata|- int sz2
+      system , targetdata |- int sz2
       sz1 < sz2
       --------------------------------------------------------- :: wf_const_zext
       system , targetdata |-c zext const to (int sz2) : int sz2

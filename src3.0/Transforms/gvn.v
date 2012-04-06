@@ -21,14 +21,14 @@ Definition cmds_from_block (f:fdef) (lbl:l) : option cmds :=
 Inductive rhs : Set :=
     rhs_bop : bop -> sz -> value -> value -> rhs
   | rhs_fbop : fbop -> floating_point -> value -> value -> rhs
-  | rhs_extractvalue : typ -> value -> list_const -> typ -> rhs
-  | rhs_insertvalue : typ -> value -> typ -> value -> list_const -> rhs
+  | rhs_extractvalue : typ -> value -> list const -> typ -> rhs
+  | rhs_insertvalue : typ -> value -> typ -> value -> list const -> rhs
   | rhs_malloc : typ -> value -> align -> rhs
   | rhs_free : typ -> value -> rhs
   | rhs_alloca : typ -> value -> align -> rhs
   | rhs_load : typ -> value -> align -> rhs
   | rhs_store : typ -> value -> value -> align -> rhs
-  | rhs_gep : inbounds -> typ -> value -> list_sz_value -> typ -> rhs
+  | rhs_gep : inbounds -> typ -> value -> list (sz * value) -> typ -> rhs
   | rhs_trunc : truncop -> typ -> value -> typ -> rhs
   | rhs_ext : extop -> typ -> value -> typ -> rhs
   | rhs_cast : castop -> typ -> value -> typ -> rhs
@@ -178,12 +178,12 @@ match c with
 | _ => false
 end.
 
-Fixpoint const_list_value (vs: list_sz_value) : option list_const :=
+Fixpoint const_list_value (vs: list (sz * value)) : option (list const) :=
 match vs with
-| Nil_list_sz_value => Some Nil_list_const
-| Cons_list_sz_value _ (value_const c) vs' =>
+| nil => Some nil
+| (_, (value_const c)) :: vs' =>
     match const_list_value vs' with
-    | Some cs' => Some (Cons_list_const c cs')
+    | Some cs' => Some (c :: cs')
     | None => None
     end
 | _ => None
@@ -222,17 +222,17 @@ match c with
 | _ => None
 end.
 
-Fixpoint const_in_list_value_l (cst0:const) (vls:list_value_l) : bool :=
+Fixpoint const_in_list_value_l (cst0:const) (vls:list (value * l)) : bool :=
 match vls with
-| Nil_list_value_l => true
-| Cons_list_value_l (value_const cst) _ vls' =>
+| nil => true
+| ((value_const cst), _) :: vls' =>
     const_dec cst cst0 && const_in_list_value_l cst0 vls'
 | _ => false
 end.
 
 Definition const_phinode (p:phinode) : option const :=
 match p with
-| insn_phi _ _ (Cons_list_value_l (value_const cnt) _ vls) =>
+| insn_phi _ _ (((value_const cnt), _) :: vls) =>
     if (const_in_list_value_l cnt vls) then Some cnt else None
 | _ => None
 end.

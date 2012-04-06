@@ -678,13 +678,14 @@ Lemma incoming_values_dont_use_pid: forall pinfo F l3 l0 v
 Proof.
   induction l0; simpl; intros.
     congruence.
-
+    
+    simpl_prod.
     unfold value_doesnt_use_pid.
     destruct (fdef_dec (PI_f pinfo) F); subst; auto.
       right.
       destruct Hnuse as [Hnuse | Hnuse]; try congruence.
       binvf Hnuse as J1 J2.
-      destruct (l0 == l3); inv HeqR3; auto.
+      destruct (l1 == l3); inv HeqR3; auto.
       apply IHl0 in H0; auto.
       unfold value_doesnt_use_pid in H0.
       destruct H0 as [H0 | H0]; try congruence.
@@ -736,9 +737,10 @@ Proof.
           rewrite J in Hnuse'. auto.
           intros. apply orb_false_iff in H. destruct H; auto.
       apply IHps; auto.
-    assert (wf_value S1 (module_intro los nts Ps) F v t) as Hwft.
+    assert (wf_value S1 (module_intro los nts Ps) F v typ5) as Hwft.
       match goal with
       | H5: wf_insn _ _ _ _ _ |- _ => inv H5;
+        find_wf_value_list;
         match goal with
         | H2: wf_value_list _ |- _ => 
            eapply wf_value_list__getValueViaBlockFromValuels__wf_value in H2; 
@@ -1148,14 +1150,15 @@ Lemma reg_simulation__params2GVs: forall pinfo mi F lc1 lc2 gl
   los nts (Hrsim: reg_simulation pinfo mi F lc1 lc2) maxb Mem1 Mem2
   (Hwfg: wf_globals maxb gl) (Hwfmi: wf_sb_mi maxb mi Mem1 Mem2)
   Ps S tavl lp (Hnuse: params_dont_use_pid pinfo F lp) gvs1 gvs2
-  (Heq: lp = (map_list_typ_attributes_value 
-    (fun (typ_':typ) (attributes_':attributes) (value_'':value) =>   
-     (( typ_' ,  attributes_' ),  value_'' )  ) tavl))
+  (Heq: lp = (List.map
+    (fun p : typ * attributes * value =>
+      let '(typ_', attributes_', value_'') := p in
+        (( typ_' ,  attributes_' ),  value_'' )  ) tavl))
   (Hv: wf_value_list 
-    (make_list_system_module_fdef_value_typ 
-      (map_list_typ_attributes_value 
-        (fun (typ_':typ) (attributes_':attributes) (value_'':value) => 
-         (S,(module_intro los nts Ps),F,value_'',typ_')) tavl))),
+    (List.map
+      (fun p : typ * attributes * value =>
+        let '(typ_', attributes_', value_'') := p in
+         (S,(module_intro los nts Ps),F,value_'',typ_')) tavl)),
   Opsem.params2GVs (los,nts) lp lc1 gl = ret gvs1 ->
   Opsem.params2GVs (los,nts) lp lc2 gl = ret gvs2 ->
   List.Forall2 (fun gv1 => fun gv2 => gv_inject mi gv1 gv2) gvs1 gvs2.
@@ -1163,11 +1166,14 @@ Proof.
   induction tavl; intros; subst; simpl in *.
     uniq_result. constructor.
 
-    inv_mbind'. symmetry_ctx. inv Hv.
+    simpl_prod.
+    inv_mbind'. symmetry_ctx. 
+    rewrite wf_value_list_cons_iff in Hv. destruct Hv.
     assert (params_dont_use_pid pinfo F
-              (map_list_typ_attributes_value
-                  (fun (typ_' : typ) (attributes_' : attributes)
-                     (value_'' : value) => (typ_', attributes_', value_''))
+              (List.map
+                  (fun p : typ * attributes * value =>
+                   let '(typ_', attributes_', value_'') := p in
+                        (typ_', attributes_', value_''))
                   tavl) /\ value_doesnt_use_pid pinfo F v) as J.
       unfold params_dont_use_pid in Hnuse. unfold params_dont_use_pid.
       unfold value_doesnt_use_pid.
@@ -1180,7 +1186,7 @@ Proof.
         split; right; auto.
 
         intros. destruct b.
-        binvf H as J1 J2. auto.
+        binvf H1 as J1 J2. auto.
     destruct J as [J1 J2].
     constructor; eauto.
       eapply simulation__getOperandValue; eauto.
@@ -1254,14 +1260,15 @@ Lemma reg_simulation__initLocals: forall pinfo mi F lc1 lc2 lp gl gvs1 gvs2 lc1'
   (Hnuse: params_dont_use_pid pinfo F lp)
   (Hnuse': args_dont_use_pid pinfo
             (fdef_intro (fheader_intro fa0 rt0 fid0 la va0) lb) la) tavl S Ps
-  (Heq: lp = (map_list_typ_attributes_value 
-    (fun (typ_':typ) (attributes_':attributes) (value_'':value) =>   
-     (( typ_' ,  attributes_' ),  value_'' )  ) tavl))
+  (Heq: lp = (List.map 
+    (fun p : typ * attributes * value =>
+        let '(typ_', attributes_', value_'') := p in
+          ((typ_' ,  attributes_' ),  value_'' )  ) tavl))
   (Hv: wf_value_list 
-    (make_list_system_module_fdef_value_typ 
-      (map_list_typ_attributes_value 
-        (fun (typ_':typ) (attributes_':attributes) (value_'':value) => 
-         (S,(module_intro los nts Ps),F,value_'',typ_')) tavl))),
+    (List.map
+      (fun p : typ * attributes * value =>
+        let '(typ_', attributes_', value_'') := p in
+          (S,(module_intro los nts Ps),F,value_'',typ_')) tavl)),
   reg_simulation pinfo mi F lc1 lc2 ->
   Opsem.params2GVs (los,nts) lp lc1 gl = ret gvs1 ->
   Opsem.params2GVs (los,nts) lp lc2 gl = ret gvs2 ->
@@ -1337,4 +1344,3 @@ Proof.
       apply IHla in J; auto.
       intros. eapply H; simpl; eauto.
 Qed.
-

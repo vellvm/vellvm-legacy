@@ -781,10 +781,11 @@ Proof.
              ({|
               Opsem.CurFunction := F;
               Opsem.CurBB := B;
-              Opsem.CurCmds := insn_alloca (PI_id pinfo) t0 v a :: cs;
+              Opsem.CurCmds := insn_alloca (PI_id pinfo) typ5 value5 align5 :: cs;
               Opsem.Terminator := tmn2;
               Opsem.Locals := lc2;
               Opsem.Allocas := als2 |} :: EC)) as Hin.
+
             unfold no_alias_head_tail.
             constructor; auto.
               split; simpl; intros; auto.
@@ -1842,4 +1843,3 @@ SCase "sExCall".
 Transparent inscope_of_tmn inscope_of_cmd.
 
 Qed.
-

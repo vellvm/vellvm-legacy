@@ -146,10 +146,10 @@ Qed.
 Lemma simulation__values2GVs : forall maxb mi rm rm2 lc lc2 los nts Mem Mem2
     gl F S ps idxs gvs 
   (Ht: wf_value_list 
-    (make_list_system_module_fdef_value_typ 
-      (map_list_sz_value 
-        (fun (sz_:sz) (value_:value) => 
-         (S,(module_intro los nts ps),F,value_,typ_int Size.ThirtyTwo)) idxs))),
+    (List.map
+      (fun p : sz * value =>
+        let '(sz_, value_) := p in
+          (S,(module_intro los nts ps),F,value_,typ_int Size.ThirtyTwo)) idxs)),
   wf_globals maxb gl ->
   wf_sb_mi maxb mi Mem Mem2 ->
   reg_simulation mi (los,nts) gl F rm rm2 lc lc2 ->
@@ -162,7 +162,7 @@ Proof.
     inv H2.
     exists nil. simpl. split; auto.
 
-    inv Ht.
+    rewrite wf_value_list_cons_iff in Ht. simpl_prod. destruct Ht.
     remember (getOperandValue (los,nts) v lc gl) as R.
     destruct R; tinv H2.
     remember (values2GVs (los,nts) idxs lc gl) as R1.
@@ -2350,7 +2350,7 @@ Lemma get_metadata_from_list_value_l_spec : forall mi TD gl F rm1 rm2 lc1 lc2 B1
   (HeqR1 : ret v = getValueViaBlockFromValuels vls B1)
   (HeqR4 : ret (mkMD blk1 bofs1 eofs1) =
           SBspecAux.get_reg_metadata TD gl rm1 v)
-  (bvls0 : list_value_l) (evls0 : list_value_l)
+  (bvls0 : list (value * l)) (evls0 : list (value * l))
   (HeqR5 : ret (bvls0, evls0) =
           get_metadata_from_list_value_l rm2 vls),
   exists bv2, exists ev2, exists bgv2, exists egv2,
@@ -2366,12 +2366,13 @@ Proof.
   induction vls; simpl; intros; subst.
     inv HeqR1.
 
-    remember (get_reg_metadata rm2 v) as R.
+    simpl_prod.
+    remember (get_reg_metadata rm2 v0) as R.
     destruct R as [[bv ev]|]; try solve [inv HeqR5].
     remember (get_metadata_from_list_value_l rm2 vls) as R'.
     destruct R' as [[baccum eaccum]|]; inv HeqR5.
     simpl.
-    destruct (l2==l1); subst.
+    destruct (l0==l1); subst.
       inv HeqR1.
       exists bv. exists ev.
       destruct Hrsim as [Hrsim1 Hrsim2].
@@ -2416,7 +2417,7 @@ Proof.
     destruct R3 as [idgvs|]; try solve [inv Hget].
     assert (wf_value S1 (module_intro los nts Ps1) F v t) as Hwft.
       match goal with
-      | H5: wf_insn _ _ _ _ _ |- _ => inv H5;
+      | H5: wf_insn _ _ _ _ _ |- _ => inv H5; find_wf_value_list;
         match goal with
         | H2: wf_value_list _ |- _ => 
            eapply wf_value_list__getValueViaBlockFromValuels__wf_value in H2; 

@@ -511,8 +511,8 @@ Inductive sterm : Set :=
 | sterm_val : value -> sterm
 | sterm_bop : bop -> sz -> sterm -> sterm -> sterm
 | sterm_fbop : fbop -> floating_point -> sterm -> sterm -> sterm
-| sterm_extractvalue : typ -> sterm -> list_const -> sterm
-| sterm_insertvalue : typ -> sterm -> typ -> sterm -> list_const -> sterm
+| sterm_extractvalue : typ -> sterm -> list const -> sterm
+| sterm_insertvalue : typ -> sterm -> typ -> sterm -> list const -> sterm
 | sterm_malloc : smem -> typ -> sterm -> align -> sterm
 | sterm_alloca : smem -> typ -> sterm -> align -> sterm
 | sterm_load : smem -> typ -> sterm -> align -> sterm
@@ -760,8 +760,8 @@ match c with
        (mkSstate (updateAddAL _ st.(STerms) id0
                    (sterm_gep inbounds0 t1
                      (value2Sterm st.(STerms) v1)
-                     (make_list_sterm (map_list_sz_value
-                       (fun sz' v' => (sz', value2Sterm st.(STerms) v')) lv2)) t2))
+                     (make_list_sterm (List.map
+                       (fun p => let '(sz', v') := p in (sz', value2Sterm st.(STerms) v')) lv2)) t2))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
@@ -830,10 +830,9 @@ match ps with
                  (sterm_phi
                    t0
                    (make_list_sterm_l
-                     (map_list_value_l
-                       (fun v5 l5 =>
-                        ((value2Sterm st.(STerms) v5), l5)
-                       )
+                     (List.map
+                       (fun p : value * l => let (v5, l5) := p in
+                         ((value2Sterm st.(STerms) v5), l5))
                        idls0
                      )
                    )

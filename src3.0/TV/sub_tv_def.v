@@ -72,15 +72,14 @@ Definition p8 := typ_pointer i8.
 Definition pp32 := typ_pointer p32.
 Definition pp8 := typ_pointer p8.
 Definition cpars c1 c2 :=
-  Cons_list_sz_value sz32 (value_const c1)
-  (Cons_list_sz_value sz32 (value_const c2) Nil_list_sz_value).
+  (sz32, (value_const c1)) ::
+  (sz32, (value_const c2)) :: nil.
 
 Definition call_ptr rid nr tc t va v p sid id1 id2 id3 id4 id5 id6 c0 c1 c2:=
 let vret := value_id sid in
 let tret := typ_pointer (typ_struct
-  (Cons_list_typ (typ_pointer t)
-  (Cons_list_typ (typ_pointer p8)
-  (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
+  (typ_pointer t :: typ_pointer p8 ::
+    typ_pointer p8 :: nil)) in
 (insn_call_nptr rid nr tc t va v ((tret,nil,vret)::p),
  insn_gep id1 false tret vret (cpars c0 c0) t::
  insn_load id2 pp32 (value_id id1) Align.One::
@@ -116,9 +115,8 @@ Inductive iterminator : Set :=
 Definition ret_ptr sid t id1 id2 id30 v3 id4 id50 v5 id60 v6 id7 c0 c1 c2 :=
 let vret := value_id sid in
 let tret := typ_pointer (typ_struct
-  (Cons_list_typ (typ_pointer t)
-  (Cons_list_typ (typ_pointer p8)
-  (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
+  (typ_pointer t :: typ_pointer p8 ::
+    typ_pointer p8 :: nil)) in
 (insn_gep id1 false tret vret (cpars c0 c0) t::
  insn_gep id2 false tret vret (cpars c0 c1) p8::
  insn_store id30 p8 v3 (value_id id2) Align.One::
@@ -174,9 +172,9 @@ match nts with
 | (tid', t')::nts' =>
     if (eq_id tid tid') then
       match t' with
-      | (Cons_list_typ (typ_pointer _ as t01)
-         (Cons_list_typ (typ_pointer _ as t02)
-         (Cons_list_typ (typ_pointer _ as t03) Nil_list_typ))) =>
+      | (typ_pointer _ as t01)  ::
+         (typ_pointer _ as t02) ::
+         (typ_pointer _ as t03) :: nil =>
          Some (t01,t02,t03)
       | _ => None
       end
@@ -187,9 +185,9 @@ end.
 Fixpoint get_ret_typs nts t: option (typ*typ*typ) :=
 match t with
 | typ_struct
-    (Cons_list_typ (typ_pointer _ as t01)
-    (Cons_list_typ (typ_pointer _ as t02)
-    (Cons_list_typ (typ_pointer _ as t03) Nil_list_typ))) =>
+    ((typ_pointer _ as t01) ::
+     (typ_pointer _ as t02) ::
+     (typ_pointer _ as t03) :: nil) =>
       Some (t01,t02,t03)
 | typ_namedt tid => get_named_ret_typs nts tid
 | _ => None
@@ -200,23 +198,20 @@ Definition gen_icall nts pa1 (c1 c2 c3 c4 c5 c6:cmd) :
   option (params*id*id*id*id*id*id*id*const*const*const*typ) :=
 match c1 with
 |LLVMsyntax.insn_gep id11 _ t1 (value_id id12)
-   (Cons_list_sz_value _ (value_const (const_int _ i11 as c11))
-     (Cons_list_sz_value _ (value_const (const_int _ i12 as c12))
-      Nil_list_sz_value)) _ =>
+   ((_, (value_const (const_int _ i11 as c11))) ::
+    (_, (value_const (const_int _ i12 as c12))) :: nil) _ =>
   match c2 with
   |LLVMsyntax.insn_load id21 t2 (value_id id22) _ =>
     match c3 with
     |LLVMsyntax.insn_gep id31 _ t3 (value_id id32)
-       (Cons_list_sz_value _ (value_const (const_int _ i31 as c31))
-         (Cons_list_sz_value _ (value_const (const_int _ i32 as c32))
-         Nil_list_sz_value)) _ =>
+       ((_, (value_const (const_int _ i31 as c31))) ::
+        (_, (value_const (const_int _ i32 as c32))) :: nil) _ =>
       match c4 with
       |LLVMsyntax.insn_load id41 t4 (value_id id42) _ =>
         match c5 with
         |LLVMsyntax.insn_gep id51 _ t5 (value_id id52)
-           (Cons_list_sz_value _ (value_const (const_int _ i51 as c51))
-           (Cons_list_sz_value _ (value_const (const_int _ i52 as c52))
-              Nil_list_sz_value)) _ =>
+           ((_, (value_const (const_int _ i51 as c51))) ::
+            (_, (value_const (const_int _ i52 as c52))) :: nil) _ =>
            match c6 with
            |LLVMsyntax.insn_load id61 t6 (value_id id62) _ =>
               match pa1 with
@@ -312,21 +307,18 @@ end.
 Definition gen_iret nts t0 id0 (c1 c2 c3 c4 c5 c6:cmd) (id7:id) :=
 match c1 with
 |LLVMsyntax.insn_gep id11 _ t1 (value_id id12)
-   (Cons_list_sz_value _ (value_const (const_int _ i11 as c11))
-     (Cons_list_sz_value _ (value_const (const_int _ i12 as c12))
-      Nil_list_sz_value)) _ =>
+   ((_, (value_const (const_int _ i11 as c11))) ::
+    (_, (value_const (const_int _ i12 as c12))) :: nil) _ =>
   match c2 with
   |LLVMsyntax.insn_gep id21 _ t2 (value_id id22)
-     (Cons_list_sz_value _ (value_const (const_int _ i21 as c21))
-       (Cons_list_sz_value _ (value_const (const_int _ i22 as c22))
-       Nil_list_sz_value)) _ =>
+     ((_, (value_const (const_int _ i21 as c21))) ::
+      (_, (value_const (const_int _ i22 as c22))) :: nil) _ =>
     match c3 with
     |LLVMsyntax.insn_store id31 t3 v3 (value_id id32) _ =>
       match c4 with
       |LLVMsyntax.insn_gep id41 _ t4 (value_id id42)
-         (Cons_list_sz_value _ (value_const (const_int _ i41 as c41))
-         (Cons_list_sz_value _ (value_const (const_int _ i42 as c42))
-            Nil_list_sz_value)) _ =>
+         ((_, (value_const (const_int _ i41 as c41))) ::
+          (_, (value_const (const_int _ i42 as c42))) :: nil) _ =>
         match c5 with
         |LLVMsyntax.insn_store id51 t5 v5 (value_id id52) _ =>
            match c6 with
@@ -431,9 +423,9 @@ match c with
 | insn_call_ptr rid nr tc t va v p sid id1 id2 id3 id4 id5 id6 c0 c1 c2 =>
   let vret := value_id sid in
   let tret := typ_pointer (typ_struct
-    (Cons_list_typ (typ_pointer t)
-    (Cons_list_typ (typ_pointer p8)
-    (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
+    (typ_pointer t  ::
+     typ_pointer p8 ::
+     typ_pointer p8 :: nil)) in
   (insn_call rid nr tc t va v ((tret,nil,vret)::p)::
    insn_gep id1 false tret vret (cpars c0 c0) t::
    insn_load id2 pp32 (value_id id1) Align.One::
@@ -451,9 +443,9 @@ Definition ret_ptr_to_tmn sid t id1 id2 id30 v3 id4 id50 v5 id60 v6 id7 c0 c1 c2
   :=
   let vret := value_id sid in
   let tret := typ_pointer (typ_struct
-    (Cons_list_typ (typ_pointer t)
-    (Cons_list_typ (typ_pointer p8)
-    (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
+    (typ_pointer t  ::
+     typ_pointer p8 ::
+     typ_pointer p8 :: nil)) in
   (insn_gep id1 false tret vret (cpars c0 c0) t::
    insn_gep id2 false tret vret (cpars c0 c1) p8::
    insn_store id30 p8 v3 (value_id id2) Align.One::
@@ -565,7 +557,7 @@ match b with
 | (block_ret_ptr _ lp _ _ _) => lp
 end.
 
-Definition getValueViaBlockFromValuels (vls:list_value_l) (b:block) : option value :=
+Definition getValueViaBlockFromValuels (vls:list (value * l)) (b:block) : option value :=
 match b with
 | block_common l _ _ _ _ => getValueViaLabelFromValuels vls l
 | block_ret_ptr l _ _ _ _ => getValueViaLabelFromValuels vls l

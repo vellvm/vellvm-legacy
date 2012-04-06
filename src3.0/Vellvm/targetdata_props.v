@@ -52,7 +52,7 @@ Proof.
 Qed.
 *)
 Lemma make_list_const_spec1 : forall
-  (const_list : list_const)
+  (const_list : list const)
   (system5 : system)
   (td5 : targetdata)
   (typ5 : typ)
@@ -61,14 +61,12 @@ Lemma make_list_const_spec1 : forall
   (lt : list typ)
   (HeqR : (lsdc, lt) =
          split
-           (unmake_list_system_targetdata_const_typ
-              (make_list_system_targetdata_const_typ
-                 (map_list_const
-                    (fun const_ : const => (system5, td5, const_, typ5))
-                    const_list))))
+           (List.map
+             (fun const_ : const => (system5, td5, const_, typ5))
+             const_list))
   (TD : TargetData)
   (H0 : LLVMtd.feasible_typ TD (typ_array sz5 typ5)),
-  LLVMtd.feasible_typs TD (make_list_typ lt).
+  LLVMtd.feasible_typs TD lt.
 Proof.
   intros.
   generalize dependent lsdc.
@@ -77,18 +75,16 @@ Proof.
      inv HeqR. simpl. apply feasible_nil_typs.
   
      remember (split
-              (unmake_list_system_targetdata_const_typ
-                 (make_list_system_targetdata_const_typ
-                    (map_list_const
-                       (fun const_ : const => (system5, td5, const_, typ5))
-                       const_list)))) as R2.
+                (List.map
+                  (fun const_ : const => (system5, td5, const_, typ5))
+                  const_list)) as R2.
      destruct R2. inv HeqR. simpl.
      apply feasible_cons_typs.
      split; eauto.
 Qed.
 
 Lemma make_list_const_spec2 : forall
-  (const_list : list_const)
+  (const_list : list const)
   (system5 : system)
   (typ5 : typ)
   (td5 : targetdata)
@@ -98,136 +94,78 @@ Lemma make_list_const_spec2 : forall
   (lt : list typ)
   (HeqR : (lsdc, lt) =
          split
-           (unmake_list_system_targetdata_const_typ
-              (make_list_system_targetdata_const_typ
-                 (map_list_const
-                    (fun const_ : const => (system5, td5, const_, typ5))
-                    const_list))))
+           (List.map
+             (fun const_ : const => (system5, td5, const_, typ5))
+             const_list))
   (lsd : list (system*targetdata))
   (lc : list const)
   (HeqR' : (lsd, lc) = split lsdc),
-  make_list_const lc = const_list.
+  lc = const_list.
 Proof.
   induction const_list; intros; simpl in *.
     inv HeqR. simpl in HeqR'. inv HeqR'. auto.
   
     remember (split
-           (unmake_list_system_targetdata_const_typ
-              (make_list_system_targetdata_const_typ
-                 (map_list_const
-                    (fun const_ : const => (system5, td5, const_, typ5))
-                    const_list)))) as R1.
+               (List.map
+                 (fun const_ : const => (system5, td5, const_, typ0))
+                 const_list)) as R1.
     destruct R1. inv HeqR. simpl in HeqR'.
-    remember (split (unmake_list_system_targetdata_const_typ
-                 (make_list_system_targetdata_const_typ
-                    (map_list_const
-                       (fun const_ : const => (system5, td5, const_, typ0))
-                       const_list)))) as R2.
-    destruct R2. inv H0; simpl.
-    simpl in HeqR'.
-    remember (split l2) as R3.
-    destruct R3. inv HeqR'. simpl.
-    erewrite IHconst_list; eauto.        
+    remember (split l0) as R2.
+    destruct R2. inv HeqR'; simpl.
+    apply f_equal.
+    eapply IHconst_list; eauto.
 Qed.
 
-Lemma length_unmake_make_list_const : forall lc,
-  length (unmake_list_const (make_list_const lc)) = length lc.
-Proof.
-  induction lc; simpl; auto.
-Qed.
-
-Lemma map_list_const_typ_spec1 : forall system5 TD const_typ_list lsdc lt,
+Lemma map_list_const_typ_spec1 : 
+  forall (system5 : system) (TD : targetdata)
+    const_typ_list lsdc lt,
   (lsdc, lt) =
          split
-           (unmake_list_system_targetdata_const_typ
-              (make_list_system_targetdata_const_typ
-                 (map_list_const_typ
-                    (fun (const_ : const) (typ_ : typ) =>
-                     (system5, TD, const_, typ_)) const_typ_list))) ->
-  lt = map_list_const_typ (fun (_ : const) (typ_ : typ) => typ_) const_typ_list.
+           (List.map
+             (fun (p : const * typ) =>
+               let (const_, typ_) := p in
+               (system5, TD, const_, typ_)) const_typ_list) ->
+  lt = List.map snd const_typ_list.
 Proof.
   induction const_typ_list; simpl; intros.
     inv H. auto.
     
+    destruct a.
     remember (split
-              (unmake_list_system_targetdata_const_typ
-                 (make_list_system_targetdata_const_typ
-                    (map_list_const_typ
-                       (fun (const_ : const) (typ_ : typ) =>
-                        (system5, TD, const_, typ_))
-                       const_typ_list)))) as R1. 
+               (List.map
+                 (fun (p : const * typ) =>
+                   let (const_, typ_) := p in
+                     (system5, TD, const_, typ_))
+                       const_typ_list)) as R1. 
     destruct R1. inv H.
     erewrite <- IHconst_typ_list; eauto.
 Qed.
 
-Lemma map_list_const_typ_spec2 : forall system5 TD const_typ_list lsdc lt lc lsd,
+Lemma map_list_const_typ_spec2 : forall 
+  (system5 : system)
+  (TD : targetdata)
+  const_typ_list lsdc lt lc lsd,
   (lsdc, lt) =
          split
-           (unmake_list_system_targetdata_const_typ
-              (make_list_system_targetdata_const_typ
-                 (map_list_const_typ
-                    (fun (const_ : const) (typ_ : typ) =>
-                     (system5, TD, const_, typ_)) const_typ_list))) ->
+           (List.map
+             (fun (p : const * typ) =>
+               let (const_, typ_) := p in
+                 (system5, TD, const_, typ_)) const_typ_list) ->
   (lsd, lc) = split lsdc ->
-  lc = map_list_const_typ (fun (const_ : const) (_ : typ) => const_) 
-         const_typ_list.
+  lc = List.map (fun p : const * typ => let '(c, _) := p in c) const_typ_list.
 Proof.
   induction const_typ_list; simpl; intros.
     inv H. inv H0. auto.
-  
-    remember (split
-            (unmake_list_system_targetdata_const_typ
-               (make_list_system_targetdata_const_typ
-                  (map_list_const_typ
-                     (fun (const_ : const) (typ_ : typ) =>
-                      (system5, TD, const_, typ_))
-                     const_typ_list)))) as R1. 
-    destruct R1. inv H.
+    
+    destruct a.
+    simpl_split. inv H.
     simpl in H0.
-    remember (split l0).
-    destruct p. inv H0.
+    simpl_split. inv H0.
     erewrite <- IHconst_typ_list; eauto.
 Qed.
-(*
-Lemma map_list_const_typ_spec3 : forall system5 TD const_typ_list lsdc lt lc lsd
-  (HeqR : (lsdc, lt) =
-         split
-           (unmake_list_system_targetdata_const_typ
-              (make_list_system_targetdata_const_typ
-                 (map_list_const_typ
-                    (fun (const_ : const) (typ_ : typ) =>
-                     (system5, TD, const_, typ_)) const_typ_list))))
-  (HeqR' : (lsd, lc) = split lsdc)
-  (H1 : feasible_typ_list
-        (make_list_targetdata_typ
-           (map_list_const_typ
-              (fun (_ : const) (typ_ : typ) => (TD, typ_))
-              const_typ_list))),
-  LLVMtd.feasible_typs TD (make_list_typ lt).
-Proof.
-    induction const_typ_list; simpl; intros.
-      inv HeqR. simpl in HeqR'. inv HeqR'. simpl. apply feasible_nil_typs.
 
-      remember (@split (prod (prod system targetdata) const) typ
-               (unmake_list_system_targetdata_const_typ
-                  (make_list_system_targetdata_const_typ
-                     (@map_list_const_typ
-                        (prod (prod (prod system targetdata) const) typ)
-                        (fun (const_ : const) (typ_ : typ) =>
-                         @pair (prod (prod system targetdata) const) typ
-                           (@pair (prod system targetdata) const
-                              (@pair system targetdata system5 TD) const_)
-                           typ_) const_typ_list)))) as R1.
-      destruct R1. inv HeqR. simpl in HeqR'.
-      remember (split l0) as R2.
-      destruct R2. inv HeqR'.
-      simpl in *. inv H1. inv H2.
-      apply feasible_cons_typs.
-      split; eauto.
-Qed.
-*)
 Lemma make_list_const_spec4 : forall
-  (const_list : list_const)
+  (const_list : list const)
   (system5 : system)
   (td5 : targetdata)
   (typ5 : typ)
@@ -235,11 +173,9 @@ Lemma make_list_const_spec4 : forall
   (lt : list typ)
   (HeqR : (lsdc, lt) =
          split
-           (unmake_list_system_targetdata_const_typ
-              (make_list_system_targetdata_const_typ
-                 (map_list_const
-                    (fun const_ : const => (system5, td5, const_, typ5))
-                    const_list))))
+           (List.map
+             (fun const_ : const => (system5, td5, const_, typ5))
+             const_list))
   t (Hin : In t lt), t = typ5.
 Proof.
   intros.
@@ -249,49 +185,37 @@ Proof.
      inv HeqR. inv Hin.
   
      remember (split
-              (unmake_list_system_targetdata_const_typ
-                 (make_list_system_targetdata_const_typ
-                    (map_list_const
-                       (fun const_ : const => (system5, td5, const_, typ5))
-                       const_list)))) as R2.
+                 (List.map
+                   (fun const_ : const => (system5, td5, const_, typ5))
+                   const_list)) as R2.
      destruct R2. inv HeqR.
      simpl in Hin. 
      destruct Hin; eauto.
 Qed.
 
 Lemma make_list_typ_spec2 : forall
-  (typ_list : list_typ)
+  (typ_list : list typ)
   (system5 : system)
   (td5 : targetdata)
   (lt : list typ)
   (lsd : list (system*targetdata))
   (HeqR : (lsd, lt) =
          split
-           (unmake_list_system_targetdata_typ
-              (make_list_system_targetdata_typ
-                 (map_list_typ
-                    (fun typ_ : typ => (system5, td5, typ_))
-                    typ_list)))),
-  make_list_typ lt = typ_list.
+           (List.map
+             (fun typ_ : typ => (system5, td5, typ_))
+             typ_list)),
+  lt = typ_list.
 Proof.
   induction typ_list; intros; simpl in *.
     inv HeqR. auto.
   
     remember (split
-           (unmake_list_system_targetdata_typ
-              (make_list_system_targetdata_typ
-                 (map_list_typ
-                    (fun typ_ : typ => (system5, td5, typ_))
-                    typ_list)))) as R1.
+               (List.map
+                 (fun typ_ : typ => (system5, td5, typ_))
+                 typ_list)) as R1.
     destruct R1. inv HeqR.
-    remember (split (unmake_list_system_targetdata_typ
-                 (make_list_system_targetdata_typ
-                    (map_list_typ
-                       (fun typ_ : typ => (system5, td5:targetdata, typ_))
-                       typ_list)))) as R2.
-    destruct R2. uniq_result.
-    simpl.
-    erewrite IHtyp_list; eauto.
+    apply f_equal.
+    eapply IHtyp_list; eauto.
 Qed.
 
 Definition eq_system_targetdata (S:system) (TD:targetdata) lsd :=
@@ -315,11 +239,9 @@ Lemma wf_styp__feasible_typ_aux_mutrec_struct :
   forall lt system5 los nts lsd
   (HeqR : (lsd, lt) =
          split
-           (unmake_list_system_targetdata_typ
-              (make_list_system_targetdata_typ
-                 (map_list_typ
-                    (fun (typ_ : typ) =>
-                     (system5, (los, nts), typ_)) (make_list_typ lt))))),
+           (List.map
+             (fun (typ_ : typ) =>
+               (system5, (los, nts), typ_)) lt)),
   eq_system_targetdata system5 (los, nts) lsd.
 Proof.
   intros.
@@ -329,12 +251,10 @@ Proof.
     uniq_result. inv H.
     
     remember (split
-              (unmake_list_system_targetdata_typ
-                 (make_list_system_targetdata_typ
-                    (map_list_typ
-                       (fun (typ_ : typ) =>
-                        (system5, (los, nts), typ_))
-                       (make_list_typ lt))))) as R1. 
+               (List.map
+                 (fun (typ_ : typ) =>
+                   (system5, (los, nts), typ_))
+                     lt)) as R1. 
     destruct R1. uniq_result.
     simpl in H.
     destruct H as [Hin | Hin]; eauto.
@@ -351,7 +271,7 @@ Definition wf_styp__feasible_typ_aux_Prop S TD t :=
 
 Definition wf_styp_list__feasible_typs_aux_Prop sdt :=
   forall (H : wf_styp_list sdt),
-  let 'lsdt := unmake_list_system_targetdata_typ sdt in
+  let 'lsdt := sdt in
   let '(lsd, lt) := split lsdt in
   forall S TD los nts
   (Hnc: forall id5, lookupAL _ nts id5 <> None ->
@@ -360,7 +280,7 @@ Definition wf_styp_list__feasible_typs_aux_Prop sdt :=
   TD = (los, nts) ->
   eq_system_targetdata S TD lsd ->
   LLVMtd.feasible_typs_aux los (feasible_typ_for_namedts los nts) 
-    (make_list_typ lt).
+    lt.
 
 Lemma wf_styp__feasible_typ_aux_mutrec :
   (forall S TD t, wf_styp__feasible_typ_aux_Prop S TD t) /\
@@ -372,13 +292,11 @@ Proof.
     intros; subst; simpl in *; uniq_result; auto.
 Case "wf_styp_structure".
   remember (split
-              (unmake_list_system_targetdata_typ
-                (make_list_system_targetdata_typ
-                   (map_list_typ
-                      (fun typ_ : typ => (system5, (los, nts):targetdata, typ_))
-                      typ_list)))) as R.
+             (List.map
+               (fun typ_ : typ => (system5, (los, nts):targetdata, typ_))
+               typ_list)) as R.
   destruct R as [lsd lt].
-  assert (make_list_typ lt = typ_list) as EQ1. 
+  assert (lt = typ_list) as EQ1. 
     eapply make_list_typ_spec2; eauto.
   subst.
   assert (eq_system_targetdata system5 (los, nts) lsd) as EQ2.
@@ -391,7 +309,7 @@ Case "wf_styp_namedt".
   destruct H as [P [n1 n2]]. fill_ctxhole. auto.
 
 Case "wf_styp_cons".
-  remember (split (unmake_list_system_targetdata_typ l')) as R.
+  remember (split l') as R.
   destruct R as [lsd lt]. simpl.
   intros. subst.
   apply eq_system_targetdata_cons_inv in H4. 
@@ -474,14 +392,14 @@ Definition wf_zeroconst2GV_aux_total_prop S TD t :=
 
 Definition wf_zeroconsts2GV_aux_total_prop sdt :=
   wf_styp_list sdt ->
-  let 'lsdt := unmake_list_system_targetdata_typ sdt in
+  let 'lsdt := sdt in
   let '(lsd, lt) := split lsdt in
-  forall S TD acc los nts' (Hty: feasible_typs (los, nts') (make_list_typ lt))
+  forall S TD acc los nts' (Hty: feasible_typs (los, nts') lt)
   nts (Heq: TD = (los, nts))
   (Hnc: forall id5, lookupAL _ nts id5 <> None ->
         exists gv5, lookupAL _ acc id5 = Some (Some gv5)),
   eq_system_targetdata S TD lsd ->
-  exists gvn, zeroconsts2GV_aux (los, nts') acc (make_list_typ lt) = Some gvn.
+  exists gvn, zeroconsts2GV_aux (los, nts') acc lt = Some gvn.
 
 Lemma wf_zeroconst2GV_aux_total_mutrec :
   (forall S T t, wf_zeroconst2GV_aux_total_prop S T t) /\
@@ -494,13 +412,11 @@ Local Opaque feasible_typ feasible_typs.
     intros; subst; simpl in *; uniq_result; eauto.
 Case "wf_styp_structure".
   remember (split
-              (unmake_list_system_targetdata_typ
-                (make_list_system_targetdata_typ
-                   (map_list_typ
-                      (fun typ_ : typ => (system5, (los,nts):targetdata, typ_))
-                      typ_list)))) as R.
+             (List.map
+               (fun typ_ : typ => (system5, (los,nts):targetdata, typ_))
+               typ_list)) as R.
   destruct R as [lsd lt].
-  assert (make_list_typ lt = typ_list) as EQ1. 
+  assert (lt = typ_list) as EQ1. 
     eapply make_list_typ_spec2; eauto.
   subst.
   assert (eq_system_targetdata system5 (los, nts) lsd) as EQ2.
@@ -508,7 +424,7 @@ Case "wf_styp_structure".
   subst.
   apply feasible_struct_typ_inv in Hty.
   eapply H1 in Hty; eauto. 
-  fill_ctxhole. destruct x; eauto.
+  fold zeroconsts2GV_aux. fill_ctxhole. destruct x; eauto.
 
 Case "wf_styp_array". 
   apply feasible_array_typ_inv in Hty.
@@ -524,7 +440,7 @@ Case "wf_styp_namedt".
   fill_ctxhole. eauto.
 
 Case "wf_styp_cons".
-  remember (split (unmake_list_system_targetdata_typ l')) as R.
+  remember (split l') as R.
   destruct R as [lsd lt].
   simpl. intros. subst.
   apply feasible_cons_typs_inv in Hty.
@@ -639,33 +555,15 @@ Proof.
       simpl_env. simpl. auto.
 Qed.
 
-Lemma list_system_typ_spec : forall (s : system) td (l0 : list_typ),
+Lemma list_system_typ_spec : forall (s : system) td (l0 : list typ),
   exists ls0 : list (system*targetdata),
     split
-       (unmake_list_system_targetdata_typ
-          (make_list_system_targetdata_typ
-             (map_list_typ (fun typ_ : typ => (s, td, typ_)) l0))) =
-    (ls0, unmake_list_typ l0).
+      (List.map (fun typ_ : typ => (s, td, typ_)) l0) =
+    (ls0, l0).
 Proof.
   induction l0; simpl; eauto.
     destruct IHl0 as [ls J].
     rewrite J. eauto.
-Qed.
-
-Lemma unmake_list_system_typ_inv : forall lst ls t l0,
-  split (unmake_list_system_targetdata_typ lst) = (ls, t :: unmake_list_typ l0) 
-    ->
-  exists s, exists td, exists ls', exists lst',
-    lst = Cons_list_system_targetdata_typ s td t lst' /\ ls = (s, td)::ls' /\ 
-    split (unmake_list_system_targetdata_typ lst') = (ls', unmake_list_typ l0).
-Proof.
-  induction lst; intros; simpl in *.
-    inv H.
-  
-    remember (split (unmake_list_system_targetdata_typ lst)) as R.
-    destruct R as [g d].
-    inv H.
-    exists s. exists t. exists g. exists lst. auto.
 Qed.
 
 Lemma int_typsize : forall s0 td s
@@ -703,7 +601,7 @@ Definition wf_styp__getTypeSizeInBits_and_Alignment_prop'
 Definition wf_list_styp__getListTypeSizeInBits_and_Alignment_prop' 
   sdt :=
   wf_styp_list sdt ->
-  let 'lsdt := unmake_list_system_targetdata_typ sdt in
+  let 'lsdt := sdt in
   let '(lsd, lt) := split lsdt in
   forall S TD los nts nm2
   (Hnc: forall id5, lookupAL _ nts id5 <> None ->
@@ -713,7 +611,7 @@ Definition wf_list_styp__getListTypeSizeInBits_and_Alignment_prop'
   TD = (los, nts) ->
   eq_system_targetdata S TD lsd ->
   exists sz, exists al,
-    _getListTypeSizeInBits_and_Alignment los nm2 (make_list_typ lt) 
+    _getListTypeSizeInBits_and_Alignment los nm2 lt 
       = Some (sz,al) /\
     ((sz > 0)%nat -> (al > 0)%nat).
 
@@ -744,20 +642,19 @@ Case "wf_styp_function".
 
 Case "wf_styp_structure".
   remember (split
-              (unmake_list_system_targetdata_typ
-                (make_list_system_targetdata_typ
-                   (map_list_typ
-                      (fun typ_ : typ => (system5, (los, nts):targetdata, typ_))
-                      typ_list)))) as R.
+             (List.map
+               (fun typ_ : typ => (system5, (los, nts):targetdata, typ_))
+                      typ_list)) as R.
   destruct R as [lsd lt].
-  assert (make_list_typ lt = typ_list) as EQ1. 
+  assert (lt = typ_list) as EQ1. 
     eapply make_list_typ_spec2; eauto.
   subst.
   assert (eq_system_targetdata system5 (los, nts) lsd) as EQ2.
     eapply wf_styp__feasible_typ_aux_mutrec_struct; eauto.
   subst.
   eapply H1 in Hnc; eauto.
-  destruct Hnc as [sz [al [J1 J2]]]. fill_ctxhole.
+  destruct Hnc as [sz [al [J1 J2]]].
+  fold _getListTypeSizeInBits_and_Alignment. fill_ctxhole.
   destruct sz.
     exists 8%nat. exists 1%nat. split; auto. omega.
     exists (S sz0). exists al. split; auto. omega.
@@ -798,7 +695,7 @@ Case "wf_styp_pointer".
   split; auto. omega.
 
 Case "wf_styp_cons".
-  remember (split (unmake_list_system_targetdata_typ l')) as R.
+  remember (split l') as R.
   destruct R as [lsd lt]. simpl.
   intros. subst.
   apply eq_system_targetdata_cons_inv in H4. 
@@ -960,11 +857,11 @@ Proof.
     destruct (list_typ_dec l0 lt2); inv H.
     apply feasible_struct_typ_inv; auto.
 
-    remember (lookupAL list_typ nts i0) as R.
+    remember (lookupAL _ nts id5) as R.
     destruct R; tinv H.
     destruct (list_typ_dec l0 lt2); inv H.
     simpl in *.
-    remember (lookupAL Prop (feasible_typ_for_namedts los nts) i0) as R1.
+    remember (lookupAL Prop (feasible_typ_for_namedts los nts) id5) as R1.
     destruct R1; try solve [inversion H0].
     eapply feasible_typ_spec1; eauto.
 Qed.
@@ -974,7 +871,7 @@ Definition getTypeSizeInBits_weaken_prop (t:typ) := forall los nm1 nm2 flag r,
   _getTypeSizeInBits_and_Alignment los nm1 flag t = Some r ->
   _getTypeSizeInBits_and_Alignment los (nm2++nm1) flag t = Some r.
 
-Definition getListTypeSizeInBits_weaken_prop (lt:list_typ) := 
+Definition getListTypeSizeInBits_weaken_prop (lt:list typ) := 
   forall los nm1 nm2 r,
   uniq (nm2++nm1) ->
   _getListTypeSizeInBits_and_Alignment los nm1 lt = Some r ->
@@ -1144,8 +1041,8 @@ Proof.
 Qed.
 
 Lemma getTypeSizeInBits_and_Alignment_spec1: forall (los : layouts) (i0 : id) 
-  (nts : namedts) (lt2 : list_typ)
-  (HeqR : ret lt2 = lookupAL list_typ nts i0) (Huniq: uniq nts)
+  (nts : namedts) (lt2 : list typ)
+  (HeqR : ret lt2 = lookupAL _ nts i0) (Huniq: uniq nts)
   (H:lookupAL _ 
      (_getTypeSizeInBits_and_Alignment_for_namedts los nts true) i0 <> None),
   _getTypeSizeInBits_and_Alignment los
@@ -1184,7 +1081,7 @@ Proof.
   destruct t1; tinv H.
     destruct (list_typ_dec l0 lt2); inv H; auto.
 
-    remember (lookupAL list_typ nts i0) as R.
+    remember (lookupAL _ nts id5) as R.
     destruct R; tinv H.
     destruct (list_typ_dec l0 lt2); inv H.
     assert (Hft:=Hwf).

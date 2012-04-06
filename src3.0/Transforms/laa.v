@@ -697,7 +697,7 @@ Lemma getValueViaLabelFromValuels_sim : forall l1 pinfo laainfo f1 vls1 vls2 v
   (HeqR' : ret v' = getValueViaLabelFromValuels vls2 l1),
   value_simulation pinfo laainfo f1 v v'.
 Proof.
-  induction vls1; simpl; intros; try congruence.
+  induction vls1; simpl; intros; try congruence. simpl_prod.
     unfold list_value_l_simulation, value_simulation in *.
     destruct (fdef_dec (PI_f pinfo) f1); subst.
       simpl in HeqR'.
@@ -720,7 +720,7 @@ Lemma getValueViaLabelFromValuels_getOperandValue_sim : forall
                      [! pinfo !] (PI_f pinfo)
                      (los, nts) gl f lc t)
   (ps' : phinodes) (cs' : cmds) (tmn' : terminator)
-  (i0 : id) (l2 : list_value_l) (ps2 : list phinode)
+  (i0 : id) (l2 : list (value * l)) (ps2 : list phinode)
   (Hreach : isReachableFromEntry f (block_intro l0 ps' cs' tmn'))
   (HbInF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
   (Hreach' : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
@@ -730,10 +730,10 @@ Lemma getValueViaLabelFromValuels_getOperandValue_sim : forall
   (HeqR4 : ret g1 = getOperandValue (los,nts) v0 lc gl)
   (g2 : GVMap) (g : GenericValue) (g0 : GVMap) t1
   (H1 : wf_value_list
-         (make_list_system_module_fdef_value_typ
-            (map_list_value_l
-               (fun (value_ : value) (_ : l) =>
-                (s, module_intro los nts ps, f, value_, t1)) l2)))
+          (List.map
+             (fun p : value * l =>
+               let '(value_, _) := p in
+                 (s, module_intro los nts ps, f, value_, t1)) l2))
   (H7 : wf_phinode f (block_intro l0 ps' cs' tmn') (insn_phi i0 t1 l2))
   (Hvsim: value_simulation pinfo laainfo f v0 v0')
   (HeqR1 : ret g = getOperandValue (los,nts) v0' lc gl),
@@ -804,6 +804,7 @@ Proof.
     match goal with | H8: wf_phinodes _ _ _ _ _ |- _ => inv H8 end.
     assert (g = g0) as Heq.
       match goal with | H5 : wf_insn _ _ _ _ _ |- _ => inv H5 end.
+      find_wf_value_list.
       eapply getValueViaLabelFromValuels_getOperandValue_sim with (l0:=l0);
         eauto.
     subst.
@@ -1700,4 +1701,3 @@ Case "sExCall".
 Transparent inscope_of_tmn inscope_of_cmd.
 
 Qed.
-
