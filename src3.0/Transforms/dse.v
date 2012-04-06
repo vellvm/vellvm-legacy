@@ -1102,6 +1102,7 @@ Proof.
       destruct R; tinv G4.
       remember (Mem.bounds Mem mb0) as R.
       destruct R as [lo hi].
+      destruct G4 as [G4 _].
       destruct (@G4 lo hi) as [G41 G42]; subst; auto.
       eapply MemProps.perm_mfree_alloca_2 in H0; eauto.
       assert (RoundUpAlignment n0 n1 >= n0)%nat as G.
@@ -1135,7 +1136,7 @@ Proof.
     remember (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) as R.
     destruct R as [[|[[]][]]|]; tinv J.
     inv J. symmetry in HeqR.
-    eapply wf_ECStack_head_in_tail__no_alias_with_blk; eauto.
+    eapply Promotability.wf_ECStack_head_in_tail__no_alias_with_blk; eauto.
     
     apply_clear H2 in J. congruence.
 Qed.
@@ -1222,7 +1223,7 @@ Proof.
     remember (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) as R.
     destruct R as [[|[[]][]]|]; inv J.
     clear J2. symmetry in HeqR.
-    eapply wf_defs__no_alias_with_blk; eauto.
+    eapply Promotability.wf_defs__no_alias_with_blk; eauto.
 
     assert (Opsem.CurFunction EC <> PI_f pinfo) as G. intro K. auto.
     apply J2 in G. congruence.

@@ -29,7 +29,10 @@ match getTypeAllocSize TD (PI_typ pinfo) with
 | Some tsz => 
     (* We can prove hi = tsz * [| PI_num pinfo |]. 
        But, the invariant is sufficient so far. *)
-    forall lo hi, Mem.bounds M mb = (lo, hi) -> lo = 0 /\ hi >= Z_of_nat tsz
+    (forall lo hi, 
+      Mem.bounds M mb = (lo, hi) -> 
+      lo = 0 /\ hi >= Z_of_nat tsz) /\
+    Mem.range_perm M mb 0 (Z_of_nat tsz) Freeable
 | None => False
 end.
 
@@ -72,7 +75,7 @@ forall gvsa,
   f0 = PI_f pinfo ->
   lookupAL _ lc0 (PI_id pinfo) = Some gvsa ->
   (exists mb, gvsa = ($ (blk2GV TD mb) # (typ_pointer (PI_typ pinfo)) $) /\
-    maxb < mb < Mem.nextblock M /\ alloca_size_prop TD pinfo M mb) /\
+    maxb < mb < Mem.nextblock M) /\
   (forall id1 gvs1,
     lookupAL _ lc id1 = Some gvs1 ->
     no_alias gvs1 gvsa) /\
@@ -336,8 +339,6 @@ Proof.
   split.
     exists mb. split; auto.
     erewrite <- nextblock_free; eauto.
-    unfold alloca_size_prop in *.
-    erewrite <- bounds_mfree in J12; eauto.
   split; auto.
     intros.
     eapply free_preserves_mload_inv in H; eauto.
@@ -408,6 +409,21 @@ Proof.
     eauto using no_alias_GV2ptr__neq_blk.
 Qed.
 
+Lemma free_preserves_alloca_size_prop: forall TD M ptr M' mb pinfo
+  (Hnoalias: no_alias ptr ($ blk2GV TD mb # (typ_pointer (PI_typ pinfo)) $))
+  (Halc: alloca_size_prop TD pinfo M mb) 
+  (Hfree: free TD M ptr = Some M'),
+  alloca_size_prop TD pinfo M' mb.
+Proof.
+  intros.
+  unfold alloca_size_prop in *.
+  erewrite <- bounds_mfree in Halc; eauto.
+  inv_mbind. destruct Halc as [Halc1 Halc2].
+  split; auto.
+  eapply MemProps.range_perm_mfree_1 in Halc2; eauto.
+  rewrite simpl_blk2GV in Hnoalias. simpl in Hnoalias. tauto.
+Qed.
+
 Lemma free_preserves_wf_defs_in_tail : forall maxb pinfo los nts M
   M' lc1 mptr0 mptrs gl v als lc2 S Ps t F
   (Hwft: wf_value S (module_intro los nts Ps) F v t)
@@ -435,12 +451,11 @@ Proof.
       eapply free_preserves_encode_decode_ident; eauto.
     split.
       erewrite <- nextblock_free; eauto.
-      unfold alloca_size_prop in *.
-      erewrite <- bounds_mfree in J14; eauto.
+      eapply free_preserves_alloca_size_prop in J14; eauto.
     split.
-        intros. eapply free_preserves_mload_inv in H; eauto.
-        clear J4.
-        exists gv. eapply free_preserves_mload; eauto.
+      intros. eapply free_preserves_mload_inv in H; eauto.
+      clear J4.
+      exists gv. eapply free_preserves_mload; eauto.
 Qed.
 
 Lemma operand__no_alias_with__head: forall maxb pinfo los nts lc mptr0 mptrs gl v 
@@ -493,8 +508,7 @@ Proof.
       eapply free_preserves_encode_decode_ident; eauto.
     split.
       erewrite <- nextblock_free; eauto.
-      unfold alloca_size_prop in *.
-      erewrite <- bounds_mfree in J14; eauto.
+      eapply free_preserves_alloca_size_prop in J14; eauto.
     split.
       intros. eapply free_preserves_mload_inv in H; eauto.
       exists gv. eapply free_preserves_mload; eauto.
@@ -596,6 +610,21 @@ Proof.
     congruence.
 Qed.
 
+Lemma free_allocas_preserves_alloca_size_prop: forall TD mb als M M'
+  (Hnoalias: ~ In mb als) pinfo
+  (Halc: alloca_size_prop TD pinfo M mb)  
+  (Hfrees: free_allocas TD M als = Some M'),
+  alloca_size_prop TD pinfo M' mb.
+Proof.
+  induction als; simpl; intros.
+    inv Hfrees. auto.
+
+    inv_mbind.
+    eapply IHals in H0; eauto.
+    eapply free_preserves_alloca_size_prop; eauto.
+    rewrite simpl_blk2GV. simpl. tauto.
+Qed.
+
 Lemma free_allocas_preserves_wf_alloca: forall maxb pinfo TD Mem gvsa als0 als Mem',
   wf_alloca_GVs maxb pinfo TD Mem gvsa als0 ->
   NoDup (als ++ als0) ->
@@ -611,8 +640,7 @@ Proof.
     eapply free_allocas_preserves_encode_decode_ident; eauto.
   split.
     erewrite <- nextblock_free_allocas; eauto.
-    unfold alloca_size_prop in *.
-    erewrite <- bounds_free_alloca in J14; eauto.
+    eapply free_allocas_preserves_alloca_size_prop in J14; eauto.
   split.
     intros gptr gvs1 ty al J.
     eapply free_allocas_preserves_mload_inv in J; eauto.
@@ -728,8 +756,7 @@ Proof.
       eapply free_preserves_encode_decode_ident with (ptr2:=blk2GV TD a); eauto.
     split. 
       erewrite <- nextblock_free; eauto.
-      unfold alloca_size_prop in *.
-      erewrite <- bounds_mfree in J14; eauto.
+      eapply free_preserves_alloca_size_prop with (ptr:=blk2GV TD a) in J14; eauto.
     split.
       intros. eapply free_preserves_mload_inv in H; eauto.
       exists gv.
@@ -1521,6 +1548,19 @@ Proof.
   eapply params2GVs_preserves_wf_lc; eauto.
 Qed.
 
+Lemma mstore_preserves_alloca_size_prop: forall TD M M' mb pinfo al gv t gv0
+  (Halc: alloca_size_prop TD pinfo M mb) 
+  (Hst: mstore TD M gv t gv0 al = Some M'),
+  alloca_size_prop TD pinfo M' mb.
+Proof.
+  intros.
+  unfold alloca_size_prop in *.
+  erewrite bounds_mstore in Halc; eauto.
+  inv_mbind. destruct Halc as [Halc1 Halc2].
+  split; auto.
+    eapply MemProps.mstore_preserves_range_perm; eauto.
+Qed.
+
 Lemma mstore_preserves_wf_defs_in_tail : forall maxb pinfo los nts M
   M' lc1 gl v als lc2 gvs1 gv1 t mp2 align mps2 vp S Ps F
   (Hwfvp: wf_value S (module_intro los nts Ps) F vp (typ_pointer t))
@@ -1548,8 +1588,7 @@ Proof.
       eapply operand__no_alias_with__tail with (v:=vp); eauto.
     split.
       erewrite <- nextblock_mstore; eauto.
-      unfold alloca_size_prop in *.
-      erewrite bounds_mstore in J14; eauto.
+      eapply mstore_preserves_alloca_size_prop in J14; eauto.
     split.
       intros.
       eapply mstore_preserves_mload_inv in Hst; eauto.
@@ -1677,8 +1716,7 @@ Proof.
             unfold wf_use_at_head; auto.
     split.
       erewrite <- nextblock_mstore; eauto.
-      unfold alloca_size_prop in *.
-      erewrite bounds_mstore in J14; eauto.
+      eapply mstore_preserves_alloca_size_prop in J14; eauto.
     split.
       intros.
       eapply mstore_preserves_mload_inv in H; eauto.
@@ -1712,8 +1750,6 @@ Proof.
   destruct H3 as [[mb [J11 [J12 J13]]] [J2 J3]]; subst.
   split.
     erewrite <- nextblock_mstore; eauto.
-    unfold alloca_size_prop in *.
-    erewrite bounds_mstore in J13; eauto.
   split; auto.
     intros.
     eapply mstore_preserves_mload_inv in Hst; eauto.
@@ -1807,8 +1843,6 @@ Proof.
   destruct H3 as [[mb [J11 [J12 J13]]] [J2 J3]]; subst.
   split.
     erewrite <- nextblock_mstore; eauto.
-    unfold alloca_size_prop in *.
-    erewrite bounds_mstore in J13; eauto.
   split; auto.
     intros.
     eapply mstore_preserves_mload_inv in Hst; eauto.
@@ -1824,8 +1858,9 @@ Lemma malloc_preserves_alloca_size_prop: forall TD M tsz gn align0 M' mb' pinfo
 Proof.
   intros.
   erewrite <- malloc_result in J12; eauto.
-  unfold alloca_size_prop in *.
-  inv_mbind.
+  unfold alloca_size_prop in *. 
+  inv_mbind. destruct J13 as [J1 J2].
+  eapply MemProps.malloc_preserves_range_perm in J2; eauto.
   apply bounds_malloc in Hmlc.
   destruct Hmlc as [n [Hmlc1 Hmlc2]].
   rewrite Hmlc2.
@@ -1848,8 +1883,6 @@ Proof.
   destruct H1 as [[mb' [J11 [J12 J13]]] [J2 J3]]; subst; eauto.
   assert (maxb < mb' < Mem.nextblock M') as W.
     erewrite <- nextblock_malloc; eauto. omega.
-  assert (alloca_size_prop TD pinfo M' mb') as W'.
-    eapply malloc_preserves_alloca_size_prop; eauto.
   split; eauto.
   split.
     intros.
@@ -1859,7 +1892,7 @@ Proof.
       simpl. apply malloc_result in Hmlc. subst.
       split; auto.
       split; auto.
-      clear - J12.
+      clear - J13.
       intro J. subst. omega.
 
       rewrite <- lookupAL_updateAddAL_neq in H; eauto.
@@ -1966,8 +1999,6 @@ Proof.
   destruct H1 as [[mb' [J11 [J12 J13]]] [J2 J3]]; subst; eauto.
   assert (maxb < mb' < Mem.nextblock M') as W.
     erewrite <- nextblock_malloc; eauto. omega.
-  assert (alloca_size_prop TD pinfo M' mb') as W'.
-    eapply malloc_preserves_alloca_size_prop; eauto.
   split; eauto.
   split; eauto.
     intros.
@@ -2096,7 +2127,7 @@ Proof.
         destruct J as [n J]. rewrite J. omega.
 Qed.
 
-Require Import Psatz.
+(*Require Import Psatz.*)
 
 Lemma palloca__alloca_size_prop: forall (pinfo : PhiInfo) (los : layouts) 
   (nts : namedts) (M : mem) (M' : mem) (t : typ) (mb : mblock) (align0 : align)
@@ -2115,19 +2146,14 @@ Proof.
   destruct Hal' as [n [Hal1 Hal2]].
   rewrite Hal2.
   destruct (eq_block mb mb); try congruence.
-  intros lo hi EQ. inv EQ.
-  split; auto.
-    apply malloc_inv in Hal.
-    destruct Hal as [n' [J1 [J2 J3]]].
-    uniq_result.
-    assert (K:=@Z_of_nat_ge_0 tsz).
-    unfold Size.to_Z in *.
-    assert (0 < n) as K'.
-    destruct n as [|n|n]; destruct (Z_of_nat tsz) as [|tsz'|tsz']; 
-      simpl in J2, K; try discriminate; try reflexivity.
-      unfold Zge in K. contradict K. trivial.
-    rewrite <- Zmult_1_r.
-    apply Zmult_ge_compat; omega.
+  split.
+    intros lo hi EQ. inv EQ.
+    split; auto.
+      apply malloc_inv in Hal.
+      destruct Hal as [n' [J1 [J2 J3]]].
+      uniq_result.
+      apply MemProps.z_mult_n__ge__z; auto.
+    eapply MemProps.malloc_preserves_range_perm_2; eauto.
 Qed.
 
 Lemma alloca_preserves_wf_defs_at_head : forall maxb pinfo los nts M
@@ -3617,23 +3643,86 @@ Proof.
   destruct HeqR2 as [[_ [_ [_ [gv' HeqR2]]]] _]. congruence.
 Qed.
 
-Lemma valid_mload__valid_mstore: forall td gv1 t m gv2 al gv'
-  (Hmatch: gv_chunks_match_typ td gv1 t)
-  (Hld: mload td m gv2 t al = ret gv'),
-  exists m', mstore td m gv2 t gv1 al = Some m'.
+Lemma mstore_aux_ex: forall mb lo hi gv m ofs
+  (Hperm : Mem.range_perm m mb lo hi Freeable)
+  (Hle: lo <= ofs) (Hge: Z_of_nat (sizeGenericValue gv) + ofs <= hi),
+  exists m', mstore_aux m gv mb ofs = ret m'.
+Proof.
+  induction gv as [|[]]; simpl; intros.
+    eauto.
+
+    rewrite inj_plus in Hge. 
+    rewrite <- size_chunk_conv in Hge.
+    assert ({ m2: mem | Mem.store m m0 mb ofs v = Some m2 }) as J.
+      apply Mem.valid_access_store.
+      split.
+        intros ofs1 H.
+        apply Mem.perm_implies with (p1:=Freeable); try constructor.
+        apply Hperm.
+        split.
+          omega.
+          omega.
+
+        admit. (* aligment. We should assume (align_chunk m | ofs) *)
+    destruct J as [m2 J]. 
+    fill_ctxhole. 
+    apply IHgv.
+      intros ofs1 H.
+      eapply Mem.perm_store_1; eauto.
+
+      rewrite size_chunk_conv.
+      omega.
+ 
+      omega.
+Qed.
+
+Lemma valid_mload__valid_mstore: forall gv1 pinfo m gv2 mb
+  S (Hwfpi: WF_PhiInfo pinfo) los nts Ps
+  (HwfF: wf_fdef S (module_intro los nts Ps) (PI_f pinfo))
+  (Heq: gv2 = ($ (blk2GV (los,nts) mb) # (typ_pointer (PI_typ pinfo)) $))
+  (Hal: alloca_size_prop (los,nts) pinfo m mb)
+  (Hmatch: gv_chunks_match_typ (los,nts) gv1 (PI_typ pinfo)),
+  exists m', 
+    mstore (los,nts) m gv2 (PI_typ pinfo) gv1 (PI_align pinfo) = Some m'.
 Proof.
   unfold mstore, gv_chunks_match_typ.
-  intros.
-  apply mload_inv in Hld.
-  destruct Hld as [b [ofs [m0 [mc [J1 [J2 J3]]]]]]; subst. 
-  simpl. rewrite J2 in Hmatch.
-Admitted.  (* we should prove that promotable location is writable*)
+  intros. subst.
+  rewrite simpl_blk2GV. simpl.
+  unfold alloca_size_prop in Hal. 
+  inv_mbind.
+  rewrite Int.signed_zero.
+  apply vm_matches_typ__sizeMC_eq_sizeGenericValue in Hmatch.
+  apply mstore_aux_ex with (lo:=0) (hi:=Z_of_nat s).
+    tauto.
+    omega.
+    
+    symmetry_ctx.
+    assert (wf_typ S (los,nts) (PI_typ pinfo)) as Hwft.
+      admit. (* PI wft *)
+    eapply flatten_typ__getTypeSizeInBits in HeqR; eauto.
+    destruct HeqR as [sz1 [al1 [J16 J14]]]; subst.
+    apply WF_PhiInfo_spec16 in HwfF; auto.
+    destruct HwfF as [sz [al [J1 [J2 J3]]]].
+    apply getTypeAllocSize_inv in HeqR0.
+    destruct HeqR0 as [sz0 [al0 [J6 [J4 J5]]]]; subst.
+    unfold getTypeSizeInBits_and_Alignment in J4.
+    unfold getTypeSizeInBits_and_Alignment in J1.
+    uniq_result.
+    rewrite <- Hmatch. rewrite <- J14. 
+    assert (RoundUpAlignment (nat_of_Z (ZRdiv (Z_of_nat sz1) 8)) al1 >=
+            (nat_of_Z (ZRdiv (Z_of_nat sz1) 8)))%nat as G.
+      apply RoundUpAlignment_spec; auto.
+    omega.
+Qed.
 
 Lemma WF_PhiInfo_spec20: forall (pinfo : PhiInfo) (Locals : Opsem.GVsMap)
-  Allocas0 (Mem0 : mem) (Hwfpi : WF_PhiInfo pinfo) TD maxb
-  (Hnoalias : wf_defs maxb pinfo TD Mem0 Locals Allocas0) 
-  (gv1 gv2 : GenericValue) (Hmatch: gv_chunks_match_typ TD gv1 (PI_typ pinfo))
-  (HeqR3 : merror = mstore TD Mem0 gv2 (PI_typ pinfo) gv1 (PI_align pinfo))
+  (Hwfpi: WF_PhiInfo pinfo) los nts Ps S
+  (HwfF: wf_fdef S (module_intro los nts Ps) (PI_f pinfo))
+  Allocas0 (Mem0 : mem) (Hwfpi : WF_PhiInfo pinfo) maxb
+  (Hnoalias : wf_defs maxb pinfo (los,nts) Mem0 Locals Allocas0) 
+  (gv1 gv2 : GenericValue) 
+  (Hmatch: gv_chunks_match_typ (los,nts) gv1 (PI_typ pinfo))
+  (HeqR3 : merror = mstore (los,nts) Mem0 gv2 (PI_typ pinfo) gv1 (PI_align pinfo))
   (HeqR2 : ret gv2 = lookupAL _ Locals (PI_id pinfo)),
   False.
 Proof.
@@ -3641,9 +3730,77 @@ Proof.
   symmetry in HeqR2.
   apply Hnoalias in HeqR2.
   unfold wf_alloca_GVs in HeqR2. 
-  destruct HeqR2 as [[_ [_ [_ [gv' HeqR2]]]] _]. 
-  eapply valid_mload__valid_mstore in HeqR2; eauto.
-  destruct HeqR2. congruence.
+  destruct HeqR2 as [[_ [[mb [Heq [_ [_ Hal]]]] _]] _]. 
+  eapply valid_mload__valid_mstore in Hal; eauto.
+  destruct Hal. congruence.
+Qed.
+
+Lemma wf_ECStack_head_in_tail__no_alias_with_blk: 
+  forall (pinfo : palloca_props.PhiInfo)
+  (lc2 : AssocList (GVsT DGVs)) (gv2 : GVsT DGVs) (S : system) (los : layouts)
+  (nts : namedts) (Ps : products) (Mem : Memory.mem) (F : fdef) (t : typ)
+  (v : value) (gl : GVMap) (Hwfv : wf_value S (module_intro los nts Ps) F v t)
+  (maxb : Values.block) (Hget : getOperandValue (los, nts) v lc2 gl = ret gv2)
+  (EC : Opsem.ExecutionContext) (Hwfg: MemProps.wf_globals maxb gl)
+  (Hnals1 : Promotability.wf_ECStack_head_in_tail maxb pinfo 
+             (los, nts) Mem lc2 EC)
+  (b : Values.block) (i0 : int32) (m : AST.memory_chunk)
+  (HeqR : lookupAL (GVsT DGVs) (Opsem.Locals EC) (palloca_props.PI_id pinfo) =
+          ret ((Vptr b i0, m) :: nil))
+  (G : Opsem.CurFunction EC = palloca_props.PI_f pinfo),
+  MemProps.no_alias_with_blk gv2 b.
+Proof.
+  intros.
+  destruct EC. simpl in *.
+  destruct (@Hnals1 ((Vptr b i0, m) :: nil)) as [J5 [J2 J4]]; auto.
+  destruct v as [id2 | c2]; simpl in *.
+    apply J2 in Hget.
+    simpl in Hget. tauto.
+  
+    inv Hwfv.
+    destruct J5 as [mb [J6 [J7 _]]].
+    rewrite Promotability.simpl_blk2GV in J6. inv J6.
+    symmetry in Hget.
+    eapply Promotability.const2GV_disjoint_with_runtime_alloca with (t:=t) 
+      (mb:=mb) in Hget; eauto.
+    rewrite Promotability.simpl_blk2GV in Hget. 
+    simpl in Hget. tauto.
+Qed.
+
+Lemma wf_defs__no_alias_with_blk: forall (pinfo : palloca_props.PhiInfo) 
+  (los : layouts)
+  (nts : namedts) (maxb : Values.block) (Mem : mem) (EC : Opsem.ExecutionContext)
+  (gv2 : GenericValue) (gl : GVMap) (Hwfg : MemProps.wf_globals maxb gl)
+  (v : value) (S : system) (t : typ) (Ps : products)
+  (Hneq : primitives.used_in_value (palloca_props.PI_id pinfo) v = false)
+  (Hget : getOperandValue (los, nts) v (@Opsem.Locals DGVs EC) gl = ret gv2)
+  (Hwfv : wf_value S (module_intro los nts Ps) (Opsem.CurFunction EC) v t)
+  (b : Values.block) (i0 : int32) (m : AST.memory_chunk)
+  (HeqR : lookupAL (GVsT DGVs) (Opsem.Locals EC) (palloca_props.PI_id pinfo) =
+            ret ((Vptr b i0, m) :: nil))
+  (Hinscope : Promotability.wf_defs maxb pinfo (los, nts) Mem
+               (Opsem.Locals EC) (Opsem.Allocas EC))
+  (G : Opsem.CurFunction EC = palloca_props.PI_f pinfo),
+  MemProps.no_alias_with_blk gv2 b.
+Proof.
+  intros.
+  apply_clear Hinscope in HeqR.
+  destruct HeqR as [J1 J2].
+  destruct v as [id2 | c2].
+    apply J2 in Hget.
+    unfold Promotability.wf_non_alloca_GVs in Hget.
+    simpl in Hneq.
+    destruct (id_dec id2 (palloca_props.PI_id pinfo)); tinv Hneq.
+    simpl in Hget. tauto.
+  
+    unfold Promotability.wf_alloca_GVs in J1.
+    destruct J1 as [_ [[mb [J6 [_ [[J7 _] _]]]] _]].
+    rewrite Promotability.simpl_blk2GV in J6. inv J6.
+    symmetry in Hget. inv Hwfv.
+    eapply Promotability.const2GV_disjoint_with_runtime_alloca with (t:=t) 
+      (mb:=mb) in Hget; eauto.
+    rewrite Promotability.simpl_blk2GV in Hget. 
+    simpl in Hget. tauto.
 Qed.
 
 End Promotability.

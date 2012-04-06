@@ -4147,7 +4147,8 @@ end.
   destruct (@G10 c) as [i1 [i2 [i3 [J11 [J12 | J12]]]]]; subst; simpl; auto.
     s_isFinialState__phiplacement_State_simulation'_tac.
       eapply WF_PhiInfo_spec20; 
-        try solve [eauto | erewrite simulation__lookup_pid; eauto].
+        try solve [eauto using wf_system__wf_fdef | 
+                   erewrite simulation__lookup_pid; eauto].
 
       destruct Hpp as [_ [Hpp _]].
       simpl in Hpp.

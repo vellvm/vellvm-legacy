@@ -2479,7 +2479,6 @@ Proof.
   eapply Mem.perm_free_3; eauto.
 Qed.
 
-(* go to mem prop *)
 Lemma perm_mfree_alloca_3: forall TD b ofs p als M1 M2 
   (Hfree : free_allocas TD M1 als = ret M2),
   Mem.perm M2 b ofs p -> Mem.perm M1 b ofs p.
@@ -2491,7 +2490,6 @@ Proof.
     eapply IHals in H1; eauto using perm_mfree_3.
 Qed.
 
-(* go to mem prop *)
 Lemma perm_mfree_alloca_2: forall TD als M1 M2 
   (Hfree : free_allocas TD M1 als = ret M2),
   forall b lo hi, 
@@ -2542,6 +2540,127 @@ Lemma redundant__wf_globals: forall maxb gl,
 Proof.
   intros. destruct H.
   induction gl; auto.
+Qed.
+
+Lemma perm_mfree_1: forall TD M1 M2 ptr b ofs p 
+  (Hfree : free TD M1 ptr = ret M2) (Hnoalias: MemProps.no_alias_with_blk ptr b)
+  (Hperm: Mem.perm M1 b ofs p),
+  Mem.perm M2 b ofs p.
+Proof.
+  intros.
+  apply free_inv in Hfree.
+  destruct Hfree as [blk [ofs' [hi [lo [J1 [J2 [J3 J4]]]]]]].
+  symmetry in J1.
+  apply GV2ptr_inv in J1.
+  destruct J1 as [b1 [ofs1 [m1 [J5 J6]]]]; subst.
+  inv J6. simpl in Hnoalias.
+  eapply Mem.perm_free_1; eauto. left. 
+  destruct Hnoalias as [Hoalias _]. congruence.  
+Qed.
+
+Lemma range_perm_mfree_1: forall TD M1 M2 ptr b lo hi p 
+  (Hfree : free TD M1 ptr = ret M2) (Hnoalias: MemProps.no_alias_with_blk ptr b)
+  (Hperm: Mem.range_perm M1 b lo hi p),
+  Mem.range_perm M2 b lo hi p.
+Proof.
+  unfold Mem.range_perm.
+  intros.
+  apply Hperm in H.
+  eapply perm_mfree_1; eauto.
+Qed.
+  
+Lemma perm_mfree_alloca_1: forall TD als M1 M2 
+  (Hfree : free_allocas TD M1 als = ret M2),
+  forall b ofs p, 
+    ~ In b als ->
+    Mem.perm M1 b ofs p ->
+    Mem.perm M2 b ofs p.
+Proof.
+  induction als; simpl; intros.
+    congruence.
+
+    inv_mbind. symmetry_ctx.
+    eapply IHals; eauto.
+    eapply perm_mfree_1; eauto.
+    unfold blk2GV, ptr2GV, val2GV. simpl. eauto.
+Qed.
+
+Lemma range_perm_mfree_alloca_1: forall TD M1 M2 als b lo hi p 
+  (Hfree : free_allocas TD M1 als = ret M2) (Hnotin: ~ In b als)
+  (Hperm: Mem.range_perm M1 b lo hi p),
+  Mem.range_perm M2 b lo hi p.
+Proof.
+  unfold Mem.range_perm.
+  intros.
+  apply Hperm in H.
+  eapply perm_mfree_alloca_1; eauto.
+Qed.
+  
+Lemma mstore_aux_preserves_range_perm: forall b lo hi p gv blk M ofs M' 
+  (Hperm: Mem.range_perm M b lo hi p)
+  (Hst: mstore_aux M gv blk ofs = Some M'),
+  Mem.range_perm M' b lo hi p.
+Proof.
+  induction gv as [|[]]; simpl; intros.
+    inv Hst. auto.
+
+    inv_mbind.
+    eapply IHgv in H0; eauto.
+    intros ofs1 H1. apply Hperm in H1.
+    eapply Mem.perm_store_1; eauto.
+Qed.
+
+Lemma mstore_preserves_range_perm: forall td b lo hi p gv t gv0 al M M' 
+  (Hperm: Mem.range_perm M b lo hi p)
+  (Hst: mstore td M gv t gv0 al = Some M'),
+  Mem.range_perm M' b lo hi p.
+Proof.
+  intros.
+  apply mstore_inversion in Hst.
+  destruct Hst as [b1 [ofs1 [m1 [J1 J2]]]]; subst.
+  eapply mstore_aux_preserves_range_perm; eauto.
+Qed.
+
+Lemma malloc_preserves_range_perm: forall TD b lo hi p tsz gn align0 M M' mb
+  (Hperm: Mem.range_perm M b lo hi p)
+  (Hmlc: malloc TD M tsz gn align0 = ret (M', mb)),
+  Mem.range_perm M' b lo hi p.
+Proof.
+  intros.
+  apply malloc_inv in Hmlc.
+  destruct Hmlc as [n [J1 [J2 J3]]].
+  intros ofs H. apply Hperm in H.
+  eapply Mem.perm_alloc_1; eauto.
+Qed.
+
+(* go to Coqlib.v ?*)
+Lemma z_mult_n__ge__z: forall (tsz : sz) (n : Z)
+  (J2 : 0 < Size.to_Z tsz * n),
+  Size.to_Z tsz * n >= Z_of_nat tsz.
+Proof.
+  intros.
+  assert (K:=@Z_of_nat_ge_0 tsz).
+  unfold Size.to_Z in *.
+  assert (0 < n) as K'.
+    destruct n as [|n|n]; destruct (Z_of_nat tsz) as [|tsz'|tsz']; 
+      simpl in J2, K; try discriminate; try reflexivity.
+      unfold Zge in K. contradict K. trivial.
+  rewrite <- Zmult_1_r.
+  apply Zmult_ge_compat; omega.
+Qed.
+
+Lemma malloc_preserves_range_perm_2: forall TD tsz gn align0 M M' mb
+  (Hmlc: malloc TD M tsz gn align0 = ret (M', mb)),
+  Mem.range_perm M' mb 0 (Z_of_nat tsz) Freeable.
+Proof.
+  intros.
+  apply malloc_inv in Hmlc.
+  destruct Hmlc as [n [J1 [J2 J3]]].
+  intros ofs H.
+  destruct H.
+  apply z_mult_n__ge__z in J2.
+  eapply Mem.perm_alloc_2; eauto.
+    omega.
 Qed.
 
 End MemProps.

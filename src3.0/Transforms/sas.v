@@ -1419,7 +1419,7 @@ Proof.
     remember (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) as R.
     destruct R as [[|[[]][]]|]; tinv J.
     inv J. symmetry in HeqR.
-    eapply wf_ECStack_head_in_tail__no_alias_with_blk; eauto.
+    eapply Promotability.wf_ECStack_head_in_tail__no_alias_with_blk; eauto.
     
     apply_clear H2 in J. congruence.
 Qed.
@@ -1469,7 +1469,7 @@ Proof.
     remember (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) as R.
     destruct R as [[|[[]][]]|]; inv J.
     clear J2. symmetry in HeqR.
-    eapply wf_defs__no_alias_with_blk; eauto.
+    eapply Promotability.wf_defs__no_alias_with_blk; eauto.
     
     apply_clear J2 in J. congruence.
 Qed.
