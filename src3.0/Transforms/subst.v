@@ -6,6 +6,6 @@ Lemma subst_successors : forall f id' v',
 Admitted.
 
 Lemma subst_reachablity_analysis : forall f id' v',
-  dtree.reachablity_analysis f =
-    dtree.reachablity_analysis (subst_fdef id' v' f).
+  reachablity_analysis f =
+    reachablity_analysis (subst_fdef id' v' f).
 Admitted.

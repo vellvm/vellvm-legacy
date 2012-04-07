@@ -4,7 +4,6 @@ Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
-Require Import dtree.
 Require Import primitives.
 Require Import mem2reg.
 Require Import opsem_props.
@@ -1345,8 +1344,8 @@ Proof.
         exists l'. exists ps0. exists nil. auto.
         exists l'. exists ps'. exists nil. auto.
         apply reg_simulation_refl.
-        eapply wf_system__wf_fdef in Hin; eauto.
-        eapply entry_cmds_simulation; eauto.
+        eapply entry_cmds_simulation; 
+          eauto using wf_system__uniqFdef, wf_system__wf_fdef.
 
   SCase "PI_f pinfo <> F1".
     assert (Htcmds':=Htcmds).
@@ -1404,8 +1403,8 @@ Proof.
         exists l'. exists ps0. exists nil. auto.
         exists l'. exists ps'. exists nil. auto.
         apply reg_simulation_refl.
-        eapply wf_system__wf_fdef in Hin; eauto.
-        eapply entry_cmds_simulation; eauto.
+        eapply entry_cmds_simulation; 
+          eauto using wf_system__uniqFdef, wf_system__wf_fdef.
 Qed.
 
 Lemma phinodes_placement_is_correct__dsExCall: forall (maxb : Values.block)

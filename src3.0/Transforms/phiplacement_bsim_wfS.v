@@ -4,7 +4,6 @@ Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
-Require Import dtree.
 Require Import primitives.
 Require Import mem2reg.
 Require Import opsem_props.
@@ -12,7 +11,7 @@ Require Import palloca_props.
 Require Import program_sim.
 
 Lemma phinodes_placement_wfS: forall rd f Ps1 Ps2 los nts pid ty al
-  num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = dtree.reachablity_analysis f)
+  num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = reachablity_analysis f)
   (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
   (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
   (HwfS :
@@ -26,7 +25,7 @@ Lemma phinodes_placement_wfS: forall rd f Ps1 Ps2 los nts pid ty al
 Admitted. (* WF prev *)
 
 Lemma phinodes_placement_wfPI: forall rd f Ps1 Ps2 los nts pid ty al
-  num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = dtree.reachablity_analysis f)
+  num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = reachablity_analysis f)
   (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
   (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
   (HwfS :
@@ -43,8 +42,8 @@ Lemma phinodes_placement_wfPI: forall rd f Ps1 Ps2 los nts pid ty al
 Admitted. (* WF prev *)
 
 Lemma phinodes_placement_reachablity_analysis: forall f rd pid ty al,
-  dtree.reachablity_analysis f =
-  dtree.reachablity_analysis
+  reachablity_analysis f =
+  reachablity_analysis
      (phinodes_placement f rd pid ty al (successors f)
         (make_predecessors (successors f))).
 Admitted. (* WF prev *)

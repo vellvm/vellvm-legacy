@@ -4,7 +4,6 @@ Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
-Require Import dtree.
 Require Import primitives.
 Require Import mem2reg.
 Require Import opsem_props.
@@ -76,7 +75,8 @@ Proof.
     exists l0. exists ps2. exists nil. auto.
     exists l0. exists ps0. exists nil. auto.
     apply reg_simulation_refl.
-    eapply entry_cmds_simulation; eauto using wf_system__wf_fdef.
+    eapply entry_cmds_simulation; eauto using 
+      wf_system__wf_fdef, wf_system__uniqFdef.
 Qed.
 
 Lemma s_isFinialState__phiplacement_State_simulation_r2l:
@@ -719,7 +719,7 @@ end.
 Qed.
 
 Lemma phinodes_placement_sim: forall rd f Ps1 Ps2 los nts main VarArgs pid ty al
-  num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = dtree.reachablity_analysis f)
+  num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = reachablity_analysis f)
   (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
   (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
   (Hok: defined_program [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] 

@@ -22,8 +22,9 @@
   alive_store alive_alloca id_rhs_val las laa
    STATUS: done
 
-7) reachable <-> reachavlity_analysis (1W)
+7) reachable <-> reachavlity_analysis (1W): (0.25D)
    palloca_props
+   STATUS: done
 
 8) properties of find_promotable_alloca (0.5W)
   palloca_props promotable_props phiplacement_bsim alive_alive dae primitives 

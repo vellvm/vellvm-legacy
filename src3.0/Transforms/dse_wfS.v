@@ -36,6 +36,6 @@ Lemma elim_dead_st_fdef_successors : forall f id',
 Admitted. (* prev WF *)
 
 Lemma elim_dead_st_fdef_reachablity_analysis : forall f id',
-  dtree.reachablity_analysis f =
-    dtree.reachablity_analysis (elim_dead_st_fdef id' f).
+  reachablity_analysis f =
+    reachablity_analysis (elim_dead_st_fdef id' f).
 Admitted. (* prev WF *)

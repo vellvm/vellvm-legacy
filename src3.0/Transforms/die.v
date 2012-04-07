@@ -347,6 +347,6 @@ Lemma remove_successors : forall f id',
 Admitted.
 
 Lemma remove_reachablity_analysis : forall f id',
-  dtree.reachablity_analysis f = dtree.reachablity_analysis (remove_fdef id' f).
+  reachablity_analysis f = reachablity_analysis (remove_fdef id' f).
 Admitted.
 

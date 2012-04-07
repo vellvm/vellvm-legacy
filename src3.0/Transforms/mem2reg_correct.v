@@ -285,12 +285,12 @@ Proof.
 Qed.
 
 Lemma remove_subst_reachablity_successors : forall i2 i1 v1 f,
-  dtree.reachablity_analysis f =
-    dtree.reachablity_analysis (remove_fdef i2 (subst_fdef i1 v1 f)) /\
+  reachablity_analysis f =
+    reachablity_analysis (remove_fdef i2 (subst_fdef i1 v1 f)) /\
   successors f = successors (remove_fdef i2 (subst_fdef i1 v1 f)).
 Proof.
   split.
-    transitivity (dtree.reachablity_analysis (subst_fdef i1 v1 f)).
+    transitivity (reachablity_analysis (subst_fdef i1 v1 f)).
       apply subst_reachablity_analysis.
       apply remove_reachablity_analysis.
 
@@ -301,7 +301,7 @@ Qed.
 
 Lemma elim_stld_cmds_reachablity_successors: forall f cs0 f0
   dones0 dones id0 (Hpass : (f0, true, dones0) = elim_stld_cmds f cs0 id0 dones),
-  dtree.reachablity_analysis f = dtree.reachablity_analysis f0 /\
+  reachablity_analysis f = reachablity_analysis f0 /\
   successors f = successors f0.
 Proof.
   intros.
@@ -401,8 +401,8 @@ Lemma elim_stld_blocks_reachablity_successors_aux: forall f0 dones0 dones id0
   flag fh bs2 bs1
   (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 id0 dones =
     (f0, flag, dones0)),
-  dtree.reachablity_analysis (fdef_intro fh (bs1++bs2)) =
-    dtree.reachablity_analysis f0 /\
+  reachablity_analysis (fdef_intro fh (bs1++bs2)) =
+    reachablity_analysis f0 /\
   successors (fdef_intro fh (bs1++bs2)) = successors f0.
 Proof.
   induction bs2; simpl; intros.
@@ -485,8 +485,8 @@ Lemma elim_stld_blocks_reachablity_successors: forall f0 dones0 dones id0
   flag fh bs
   (Hpass:elim_stld_blocks (fdef_intro fh bs) bs id0 dones =
     (f0, flag, dones0)),
-  dtree.reachablity_analysis (fdef_intro fh bs) =
-    dtree.reachablity_analysis f0 /\
+  reachablity_analysis (fdef_intro fh bs) =
+    reachablity_analysis f0 /\
   successors (fdef_intro fh bs) = successors f0.
 Proof.
   intros.
@@ -531,13 +531,13 @@ Qed.
 Lemma elim_stld_sim_reachablity_successors: forall f1 dones1 f2 dones2 pid
   (Hpass: SafePrimIter.iterate _ (elim_stld_step pid) (f1, dones1) =
     (f2, dones2)),
-  dtree.reachablity_analysis f2 = dtree.reachablity_analysis f1 /\
+  reachablity_analysis f2 = reachablity_analysis f1 /\
   successors f2 = successors f1.
 Proof.
   intros. subst.
   set (P:=fun (re:(fdef * list id)) =>
           let '(f, _) := re in
-          dtree.reachablity_analysis f = dtree.reachablity_analysis f1 /\
+          reachablity_analysis f = reachablity_analysis f1 /\
           successors f = successors f1).
   assert (P (f1, dones1)) as HPf1.
     unfold P. split; auto.
@@ -555,7 +555,7 @@ Proof.
       apply elim_stld_blocks_reachablity_successors in HeqR.
       destruct HeqR. destruct HPa.
       split.
-        transitivity (dtree.reachablity_analysis (fdef_intro fh bs)); auto.
+        transitivity (reachablity_analysis (fdef_intro fh bs)); auto.
         transitivity (successors (fdef_intro fh bs)); auto.
 
     destruct flag0; auto.
@@ -616,7 +616,7 @@ Proof.
 Qed.
 
 Lemma macro_mem2reg_fdef_sim_wfS: forall rd f1 dones1 f2 dones2 Ps1 Ps2 los
-  nts main VarArgs (Hreach: ret rd = dtree.reachablity_analysis f1)
+  nts main VarArgs (Hreach: ret rd = reachablity_analysis f1)
   S1 S2
   (Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
   (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
@@ -627,7 +627,7 @@ Lemma macro_mem2reg_fdef_sim_wfS: forall rd f1 dones1 f2 dones2 Ps1 Ps2 los
             (f1, dones1) = (f2, dones2)),
   (program_sim S1 S2 main VarArgs /\
    wf_system S1 /\ defined_program S1 main VarArgs) /\
-  dtree.reachablity_analysis f1 = dtree.reachablity_analysis f2 /\
+  reachablity_analysis f1 = reachablity_analysis f2 /\
   successors f1 = successors f2.
 Proof.
   intros. subst.
@@ -640,7 +640,7 @@ Proof.
             [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] /\
           defined_program 
             [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] main VarArgs) /\
-          dtree.reachablity_analysis f1 = dtree.reachablity_analysis f /\
+          reachablity_analysis f1 = reachablity_analysis f /\
           successors f1 = successors f
       ).
   assert (P (f1, dones1)) as HPf1.
@@ -700,7 +700,7 @@ Proof.
         apply elim_stld_sim_reachablity_successors in HeqR1.
         destruct HeqR1.
         split.
-          transitivity (dtree.reachablity_analysis
+          transitivity (reachablity_analysis
             (phinodes_placement f rd pid ty al (successors f1)
               (make_predecessors (successors f1)))); auto.
             rewrite EQ1. rewrite EQ2.
@@ -753,7 +753,7 @@ Proof.
         SCase "1.2".
           destruct HPf0' as [J1 J2].
           split.
-            transitivity (dtree.reachablity_analysis f0); auto.
+            transitivity (reachablity_analysis f0); auto.
               apply elim_dead_st_fdef_reachablity_analysis.
             transitivity (successors f0); auto.
               apply elim_dead_st_fdef_successors.
@@ -802,7 +802,7 @@ Proof.
       destruct HPf' as [Hreach' Hsucc'].
       split.
         transitivity
-          (dtree.reachablity_analysis
+          (reachablity_analysis
             (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0));auto.
         apply remove_reachablity_analysis; auto.
 
@@ -841,8 +841,8 @@ Axiom remove_dbg_declares_sim_wfS: forall cs Ps1 Ps2 los nts main
     defined_program S1 main VarArgs.
 
 Axiom remove_dbg_declares_sim_reachablity_successors: forall f cs,
-  dtree.reachablity_analysis f 
-    = dtree.reachablity_analysis (remove_dbg_declares f cs) /\
+  reachablity_analysis f 
+    = reachablity_analysis (remove_dbg_declares f cs) /\
   successors f = successors (remove_dbg_declares f cs).
 
 Lemma mem2reg_fdef_sim_wfS: forall (main : id) (VarArgs : list (GVsT DGVs))
@@ -857,7 +857,7 @@ Proof.
   unfold mem2reg_fdef.
   remember (getEntryBlock f) as b. 
   destruct b as [[root ps cs tmn]|]; auto using program_sim_refl.
-  remember (dtree.reachablity_analysis f) as R.
+  remember (reachablity_analysis f) as R.
   destruct R as [rd|]; auto using program_sim_refl.
   rewrite print_reachablity_is_true.
   rewrite does_macro_m2r_is_true.

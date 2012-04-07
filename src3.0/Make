@@ -109,6 +109,7 @@
 ./TV/symexe_tactic.v
 
 ./Transforms/dtree.v
+./Transforms/dtree_props.v
 ./Transforms/primitives.v
 ./Transforms/gvn.v
 ./Transforms/mem2reg.v

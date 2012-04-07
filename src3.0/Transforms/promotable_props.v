@@ -4,7 +4,6 @@ Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
-Require Import dtree.
 Require Import primitives.
 Require Import Maps.
 Require Import mem2reg.

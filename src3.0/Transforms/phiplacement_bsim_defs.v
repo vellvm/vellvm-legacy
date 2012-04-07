@@ -4,7 +4,6 @@ Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
-Require Import dtree.
 Require Import primitives.
 Require Import Maps.
 Require Import mem2reg.
@@ -2113,7 +2112,7 @@ Qed.
 
 Lemma entry_cmds_simulation: forall f l' ps0 cs0 tmn' pinfo ps' cs' S los
   nts lc' Mem Ps (Hwfpi: WF_PhiInfo pinfo)
-  (HwfF: wf_fdef S (module_intro los nts Ps) f)
+  (HwfF: wf_fdef S (module_intro los nts Ps) f) (HuniqF: uniqFdef f)
   (Hgetentry1 : getEntryBlock f = ret block_intro l' ps0 cs0 tmn')
   (Hbsim1 : block_simulation pinfo f
              (block_intro l' ps0 cs0 tmn') (block_intro l' ps' cs' tmn')),

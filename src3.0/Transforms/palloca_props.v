@@ -4,7 +4,6 @@ Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
-Require Import dtree.
 Require Import primitives.
 Require Import Maps.
 Require Import mem2reg.
@@ -1087,11 +1086,7 @@ Proof.
   eapply gen_fresh_ids__spec2_aux in H; eauto.
 Qed.
 
-Lemma reachable__reachablity_analysis: forall f rd a,
-  reachable f a -> reachablity_analysis f = Some rd -> In a rd.
-Admitted. (* reachable *)
-
-Lemma reachable_blk_has_newids : forall pinfo l1,
+Lemma reachable_blk_has_newids : forall pinfo l1 (Huniq: uniqFdef (PI_f pinfo)),
   WF_PhiInfo pinfo ->
   reachable (PI_f pinfo) l1 ->
   (PI_newids pinfo) ! l1 <> merror.
@@ -1731,7 +1726,7 @@ Proof.
 Qed.
 
 Lemma find_promotable_alloca__WF_PhiInfo: forall rd f l0 ps0 cs0 tmn0
-  (Hreach : ret rd = dtree.reachablity_analysis f)
+  (Hreach : ret rd = reachablity_analysis f)
   (Hentry : ret block_intro l0 ps0 cs0 tmn0 = getEntryBlock f)
   (pid : id) (ty : typ) num (al : align) dones
   (Hfind : find_promotable_alloca f cs0 dones = ret (pid, ty, num, al)),

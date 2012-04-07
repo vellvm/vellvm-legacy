@@ -135,6 +135,26 @@ Definition areachable (f: fdef) : AMap.t bool :=
   | Some rs => rs
   end.
 
+Fixpoint get_reachable_labels (bd:list l) (rd:AMap.t bool) (acc:list l)
+  : list l :=
+match bd with
+| nil => acc
+| l0::bd' => if (AMap.get l0 rd)
+             then get_reachable_labels bd' rd (l0::acc)
+             else get_reachable_labels bd' rd acc
+end.
+
+Definition reachablity_analysis (f: fdef) : option (list l) :=
+match getEntryBlock f with
+| Some (block_intro root _ _ _) =>
+    let 'bd := bound_fdef f in
+    match areachable_aux f with
+    | None => None
+    | Some rd => Some (get_reachable_labels bd rd nil)
+    end
+| None => None
+end.
+
 Require Import Dipaths.
 
 Definition vertexes_fdef (f:fdef) : V_set :=
@@ -749,6 +769,59 @@ Proof.
       eapply successors__blockInFdefB; eauto.
     destruct J as [ps0 [cs0 [tmn0 [HBinF' Hinsucc]]]].
     eapply areachable_successors; eauto.
+Qed.
+
+Lemma reachable__in_bound: forall f a (Hrd: reachable f a),
+  In a (bound_fdef f).
+Proof.
+  intros.
+  unfold reachable in Hrd.
+  match goal with
+  | H: match ?e with
+       | Some _ => _
+       | None => is_true false
+       end |- _ => remember e as R; destruct R; tinv H
+  end.
+  destruct b.
+  destruct Hrd as [vl [al Hrd]].
+  apply Dipaths.DW_endx_inv in Hrd. auto.
+Qed.
+
+Lemma get_reachable_labels__spec_aux: forall a (t:AMap.t bool)
+  (Hin : t !! a) bnd acc (Hinbnd : In a bnd \/ In a acc),
+  In a (get_reachable_labels bnd t acc).
+Proof.
+  induction bnd; simpl; intros; try tauto.
+    destruct Hinbnd as [[EQ | Hinbnd] | Hinbnd]; subst.
+      rewrite Hin.
+      apply IHbnd; simpl; auto.
+
+      destruct_if; auto.
+      destruct_if; auto.
+        apply IHbnd; simpl; auto.
+Qed.
+
+Lemma get_reachable_labels__spec: forall a (t:AMap.t bool) bnd
+  (Hin : t !! a) (Hinbnd : In a bnd),
+  In a (get_reachable_labels bnd t nil).
+Proof.
+  intros.
+  apply get_reachable_labels__spec_aux; simpl; auto.
+Qed.
+
+Lemma reachable__reachablity_analysis: forall f rd a
+  (Huniq: uniqFdef f) (Hdec: reachable f a)
+  (Halg: reachablity_analysis f = Some rd),
+  In a rd.
+Proof.
+  intros.
+  assert (Hinbnd:=Hdec).
+  apply reachable__in_bound in Hinbnd.
+  apply areachable_is_correct in Hdec; auto.
+  unfold reachablity_analysis in Halg.
+  inv_mbind. destruct b as [l0 ps0 cs0 tmn0]. inv_mbind.
+  unfold areachable in Hdec. rewrite <- HeqR0 in Hdec.
+  apply get_reachable_labels__spec; auto.
 Qed.
 
 Lemma arcs_fdef_inv : forall f a1 a2,

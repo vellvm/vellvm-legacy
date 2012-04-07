@@ -94,6 +94,10 @@ Ltac inv_mbind :=
                 | Some _ => _
                 | None => false
                 end = true |- _ => remember e as R; destruct R as [|]; tinv H
+          | H: match ?e with
+               | Some _ => _
+               | None => is_true false
+               end |- _ => remember e as R; destruct R; tinv H
           end.
 
 Ltac inv_mbind' := inv_mbind.
