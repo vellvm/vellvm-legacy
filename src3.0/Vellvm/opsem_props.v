@@ -198,6 +198,40 @@ Proof.
   econstructor; eauto.
 Qed.
 
+Lemma sop_star_diverges__sop_diverges_coind: forall cfg IS1 IS2 tr1 tr2,
+  Opsem.sop_star cfg IS1 IS2 tr1 ->
+  @Opsem.sop_diverges GVsSig cfg IS2 tr2 ->
+  Opsem.sop_diverges cfg IS1 (Eappinf tr1 tr2).
+Proof.
+  intros.
+  inv H0.
+  rewrite <- Eappinf_assoc.
+  eapply sop_diverges_intro; eauto.
+  eapply sop_star_plus__implies__sop_plus; eauto.
+Qed.
+
+Lemma sop_star_diverges'__sop_diverges'_coind: forall cfg IS1 IS2 tr1 tr2,
+  Opsem.sop_star cfg IS1 IS2 tr1 ->
+  @Opsem.sop_diverges' GVsSig cfg IS2 tr2 ->
+  Opsem.sop_diverges' cfg IS1 (Eappinf tr1 tr2).
+Proof.
+  cofix CIH.
+  intros.
+  inv H0.
+  inv H.
+    clear CIH.
+    rewrite <- Eappinf_assoc.
+    econstructor; eauto.
+
+    assert (sop_diverges' cfg state0 (tr4 *** tr0 *** tr3)) as J.
+      rewrite <- Eappinf_assoc.
+      eapply CIH; eauto.
+      eapply sop_star_trans; eauto. 
+    clear CIH.
+    rewrite Eappinf_assoc.
+    eapply sop_diverges_intro'; eauto.
+Qed.
+
 Section SOP_WF_DIVERGES.
 
 Context `{Measure: Type}.

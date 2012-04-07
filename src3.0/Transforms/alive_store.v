@@ -1066,6 +1066,35 @@ Case "sExCall".
     eapply callExternalFunction_preserves_wf_ECStack_in_tail; eauto]).
 Qed.
 
+Lemma preservation_star : forall maxb pinfo stinfo cfg S1 S2 tr
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg)) (Hle: 0 <= maxb)
+  (Hwfcfg: OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S1) 
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg S1) 
+  (HwfPI: WF_PhiInfo pinfo) (Hstar: Opsem.sop_star cfg S1 S2 tr)
+  (HwfS1: wf_State pinfo stinfo cfg S1), 
+  wf_State pinfo stinfo cfg S2.
+Proof.
+  intros.
+  induction Hstar; auto.
+    apply IHHstar.
+      apply OpsemPP.preservation in H; auto.
+      eapply Promotability.preservation in H; eauto.
+      eapply preservation in H; eauto.
+Qed.  
+
+Lemma preservation_plus : forall maxb pinfo stinfo cfg S1 S2 tr
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg)) (Hle: 0 <= maxb)
+  (Hwfcfg: OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S1) 
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg S1) 
+  (HwfPI: WF_PhiInfo pinfo) (Hplus: Opsem.sop_plus cfg S1 S2 tr)
+  (HwfS1: wf_State pinfo stinfo cfg S1), 
+  wf_State pinfo stinfo cfg S2.
+Proof.
+  intros.
+  apply OpsemProps.sop_plus__implies__sop_star in Hplus.
+  eapply preservation_star; eauto.
+Qed.  
+
 Lemma s_genInitState__alive_store: forall S main VarArgs cfg IS pinfo stinfo
   (HwfS : wf_system S) (Hwfpi: WF_PhiInfo pinfo) 
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),

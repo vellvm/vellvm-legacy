@@ -465,6 +465,53 @@ Lemma find_st_ld__lasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
     LAS_block pinfo lasinfo = (block_intro l0 ps0 cs0 tmn0).
 Admitted. (* lasinfo *)
 
+Lemma las_is_bsim : forall pinfo lasinfo Cfg1 St1 Cfg2 St2 St2' tr2 
+  (Hwfpi: WF_PhiInfo pinfo) 
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
+  (Hwfcfg2: OpsemPP.wf_Config Cfg2) (Hwfpp2: OpsemPP.wf_State Cfg2 St2) 
+  (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo)) 
+           (LAS_value pinfo lasinfo) (PI_f pinfo) Cfg1 St1)
+  (Hsim: State_simulation pinfo lasinfo Cfg1 St1 Cfg2 St2)
+  (Hop2: Opsem.sInsn Cfg2 St2 St2' tr2)
+  (Hsubst: substable_values (OpsemAux.CurTargetData Cfg1) (OpsemAux.Globals Cfg1)
+             (PI_f pinfo) (value_id (LAS_lid pinfo lasinfo))
+             (LAS_value pinfo lasinfo)) stinfo Hp
+  (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo)
+  (Halst: alive_store.wf_State pinfo stinfo Cfg1 St1)
+  (Hok: ~ sop_goeswrong Cfg1 St1),
+  exists St1', 
+    Opsem.sInsn Cfg1 St1 St1' tr2 /\
+    State_simulation pinfo lasinfo Cfg1 St1' Cfg2 St2'.
+Proof.
+  intros.
+  assert (Hnfinal1: Opsem.s_isFinialState Cfg1 St1 = merror).
+    remember (Opsem.s_isFinialState Cfg1 St1) as R.
+    destruct R; auto.
+    apply s_isFinialState__las_State_simulation in Hsim; 
+      try solve [auto | congruence].
+      contradict Hop2.
+      apply s_isFinialState__stuck. congruence.
+  assert (J:=Hwfpp).
+  apply OpsemPP.progress in J; auto.
+  destruct J as [Hfinal1 | [[IS1'' [tr0 Hop1]] | Hundef1]]; try congruence.
+    assert (OpsemPP.wf_State Cfg1 IS1'') as Hwfpp''.
+      apply OpsemPP.preservation in Hop1; auto.
+    assert (vev_State (value_id (LAS_lid pinfo lasinfo))
+             (LAS_value pinfo lasinfo) (PI_f pinfo) Cfg1 St1) as Hvev.
+      eapply las__alive_store__vev; eauto.
+    assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo)) 
+           (LAS_value pinfo lasinfo) (PI_f pinfo) Cfg1 IS1'') as HwfS1'.
+      eapply id_rhs_val.preservation in Hop1; eauto.
+    eapply las_is_sim in Hsim; eauto.
+    destruct Hsim as [Hsim EQ]; subst.
+    exists IS1''. 
+    split; eauto.
+
+    apply undefined_state__stuck' in Hundef1.
+    contradict Hok.
+    apply nonfinal_stuck_state_goes_wrong; auto.
+Qed.
+
 Lemma sop_star__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
   FS2 (Hwfpi: WF_PhiInfo pinfo)
   (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfcfg2: OpsemPP.wf_Config cfg2) 
@@ -489,47 +536,32 @@ Proof.
   induction Hopstar; intros.
     exists IS1. split; auto.
 
-    assert (forall (Hfinal1: Opsem.s_isFinialState cfg1 IS1 <> merror),
-            exists FS1 : Opsem.State,
-              Opsem.sop_star cfg1 IS1 FS1 (tr1 ** tr2) /\
-              State_simulation pinfo lasinfo cfg1 FS1 cfg2 state3) as W.
-      intros.
-      apply s_isFinialState__las_State_simulation in Hstsim; auto.
-      rewrite Hstsim in Hfinal1.
-      contradict H; eauto using s_isFinialState__stuck.
-    assert (J:=Hwfpp1).
-    apply OpsemPP.progress in J; auto.
-    destruct J as [Hfinal1 | [[IS1' [tr0 Hop1]] | Hundef1]]; auto.
-      eapply las_is_sim in Hstsim; eauto.
-      destruct Hstsim as [Hstsim EQ]; subst.
-      assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp1'.
-        apply OpsemPP.preservation in Hop1; auto.
-      assert (vev_State (value_id (LAS_lid pinfo lasinfo))
-               (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hvev.
-        eapply las__alive_store__vev; eauto.
-      assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
-               (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1') as HwfS1'.
-        eapply id_rhs_val.preservation in Hop1; eauto.
-      assert (alive_store.wf_State pinfo stinfo cfg1 IS1') as Halst'.
-        eapply alive_store.preservation in Hop1; eauto.
-      assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
-        eapply Promotability.preservation in Hop1; eauto.
-      eapply IHHopstar in Hstsim; 
-        eauto using sop_goeswrong__step, (@OpsemPP.preservation DGVs).
-      destruct Hstsim as [FS1 [Hopstar1 Hstsim]].
-      exists FS1.
-      split; eauto.
-
-      apply undefined_state__stuck' in Hundef1.
-      remember (Opsem.s_isFinialState cfg1 IS1) as R.
-      destruct R.
-        apply W; congruence.
-        contradict Hok. exists IS1. exists E0. split; auto.
+    eapply las_is_bsim in Hstsim; eauto.
+    destruct Hstsim as [St1' [Hop1 Hstsim]].
+    assert (OpsemPP.wf_State cfg1 St1') as Hwfpp1'.
+      apply OpsemPP.preservation in Hop1; auto.
+    assert (vev_State (value_id (LAS_lid pinfo lasinfo))
+             (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hvev.
+      eapply las__alive_store__vev; eauto.
+    assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
+             (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 St1') as HwfS1'.
+      eapply id_rhs_val.preservation in Hop1; eauto.
+    assert (alive_store.wf_State pinfo stinfo cfg1 St1') as Halst'.
+      eapply alive_store.preservation in Hop1; eauto.
+    assert (Promotability.wf_State maxb pinfo cfg1 St1') as Hnoalias'.
+      eapply Promotability.preservation in Hop1; eauto.
+    eapply IHHopstar in Hstsim; 
+      eauto using sop_goeswrong__step, (@OpsemPP.preservation DGVs).
+    destruct Hstsim as [FS1 [Hopstar1 Hstsim]].
+    exists FS1.
+    split; eauto.
 Qed.
 
-Lemma sop_div__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
-  (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1)
-  (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
+Lemma sop_plus__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
+  FS2 (Hwfpi: WF_PhiInfo pinfo)
+  (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfcfg2: OpsemPP.wf_Config cfg2) 
+  (Hwfpp1: OpsemPP.wf_State cfg1 IS1) (Hwfpp2: OpsemPP.wf_State cfg2 IS2) 
+  (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo)) 
            (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) stinfo Hp
   (Hsubst: substable_values (OpsemAux.CurTargetData cfg1) (OpsemAux.Globals cfg1)
              (PI_f pinfo) (value_id (LAS_lid pinfo lasinfo))
@@ -539,10 +571,26 @@ Lemma sop_div__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
   (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2) maxb
   (Hless: 0 <= maxb) (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1))
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
-  (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2)
-  (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
-  Opsem.sop_diverges cfg1 IS1 tr.
-Admitted. (* sop_div *)
+  (Hopplus : Opsem.sop_plus cfg2 IS2 FS2 tr) (Hok: ~ sop_goeswrong cfg1 IS1),
+  exists FS1, Opsem.sop_plus cfg1 IS1 FS1 tr /\
+    State_simulation pinfo lasinfo cfg1 FS1 cfg2 FS2.
+Proof.
+  intros.
+  inv Hopplus.
+  eapply las_is_bsim in Hstsim; eauto.
+  destruct Hstsim as [St1' [Hop1 Hstsim']].
+  assert (wf_State (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo)
+     (PI_f pinfo) cfg1 St1') as HwfS1'.
+    eapply id_rhs_val.preservation in Hop1; eauto.
+      eapply las__alive_store__vev; eauto.
+  eapply sop_star__las_State_simulation in Hstsim'; eauto using
+    palloca_props.preservation, Promotability.preservation,
+    (@OpsemPP.preservation DGVs), sop_goeswrong__step,
+    alive_store.preservation.
+  destruct Hstsim' as [FS1 [Hopstar Hstsim']].
+  exists FS1. 
+  split; eauto.
+Qed.
 
 Lemma vev_State_preservation : forall pinfo lasinfo cfg IS maxb
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg))
@@ -584,6 +632,58 @@ Proof.
       eapply vev_State_preservation; eauto.
       eapply id_rhs_val.preservation; eauto.
 Qed.  
+
+Lemma id_rhs_val_preservation_plus : forall v1 v2 F pinfo lasinfo cfg IS IS' tr
+  (Heq1: v1 = value_id (LAS_lid pinfo lasinfo))
+  (Heq2: v2 = LAS_value pinfo lasinfo) (Heq3: F = PI_f pinfo) maxb (Hle: 0 <= maxb)
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg))
+  (Halias: Promotability.wf_State maxb pinfo cfg IS) (Hwfpi: WF_PhiInfo pinfo)
+  stinfo Hp (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo)
+  (Halst: alive_store.wf_State pinfo stinfo cfg IS)
+  (Hvals : substable_values (OpsemAux.CurTargetData cfg) (OpsemAux.Globals cfg)
+             F v1 v2) (Hvev: vev_State v1 v2 F cfg IS) 
+  (Hwfcfg : OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg IS) 
+  (HwfS1: id_rhs_val.wf_State v1 v2 F cfg IS) (Hplus: Opsem.sop_plus cfg IS IS' tr),
+  id_rhs_val.wf_State v1 v2 F cfg IS'.
+Proof.
+  intros.
+  apply OpsemProps.sop_plus__implies__sop_star in Hplus.
+  eapply id_rhs_val_preservation_star; eauto.
+Qed.
+
+Lemma sop_div__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
+  (Hwfpi: WF_PhiInfo pinfo)
+  (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfcfg2: OpsemPP.wf_Config cfg2) 
+  (Hwfpp1: OpsemPP.wf_State cfg1 IS1) (Hwfpp2: OpsemPP.wf_State cfg2 IS2) 
+  (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
+           (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) stinfo Hp
+  (Hsubst: substable_values (OpsemAux.CurTargetData cfg1) (OpsemAux.Globals cfg1)
+             (PI_f pinfo) (value_id (LAS_lid pinfo lasinfo))
+             (LAS_value pinfo lasinfo))
+  (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo)
+  (Halst: alive_store.wf_State pinfo stinfo cfg1 IS1)
+  (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2) maxb
+  (Hless: 0 <= maxb) (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1))
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
+  (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2)
+  (Hdiv : Opsem.sop_diverges cfg2 IS2 tr) (Hok: ~ sop_goeswrong cfg1 IS1),
+  Opsem.sop_diverges cfg1 IS1 tr.
+Proof.
+  cofix CIH.
+  intros.
+  inv Hdiv.
+  eapply sop_plus__las_State_simulation in Hstsim; eauto 1.
+  destruct Hstsim as [FS1 [Hopplus Hstsim']].
+  econstructor; eauto.
+  assert (wf_State (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo)
+     (PI_f pinfo) cfg1 FS1) as HwfS1'.
+    eapply id_rhs_val_preservation_plus; eauto.
+      eapply las__alive_store__vev; eauto.
+  eapply CIH in Hstsim'; eauto using
+    palloca_props.preservation_plus, Promotability.preservation_plus,
+    (@OpsemPP.preservation_plus DGVs), sop_goeswrong__plus,
+    alive_store.preservation_plus.
+Qed.
 
 Lemma las_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
@@ -708,7 +808,8 @@ end.
     intros tr Hdiv.
     inv Hdiv.
     las_sim_init.
-    eapply sop_div__las_State_simulation in Hstsim; eauto; try tauto.
+    eapply sop_div__las_State_simulation in Hstsim;  
+      eauto using defined_program__doesnt__go_wrong; try tauto.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.
 

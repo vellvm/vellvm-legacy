@@ -45,7 +45,8 @@
 11.3) init: 0.5D
   STATUS: done
 
-11.4) step-simulation by measure (refer to phiplacement_bsim) (1D)
+11.4) step-simulation by measure (refer to phiplacement_bsim) (1D): 1D
+  STATUS: done
 
 11.5) palloca is freeable (1D):0.5D
   STATUS: done

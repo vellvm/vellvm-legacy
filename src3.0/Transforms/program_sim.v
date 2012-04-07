@@ -383,6 +383,15 @@ Proof.
   eapply sop_goeswrong__step; eauto.
 Qed.
 
+Lemma sop_goeswrong__plus: forall cfg St St' tr
+  (Hplus: Opsem.sop_plus cfg St St' tr) (Hok: ~ sop_goeswrong cfg St),
+  ~ sop_goeswrong cfg St'.
+Proof.
+  intros.
+  apply OpsemProps.sop_plus__implies__sop_star in Hplus.
+  eapply sop_goeswrong__star; eauto.
+Qed.
+
 Lemma defined_program__doesnt__go_wrong: forall S main VarArgs cfg IS,
   defined_program S main VarArgs ->
   Opsem.s_genInitState S main VarArgs Mem.empty = Some (cfg, IS) ->
@@ -393,6 +402,20 @@ Proof.
   apply H. destruct J as [FS [tr [J1 [J2 J3]]]].
   exists tr. exists FS. econstructor; eauto.
 Qed.
+
+Lemma nonfinal_stuck_state_goes_wrong: forall Cfg St,
+  @Opsem.stuck_state DGVs Cfg St ->
+  Opsem.s_isFinialState Cfg St = None -> sop_goeswrong Cfg St.
+Proof.
+  intros.
+  exists St. exists E0. split; auto.
+Qed.
+
+Definition measure (st:@Opsem.State DGVs) : nat :=
+match st with 
+| {| Opsem.ECS := {| Opsem.CurCmds := cs |} :: _ |} => List.length cs
+| _ => 0%nat
+end.
 
 Require Import mem2reg.
 

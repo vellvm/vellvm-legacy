@@ -20,12 +20,6 @@ Import Promotability.
 
 (* Simulation *)
 
-Definition measure (st:@Opsem.State DGVs) : nat :=
-match st with 
-| {| Opsem.ECS := {| Opsem.CurCmds := cs |} :: _ |} => List.length cs
-| _ => 0%nat
-end.
-
 Definition DGVMap := @Opsem.GVsMap DGVs.
 
 Definition reg_simulation (pinfo: PhiInfo) (f1:fdef) (lc1 lc2:DGVMap) : Prop :=  
