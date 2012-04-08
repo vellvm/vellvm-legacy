@@ -100,6 +100,7 @@ Ltac get_wf_value_for_simop' :=
 Ltac anti_simpl_env :=
 simpl_env in *;
 repeat match goal with
+| H: ?A ++ _ = ?A ++ _ |- _ => apply app_inv_head in H
 | H: ?A ++ ?B ++ ?C = _ |- _ => rewrite_env ((A++B)++C) in H
 | H: ?A ++ ?B ++ ?C ++ ?D = _ |- _ => rewrite_env (((A++B)++C)++D) in H
 | H: ?A ++ ?B ++ ?C ++ ?D ++ ?E = _ |- _ =>rewrite_env ((((A++B)++C)++D)++E) in H
@@ -120,4 +121,27 @@ repeat match goal with
        contradict H; simpl; apply app_cons_not_nil
 end.
 
+
+Ltac simpl_locs_in_ctx :=
+match goal with
+| H: context [getCmdsLocs (_ ++ _)] |- _ => rewrite getCmdsLocs_app in H
+| H: context [getCmdsLocs (_ :: _)] |- _ => simpl in H
+end.
+
+Ltac simpl_locs :=
+match goal with
+| |- context [getCmdsLocs (_ ++ _)] => rewrite getCmdsLocs_app
+| |- context [getCmdsLocs (_ :: _)] => simpl
+end.
+
+Ltac xsolve_in_list :=
+match goal with
+| |- In ?a (_++_) =>
+  apply in_or_app;
+  first [left; solve [xsolve_in_list] | right; solve [xsolve_in_list]]
+| |- In ?a (_::_) =>
+  simpl;
+  first [left; solve [auto] | right; solve [xsolve_in_list]]
+| |- In ?a _ => solve_in_list
+end.
 

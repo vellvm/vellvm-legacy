@@ -26,7 +26,25 @@ Lemma find_st_ld__laainfo: forall l0 ps0 cs0 tmn0 v cs (pinfo:PhiInfo) dones
   exists laainfo:LAAInfo pinfo,
     LAA_lid pinfo laainfo = i1 /\
     LAA_block pinfo laainfo = (block_intro l0 ps0 cs0 tmn0).
-Admitted. (* laainfo *)
+Proof.
+  intros.
+  assert (v = [! pinfo !] /\
+          exists tail, laa i1 tail (block_intro l0 ps0 cs0 tmn0) pinfo) as Hlaa. 
+    unfold laa.
+    apply find_init_stld_inr_spec in Hst.
+    destruct Hst as [EQ [cs1 Hst]]; subst.
+    apply find_next_stld_inl_spec in Hld.
+    destruct Hld as [cs2 [cs3 [Hld J]]]; subst.
+    split; auto.
+      exists cs2.
+      split; auto.
+      split; auto.
+      exists cs1. exists cs3. auto.
+  destruct Hlaa as [EQ [tail Hlaa]]; subst.
+  split; auto.
+    exists (mkLAAInfo pinfo i1 tail (block_intro l0 ps0 cs0 tmn0) Hlaa).
+    auto.
+Qed.
 
 (* same to las *)
 Lemma s_genInitState__laa_State_simulation: forall pinfo laainfo S1 S2 main

@@ -185,11 +185,9 @@ Definition removable_State (pinfo: PhiInfo) (sasinfo: SASInfo pinfo)
   (St:@Opsem.State DGVs) : Prop :=
 match St with
 | Opsem.mkState
-    (Opsem.mkEC f b
-      (insn_store sid _ _ _ _ :: cs)
-      tmn lc als::_) _ =>
+    (Opsem.mkEC f b (c :: cs) tmn lc als::_) _ =>
     if (fdef_dec (PI_f pinfo) f) then
-      if (id_dec sid (SAS_sid1 pinfo sasinfo))
+      if (id_dec (SAS_sid1 pinfo sasinfo) (getCmdLoc c))
       then True else False
     else False
 | _ => False
@@ -202,9 +200,8 @@ Proof.
   destruct ECS as [|[]]; auto.
   destruct CurCmds; auto.
   simpl.
-  destruct_cmd c; auto.
   destruct (fdef_dec (PI_f pinfo) CurFunction); auto.
-  destruct (id_dec i0 (SAS_sid1 pinfo sasinfo)); auto.
+  destruct (id_dec (SAS_sid1 pinfo sasinfo) (getCmdLoc c)); auto.
 Qed.
 
 Ltac repeat_solve :=
@@ -239,13 +236,138 @@ Proof.
       [csa [csb [J7 J8]]]; subst; auto.
     clear J3.
     simpl_env in J4. simpl_env in J7. rewrite <- J7 in J4.
-    admit. (* uniqness *)
+    apply uniqFdef__uniqBlockLocs in J4; auto.
+    simpl in J4. split_NoDup.
+    simpl_locs_in_ctx.
+    split_NoDup.
+    inv Huniq4.
+    contradict H1. repeat simpl_locs. solve_in_list.
+Qed.
+
+Ltac destruct_sasinfo :=
+match goal with
+| sasinfo: SASInfo _ |- _ =>
+  destruct sasinfo as [SAS_sid1 SAS_sid2 SAS_value1 SAS_value2 SAS_tail0
+                       [SAS_l0 SAS_ps0 SAS_cs0 SAS_tmn0] SAS_prop0];
+  destruct SAS_prop0 as 
+    [SAS_BInF0 [SAS_ldincmds0 [SAS_cs1 [SAS_cs3 SAS_EQ]]]]; subst; simpl
+end.
+
+Lemma SAS_lid1__in_SAS_block_locs: forall pinfo sasinfo,
+  In (SAS_sid1 pinfo sasinfo) (getBlockLocs (SAS_block pinfo sasinfo)).
+Proof.
+  intros.
+  destruct_sasinfo.
+  repeat simpl_locs.
+  xsolve_in_list.
+Qed.
+
+Lemma SAS_lid2__in_SAS_block_locs: forall pinfo sasinfo,
+  In (SAS_sid2 pinfo sasinfo) (getBlockLocs (SAS_block pinfo sasinfo)).
+Proof.
+  intros.
+  destruct_sasinfo.
+  repeat simpl_locs.
+  xsolve_in_list.
+Qed.
+
+Lemma SAS_block_spec: forall B pinfo sasinfo (Huniq: uniqFdef (PI_f pinfo))
+  (HBinF: blockInFdefB B (PI_f pinfo))
+  (Hin: In (SAS_sid1 pinfo sasinfo) (getBlockLocs B) \/
+          In (SAS_sid2 pinfo sasinfo) (getBlockLocs B)),
+  B = SAS_block pinfo sasinfo.
+Proof.
+  intros.
+  assert (J1:=@SAS_lid1__in_SAS_block_locs pinfo sasinfo).
+  assert (J2:=@SAS_lid2__in_SAS_block_locs pinfo sasinfo).
+  destruct_sasinfo.
+  destruct Hin;
+    eapply block_eq2; eauto 2.
+Qed.
+
+Lemma lookup_SAS_lid1__store: forall l1 ps1 cs1 pinfo sasinfo
+  (HuniqF: uniqFdef (PI_f pinfo)) tmn1
+  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) (PI_f pinfo)) c
+  (Hin: In c cs1) (Heq: getCmdLoc c = SAS_sid1 pinfo sasinfo),
+  c = insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
+         (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) (PI_align pinfo).
+Proof.
+  intros.
+  assert (block_intro l1 ps1 cs1 tmn1 = SAS_block pinfo sasinfo) as EQ.
+    apply SAS_block_spec; auto.
+      rewrite <- Heq.
+      simpl. left. xsolve_in_list.
+  destruct_sasinfo. simpl in *. inv EQ.
+  eapply NoDup_getCmdsLocs_prop; eauto.
+    solve_NoDup.
+    solve_in_list.
+Qed.
+
+Lemma lookup_SAS_lid2__store: forall l1 ps1 cs1 pinfo sasinfo
+  (HuniqF: uniqFdef (PI_f pinfo)) tmn1
+  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) (PI_f pinfo)) c
+  (Hin: In c cs1) (Heq: getCmdLoc c = SAS_sid2 pinfo sasinfo),
+  c = insn_store (SAS_sid2 pinfo sasinfo) (PI_typ pinfo) 
+         (SAS_value2 pinfo sasinfo) (value_id (PI_id pinfo)) (PI_align pinfo).
+Proof.
+  intros.
+  assert (block_intro l1 ps1 cs1 tmn1 = SAS_block pinfo sasinfo) as EQ.
+    apply SAS_block_spec; auto.
+      rewrite <- Heq.
+      simpl. right. xsolve_in_list.
+  destruct_sasinfo. simpl in *. inv EQ.
+  eapply NoDup_getCmdsLocs_prop; eauto.
+    solve_NoDup.
+    solve_in_list.
+Qed.
+
+Lemma SAS_blockInFdefB: forall pinfo sasinfo,
+  blockInFdefB (SAS_block pinfo sasinfo) (PI_f pinfo) = true.
+Proof.
+  intros.
+  destruct_sasinfo. auto.
+Qed.
+
+Lemma SAS_block_inv1: forall l1 ps1 cs11 t1 v1 v2 cs tmn2 align0 pinfo
+  sasinfo (Huniq: uniqFdef (PI_f pinfo))
+  (EQ : block_intro l1 ps1
+         (cs11 ++
+          insn_store (SAS_sid1 pinfo sasinfo) t1 v1 v2 align0 :: cs) tmn2 =
+        SAS_block pinfo sasinfo),
+  insn_store (SAS_sid1 pinfo sasinfo) t1 v1 v2 align0 =
+    insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
+      (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) 
+      (PI_align pinfo) /\
+  exists cs3, 
+    cs = 
+     SAS_tail pinfo sasinfo ++
+     insn_store (SAS_sid2 pinfo sasinfo) (PI_typ pinfo) 
+       (SAS_value2 pinfo sasinfo) (value_id (PI_id pinfo)) (PI_align pinfo) 
+     :: cs3.
+Proof.
+  intros.  
+  assert (blockInFdefB (SAS_block pinfo sasinfo) (PI_f pinfo)) as HBinF.
+    apply SAS_blockInFdefB; auto.
+  assert (EQ':=HBinF). rewrite <- EQ in EQ'.
+  eapply lookup_SAS_lid1__store with (sasinfo:=sasinfo) in EQ'; 
+    simpl; eauto using in_middle.
+  inv EQ'.
+  split; auto.
+  destruct_sasinfo. simpl in *. clear HBinF.
+  inv EQ.
+  apply NoDup_cmds_split_middle in H2; auto.
+    destruct H2; subst.
+    exists SAS_cs3. auto.
+    
+    rewrite H2.
+    solve_NoDup.
 Qed.
 
 Lemma SAS_sid1_is_in_SAS_tail: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
   (tmn2 : terminator) (lc2 : Opsem.GVsMap) (als2 : list mblock) (los : layouts)
   (nts : namedts) (B : block) (align0 : align) (v1 : value) (cs : list cmd)
-  (b' : Values.block)
+  (b' : Values.block) (Huniq: uniqFdef (PI_f pinfo)) 
+  (HBinF: blockInFdefB B (PI_f pinfo) = true)
   (Heq3 : exists l1 : l,
            exists ps1 : phinodes,
              exists cs11 : list cmd,
@@ -278,26 +400,22 @@ Proof.
               insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) v1
               (value_id (PI_id pinfo)) align0 :: cs) tmn2 = 
             SAS_block pinfo sasinfo) as EQ.
-    admit. (* uniqness SAS *)
+    apply SAS_block_spec; auto.
+    simpl. repeat simpl_locs. left.
+    xsolve_in_list.
   simpl.
   split; auto.
     unfold cs_follow_dead_store.
     rewrite <- EQ.
     intros.
-    clear - EQ H.
-    destruct sasinfo. simpl in *.
-    destruct SAS_prop0 as [J1 [J2 J3]].
-    subst.
-    destruct J3 as [cs5 [cs4 J3]].
-    assert (cs11 = cs1 /\ cs = SAS_tail0 ++ cs3) as EQ'.
-      admit. (* uniqness *)
-    destruct EQ'; subst. clear H.
-    assert (cs5 = cs1 /\ SAS_tail0 ++ 
-             insn_store SAS_sid4 (PI_typ pinfo) SAS_value3
-               (value_id (PI_id pinfo)) (PI_align pinfo) :: cs4 = cs3) as EQ'.
-      admit. (* uniqness *)
-    destruct EQ'; subst. clear J3.
-    exists nil. exists SAS_tail0. simpl_env. auto.
+    eapply SAS_block_inv1 in EQ; eauto.
+    destruct EQ as [EQ1 EQ2]. inv EQ1.
+    destruct EQ2 as [cs4 EQ2]; subst.
+    exists nil. exists (SAS_tail pinfo sasinfo).
+    split; auto.
+      apply NoDup_cmds_split_middle in H; auto.
+        destruct H; auto.
+        solve_NoDup.
 Qed.
 
 Lemma cmds_simulation_elim_cons_inv: forall (pinfo : PhiInfo) sasinfo
@@ -370,21 +488,20 @@ Proof.
     inv J3.      
 Qed.
 
-Lemma cs_follow_dead_store_tail: forall pinfo sasinfo c cs,
+Lemma cs_follow_dead_store_tail: forall pinfo sasinfo c cs 
+  (Huniq: uniqFdef (PI_f pinfo)),
   getCmdLoc c <> SAS_sid2 pinfo sasinfo ->
   cs_follow_dead_store pinfo sasinfo (c :: cs) ->
   cs_follow_dead_store pinfo sasinfo cs.
 Proof.
   unfold cs_follow_dead_store.
-  destruct sasinfo. simpl. intros.
-  destruct SAS_block0.
-  intros.
-  destruct SAS_prop0 as [EQ1 [EQ2 [cs4 [cs2 EQ3]]]]; subst.
-  assert (cs4 = cs1 /\
-          cs3 = insn_store SAS_sid4 (PI_typ pinfo) SAS_value4
-                  (value_id (PI_id pinfo)) (PI_align pinfo) :: cs2) as EQ.
-    admit. (* uniqness *)
-  destruct EQ as [EQ3 EQ4]; subst.
+  intros. 
+  remember (SAS_block pinfo sasinfo) as R.
+  destruct R as [? ? cs0 ?]. intros. subst.
+  eapply SAS_block_inv1 in HeqR; eauto.
+  destruct HeqR as [EQa [cs4 EQb]]; subst.
+  inv EQa. 
+  apply app_inv_head in EQb. subst. 
   edestruct H0 as [csa [csb [J1 J2]]]; subst; eauto.
   destruct csb.
     inv J1. contradict H; auto.
@@ -392,7 +509,20 @@ Proof.
     inv J1. exists (csa++[c0]). exists csb. simpl_env. split; auto.
 Qed.
 
+Lemma list_prop1: forall A (l1 l3 l4:list A) a2 a5,
+  l1 ++ [a2] ++ l3 = l4 ++ [a5] ->
+  exists l6, [a2] ++ l3 = l6 ++ [a5].
+Proof.
+  induction l1; simpl; intros.
+    exists l4. auto.
+
+    destruct l4; inv H.
+      anti_simpl_env.
+      simpl in *. apply IHl1 in H2; auto.
+Qed.
+
 Lemma cs_follow_dead_store_tail': forall pinfo sasinfo c cs
+  (Huniq: uniqFdef (PI_f pinfo))
   (Hex: exists l0, exists ps0, exists tmn0, exists cs0,
           SAS_block pinfo sasinfo = block_intro l0 ps0 (cs0++c::cs) tmn0),
   getCmdLoc c <> SAS_sid1 pinfo sasinfo ->
@@ -400,37 +530,41 @@ Lemma cs_follow_dead_store_tail': forall pinfo sasinfo c cs
   cs_follow_dead_store pinfo sasinfo (c :: cs).
 Proof.
   unfold cs_follow_dead_store.
-  destruct sasinfo. simpl. intros.
-  destruct SAS_block0.
-  intros.
-  destruct SAS_prop0 as [EQ1 [EQ2 [cs4 [cs2 EQ3]]]]; subst.
-  assert (cs4 = cs1 /\
-          cs3 = insn_store SAS_sid4 (PI_typ pinfo) SAS_value4
-                  (value_id (PI_id pinfo)) (PI_align pinfo) :: cs2) as EQ.
-    admit. (* uniqness *)
-  destruct EQ as [EQ3 EQ4]; subst.
-  apply_clear H0 in H1.
-  destruct H1 as [csa [csb [J1 J2]]]; subst.
+  intros. 
+  remember (SAS_block pinfo sasinfo) as R.
+  destruct R as [? ? cs0 ?]. intros. subst.
+  eapply SAS_block_inv1 in HeqR; eauto.
+  destruct HeqR as [EQa [cs4 EQb]]; subst.
+  inv EQa. 
+  apply app_inv_head in EQb. subst.
+  edestruct H0 as [csa [csb [J1 J2]]]; eauto; subst. clear H0.
   destruct Hex as [l1 [ps0 [tmn0 [cs0 Hex]]]].
   inv Hex.
-  simpl_env in H3.
+  simpl_env in H3. rewrite J2 in H3.
+  anti_simpl_env. 
   destruct csa.
-    assert (c = insn_store SAS_sid3 (PI_typ pinfo) SAS_value3
-                  (value_id (PI_id pinfo)) (PI_align pinfo)) as EQ.
-      anti_simpl_env. auto.
-    subst. simpl in H. congruence.
+    simpl_env in H3.
+    anti_simpl_env.  
+    simpl in H. congruence.
 
     assert (exists csa', c0 :: csa = csa' ++ [c]) as EQ.
-      admit. (* list *)
+      anti_simpl_env.
+    
+      match goal with
+      | H: ((?A ++ [?b]) ++ [?c]) ++ ?D = _ |- _ =>
+           rewrite_env ((A ++ [b]) ++ [c] ++ D) in H
+      end.
+      eapply list_prop1; eauto.
     destruct EQ as [csa' EQ].
-    rewrite EQ.
+    rewrite J2. rewrite EQ.
     exists csa'. exists (c::csb).
     simpl_env.
     split; auto.
 Qed.
 
 Lemma EC_follow_dead_store_tail: forall pinfo sasinfo c cs B tmn3 lc1 als3 als3'
-  lc2 F (Heq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid2 pinfo sasinfo),
+  lc2 F (Heq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid2 pinfo sasinfo)
+  (Huniq: uniqFdef F),
   ~ EC_follow_dead_store pinfo sasinfo
       {| Opsem.CurFunction := F;
          Opsem.CurBB := B;
@@ -451,12 +585,13 @@ Proof.
   destruct J as [J1 [J2 J3]]. simpl in *.
   split; auto.
   split; auto.
-    simpl.
+    simpl. subst.
     eapply cs_follow_dead_store_tail; eauto.
 Qed.
 
 Lemma EC_follow_dead_store_tail':forall pinfo sasinfo c cs B tmn3 lc1 als3 als3'
-  lc2 F (Heq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid2 pinfo sasinfo),
+  lc2 F (Heq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid2 pinfo sasinfo)
+  (Huniq: uniqFdef F),
   EC_follow_dead_store pinfo sasinfo
       {| Opsem.CurFunction := F;
          Opsem.CurBB := B;
@@ -476,7 +611,7 @@ Proof.
   destruct H as [J1 [J2 J3]]. simpl in *. subst.
   split; auto.
   split; auto.
-    simpl.
+    simpl. subst.
     eapply cs_follow_dead_store_tail; eauto.
 Qed.
 
@@ -484,7 +619,8 @@ Lemma EC_follow_dead_store_tail'':forall pinfo sasinfo c cs B tmn3 lc1 als3 als3
   lc2 F
   (Hex: exists l0, exists ps0, exists cs0,
           B = block_intro l0 ps0 (cs0++c::cs) tmn3)
-  (Heq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid1 pinfo sasinfo),
+  (Heq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid1 pinfo sasinfo)
+  (Huniq: uniqFdef F),
   EC_follow_dead_store pinfo sasinfo
       {| Opsem.CurFunction := F;
          Opsem.CurBB := B;
@@ -504,7 +640,7 @@ Proof.
   destruct H as [J1 [J2 J3]]. simpl in *. subst.
   split; auto.
   split; auto.
-    simpl.
+    simpl. subst.
     eapply cs_follow_dead_store_tail'; eauto.
     destruct Hex as [l0 [ps0 [cs0 Hex]]].
     rewrite Hex. eauto.
@@ -733,6 +869,7 @@ Lemma in_SAS_tail_update :
   (Hp: PI_f pinfo = F -> 
        lookupAL (GVsT DGVs) lc2 (PI_id pinfo) =
          lookupAL (GVsT DGVs) lc1 (PI_id pinfo))
+  (Huniq: uniqFdef F)
   (H1: in_SAS_tail pinfo sasinfo omb TD 
       {| Opsem.CurFunction := F;
          Opsem.CurBB := B;
@@ -752,12 +889,12 @@ Proof.
   destruct H1 as [H11 H12].
   split; simpl in *; intros H.
     assert (W:=H). destruct W as [W _]. simpl in W.
-    rewrite Hp; try congruence.
+    rewrite Hp; try congruence. subst.
     apply EC_follow_dead_store_tail' with (lc1:=lc1)(als3:=als3) in H; auto.
     apply H11; auto.
 
     apply H12.
-    intro G. apply H.
+    intro G. apply H. 
     eapply EC_follow_dead_store_tail''; eauto.
 Qed.
 
@@ -770,6 +907,7 @@ Lemma mem_simulation_update_locals :
   (Hp: PI_f pinfo = F -> 
        lookupAL (GVsT DGVs) lc1 (PI_id pinfo) =
          lookupAL (GVsT DGVs) lc2 (PI_id pinfo))
+  (Huniq: uniqFdef F)
   (Hmsim: mem_simulation pinfo sasinfo TD 
             ({| Opsem.CurFunction := F;
                 Opsem.CurBB := B;
@@ -1020,14 +1158,62 @@ Proof.
     rewrite J2 in H3. rewrite <- H3' in H3. inv H3. auto.
 Qed.
 
+Lemma list_prop2: forall A (l2:list A) (H: (length l2 > 0)%nat),
+  exists l1, exists b2, l2 = l1 ++ [b2].
+Proof.
+  induction l2; simpl; intros.
+    contradict H. omega.
+
+    destruct l2.
+      exists nil. exists a. auto.
+
+      destruct IHl2 as [l1 [b2 J]]; simpl; try omega.
+      rewrite J.
+      exists (a::l1). exists b2. simpl_env. auto.
+Qed.
+    
+Lemma list_prop3: forall A (a1:A) l2,
+  exists l1, exists b2, a1 :: l2 = l1 ++ [b2].
+Proof.
+  intros.
+  apply list_prop2. simpl. omega.
+Qed.
+
 Lemma list_suffix_dec: forall A (Hdec: forall (x y : A), {x = y}+{x <> y})
   (l1 l2: list A), (exists l3, l1 = l3 ++ l2) \/ (~ exists l3, l1 = l3 ++ l2).
-Admitted. (* list *)
+Proof.
+  induction l2; simpl; eauto.
+    destruct IHl2 as [IHl2 | IHl2].
+      destruct IHl2 as [l3 IHl2]; subst.
+      destruct l3.
+        right.
+        intro J. destruct J as [l3 J].
+        anti_simpl_env.
+
+        destruct (@list_prop3 _ a0 l3) as [l4 [b5 J]].
+        rewrite J.
+        destruct (@Hdec b5 a); subst.
+          left. exists l4. simpl_env. auto.
+          right. intro J'. destruct J' as [l6 J'].
+          simpl_env in J'. anti_simpl_env. auto.
+
+
+      right. intro J. apply IHl2.
+      destruct J as [l3 J]; subst.
+      exists (l3 ++ [a]). simpl_env. auto.
+Qed.
+
+Definition uniqEC (EC: @Opsem.ExecutionContext DGVs) : Prop :=
+uniqFdef (Opsem.CurFunction EC) /\
+exists l0, exists ps0, exists cs0,
+  Opsem.CurBB EC = block_intro l0 ps0 (cs0 ++ Opsem.CurCmds EC)
+    (Opsem.Terminator EC).
 
 Lemma cs_follow_dead_store_dec: forall (pinfo : PhiInfo) 
   (sasinfo : SASInfo pinfo) (EC : @Opsem.ExecutionContext DGVs)
-  (Ha : Opsem.CurFunction EC = PI_f pinfo)
-  (Hb : Opsem.CurBB EC = SAS_block pinfo sasinfo),
+  (Ha : Opsem.CurFunction EC = PI_f pinfo) 
+  (Hb : Opsem.CurBB EC = SAS_block pinfo sasinfo)
+  (Huniq: uniqEC EC),
   cs_follow_dead_store pinfo sasinfo (Opsem.CurCmds EC) \/
     ~ cs_follow_dead_store pinfo sasinfo (Opsem.CurCmds EC).
 Proof.
@@ -1039,7 +1225,8 @@ Proof.
   destruct SAS_block0.
   destruct J3 as [cs1 [cs3 J3]]; subst. 
   unfold cs_follow_dead_store. simpl.
-  clear.
+  destruct Huniq as [Huniq Hex].
+  clear - Hex J1 Huniq. simpl in *.
   destruct (@list_suffix_dec _ cmd_dec CurCmds
     (insn_store SAS_sid4 PI_typ SAS_value4 (value_id PI_id) PI_align :: cs3))
     as [J | J].
@@ -1050,7 +1237,11 @@ Proof.
       intros.
       assert (cs2=insn_store SAS_sid4 PI_typ SAS_value4 (value_id PI_id) PI_align
                     :: cs3 ) as EQ.
-        admit. (* uniqness *)
+        apply NoDup_cmds_split_middle in H; auto.
+        destruct H; subst.
+        apply app_inv_head in H0. auto.
+
+        solve_NoDup.
       subst.
       exists l4. exists l3. auto.
 
@@ -1059,9 +1250,17 @@ Proof.
       destruct (@J cs1 
                    (insn_store SAS_sid4 PI_typ SAS_value4 
                      (value_id PI_id) PI_align :: cs3))
-        as [csa1 [csb1 [J1 J2]]]; subst; auto.
+        as [csa1 [csb1 [J1' J2]]]; subst; auto.
       clear J.
-      assert (l3 = csb1) as EQ. admit. (* list *)
+      assert (l3 = csb1) as EQ. 
+        apply NoDup_cmds_split_middle in J1'; auto.
+          destruct J1'; auto.
+          rewrite J1'.
+          destruct Hex as [l0 [ps0 [cs0 Hex]]].
+          rewrite Hex in J1. rewrite <- J1'.
+
+          apply uniqFdef__uniqBlockLocs in J1; auto.
+          simpl in J1. simpl_locs_in_ctx. split_NoDup. auto.
       subst.
       apply J'. exists csa1. auto.
 
@@ -1070,12 +1269,13 @@ Proof.
     destruct (@J' cs1 
                   (insn_store SAS_sid4 PI_typ SAS_value4 
                     (value_id PI_id) PI_align :: cs3))
-      as [csa1 [csb1 [J1 J2]]]; subst; auto.
+      as [csa1 [csb1 [J1' J2]]]; subst; auto.
     clear J'.
     apply J. exists csb1. auto.
 Qed.
 
-Lemma EC_follow_dead_store_dec: forall pinfo sasinfo EC, 
+Lemma EC_follow_dead_store_dec: forall pinfo sasinfo EC
+  (Huniq: uniqEC EC),
   EC_follow_dead_store pinfo sasinfo EC \/ 
     ~ EC_follow_dead_store pinfo sasinfo EC.
 Proof.
@@ -1085,16 +1285,17 @@ Proof.
     try solve [right; tauto].
   destruct (block_dec (Opsem.CurBB EC) (SAS_block pinfo sasinfo)); 
     try solve [right; tauto].
-  destruct (cs_follow_dead_store_dec pinfo sasinfo EC e e0);
+  destruct (cs_follow_dead_store_dec pinfo sasinfo EC e e0 Huniq);
     try solve [right; tauto | auto].
 Qed.
 
-Lemma in_SAS_tail_ex: forall pinfo sasinfo TD EC,
+Lemma in_SAS_tail_ex: forall pinfo sasinfo TD EC
+  (Huniq: uniqEC EC),
   exists omb, in_SAS_tail pinfo sasinfo omb TD EC.
 Proof.
   unfold in_SAS_tail.
   intros.
-  destruct (@EC_follow_dead_store_dec pinfo sasinfo EC).
+  destruct (@EC_follow_dead_store_dec pinfo sasinfo EC Huniq).
     destruct (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) 
       as [[|[[]][]]|]; eauto.
     exists (Some b). tauto.
@@ -1104,17 +1305,21 @@ Proof.
     exists None. tauto.
 Qed.
 
-Lemma in_SAS_tails_ex: forall pinfo sasinfo TD ECs,
+Definition uniqECs (ECs: list (@Opsem.ExecutionContext DGVs)) : Prop :=
+List.Forall uniqEC ECs.
+
+Lemma in_SAS_tails_ex: forall pinfo sasinfo TD ECs (Huniq: uniqECs ECs),
   exists ombs, in_SAS_tails pinfo sasinfo ombs TD ECs.
 Proof.
   unfold in_SAS_tails.
-  induction ECs; simpl; eauto.
-    destruct IHECs as [ombs IHECs].
-    destruct (@in_SAS_tail_ex pinfo sasinfo TD a) as [omb J].
+  induction 1; simpl; eauto.
+    destruct IHHuniq as [ombs IHECs].
+    destruct (@in_SAS_tail_ex pinfo sasinfo TD x H) as [omb J].
     exists (omb::ombs). constructor; auto.
 Qed.
 
 Lemma mem_simulation__free_l2r' : forall TD Mem1 Mem2 Mem1' ECs pinfo sasinfo ptr
+  (Huniq: uniqECs ECs)
   (Hmsim : mem_simulation pinfo sasinfo TD ECs Mem1 Mem2)
   (Hmlc: free TD Mem1 ptr = ret Mem1'),
   exists Mem2', free TD Mem2 ptr = ret Mem2'.
@@ -1125,7 +1330,7 @@ Proof.
   destruct Hmlc as [blk [ofs [hi [lo [H1 [H2 [H3 H4]]]]]]].
   unfold sas_mem_inj in *.
   inv_mbind.
-  destruct (@in_SAS_tails_ex pinfo sasinfo TD ECs) as [ombs J].
+  destruct (@in_SAS_tails_ex pinfo sasinfo TD ECs Huniq) as [ombs J].
   apply_clear J3 in J.
   eapply SASmsim.free_inj_l2r with (delta:=0)(b1:=blk)(b2:=blk) in J; 
       eauto using SASmsim.inject_id_no_overlap, SASmsim.inject_id_zero_delta.
@@ -1138,7 +1343,7 @@ Proof.
 Qed.
 
 Lemma mem_simulation__free_l2r : forall TD Mem1 Mem2 Mem1'
-  ECs1 pinfo sasinfo EC EC' ptr
+  ECs1 pinfo sasinfo EC EC' ptr (Huniq: uniqECs (EC::ECs1))
   (Hp: forall omb,
        in_SAS_tail pinfo sasinfo omb TD EC' ->
        in_SAS_tail pinfo sasinfo omb TD EC)
@@ -1227,7 +1432,7 @@ Lemma mem_simulation__return: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
   (nts : namedts) (F : fdef) (rid : id) tmn (F' : fdef) (B' : block) (i0 : id)
   (n : noret) (c : clattrs) (v : value) (p : params) (cs' : list cmd)
   (EC : list Opsem.ExecutionContext) (Mem : mem) (l3 : l) (ps3 : phinodes)
-  (cs0 : list cmd) (Mem' : mem)
+  (cs0 : list cmd) (Mem' : mem) (Huniq: uniqFdef F')
   (H0 : free_allocas (los, nts) Mem als2 = ret Mem')
   (Heq3' : exists l1 : l,
             exists ps1 : phinodes,
@@ -1401,7 +1606,7 @@ Lemma in_SAS_tail__wf_ECStack_head_in_tail__no_alias_with_blk: forall
   (gv2 : GVsT DGVs) S los nts Ps (Mem : Mem.mem) F t v gl
   (Hwfv: wf_value S (module_intro los nts Ps) F v t)
   (maxb : Values.block) (Hget : getOperandValue (los,nts) v lc2 gl = ret gv2)
-  (EC : Opsem.ExecutionContext) (mb : mblock)
+  (EC : Opsem.ExecutionContext) (mb : mblock) (Huniq: uniqEC EC)
   (H : in_SAS_tail pinfo sasinfo (ret mb) (los,nts) EC)
   (Hwfg: MemProps.wf_globals maxb gl)
   (Hnals1 : 
@@ -1411,7 +1616,7 @@ Proof.
   intros.
   destruct H as [H1 H2]. simpl in *.
   unfold Promotability.wf_ECStack_head_in_tail in Hnals1.
-  destruct (@EC_follow_dead_store_dec pinfo sasinfo EC) as [J | J].
+  destruct (@EC_follow_dead_store_dec pinfo sasinfo EC Huniq) as [J | J].
     assert (G:=J).
     destruct G as [J1 [J2 J3]]. simpl in *. subst.
     apply_clear H1 in J.
@@ -1428,7 +1633,7 @@ Lemma in_SAS_tails__wf_ECStack_head_tail__no_alias_with_blk:
   (Hwfg: MemProps.wf_globals maxb gl) v S
   (Hwfv: wf_value S (module_intro los nts Ps) F v t)
   (Hget : getOperandValue (los,nts) v lc2 gl = ret gv2) EC ombs
-  (Hsas: in_SAS_tails pinfo sasinfo ombs (los,nts) EC)
+  (Hsas: in_SAS_tails pinfo sasinfo ombs (los,nts) EC) (Huniq: uniqECs EC)
   (Hnals: Promotability.wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc2 EC),
   List.Forall (fun re => 
                let '(mb,_,_) := re in
@@ -1438,7 +1643,8 @@ Proof.
   induction Hsas; simpl; intros; auto.
     apply Promotability.wf_ECStack_head_tail_cons__inv in Hnals.
     destruct Hnals as [Hnals1 Hals2].
-    apply_clear IHHsas in Hals2.
+    inv Huniq.
+    apply_clear IHHsas in Hals2; auto.
     destruct y as [mb|]; auto.
     constructor; auto.
     eapply in_SAS_tail__wf_ECStack_head_in_tail__no_alias_with_blk; eauto.
@@ -1454,13 +1660,13 @@ Lemma unused_pid_in_SAS_tail__wf_defs__no_alias_with_blk: forall pinfo F los nts
   (Hget : getOperandValue (los,nts) v lc2 gl = ret gv2) mb
   (Hneq: used_in_value (PI_id pinfo) v = false)
   (Heq1: Opsem.CurFunction EC = F) (Heq2: Opsem.Locals EC = lc2)
-  (Heq3: Opsem.Allocas EC = als2) sasinfo
+  (Heq3: Opsem.Allocas EC = als2) sasinfo (Huniq: uniqEC EC)
   (Hsas: in_SAS_tail pinfo sasinfo (Some mb) (los,nts) EC),
   MemProps.no_alias_with_blk gv2 mb.
 Proof.
   intros.
   destruct Hsas as [J1 J2].
-  destruct (@EC_follow_dead_store_dec pinfo sasinfo EC) as [J | J].
+  destruct (@EC_follow_dead_store_dec pinfo sasinfo EC Huniq) as [J | J].
     assert (G:=J).
     destruct G as [J4 [J5 J3]]. simpl in *. subst.
     destruct (fdef_dec (PI_f pinfo) (Opsem.CurFunction EC)); try congruence.
@@ -1473,22 +1679,8 @@ Proof.
     apply_clear J2 in J. congruence.
 Qed.
 
-Lemma load_in_cmds_true: forall id1 id0 t align0 csb csa,
-  load_in_cmds id1 (csa ++ insn_load id0 t (value_id id1) align0 :: csb) = true.
-Proof.
-  unfold load_in_cmds.
-  intros.
-  generalize false.
-  induction csa; simpl; intros; eauto.
-    destruct (id_dec id1 id1); try congruence. 
-    simpl.
-    rewrite orb_true_intro; auto.
-    apply fold_left_or_spec.
-    intros. subst. auto.
-Qed.
-
 Lemma load_pid_isnt_in_SAS_tail: forall pinfo sasinfo TD v t id0 align0 cs EC 
-  (Hneq: used_in_value (PI_id pinfo) v = true)
+  (Hneq: used_in_value (PI_id pinfo) v = true) (Huniq: uniqEC EC)
   (Heq: Opsem.CurCmds EC = insn_load id0 t v align0 :: cs),
   in_SAS_tail pinfo sasinfo None TD EC.
 Proof.
@@ -1496,7 +1688,7 @@ Proof.
   simpl. intros.
   destruct v; inv Hneq.
   destruct (id_dec id5 (PI_id pinfo)); subst; inv H0.
-  destruct (@EC_follow_dead_store_dec pinfo sasinfo EC) as [J | J].
+  destruct (@EC_follow_dead_store_dec pinfo sasinfo EC Huniq) as [J | J].
     elimtype False.
     destruct J as [J1 [J2 J3]].
     unfold cs_follow_dead_store in J3.
@@ -1520,7 +1712,7 @@ Lemma in_SAS_tails__notin_ignores_with_size': forall maxb pinfo sasinfo
   (Hnals: Promotability.wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc2 EC)
   (Hwfg: MemProps.wf_globals maxb gl) S Ps t v F 
   (Hwfv: wf_value S (module_intro los nts Ps) F v (typ_pointer t))
-  b' ofs' m'
+  b' ofs' m' (Huniq: uniqECs EC)
   (Hget: getOperandValue (los,nts) v lc2 gl = Some ((Vptr b' ofs', m')::nil)) ombs size'
   (Hin: in_SAS_tails pinfo sasinfo ombs (los,nts) EC) size,
   SASmsim.notin_ignores_with_size (ombs__ignores size' ombs) b'
@@ -1532,14 +1724,14 @@ Proof.
   eapply SASmsim.no_alias_with_blk__notin_ignores_with_size; eauto.
 Qed.   
 
-Lemma in_SAS_tail_dec: forall pinfo sasinfo TD EC mb
+Lemma in_SAS_tail_dec: forall pinfo sasinfo TD EC mb (Huniq: uniqEC EC)
   (Hnone: in_SAS_tail pinfo sasinfo None TD EC)
   (Hsome: in_SAS_tail pinfo sasinfo (Some mb) TD EC),
   False.
 Proof.
   unfold in_SAS_tail.
   intros.
-  destruct (@EC_follow_dead_store_dec pinfo sasinfo EC) as [J | J].
+  destruct (@EC_follow_dead_store_dec pinfo sasinfo EC Huniq) as [J | J].
     assert (J':=J).
     apply Hnone in J. 
     apply Hsome in J'. 
@@ -1554,7 +1746,7 @@ Proof.
 Qed.
 
 Lemma in_SAS_tails__notin_ignores_with_size: forall maxb pinfo sasinfo 
-  los nts Mem lc2 EC gl
+  los nts Mem lc2 EC gl 
   (Hnals: Promotability.wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc2 EC)
   (Hwfg: MemProps.wf_globals maxb gl) S Ps als2 tmn2 id0 t align0 v cs B F
   (Hwfv: wf_value S (module_intro los nts Ps) F v (typ_pointer t))
@@ -1569,12 +1761,18 @@ Lemma in_SAS_tails__notin_ignores_with_size: forall maxb pinfo sasinfo
          Opsem.CurCmds := insn_load id0 t v align0 :: cs;
          Opsem.Terminator := tmn2;
          Opsem.Locals := lc2;
-         Opsem.Allocas := als2 |} :: EC)) size,
+       Opsem.Allocas := als2 |} :: EC)) 
+  (Huniq: uniqECs ({| Opsem.CurFunction := F;
+                      Opsem.CurBB := B;
+                      Opsem.CurCmds := insn_load id0 t v align0 :: cs;
+                      Opsem.Terminator := tmn2;
+                      Opsem.Locals := lc2;
+                      Opsem.Allocas := als2 |} :: EC)) size,
   SASmsim.notin_ignores_with_size (ombs__ignores size' ombs) b'
      (Int.signed 31 ofs') size.
 Proof.
-  intros.
-  inv Hin. simpl.
+  intros. 
+  inv Hin. simpl. inv Huniq.
   eapply in_SAS_tails__notin_ignores_with_size' with (size:=size)(size':=size') 
     in H3; eauto.
   destruct y as [mb|]; auto.
@@ -1589,7 +1787,7 @@ Proof.
              Opsem.Terminator := tmn2;
              Opsem.Locals := lc2;
              Opsem.Allocas := als2 |}) as Hin.
-      eapply load_pid_isnt_in_SAS_tail; simpl; eauto.
+        eapply load_pid_isnt_in_SAS_tail; simpl; eauto.
       apply in_SAS_tail_dec in H1; auto.
       
       eapply unused_pid_in_SAS_tail__wf_defs__no_alias_with_blk in H1; eauto.
@@ -1613,6 +1811,12 @@ Lemma mem_simulation__mload: forall (maxb : Z) (pinfo : PhiInfo)
              Opsem.Terminator := tmn2;
              Opsem.Locals := lc2;
              Opsem.Allocas := als2 |} :: EC) Mem M2)
+  (Huniq: uniqECs ({| Opsem.CurFunction := F;
+                      Opsem.CurBB := B;
+                      Opsem.CurCmds := insn_load id0 t v align0 :: cs;
+                      Opsem.Terminator := tmn2;
+                      Opsem.Locals := lc2;
+                      Opsem.Allocas := als2 |} :: EC))
   (Hinscope' : if fdef_dec (PI_f pinfo) F
               then Promotability.wf_defs maxb pinfo (los, nts) Mem lc2 als2
               else True)
@@ -1638,7 +1842,7 @@ Proof.
                  Opsem.CurCmds := insn_load id0 t v align0 :: cs;
                  Opsem.Terminator := tmn2;
                  Opsem.Locals := lc2;
-                 Opsem.Allocas := als2 |} :: EC)) as [ombs Hin].
+                 Opsem.Allocas := als2 |} :: EC) Huniq) as [ombs Hin].
   assert (G:=Hin).
   apply_clear Hmsim2 in Hin.
   eapply SASmsim.mload_aux_inject_id_inj2; eauto.
@@ -1664,7 +1868,13 @@ Qed.
 
 Lemma mem_simulation__call: forall pinfo sasinfo TD EC ECs M1 M2
   (Hmsim : mem_simulation pinfo sasinfo TD (EC :: ECs) M1 M2)
-  (l'0 : l) (ps'0 : phinodes) (tmn'0 : terminator) als' lc' F cs',
+  (l'0 : l) (ps'0 : phinodes) (tmn'0 : terminator) als' lc' F cs'
+  (Huniq: uniqEC {| Opsem.CurFunction := F;
+                    Opsem.CurBB := block_intro l'0 ps'0 cs' tmn'0;
+                    Opsem.CurCmds := cs';
+                    Opsem.Terminator := tmn'0;
+                    Opsem.Locals := lc';
+                    Opsem.Allocas := als' |}),
   mem_simulation pinfo sasinfo TD
     ({| Opsem.CurFunction := F;
         Opsem.CurBB := block_intro l'0 ps'0 cs' tmn'0;
@@ -1677,7 +1887,7 @@ Proof.
   destruct Hmsim as [Hmsim1 [Hmsim3 Hmsim2]].
   split; auto.
   split; auto.
-     clear - Hmsim2.
+     clear - Hmsim2 Huniq.
      unfold sas_mem_inj in *.
      inv_mbind. 
      intros ombs Hin'.
@@ -1698,6 +1908,44 @@ Proof.
        apply Hmsim2; auto.
 Qed.
 
+Lemma SAS_block_inv2: forall l1 ps1 cs11 t1 v1 v2 cs tmn2 align0 pinfo
+  sasinfo (Huniq: uniqFdef (PI_f pinfo))
+  (EQ : block_intro l1 ps1
+         (cs ++
+          insn_store (SAS_sid2 pinfo sasinfo) t1 v1 v2 align0 :: cs11) tmn2 =
+        SAS_block pinfo sasinfo),
+  insn_store (SAS_sid2 pinfo sasinfo) t1 v1 v2 align0 =
+    insn_store (SAS_sid2 pinfo sasinfo) (PI_typ pinfo) 
+      (SAS_value2 pinfo sasinfo) (value_id (PI_id pinfo)) 
+      (PI_align pinfo) /\
+  exists cs3, 
+    cs = 
+     cs3 ++
+     insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
+       (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) (PI_align pinfo) ::
+     SAS_tail pinfo sasinfo.
+Proof.
+  intros.  
+  assert (blockInFdefB (SAS_block pinfo sasinfo) (PI_f pinfo)) as HBinF.
+    apply SAS_blockInFdefB; auto.
+  assert (EQ':=HBinF). rewrite <- EQ in EQ'.
+  eapply lookup_SAS_lid2__store with (sasinfo:=sasinfo) in EQ'; 
+    simpl; eauto using in_middle.
+  inv EQ'.
+  split; auto.
+  destruct_sasinfo. simpl in *. clear HBinF.
+  inv EQ.
+  match goal with
+  | H: _ = ?A ++ ?b :: ?C ++ ?d :: ?E |- _ =>
+     rewrite_env ((A ++ b :: C) ++ d :: E) in H
+  end.
+  apply NoDup_cmds_split_middle in H2; auto.
+    destruct H2; subst.
+    exists SAS_cs1. auto.
+    
+    rewrite H2. simpl_env. simpl. solve_NoDup.
+Qed.
+
 Lemma SAS_sid2_isnt_in_SAS_tail: forall (pinfo : PhiInfo) 
   (sasinfo : SASInfo pinfo) (tmn2 : terminator) (lc2 : Opsem.GVsMap)
   (als2 : list mblock) (los : layouts) (nts : namedts) (B : block) (t : typ)
@@ -1710,7 +1958,8 @@ Lemma SAS_sid2_isnt_in_SAS_tail: forall (pinfo : PhiInfo)
                  (cs11 ++
                   insn_store (SAS_sid2 pinfo sasinfo) t v1 v2 align0 :: cs)
                  tmn2)
-  (y : monad Values.block)
+  (y : monad Values.block) (Huniq: uniqFdef (PI_f pinfo)) 
+  (HBinF: blockInFdefB B (PI_f pinfo))
   (H1 : in_SAS_tail pinfo sasinfo y (los, nts)
          {|
          Opsem.CurFunction := PI_f pinfo;
@@ -1723,25 +1972,18 @@ Proof.
   intros.
   destruct H1 as [_ H1]. apply H1. clear H1.
   intro J.
-  clear - J Heq3.
+  clear - J Heq3 Huniq.
   destruct J as [J1 [J2 J3]]. simpl in *. subst.
   unfold cs_follow_dead_store in J3.
   destruct Heq3 as [l1 [ps1 [cs11 Heq3]]].
   rewrite Heq3 in J3. clear J1.
-  destruct sasinfo. simpl in *. subst.
-  destruct SAS_prop0 as [J4 [J5 [cs1 [cs3 J6]]]]. 
-  assert (insn_store SAS_sid4 t v1 v2 align0 :: cs = 
-          insn_store SAS_sid4 (PI_typ pinfo) SAS_value4
-            (value_id (PI_id pinfo)) (PI_align pinfo) :: cs3 /\
-          cs11 = cs1 ++
-            insn_store SAS_sid3 (PI_typ pinfo) SAS_value3 
-              (value_id (PI_id pinfo)) (PI_align pinfo)
-            :: SAS_tail0) as EQ.
-    admit. (* uniqness *)
-  destruct EQ as [EQ1 EQ2]; subst. clear J6.
+  symmetry in Heq3.
+  eapply SAS_block_inv2 in Heq3; eauto.
+  destruct Heq3 as [EQ1 [cs1 EQ2]]; subst.
   inv EQ1.
-  destruct (@J3 cs1 (insn_store SAS_sid4 (PI_typ pinfo) SAS_value4 
-                    (value_id (PI_id pinfo)) (PI_align pinfo) :: cs3))
+  destruct (@J3 cs1 (insn_store (SAS_sid2 pinfo sasinfo) (PI_typ pinfo) 
+                      (SAS_value2 pinfo sasinfo) (value_id (PI_id pinfo))
+                      (PI_align pinfo) :: cs))
     as [csa [csb [J6 J7]]]; simpl_env; auto.
     anti_simpl_env. 
 Qed.
@@ -1749,7 +1991,8 @@ Qed.
 Lemma SAS_sid2_is_in_SAS_tail: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
   (tmn2 : terminator) (lc2 : Opsem.GVsMap) (als2 : list mblock) (los : layouts)
   (nts : namedts) (B : block) (align0 : align) (v1 : value) (cs : list cmd)
-  (b' : Values.block) (cm' : AST.memory_chunk)
+  (b' : Values.block) (cm' : AST.memory_chunk) (Huniq: uniqFdef (PI_f pinfo))
+  (HBinF: blockInFdefB B (PI_f pinfo) = true)
   (Heq3 : exists l1 : l,
            exists ps1 : phinodes,
              exists cs11 : list cmd,
@@ -1785,27 +2028,22 @@ Proof.
               insn_store (SAS_sid2 pinfo sasinfo) (PI_typ pinfo) v1
               (value_id (PI_id pinfo)) align0 :: cs) tmn2 = 
             SAS_block pinfo sasinfo) as EQ.
-      admit. (* uniqness SAS *)
+      apply SAS_block_spec; auto.
+      simpl. repeat simpl_locs. right.
+      xsolve_in_list.
     split; auto.
       unfold cs_follow_dead_store.
       rewrite <- EQ.
       intros.
-      clear - EQ H.
-      destruct sasinfo. simpl in *.
-      destruct SAS_prop0 as [J1 [J2 J3]].
-      subst.
-      destruct J3 as [cs5 [cs4 J3]].
-      assert (cs11 = cs5 ++
-                insn_store SAS_sid3 (PI_typ pinfo) SAS_value3 
-                  (value_id (PI_id pinfo)) (PI_align pinfo)
-                :: SAS_tail0 /\ cs = cs4) as EQ'.
-        admit. (* uniqness *)
-      destruct EQ'; subst. clear J3.
-      assert (cs5 = cs1 /\ insn_store SAS_sid4 (PI_typ pinfo) v1
-               (value_id (PI_id pinfo)) align0 :: cs4 = cs3) as EQ'.
-        admit. (* uniqness *)
-      destruct EQ'; subst. clear H.
-      exists SAS_tail0. exists nil. simpl_env. auto.
+      eapply SAS_block_inv2 in EQ; eauto. 
+      destruct EQ as [EQ1 [cs4 EQ2]]; subst. inv EQ1.
+      exists (SAS_tail pinfo sasinfo). exists nil. 
+      simpl_env in H. simpl in H.
+      apply NoDup_cmds_split_middle in H; auto.
+        destruct H; subst. 
+        apply app_inv_head in H0. simpl_env. auto.
+
+        simpl_env in HBinF. simpl in HBinF. solve_NoDup.
 Qed.
 
 Lemma mstore_unremovable_mem_simulation: forall (maxb : Z) (pinfo : PhiInfo)
@@ -1817,6 +2055,7 @@ Lemma mstore_unremovable_mem_simulation: forall (maxb : Z) (pinfo : PhiInfo)
   (HBinF1 : blockInFdefB B F = true) (mp2 : GenericValue) (gv1 : GenericValue)
   (Mem' : mem) (H3 : mstore (los, nts) Mem mp2 t gv1 align0 = ret Mem')
   (Hwfg : wf_global (los, nts) S gl2) (Hwflc1 : OpsemPP.wf_lc (los, nts) F lc2)
+  (HuniqF: uniqFdef F) (HBinF: blockInFdefB B F)
   (Heq3 : exists l1 : l,
            exists ps1 : phinodes,
              exists cs11 : list cmd,
@@ -1895,13 +2134,15 @@ Proof.
         SSSCase "PI_f = F".
         simpl in Heq. rewrite Heq in *; auto. clear Heq.
         assert (y = None) as EQ. 
-          clear - H1 Heq3.
+          clear - H1 Heq3 HuniqF HBinF.
           eapply SAS_sid2_isnt_in_SAS_tail; eauto.
         subst. simpl.
-        assert (v2 = value_id (PI_id pinfo) /\ t = PI_typ pinfo) as EQ. 
-          clear - Heq3 HBinF1.
-          destruct Heq3 as [l1 [ps1 [cs11 Heq3]]].
-          admit. (* uniqness SAS *)
+        assert (v2 = value_id (PI_id pinfo) /\ t = PI_typ pinfo) as EQ.         
+          clear - Heq3 HBinF1 HuniqF.
+          destruct Heq3 as [l1 [ps1 [cs11 Heq3]]]. subst.
+          eapply lookup_SAS_lid2__store with (sasinfo:=sasinfo) in HBinF1; 
+            eauto using in_middle.
+          inv HBinF1. auto.
         destruct EQ; subst.
         simpl in H25.
         assert (ofs' = Int.repr 31 0) as EQ. 
@@ -1919,7 +2160,7 @@ Proof.
                     Opsem.Locals := lc2;
                     Opsem.Allocas := als2 |} :: EC)) as Hin.
           constructor; auto.
-            clear - H25 Heq3.
+            clear - H25 Heq3 HuniqF HBinF.
             eapply SAS_sid2_is_in_SAS_tail; eauto.
         apply_clear Hmsim2 in Hin. simpl in Hin.
         assert (n = sizeGenericValue gv1) as EQ. 
@@ -2028,7 +2269,10 @@ Proof.
     apply Hmsim2 in Hin. clear Hmsim2.
     simpl in Hin.
     assert (v0 = value_id (PI_id pinfo) /\ t = PI_typ pinfo) as EQ.
-      admit. (* by sasinfo *)
+      destruct Heq3 as [l1 [ps1 [cs11 Heq3]]]; subst.
+      eapply lookup_SAS_lid1__store with (sasinfo:=sasinfo) in HBinF1; 
+        eauto using in_middle.
+      inv HBinF1. auto.
     destruct EQ; subst. simpl in H20.
     assert (exists mb, mp2 = 
               ($ (blk2GV (los,nts) mb) # (typ_pointer (PI_typ pinfo)) $)) as EQ.
@@ -2067,7 +2311,8 @@ match goal with
             Opsem.Allocas:=?als'|}::_) _ _ =>
       apply mem_simulation_update_locals with (lc2:=lc') (als3':=als') in Hmsim; 
         simpl; try solve [
-          eauto using unremovable_loc__neq__SAS_sid1 |
+          eauto using unremovable_loc__neq__SAS_sid1,
+                      wf_system__uniqFdef |
           eapply unremovable_loc__neq__SAS_sid2; eauto; simpl; auto |
           intros;
           match goal with
@@ -2106,6 +2351,41 @@ Ltac dse_is_sim_malloc :=
   repeat_solve;
     eapply mem_simulation__malloc; eauto using wf_system__uniqFdef; simpl; auto.
 
+Lemma wf_EC__uniqEC: forall S los nts Ps EC
+  (HwfS : wf_system S) 
+  (HMinS : moduleInSystemB (module_intro los nts Ps) S = true)
+  (Hwfec : OpsemPP.wf_ExecutionContext (los, nts) Ps EC),
+  uniqEC EC.
+Proof.
+  destruct EC; simpl.
+  intros.
+  destruct Hwfec as [J1 [J2 [J3 [J4 [J5 J6]]]]].
+  split; eauto using wf_system__uniqFdef.
+Qed.
+
+Lemma wf_ECStack__uniqECs: forall S los nts Ps ECs
+  (HwfS : wf_system S) 
+  (HMinS : moduleInSystemB (module_intro los nts Ps) S = true)
+  (Hwf : OpsemPP.wf_ECStack (los, nts) Ps ECs),
+  uniqECs ECs.
+Proof.
+  unfold uniqECs.
+  induction ECs as [|]; simpl; intros; auto.
+    destruct Hwf as [J1 [J2 J3]].
+    constructor; eauto using wf_EC__uniqEC.
+Qed.
+
+Lemma wf_State__uniqECs: forall cfg St (Hwfc: OpsemPP.wf_Config cfg) 
+  (Hwfst: OpsemPP.wf_State cfg St), uniqECs (Opsem.ECS St).
+Proof.
+  intros.
+  destruct cfg as [? [? ?] ? ?].
+  destruct St.
+  destruct Hwfc as [? [? [? ?]]].
+  destruct Hwfst. simpl.
+  eapply wf_ECStack__uniqECs; eauto.
+Qed.
+
 Lemma sas_is_sim : forall maxb pinfo (sasinfo: SASInfo pinfo) Cfg1 St1 Cfg2 St2
   (Hwfpi: WF_PhiInfo pinfo) 
   (Hwfmg: MemProps.wf_globals maxb (OpsemAux.Globals Cfg1)) 
@@ -2131,10 +2411,9 @@ Case "removable state".
   destruct Cfg1 as [S1 [los nts] Ps1 gl1 fs1].
   destruct St1 as [ECs1 M1].
   destruct ECs1 as [|[F1 B1 [|c1 cs1] tmn1 lc1 als1] ECs1]; tinv Hrem.
-  destruct_cmd c1; tinv Hrem.
   simpl in Hrem.
   destruct (fdef_dec (PI_f pinfo) F1); subst; tinv Hrem.
-  destruct (id_dec i0 (SAS_sid1 pinfo sasinfo)); subst; tinv Hrem.
+  destruct (id_dec (SAS_sid1 pinfo sasinfo) (getCmdLoc c1)); subst; tinv Hrem.
   
   destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]].
   destruct Hwfpp as 
@@ -2151,8 +2430,6 @@ Case "removable state".
     ]; simpl in Hdisjals.
   fold Promotability.wf_ECStack in HwfECs'.
 
-  inv Hop1.
-
   destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2].
   destruct St2 as [ECs2 M2].
 
@@ -2165,10 +2442,20 @@ Case "removable state".
       [Hfsim2 [Heq1 [Heq2 [Hbsim2
         [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst.
 
+  assert (
+    c1 = insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
+         (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) (PI_align pinfo)) 
+    as EQ.
+    destruct Heq3 as [l1 [ps3 [cs11 Heq3]]]; subst.
+    eapply lookup_SAS_lid1__store; eauto using wf_system__uniqFdef, in_middle.
+  subst.
+  inv Hop1.
+
   uniq_result.
   repeat_solve.
     eapply cmds_simulation_elim_cons_inv; eauto.
-    assert (wf_value S1 (module_intro los nts Ps1) (PI_f pinfo) v t) as Hwfv.
+    assert (wf_value S1 (module_intro los nts Ps1) (PI_f pinfo)
+              (SAS_value1 pinfo sasinfo) (PI_typ pinfo)) as Hwfv.
       admit. (* wf *)
     eapply mstore_removable_mem_simulation in Hmsim;
       eauto using wf_system__uniqFdef.
@@ -2180,7 +2467,8 @@ SCase "sReturn".
 Focus.
   destruct_ctx_return.
   repeat_solve.
-    clear - H26 Hmsim H0 H1 Heq3'.
+    assert (Huniq: uniqFdef F') by eauto using wf_system__uniqFdef.
+    clear - H26 Hmsim H0 H1 Heq3' Huniq.
     eapply mem_simulation__return; eauto.
       admit. (* pid <> i0 *)
 
@@ -2190,7 +2478,8 @@ SCase "sReturnVoid".
 Focus.
   destruct_ctx_return.
   repeat_solve.
-    clear - H24 Hmsim H0 Heq3'.
+    assert (Huniq: uniqFdef F') by eauto using wf_system__uniqFdef.
+    clear - H24 Hmsim H0 Heq3' Huniq.
     eapply mem_simulation__return; eauto.
 Unfocus.
 
@@ -2276,12 +2565,15 @@ SCase "sFree".
     eapply mem_simulation__replace_head in Hmsim; eauto.
     intros omb Hin.
       eapply in_SAS_tail_update; eauto using unremovable_loc__neq__SAS_sid1, 
-                                             unremovable_loc__neq__SAS_sid2.
-        simpl. admit. (* uniqness *)
+                                             unremovable_loc__neq__SAS_sid2,
+                                             wf_system__uniqFdef.
+        simpl. admit. (* fid <> sid *)
 
 SCase "sAlloca". abstract (dse_is_sim_malloc).
 
 SCase "sLoad".
+
+  assert (HuniqECs:=Hwfpp). eapply wf_State__uniqECs in HuniqECs; eauto.
   destruct_ctx_other.
 
   apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
@@ -2292,12 +2584,12 @@ SCase "sLoad".
   assert (gv = gv0) as EQ.
     assert (wf_value S (module_intro los nts Ps) F v (typ_pointer t)) as Hwfv.
       admit. (* wf *)
-    clear - H23 Hmsim H1 H21 HwfHT Hinscope' Hwfmg Hwfv. simpl in *.
+    clear - H23 Hmsim H1 H21 HwfHT Hinscope' Hwfmg Hwfv HuniqECs. simpl in *.
     eapply mem_simulation__mload; eauto.
   subst.
   repeat_solve.
     eapply mem_simulation_update_locals in Hmsim; simpl; 
-      eauto using unremovable_loc__neq__SAS_sid1.
+      eauto using unremovable_loc__neq__SAS_sid1, wf_system__uniqFdef.
       eapply unremovable_loc__neq__SAS_sid2; eauto; simpl; auto.
       admit. (* lid <> pid *)
 
@@ -2313,8 +2605,7 @@ SCase "sStore".
   repeat_solve.
     assert (wf_value S (module_intro los nts Ps) F v1 t) as Hwfv.
       admit. (* wf *)
-    clear - Hwfv H28 H24 H3 Hwflc1 Heq3 Hmsim HBinF1 Hinscope' H25 Hwfg Hnrem.
-    eapply mstore_unremovable_mem_simulation; eauto.
+    eapply mstore_unremovable_mem_simulation; eauto using wf_system__uniqFdef.
 
 SCase "sGEP". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sTrunc". abstract (destruct_ctx_other; dse_is_sim_common_case).
@@ -2333,12 +2624,12 @@ SCase "sSelect".
   repeat_solve.
     destruct (isGVZero (los,nts) c).
       eapply mem_simulation_update_locals in Hmsim; simpl; 
-        eauto using unremovable_loc__neq__SAS_sid1.
+        eauto using unremovable_loc__neq__SAS_sid1, wf_system__uniqFdef.
         eapply unremovable_loc__neq__SAS_sid2; eauto; simpl; auto.
         simpl. intros.
         admit. (* lid <> pid *)
       eapply mem_simulation_update_locals in Hmsim; simpl;
-        eauto using unremovable_loc__neq__SAS_sid1.
+        eauto using unremovable_loc__neq__SAS_sid1, wf_system__uniqFdef.
         eapply unremovable_loc__neq__SAS_sid2; eauto; simpl; auto.
         simpl. intros.
         admit. (* lid <> pid *)
@@ -2373,16 +2664,20 @@ SCase "sCall".
   assert (Hbsim1':=Hbsim1).
   apply block_simulation_inv in Hbsim1'; auto using entryBlockInFdef.
   destruct Hbsim1' as [Heq' [Hpsim1' [Hcsim1' Htsim1']]]; subst.
-  repeat_solve.
+  assert (exists l1 : l, exists ps1 : phinodes, exists cs11 : list cmd,
+           block_intro l'0 ps'0 cs' tmn'0 =
+           block_intro l1 ps1 (cs11 ++ cs') tmn'0) as Hex.
     exists l'0. exists ps'0. exists nil. auto.
+  repeat_solve.
     exists l'0. exists ps'0. exists nil. auto.
 
     apply fdef_simulation_inv in Hfsim1.
     destruct Hfsim1 as [Heq _]. inv Heq. uniq_result.
     auto.
 
-    clear - Hmsim.
+    clear - Hmsim Huniq Hex.
     apply mem_simulation__call; auto.
+      split; simpl; auto. 
 
   SSCase "sExCall".
 
@@ -2439,7 +2734,7 @@ SCase "sExCall".
   uniq_result.
   repeat_solve.
     eapply mem_simulation_update_locals in Hmsim; simpl;
-      eauto using unremovable_loc__neq__SAS_sid1.
+      eauto using unremovable_loc__neq__SAS_sid1, wf_system__uniqFdef.
       admit. (* rid <> pid *)  admit. (* cid <> pid *)
 
 Transparent inscope_of_tmn inscope_of_cmd.

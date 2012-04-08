@@ -1237,23 +1237,6 @@ Proof.
   destruct H1 as [_ H1]. auto.
 Qed.
 
-Lemma load_notin_cmds__unused_in_value: forall vid0 id0 t v align0 cs cs11,
-  load_in_cmds vid0 (cs11 ++ insn_load id0 t v align0 :: cs) = false ->
-  used_in_value vid0 v = false.
-Proof. 
-  unfold load_in_cmds. intros.
-  remember false as R. rewrite HeqR in H at 2. rewrite HeqR. clear HeqR.
-  generalize dependent R. 
-  induction cs11; simpl; intros; eauto.
-    apply fold_left_eq in H.
-      apply orb_false_iff in H.
-      destruct H; auto.
-
-      intros a b J.
-      apply orb_false_iff in J.
-      destruct J; auto.
-Qed.
-
 Lemma load_notin_fdef__unused_in_value: forall F v t id0 align0 cs B tmn2 vid0
   (Hnld: load_in_fdef vid0 F = false) (HBinF: blockInFdefB B F = true)
   (Heq3 : exists l1 : l,

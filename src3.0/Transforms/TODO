@@ -6,7 +6,7 @@
    las laa
    STATUS: done
 
-2) properties of LASInfo/LAAInfo/SASInfo (0.5W):1D
+2) properties of LASInfo/LAAInfo/SASInfo (0.5W):1.5D
    las laa sas
    STATUS: las/laa are partially done
 
@@ -26,9 +26,10 @@
    palloca_props
    STATUS: done
 
-8) properties of find_promotable_alloca (0.5W)
+8) properties of find_promotable_alloca (0.5W):0.25D
   palloca_props promotable_props phiplacement_bsim alive_alive dae primitives 
   dse
+   STATUS: partially
 
 9) infrastructure (0.5W)
   promotable_props alive_store dae program_sim

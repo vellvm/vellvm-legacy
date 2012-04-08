@@ -463,7 +463,23 @@ Lemma find_st_ld__lasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
     LAS_sid pinfo lasinfo = i0 /\
     LAS_value pinfo lasinfo = v /\
     LAS_block pinfo lasinfo = (block_intro l0 ps0 cs0 tmn0).
-Admitted. (* lasinfo *)
+Proof.
+  intros.
+  assert (exists tail, las i1 i0 v tail (block_intro l0 ps0 cs0 tmn0) pinfo)
+    as Hlas. 
+    unfold las.
+    apply find_init_stld_inl_spec in Hst.
+    destruct Hst as [cs1 Hst]; subst.
+    apply find_next_stld_inl_spec in Hld.
+    destruct Hld as [cs2 [cs3 [Hld J]]]; subst.
+    exists cs2.
+    split; auto.
+    split; auto.
+    exists cs1. exists cs3. auto.
+  destruct Hlas as [tail Hlas].
+  exists (mkLASInfo pinfo i1 i0 v tail (block_intro l0 ps0 cs0 tmn0) Hlas).
+  auto.
+Qed.
 
 Lemma las_is_bsim : forall pinfo lasinfo Cfg1 St1 Cfg2 St2 St2' tr2 
   (Hwfpi: WF_PhiInfo pinfo) 

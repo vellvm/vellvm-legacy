@@ -561,7 +561,9 @@ Proof.
   unfold store_in_cmds.
   intros.
   rewrite fold_left_app.
-Admitted. (* infra *)
+  destruct H as [H1 H2].
+  rewrite H1. auto.
+Qed.
 
 Lemma used_in_blocks_cons_inv : forall bs5 id0 b5,
   fold_left (fun (re : bool) b => re || used_in_block id0 b)
@@ -753,7 +755,6 @@ Proof.
       inv H. inv H0. auto.
 Qed.
 
-
 Lemma in_params__used: forall id1 A (t1 : A) (lp : list (A * value)) init,
   fold_left
     (fun (acc : bool) (p : A * value) =>
@@ -772,3 +773,78 @@ Proof.
 
       apply IHlp in H. congruence.
 Qed.
+
+Definition load_in_cmd (id':id) (c:cmd) : bool :=
+match c with
+| insn_load _ _ v _ => used_in_value id' v
+| _ => false
+end.
+
+Definition load_in_cmds (id':id) (cs:cmds) : bool :=
+(List.fold_left (fun re c => re || load_in_cmd id' c) cs false).
+
+Definition load_in_block (id':id) (b:block) : bool :=
+match b with
+| block_intro _ _ cs0 _ => load_in_cmds id' cs0
+end.
+
+Definition load_in_fdef (id':id) (f:fdef) : bool :=
+match f with
+| fdef_intro _ bs =>
+  List.fold_left (fun re b => re || load_in_block id' b) bs false
+end.
+
+Lemma load_notin_cmds__unused_in_value: forall vid0 id0 t v align0 cs cs11,
+  load_in_cmds vid0 (cs11 ++ insn_load id0 t v align0 :: cs) = false ->
+  used_in_value vid0 v = false.
+Proof. 
+  unfold load_in_cmds. intros.
+  remember false as R. rewrite HeqR in H at 2. rewrite HeqR. clear HeqR.
+  generalize dependent R. 
+  induction cs11; simpl; intros; eauto.
+    apply fold_left_eq in H.
+      apply orb_false_iff in H.
+      destruct H; auto.
+
+      intros a b J.
+      apply orb_false_iff in J.
+      destruct J; auto.
+Qed.
+
+Lemma load_in_cmds_true: forall id1 id0 t align0 csb csa,
+  load_in_cmds id1 (csa ++ insn_load id0 t (value_id id1) align0 :: csb) = true.
+Proof.
+  unfold load_in_cmds.
+  intros.
+  generalize false.
+  induction csa; simpl; intros; eauto.
+    destruct (id_dec id1 id1); try congruence. 
+    simpl.
+    rewrite orb_true_intro; auto.
+    apply fold_left_or_spec.
+    intros. subst. auto.
+Qed.
+
+Lemma load_in_cmds_app: forall i0 cs2 cs1,
+  load_in_cmds i0 (cs1++cs2) = false ->
+  load_in_cmds i0 cs1 = false /\ load_in_cmds i0 cs2 = false.
+Proof.
+  unfold load_in_cmds.
+  intros.
+  rewrite fold_left_app in H.
+  apply fold_left_or_false in H.
+    tauto.
+    intros. apply orb_false_iff in H0. tauto.
+Qed.
+
+Lemma load_in_cmds_merge: forall i0 cs1 cs2,
+  load_in_cmds i0 cs1 = false /\ load_in_cmds i0 cs2 = false ->
+  load_in_cmds i0 (cs1++cs2) = false.
+Proof.
+  unfold load_in_cmds.
+  intros.
+  rewrite fold_left_app.
+  destruct H as [H1 H2].
+  rewrite H1. auto.
+Qed.
+

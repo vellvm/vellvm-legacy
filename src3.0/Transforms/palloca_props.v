@@ -32,7 +32,7 @@ Definition promotable_alloca (f:fdef) (pid:id) (ty:typ) (num:value) (al:align)
   : Prop :=
 match getEntryBlock f with
 | Some (block_intro _ _ cs _) =>
-    find_promotable_alloca f cs nil = Some (pid, ty, num, al)
+    In (insn_alloca pid ty num al) cs /\ is_promotable f pid
 | _ => False
 end.
 
@@ -67,8 +67,7 @@ match goal with
         | None => _
         end |- _ =>
     remember (getEntryBlock PI_f0) as R;
-    destruct R as [[]|]; tinv H;
-    apply find_promotable_alloca_spec in H
+    destruct R as [[]|]; tinv H
   end
 end.
 
@@ -1731,7 +1730,13 @@ Lemma find_promotable_alloca__WF_PhiInfo: forall rd f l0 ps0 cs0 tmn0
   (pid : id) (ty : typ) num (al : align) dones
   (Hfind : find_promotable_alloca f cs0 dones = ret (pid, ty, num, al)),
   WF_PhiInfo (mkPhiInfo f rd pid ty num al).
-Admitted. (* find_promotable_alloca *)
+Proof.
+  intros.
+  split; simpl; auto.
+    unfold promotable_alloca.
+    fill_ctxhole. 
+    eapply find_promotable_alloca_spec; eauto.
+Qed.
 
 Definition update_pinfo (pinfo:PhiInfo) (f:fdef) : PhiInfo :=
 (mkPhiInfo f
@@ -2269,7 +2274,6 @@ Proof.
   eapply block_eq1 with (id0:=PI_id pinfo); eauto.
     apply entryBlockInFdef in HeqR.
     eapply inGetBlockIDs__lookupBlockViaIDFromFdef; eauto.
-    apply find_promotable_alloca_spec in Hwfpi.
     destruct Hwfpi as [J _].
     eapply getCmdID_in_getBlocksIDs; eauto. 
       simpl; auto.
@@ -2357,3 +2361,155 @@ Proof.
     destruct HeqR0.
     eapply arguments_dont_define_pid; eauto using wf_system__uniqFdef.
 Qed.
+
+(*************************************)
+(* find_init_stld and find_next_stld *)
+
+Lemma find_init_stld_inr_spec: forall pinfo v cs cs0 dones
+ (H: ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones),
+ v = value_const (const_undef (PI_typ pinfo)) /\
+ exists cs1, 
+   cs0 = cs1 ++
+          insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
+            (PI_align pinfo) :: cs.
+Proof.
+  induction cs0; simpl; intros.
+    congruence.
+
+Ltac find_init_stld_inr_spec_tac :=
+match goal with
+| H: Some _ = _,
+  IHcs0 : forall _, Some _ = _ -> _ |- _ =>
+  let H1 := fresh "H1" in
+  let H2 := fresh "H2" in
+  apply IHcs0 in H;
+  destruct H as [H1 [cs1 H2]]; subst;
+  split; auto;
+    match goal with
+    | |- exists _:_, ?c :: _ = _ => exists (c::cs1); auto
+    end
+end.
+
+    destruct a; try find_init_stld_inr_spec_tac.
+      repeat (destruct_if; try solve [find_init_stld_inr_spec_tac]).
+      admit. (* should find_init_stld check typ and align matches? *)
+
+      destruct value2; try solve [find_init_stld_inr_spec_tac].
+      repeat (destruct_if; try solve [find_init_stld_inr_spec_tac]).
+Qed.
+
+Lemma find_init_stld_inl_spec: forall pinfo i0 v cs cs0 dones
+ (H: ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones),
+ exists cs1, 
+   cs0 = cs1 ++
+          insn_store i0 (PI_typ pinfo) v (value_id (PI_id pinfo))
+            (PI_align pinfo) :: cs.
+Proof.
+  induction cs0; simpl; intros.
+    congruence.
+
+Ltac find_init_stld_inl_spec_tac :=
+match goal with
+| H: Some _ = _,
+  IHcs0 : forall _, Some _ = _ -> _ |- _ =>
+      apply IHcs0 in H;
+      destruct H as [cs1 H]; subst;
+      match goal with
+      | |- exists _:_, ?c :: _ = _ => exists (c::cs1); auto
+      end
+end.
+
+    destruct a; try find_init_stld_inl_spec_tac.
+      repeat (destruct_if; try solve [find_init_stld_inl_spec_tac]).
+
+      destruct value2; try solve [find_init_stld_inl_spec_tac].
+      repeat (destruct_if; try solve [find_init_stld_inl_spec_tac]).
+
+      exists nil. 
+      admit. (* should find_init_stld check typ and align matches? *)
+Qed.
+
+Ltac destruct_dec :=
+match goal with
+| |- context [id_dec ?b ?a] =>
+  destruct (id_dec b a); subst; try congruence; auto
+end.
+
+Ltac find_next_stld_spec_tac :=
+match goal with
+| H: Some _ = _,
+  IHcs0 : Some _ = _ -> _ |- _ =>
+  let H1 := fresh "H1" in
+  let H2 := fresh "H2" in
+  apply IHcs0 in H;
+  destruct H as [cs1 [cs2 [H1 H2]]]; subst;
+  match goal with
+  | |- exists _:_, exists _:_, ?c :: _ = _ /\ _ => 
+       exists (c::cs1); exists cs2; auto
+  end
+end.
+
+Lemma find_next_stld_inl_spec: forall pinfo i1 cs
+ (H: ret inl i1 = find_next_stld cs (PI_id pinfo)),
+ exists cs1, exists cs2,
+   cs = cs1 ++
+          insn_load i1 (PI_typ pinfo) (value_id (PI_id pinfo))
+            (PI_align pinfo) :: cs2 /\
+   store_in_cmds (PI_id pinfo) cs1 = false.
+Proof.
+  induction cs; simpl; intros.
+    congruence.
+
+    destruct a; try find_next_stld_spec_tac.
+      repeat (destruct_if; try solve [find_next_stld_spec_tac]).
+
+      destruct value1; try solve [find_next_stld_spec_tac].
+      destruct_if.
+        exists nil. exists cs. 
+        split; auto.
+          admit. (* should find_next_stld check typ and align matches? *)
+
+        find_next_stld_spec_tac.
+
+      destruct value2; try solve [find_next_stld_spec_tac].
+      destruct_if; try find_next_stld_spec_tac.
+        split; auto. 
+          simpl_env.
+          apply store_in_cmds_merge.
+          split; auto. 
+            unfold store_in_cmds. simpl.
+            destruct_dec. 
+Qed.
+
+Lemma find_next_stld_inr_spec: forall pinfo i1 v0 cs
+ (H: ret inr (i1, v0) = find_next_stld cs (PI_id pinfo)),
+ exists cs1, exists cs2,
+   cs = cs1 ++
+          insn_store i1 (PI_typ pinfo) v0 (value_id (PI_id pinfo))
+            (PI_align pinfo) :: cs2 /\
+   load_in_cmds (PI_id pinfo) cs1 = false.
+Proof.
+  induction cs; simpl; intros.
+    congruence.
+
+    destruct a; try find_next_stld_spec_tac.
+      repeat (destruct_if; try solve [find_next_stld_spec_tac]).
+
+      destruct value1; try solve [find_next_stld_spec_tac].
+      destruct_if.
+        find_next_stld_spec_tac.
+
+        split; auto. 
+          simpl_env.
+          apply load_in_cmds_merge.
+          split; auto. 
+            unfold load_in_cmds. simpl.
+            destruct_dec. 
+
+      destruct value2; try solve [find_next_stld_spec_tac].
+      repeat (destruct_if; try solve [find_next_stld_spec_tac]).
+      exists nil. exists cs. 
+      split; auto.
+        admit. (* should find_next_stld check typ and align matches? *)
+Qed.
+

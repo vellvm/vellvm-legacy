@@ -346,26 +346,6 @@ if changed1 then inr _ (f1, dones1) else inl _ (f1, dones1).
 
 Parameter does_stld_elim : unit -> bool.
 
-Definition load_in_cmd (id':id) (c:cmd) : bool :=
-match c with
-| insn_load _ _ v _ => used_in_value id' v
-| _ => false
-end.
-
-Definition load_in_cmds (id':id) (cs:cmds) : bool :=
-(List.fold_left (fun re c => re || load_in_cmd id' c) cs false).
-
-Definition load_in_block (id':id) (b:block) : bool :=
-match b with
-| block_intro _ _ cs0 _ => load_in_cmds id' cs0
-end.
-
-Definition load_in_fdef (id':id) (f:fdef) : bool :=
-match f with
-| fdef_intro _ bs =>
-  List.fold_left (fun re b => re || load_in_block id' b) bs false
-end.
-
 Fixpoint elim_dead_st_cmds (cs:cmds) (pid:id) : cmds :=
 match cs with
 | nil => nil

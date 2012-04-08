@@ -187,11 +187,7 @@ Lemma not_removable_State_inv: forall pinfo sasinfo St,
                        Opsem.Locals := _;
                        Opsem.Allocas := _ |} :: _;
        Opsem.Mem := Mem |} => 
-       PI_f pinfo <> F \/ 
-       match c with
-       | insn_store sid _ _ _ _ => sid <> SAS_sid1 pinfo sasinfo
-       | _ => True
-       end
+       PI_f pinfo <> F \/ getCmdLoc c <> SAS_sid1 pinfo sasinfo
   | _ => True
   end.
 Proof.
@@ -200,10 +196,9 @@ Proof.
   destruct ECS; auto.
   destruct e; auto.
   destruct CurCmds; auto.
-  destruct c; auto.
   simpl in H.
   destruct (fdef_dec (PI_f pinfo) CurFunction); subst; auto.
-  destruct (id_dec id5 (SAS_sid1 pinfo sasinfo)); subst; auto.
+  destruct (id_dec (SAS_sid1 pinfo sasinfo) (getCmdLoc c)); subst; auto.
 Qed.
 
 Lemma s_isFinialState__sas_State_simulation_r2l':
@@ -223,12 +218,6 @@ Proof.
    apply not_removable_State_inv in Hnrem.
    apply cmds_simulation_nelim_cons_inv in Hstsim; auto. 
      destruct Hstsim as [cs2' [J1 Hstsim]]; congruence.
-     admit. (* removable_State may check if getCmdLoc <> sid1 directly,
-               otherwise, we need uniqness
-               The current removable_State only checks id when c is store, 
-               but cmds_simulation_nelim_cons_inv uses getCmdLoc,
-               Changing the definition may simplify proofs.
-               Refer to dae's removable_State *)
 Qed.
 
 Lemma removable_State__non_removable_State: forall pinfo sasinfo f b c cs1 tmn lc
@@ -255,11 +244,9 @@ Lemma removable_State__non_removable_State: forall pinfo sasinfo f b c cs1 tmn l
            Opsem.Mem := Mem' |}.
 Proof.
   simpl. intros.
-  destruct c; try tauto.
   destruct_if; auto.
   destruct_if; auto.
   destruct cs1; auto.
-  destruct c; auto.
   destruct_if; auto.
   inv Hnodup. inv H2. intro J. apply H1. simpl. left. congruence.
 Qed.
@@ -308,14 +295,23 @@ Proof.
     eapply sas_is_sim in Hsim; eauto.
     destruct Hsim as [Hstsim1 _].
     assert (~ removable_State pinfo sasinfo IS1'') as Hnrm.
+      destruct Cfg1 as [? [] ? ?]. simpl in Hwfpp. 
+      destruct Hwfpp as [_ [[_ [HBinF [A [_ [_ [l1 [ps1 [cs1' Hex]]]]]]]] _]]; 
+        subst.
+      destruct Hwfcfg as [_ [_ [HwfS C]]].
+      eapply wf_system__uniqFdef in HwfS; eauto.
       assert (c1 = insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
                 (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) 
                 (PI_align pinfo)) as EQ.
-        admit. (* uniqness *)
+        simpl in Hrm. repeat destruct_if.
+        eapply lookup_SAS_lid1__store with (sasinfo:=sasinfo) in HBinF; 
+          eauto using in_middle.
       subst.
       inv Hop1. 
       eapply removable_State__non_removable_State; eauto.
-        admit. (* uniqness *)      
+        clear - HwfS HBinF.
+        apply uniqFdef__uniqBlockLocs in HBinF; auto.
+        simpl in HBinF. split_NoDup. simpl_locs_in_ctx. split_NoDup. auto.
     eapply Hstsim1 in Hrm; eauto.
     destruct Hrm as [Hstsim EQ]; subst.
     exists IS1''.
@@ -439,8 +435,10 @@ Proof.
   unfold cmds_simulation. intros.
   destruct_if; auto.
   destruct cs1; auto.
+  destruct_if; try tauto.
   simpl in *.
-  admit. (* see the comments in s_isFinialState__sas_State_simulation_r2l' *)
+  destruct ((id_dec (getCmdLoc c) (SAS_sid1 pinfo sasinfo))); 
+    simpl in *; congruence.
 Qed.
 
 Lemma cmds_simulation_cons_inv' : forall (pinfo : PhiInfo) sasinfo
@@ -464,9 +462,11 @@ Proof.
   simpl.
   unfold cmds_simulation. intros.
   destruct_if; eauto.
-  destruct cs; tinv H1.
-  simpl in *.
-  admit. (* see the comments in s_isFinialState__sas_State_simulation_r2l' *)
+  destruct cs; inv H1.
+  destruct (id_dec (SAS_sid1 pinfo sasinfo) (getCmdLoc c0)); try tauto.
+  destruct (id_dec (getCmdLoc c0) (SAS_sid1 pinfo sasinfo)); 
+    simpl in *; try congruence.
+  inv H0; eauto.
 Qed.
 
 Ltac undefined_state__State_simulation_r2l_tac1 :=
@@ -538,12 +538,14 @@ Proof.
      [_ [[_ [HbInF1 [_ [_ [_ _]]]]] [_ Hiscall]]].
   apply Hiscall in HbInF1.
   destruct CurBB as [? ? ? []]; tinv HBinF.
-    destruct CurCmds0 as [|[]]; tinv HbInF1. tauto.
-    destruct CurCmds0 as [|[]]; tinv HbInF1. tauto.
+    destruct CurCmds0 as [|[]]; tinv HbInF1. 
+      simpl. admit. (* uniqness *)
+    destruct CurCmds0 as [|[]]; tinv HbInF1.
+      simpl. admit. (* uniqness *)
 Qed.
 
 Lemma mem_simulation__malloc_l2r': forall (pinfo : PhiInfo) sasinfo TD ECs M1 M2
-  (Hmsim : mem_simulation pinfo sasinfo TD ECs M1 M2)
+  (Hmsim : mem_simulation pinfo sasinfo TD ECs M1 M2) (Huniq: uniqECs ECs)
   (Mem'0 : mem) (tsz0 : sz) align0 gn mb M1'
   (H2 : malloc TD M1 tsz0 gn align0 = ret (M1', mb)),
   exists M2',
@@ -553,7 +555,7 @@ Proof.
   destruct Hmsim as [Hmsim1 [Hmim3 Hmsim2]].
   unfold sas_mem_inj in *.
   inv_mbind. 
-  destruct (@in_SAS_tails_ex pinfo sasinfo TD ECs) as [ombs J].
+  destruct (@in_SAS_tails_ex pinfo sasinfo TD ECs Huniq) as [ombs J].
   apply_clear Hmsim2 in J.
   apply malloc_inv in H2. destruct H2 as [n0 [J1 [J2 J3]]].
   unfold malloc. fill_ctxhole.
@@ -569,7 +571,7 @@ Proof.
 Qed.
 
 Lemma mem_simulation__mload_l2r: forall td gv M1 mp t align0 M2 ECs pinfo
-  (H1 : mload td M1 mp t align0 = ret gv) sasinfo
+  (H1 : mload td M1 mp t align0 = ret gv) sasinfo (Huniq: uniqECs ECs)
   (Hmsim : mem_simulation pinfo sasinfo td ECs M1 M2),
   exists gv0, mload td M2 mp t align0 = ret gv0.
 Proof.
@@ -579,7 +581,7 @@ Proof.
   destruct H1 as [b [ofs [m [mc [J1 [J2 J3]]]]]]; subst.
   unfold sas_mem_inj in Hmsim2.
   inv_mbind. 
-  destruct (@in_SAS_tails_ex pinfo sasinfo td ECs) as [ombs J].
+  destruct (@in_SAS_tails_ex pinfo sasinfo td ECs Huniq) as [ombs J].
   apply_clear Hmsim2 in J.
   unfold mload. repeat fill_ctxhole. simpl.
   eapply SASmsim.mload_aux_inj_ex with (b2:=b)(delta:=0) in J; eauto.
@@ -588,7 +590,8 @@ Proof.
 Qed.
 
 Lemma mem_simulation__mstore_l2r: forall td M1 mp2 t gv1 align0 M1' M2 ECs
-  (H3 : mstore td M1 mp2 t gv1 align0 = ret M1') pinfo sasinfo
+  (H3 : mstore td M1 mp2 t gv1 align0 = ret M1') pinfo sasinfo 
+  (Huniq: uniqECs ECs)
   (Hmsim : mem_simulation pinfo sasinfo td ECs M1 M2),
   exists M2', 
     mstore td M2 mp2 t gv1 align0 = ret M2'.
@@ -599,7 +602,7 @@ Proof.
   destruct H3 as [b [ofs [cm [J1 J2]]]]; subst.
   unfold sas_mem_inj in *.
   inv_mbind.
-  destruct (@in_SAS_tails_ex pinfo sasinfo td ECs) as [ombs J].
+  destruct (@in_SAS_tails_ex pinfo sasinfo td ECs Huniq) as [ombs J].
   apply_clear Hmsim2 in J.
   unfold mstore. simpl. 
   eapply SASmsim.mstore_aux_inject_id_mapped_inj in J; eauto.
@@ -610,7 +613,7 @@ Lemma mem_simulation__free_allocas_l2r : forall TD ECs1 pinfo sasinfo EC EC'
   (Hp: forall omb,
        in_SAS_tail pinfo sasinfo omb TD EC' ->
        in_SAS_tail pinfo sasinfo omb TD EC)
-  als Mem1 Mem2 Mem1'
+  als Mem1 Mem2 Mem1'  (Huniq: uniqECs (EC::ECs1))
   (Hmsim : mem_simulation pinfo sasinfo TD (EC :: ECs1) Mem1 Mem2)
   (Hmlc: free_allocas TD Mem1 als = ret Mem1'),
   exists Mem2',
@@ -631,13 +634,14 @@ Qed.
 
 Lemma undefined_state__sas_State_simulation_r2l': forall pinfo cfg1 St1 cfg2
   St2 sasinfo 
-  (Hwfpp1: OpsemPP.wf_State cfg1 St1) 
+  (Hwfpp1: OpsemPP.wf_State cfg1 St1) (Hwfcfg1: OpsemPP.wf_Config cfg1) 
   (Hstsim : State_simulation pinfo sasinfo cfg1 St1 cfg2 St2)
   (Hnrem: ~removable_State pinfo sasinfo St1) 
   (Hundef: OpsemPP.undefined_state cfg2 St2),
   OpsemPP.undefined_state cfg1 St1.
 Proof.
   intros.
+  assert (HuniqECs:=Hwfpp1). apply wf_State__uniqECs in HuniqECs; auto.
   unfold OpsemPP.undefined_state in Hundef.
   destruct cfg2 as [S2 [los2 nts2] gl2 fs2].
   destruct cfg1 as [S1 [los1 nts1] gl1 fs1].
@@ -959,7 +963,23 @@ Lemma find_st_ld__sasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
     SAS_value1 pinfo sasinfo = v /\
     SAS_value2 pinfo sasinfo = v0 /\
     SAS_block pinfo sasinfo = (block_intro l0 ps0 cs0 tmn0).
-Admitted. (* sasinfo *)
+Proof.
+  intros.
+  assert (exists tail, sas i0 i1 v v0 tail (block_intro l0 ps0 cs0 tmn0) pinfo)
+    as Hsas. 
+    unfold sas.
+    apply find_init_stld_inl_spec in Hst.
+    destruct Hst as [cs1 Hst]; subst.
+    apply find_next_stld_inr_spec in Hld.
+    destruct Hld as [cs2 [cs3 [Hld J]]]; subst.
+    exists cs2.
+    split; auto.
+    split; auto.
+    exists cs1. exists cs3. auto.
+  destruct Hsas as [tail Hsas].
+  exists (mkSASInfo pinfo i0 i1 v v0 tail (block_intro l0 ps0 cs0 tmn0) Hsas).
+  auto.
+Qed.
 
 Lemma sas_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo : PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
