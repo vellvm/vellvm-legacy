@@ -2,6 +2,7 @@ Require Import vellvm.
 Require Import Lattice.
 Require Import Maps.
 Require Import dtree.
+Require Import trans_tactic.
 
 Definition subst_value (id':id) (v':value) (v:value) : value :=
 match v with
@@ -846,5 +847,14 @@ Proof.
   rewrite fold_left_app.
   destruct H as [H1 H2].
   rewrite H1. auto.
+Qed.
+
+Lemma remove_phinodes_stable: forall id' ps 
+  (Hnotin: ~ In id' (getPhiNodesIDs ps)), ps = remove_phinodes id' ps.
+Proof.
+  induction ps; simpl; intros; auto.
+    destruct_dec.
+      contradict Hnotin. auto.
+      simpl. rewrite <- IHps; auto.
 Qed.
 

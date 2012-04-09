@@ -2651,6 +2651,19 @@ Proof.
     apply IHmc in H1; auto.
 Qed.
 
+Lemma bounds_free_alloca: forall TD als M1 M2,
+  free_allocas TD M1 als = ret M2 ->
+  forall b, Mem.bounds M2 b = Mem.bounds M1 b.
+Proof.
+  induction als; simpl; intros.
+    congruence.
+
+    inv_mbind. symmetry_ctx.
+    apply IHals with (b:=b) in H1.
+    apply bounds_mfree with (b:=b) in HeqR.
+    congruence.
+Qed.
+
 End MemProps.
 
 

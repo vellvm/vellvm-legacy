@@ -1107,5 +1107,13 @@ Proof.
   intros.
   unfold wf_defs.
   intros.
-  admit. (* pid isnt in args *)
+  apply getParentOfFdefFromSystem__moduleInProductsInSystemB in HeqR0.
+  destruct HeqR0 as [J1 J2].
+  rewrite H in *.
+  eapply wf_system__uniqFdef in J1; eauto.
+  replace a with (getArgsOfFdef (PI_f pinfo)) in HeqR3.
+    erewrite WF_PhiInfo__pid_isnt_in_init in Hlkpa; eauto.
+    congruence.
+
+    rewrite <- H. auto.
 Qed.

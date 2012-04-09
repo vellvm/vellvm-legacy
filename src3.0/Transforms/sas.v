@@ -822,6 +822,30 @@ Proof.
       apply H32. apply EC_follow_dead_store_at_begin_false.
 Qed.
 
+Lemma not_removable_State_inv: forall pinfo sasinfo St,
+  ~ removable_State pinfo sasinfo St ->
+  match St with
+  | {| Opsem.ECS := {| Opsem.CurFunction := F;
+                       Opsem.CurBB := _;
+                       Opsem.CurCmds := c :: _;
+                       Opsem.Terminator := _;
+                       Opsem.Locals := _;
+                       Opsem.Allocas := _ |} :: _;
+       Opsem.Mem := Mem |} => 
+       PI_f pinfo <> F \/ getCmdLoc c <> SAS_sid1 pinfo sasinfo
+  | _ => True
+  end.
+Proof.
+  intros.
+  destruct St; auto.
+  destruct ECS; auto.
+  destruct e; auto.
+  destruct CurCmds; auto.
+  simpl in H.
+  destruct (fdef_dec (PI_f pinfo) CurFunction); subst; auto.
+  destruct (id_dec (SAS_sid1 pinfo sasinfo) (getCmdLoc c)); subst; auto.
+Qed.
+
 Lemma unremovable_loc__neq__SAS_sid1: forall pinfo sasinfo F B c cs tmn2 lc2
   als2 EC Mem id0
   (Hnrem : ~ removable_State pinfo sasinfo
@@ -835,30 +859,44 @@ Lemma unremovable_loc__neq__SAS_sid1: forall pinfo sasinfo F B c cs tmn2 lc2
   (EQ : id0 = getCmdLoc c),
   PI_f pinfo = F -> id0 <> SAS_sid1 pinfo sasinfo.
 Proof.
-  simpl. intros.
-  intro J. subst.
-Admitted. (* removable neq *)
+  intros. subst.
+  apply not_removable_State_inv in Hnrem.
+  destruct Hnrem as [Hnrem | Hnrem]; try congruence.
+Qed.
 
-Lemma unremovable_loc__neq__SAS_sid2: forall pinfo sasinfo F B c cs tmn2 lc2
-  als2 EC Mem id0
+Lemma unstore_loc__neq__SAS_sid2: forall pinfo sasinfo F B c cs tmn2 id0
   (Hnst: match c with
          | insn_store _ _ _ _ _ => False
          | _ => True
-         end)
-  (Hnrem : ~ removable_State pinfo sasinfo
-               {|Opsem.ECS := {| Opsem.CurFunction := F;
-                                 Opsem.CurBB := B;
-                                 Opsem.CurCmds := c :: cs;
-                                 Opsem.Terminator := tmn2;
-                                 Opsem.Locals := lc2;
-                                 Opsem.Allocas := als2 |} :: EC;
-                 Opsem.Mem := Mem |})
-  (EQ : Some id0 = getCmdID c),
+         end) (Huniq: uniqFdef F)
+  (Hex: exists l0, exists ps0, exists cs0, 
+          B = block_intro l0 ps0 (cs0 ++ c :: cs) tmn2) 
+  (HBinF: blockInFdefB B F = true) (EQ : id0 = getCmdLoc c),
   PI_f pinfo = F -> id0 <> SAS_sid2 pinfo sasinfo.
 Proof.
-  simpl. intros.
+  intros. subst.
+  destruct Hex as [l0 [ps0 [cs0 Hex]]]; subst.
   intro J. subst.
-Admitted. (* removable neq *)
+  eapply lookup_SAS_lid2__store in HBinF; eauto using in_middle.
+  subst. auto.
+Qed.
+
+Lemma unstore_loc__neq__SAS_sid1: forall pinfo sasinfo F B c cs tmn2 id0
+  (Hnst: match c with
+         | insn_store _ _ _ _ _ => False
+         | _ => True
+         end) (Huniq: uniqFdef F)
+  (Hex: exists l0, exists ps0, exists cs0, 
+          B = block_intro l0 ps0 (cs0 ++ c :: cs) tmn2) 
+  (HBinF: blockInFdefB B F = true) (EQ : id0 = getCmdLoc c),
+  PI_f pinfo = F -> id0 <> SAS_sid1 pinfo sasinfo.
+Proof.
+  intros. subst.
+  destruct Hex as [l0 [ps0 [cs0 Hex]]]; subst.
+  intro J. subst.
+  eapply lookup_SAS_lid1__store in HBinF; eauto using in_middle.
+  subst. auto.
+Qed.
 
 Lemma in_SAS_tail_update :
   forall pinfo sasinfo TD F B c cs tmn3 lc1 als3 als3' lc2 omb
@@ -1108,7 +1146,9 @@ match goal with
   apply cmds_simulation_nelim_cons_inv in Hcssim2'; try solve [
     auto |
     try match goal with
-        | |- _ = _ -> _ <> _ => admit (* rid <> pid *)
+        | |- _ = _ -> _ <> _ => 
+          eapply unstore_loc__neq__SAS_sid1; 
+            eauto using wf_system__uniqFdef ; simpl; auto
         end ];
   destruct Hcssim2' as [cs3' [Heq Hcssim2']]; subst;
   inv Hop2;
@@ -1203,12 +1243,6 @@ Proof.
       exists (l3 ++ [a]). simpl_env. auto.
 Qed.
 
-Definition uniqEC (EC: @Opsem.ExecutionContext DGVs) : Prop :=
-uniqFdef (Opsem.CurFunction EC) /\
-exists l0, exists ps0, exists cs0,
-  Opsem.CurBB EC = block_intro l0 ps0 (cs0 ++ Opsem.CurCmds EC)
-    (Opsem.Terminator EC).
-
 Lemma cs_follow_dead_store_dec: forall (pinfo : PhiInfo) 
   (sasinfo : SASInfo pinfo) (EC : @Opsem.ExecutionContext DGVs)
   (Ha : Opsem.CurFunction EC = PI_f pinfo) 
@@ -1225,7 +1259,7 @@ Proof.
   destruct SAS_block0.
   destruct J3 as [cs1 [cs3 J3]]; subst. 
   unfold cs_follow_dead_store. simpl.
-  destruct Huniq as [Huniq Hex].
+  destruct Huniq as [Huniq [_ Hex]].
   clear - Hex J1 Huniq. simpl in *.
   destruct (@list_suffix_dec _ cmd_dec CurCmds
     (insn_store SAS_sid4 PI_typ SAS_value4 (value_id PI_id) PI_align :: cs3))
@@ -1304,9 +1338,6 @@ Proof.
       as [[|[[]][]]|]; eauto.
     exists None. tauto.
 Qed.
-
-Definition uniqECs (ECs: list (@Opsem.ExecutionContext DGVs)) : Prop :=
-List.Forall uniqEC ECs.
 
 Lemma in_SAS_tails_ex: forall pinfo sasinfo TD ECs (Huniq: uniqECs ECs),
   exists ombs, in_SAS_tails pinfo sasinfo ombs TD ECs.
@@ -1426,13 +1457,23 @@ Proof.
       constructor; auto.
 Qed.
 
+Ltac unstore_loc__neq__SAS_sid2_tac :=
+match goal with
+| Hex: exists _:_, exists _:_, exists _:_, ?B1=block_intro _ _ (_++_::_) _,      
+  HBinF1 : blockInFdefB ?B1 ?F = true |-
+  PI_f ?pinfo = ?F -> _ <> SAS_sid2 ?pinfo _ =>
+    eapply unstore_loc__neq__SAS_sid2 with (B:=B1); 
+            eauto using wf_system__uniqFdef; simpl; auto
+end.
+
 Lemma mem_simulation__return: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
   (lc2 : Opsem.GVsMap) (als2 : list mblock) (tmn3 : terminator) t0 v0 
   (lc3 : Opsem.GVsMap) (als3 : list mblock) (M2 : mem) (los : layouts) 
   (nts : namedts) (F : fdef) (rid : id) tmn (F' : fdef) (B' : block) (i0 : id)
   (n : noret) (c : clattrs) (v : value) (p : params) (cs' : list cmd)
   (EC : list Opsem.ExecutionContext) (Mem : mem) (l3 : l) (ps3 : phinodes)
-  (cs0 : list cmd) (Mem' : mem) (Huniq: uniqFdef F')
+  (cs0 : list cmd) (Mem' : mem) (Huniq: uniqFdef F') 
+  (HBinF: blockInFdefB B' F' = true)
   (H0 : free_allocas (los, nts) Mem als2 = ret Mem')
   (Heq3' : exists l1 : l,
             exists ps1 : phinodes,
@@ -1456,7 +1497,7 @@ Lemma mem_simulation__return: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
                 Opsem.Locals := lc3;
                 Opsem.Allocas := als3 |} :: EC) Mem M2)
   (Mem'0 : mem) (lc''0 : Opsem.GVsMap)
-  (EQ: lookupAL (GVsT DGVs) lc3 (PI_id pinfo) =
+  (EQ: PI_f pinfo = F' -> lookupAL (GVsT DGVs) lc3 (PI_id pinfo) =
          lookupAL (GVsT DGVs) lc''0 (PI_id pinfo))
   (H26 : free_allocas (los, nts) M2 als2 = ret Mem'0),
   mem_simulation pinfo sasinfo (los, nts)
@@ -1472,8 +1513,8 @@ Proof.
   eapply mem_simulation__free_allocas in Hmsim; eauto.
   apply mem_simulation__remove_head in Hmsim.
     eapply mem_simulation_update_locals in Hmsim; eauto.
-      admit. (* id <> sid2 *)
-      admit. (* id <> sid1 *)
+      unstore_loc__neq__SAS_sid2_tac.
+      eapply unstore_loc__neq__SAS_sid1; eauto; simpl; auto.
     apply in_SAS_tail_nil.
 Qed. 
 
@@ -1492,8 +1533,6 @@ Lemma mem_simulation__malloc: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
             | insn_malloc _ _ _ _ | insn_alloca _ _ _ _ => True
             | _ => False
             end) (Hwfpi: WF_PhiInfo pinfo)
-  (Hexeq: exists l1 : l, exists ps1 : phinodes,exists cs11 : list cmd,
-              B = block_intro l1 ps1 (cs11 ++ c :: cs) tmn2)
   (HBinF: blockInFdefB B F = true) (Huniq: uniqFdef F)
   (Hpalloca : palloca_props.wf_State pinfo
                 ({| Opsem.ECS := {|
@@ -1562,9 +1601,36 @@ Proof.
       assert (ret getCmdLoc c = getCmdID c) as G.
         erewrite getCmdLoc_getCmdID; eauto.
       destruct (id_dec id0 (PI_id pinfo)); subst.
+      Case "id0 = pid".
         destruct c; tinv Hmalloc; simpl in *; inv Hid.
-          admit. (* malloc <> pid *)
+        SCase "c = malloc".
+          destruct (fdef_dec (PI_f pinfo) F); subst.
+          SSCase "F = PI_f".
+            WF_PhiInfo_spec10_tac.
+            simpl in HBinF; congruence.
 
+          SSCase "F <> PI_f".
+            inv Hin'.
+            assert (in_SAS_tails pinfo sasinfo (None::l') (los, nts)
+               ({|
+                Opsem.CurFunction := F;
+                Opsem.CurBB := B;
+                Opsem.CurCmds := insn_malloc (PI_id pinfo) typ5 value5 align5 :: cs;
+                Opsem.Terminator := tmn2;
+                Opsem.Locals := lc2;
+                Opsem.Allocas := als2 |} :: EC)) as Hin.
+              unfold in_SAS_tails.
+              constructor; auto.
+                split; simpl; intros; auto.
+                destruct H as [H _]. simpl in H. congruence.
+             apply_clear Hmsim2 in Hin.
+             simpl in Hin. 
+             simpl.
+             destruct y; auto.
+               simpl_env.
+               apply SASmsim.mem_inj_ignores_weaken; auto.
+
+        SCase "c = alloca".
           inv Hin'.
           assert (in_SAS_tails pinfo sasinfo (None::l') (los, nts)
              ({|
@@ -1579,7 +1645,7 @@ Proof.
               split; simpl; intros; auto.
                 destruct H as [H _]. simpl in H. subst.
                 assert (lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = None) as Hnone.
-                  clear - Hpalloca Hwfpi HBinF Huniq Hexeq.
+                  clear - Hpalloca Hwfpi HBinF Huniq Heq3.
                   eapply WF_PhiInfo_spec15 in Hpalloca; eauto.
                 rewrite Hnone. auto.
            apply_clear Hmsim2 in Hin.
@@ -1589,6 +1655,7 @@ Proof.
              simpl_env.
              apply SASmsim.mem_inj_ignores_weaken; auto.
 
+      Case "id0 <> pid".
         apply Hmsim2.
         eapply in_SAS_tails__replace_head in Hin'; eauto.
         intros.
@@ -1596,7 +1663,7 @@ Proof.
           (lc1:=updateAddAL (GVsT DGVs) lc2 id0
                 ($ blk2GV (los, nts) mb # typ_pointer t $)) (als3:=als2); 
           eauto using unremovable_loc__neq__SAS_sid1.
-          eapply unremovable_loc__neq__SAS_sid2; eauto.
+          eapply unstore_loc__neq__SAS_sid2; eauto.
             destruct c; tinv Hmalloc; auto.
           rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
@@ -2290,16 +2357,9 @@ Proof.
     eapply SASmsim.mstore_inside_inj_left; eauto.
 Qed.
 
-Ltac dse_is_sim_common_case :=
+Ltac dse_is_sim_mem_update :=
 match goal with
-| Hex: exists _:_, exists _:_, exists _:_, _=block_intro _ _ (_++_::_) _,      
-  Hcssim2: cmds_simulation _ _ _ _ _,
-  Hop2: Opsem.sInsn _ _ _ _,
-  Hmsim: mem_simulation _ _ _ _ _ _ |- _ =>
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; try solve 
-    [eauto using unremovable_loc__neq__SAS_sid1];
-  destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
-  inv Hop2; uniq_result;
+| Hmsim: mem_simulation _ _ _ _ _ _ |- _ =>
   repeat_solve;
   match goal with
   | |- mem_simulation _ _ _
@@ -2313,15 +2373,24 @@ match goal with
         simpl; try solve [
           eauto using unremovable_loc__neq__SAS_sid1,
                       wf_system__uniqFdef |
-          eapply unremovable_loc__neq__SAS_sid2; eauto; simpl; auto |
-          intros;
-          match goal with
-          | |- lookupAL _ ?lc ?id1 =
-                lookupAL _ (updateAddAL _ ?lc _ _ ) ?id1=>
-               admit  (* id <> palloca *)
-          end
+          unstore_loc__neq__SAS_sid2_tac |
+          solve_non_pid_updateAddAL
         ]
   end
+end.
+
+Ltac dse_is_sim_common_case :=
+match goal with
+| Hex: exists _:_, exists _:_, exists _:_, ?B1=block_intro _ _ (_++_::_) _,      
+  HBinF1 : blockInFdefB ?B1 _ = true,
+  Hcssim2: cmds_simulation _ _ _ _ _,
+  Hop2: Opsem.sInsn _ _ _ _,
+  Hmsim: mem_simulation _ _ _ _ _ _ |- _ =>
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; try solve 
+    [eauto 2 using unremovable_loc__neq__SAS_sid1, wf_system__uniqFdef];
+  destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
+  inv Hop2; uniq_result;
+  dse_is_sim_mem_update
 end.
 
 Ltac dse_is_sim_malloc :=
@@ -2350,41 +2419,6 @@ Ltac dse_is_sim_malloc :=
   subst;
   repeat_solve;
     eapply mem_simulation__malloc; eauto using wf_system__uniqFdef; simpl; auto.
-
-Lemma wf_EC__uniqEC: forall S los nts Ps EC
-  (HwfS : wf_system S) 
-  (HMinS : moduleInSystemB (module_intro los nts Ps) S = true)
-  (Hwfec : OpsemPP.wf_ExecutionContext (los, nts) Ps EC),
-  uniqEC EC.
-Proof.
-  destruct EC; simpl.
-  intros.
-  destruct Hwfec as [J1 [J2 [J3 [J4 [J5 J6]]]]].
-  split; eauto using wf_system__uniqFdef.
-Qed.
-
-Lemma wf_ECStack__uniqECs: forall S los nts Ps ECs
-  (HwfS : wf_system S) 
-  (HMinS : moduleInSystemB (module_intro los nts Ps) S = true)
-  (Hwf : OpsemPP.wf_ECStack (los, nts) Ps ECs),
-  uniqECs ECs.
-Proof.
-  unfold uniqECs.
-  induction ECs as [|]; simpl; intros; auto.
-    destruct Hwf as [J1 [J2 J3]].
-    constructor; eauto using wf_EC__uniqEC.
-Qed.
-
-Lemma wf_State__uniqECs: forall cfg St (Hwfc: OpsemPP.wf_Config cfg) 
-  (Hwfst: OpsemPP.wf_State cfg St), uniqECs (Opsem.ECS St).
-Proof.
-  intros.
-  destruct cfg as [? [? ?] ? ?].
-  destruct St.
-  destruct Hwfc as [? [? [? ?]]].
-  destruct Hwfst. simpl.
-  eapply wf_ECStack__uniqECs; eauto.
-Qed.
 
 Lemma sas_is_sim : forall maxb pinfo (sasinfo: SASInfo pinfo) Cfg1 St1 Cfg2 St2
   (Hwfpi: WF_PhiInfo pinfo) 
@@ -2456,7 +2490,7 @@ Case "removable state".
     eapply cmds_simulation_elim_cons_inv; eauto.
     assert (wf_value S1 (module_intro los nts Ps1) (PI_f pinfo)
               (SAS_value1 pinfo sasinfo) (PI_typ pinfo)) as Hwfv.
-      admit. (* wf *)
+      get_wf_value_for_simop_ex. auto.
     eapply mstore_removable_mem_simulation in Hmsim;
       eauto using wf_system__uniqFdef.
 
@@ -2468,10 +2502,16 @@ Focus.
   destruct_ctx_return.
   repeat_solve.
     assert (Huniq: uniqFdef F') by eauto using wf_system__uniqFdef.
-    clear - H26 Hmsim H0 H1 Heq3' Huniq.
+    assert (PI_f pinfo = F' ->
+            lookupAL (GVsT DGVs) lc3 (PI_id pinfo) =
+              lookupAL (GVsT DGVs) lc''0 (PI_id pinfo)) as EQ.
+      unfold Opsem.returnUpdateLocals in H1.
+      inv_mbind; auto.
+      destruct_if; auto.
+      inv_mbind; auto.
+      solve_non_pid_updateAddAL.
+    clear - H26 Hmsim H0 H1 Heq3' Huniq EQ HBinF2.
     eapply mem_simulation__return; eauto.
-      admit. (* pid <> i0 *)
-
 Unfocus.
 
 SCase "sReturnVoid".
@@ -2479,13 +2519,12 @@ Focus.
   destruct_ctx_return.
   repeat_solve.
     assert (Huniq: uniqFdef F') by eauto using wf_system__uniqFdef.
-    clear - H24 Hmsim H0 Heq3' Huniq.
+    clear - H24 Hmsim H0 Heq3' Huniq HBinF2.
     eapply mem_simulation__return; eauto.
 Unfocus.
 
 SCase "sBranch".
 Focus.
-
   destruct_ctx_other.
   apply cmds_simulation_nil_inv in Hcssim2; subst.
   inv Hop2.
@@ -2497,7 +2536,7 @@ Focus.
     destruct (isGVZero (los, nts) c); eauto using fdef_sim__block_sim.
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
   assert (blockInFdefB (block_intro l' ps' cs' tmn') F) as HBinF1'.
-    admit. (* infra *)
+    solve_blockInFdefB.
   assert (Hbsim':=Hbsim).
   apply block_simulation_inv in Hbsim'; auto.
   destruct Hbsim' as [Heq1 [Heq2 [Hcssim' Heq5]]]; subst.
@@ -2528,7 +2567,7 @@ Focus.
     eauto using fdef_sim__block_sim.
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
   assert (blockInFdefB (block_intro l' ps' cs' tmn') F) as HBinF1'.
-    admit. (* infra *)
+    solve_blockInFdefB.
   assert (Hbsim':=Hbsim).
   apply block_simulation_inv in Hbsim'; auto.
   destruct Hbsim' as [Heq1 [Heq2 [Hcssim' Heq5]]]; subst.
@@ -2565,9 +2604,9 @@ SCase "sFree".
     eapply mem_simulation__replace_head in Hmsim; eauto.
     intros omb Hin.
       eapply in_SAS_tail_update; eauto using unremovable_loc__neq__SAS_sid1, 
-                                             unremovable_loc__neq__SAS_sid2,
+                                             unstore_loc__neq__SAS_sid2,
                                              wf_system__uniqFdef.
-        simpl. admit. (* fid <> sid *)
+        unstore_loc__neq__SAS_sid2_tac.
 
 SCase "sAlloca". abstract (dse_is_sim_malloc).
 
@@ -2583,15 +2622,11 @@ SCase "sLoad".
 
   assert (gv = gv0) as EQ.
     assert (wf_value S (module_intro los nts Ps) F v (typ_pointer t)) as Hwfv.
-      admit. (* wf *)
+      get_wf_value_for_simop_ex. auto.
     clear - H23 Hmsim H1 H21 HwfHT Hinscope' Hwfmg Hwfv HuniqECs. simpl in *.
     eapply mem_simulation__mload; eauto.
   subst.
-  repeat_solve.
-    eapply mem_simulation_update_locals in Hmsim; simpl; 
-      eauto using unremovable_loc__neq__SAS_sid1, wf_system__uniqFdef.
-      eapply unremovable_loc__neq__SAS_sid2; eauto; simpl; auto.
-      admit. (* lid <> pid *)
+  dse_is_sim_mem_update.
 
 SCase "sStore".
 
@@ -2604,7 +2639,7 @@ SCase "sStore".
 
   repeat_solve.
     assert (wf_value S (module_intro los nts Ps) F v1 t) as Hwfv.
-      admit. (* wf *)
+      get_wf_value_for_simop_ex. auto.
     eapply mstore_unremovable_mem_simulation; eauto using wf_system__uniqFdef.
 
 SCase "sGEP". abstract (destruct_ctx_other; dse_is_sim_common_case).
@@ -2622,17 +2657,7 @@ SCase "sSelect".
   inv Hop2; uniq_result.
 
   repeat_solve.
-    destruct (isGVZero (los,nts) c).
-      eapply mem_simulation_update_locals in Hmsim; simpl; 
-        eauto using unremovable_loc__neq__SAS_sid1, wf_system__uniqFdef.
-        eapply unremovable_loc__neq__SAS_sid2; eauto; simpl; auto.
-        simpl. intros.
-        admit. (* lid <> pid *)
-      eapply mem_simulation_update_locals in Hmsim; simpl;
-        eauto using unremovable_loc__neq__SAS_sid1, wf_system__uniqFdef.
-        eapply unremovable_loc__neq__SAS_sid2; eauto; simpl; auto.
-        simpl. intros.
-        admit. (* lid <> pid *)
+    destruct (isGVZero (los,nts) c); dse_is_sim_mem_update.
 
 SCase "sCall".
 
@@ -2675,9 +2700,9 @@ SCase "sCall".
     destruct Hfsim1 as [Heq _]. inv Heq. uniq_result.
     auto.
 
-    clear - Hmsim Huniq Hex.
+    clear - Hmsim Huniq Hex H2. 
     apply mem_simulation__call; auto.
-      split; simpl; auto. 
+      repeat (split; simpl; try solve [auto | solve_blockInFdefB]).
 
   SSCase "sExCall".
 
@@ -2732,10 +2757,14 @@ SCase "sExCall".
   eapply callExternalFunction__mem_simulation in Hmsim; eauto.
   destruct Hmsim as [EQ [Hmsim EQ']]; subst.
   uniq_result.
-  repeat_solve.
-    eapply mem_simulation_update_locals in Hmsim; simpl;
-      eauto using unremovable_loc__neq__SAS_sid1, wf_system__uniqFdef.
-      admit. (* rid <> pid *)  admit. (* cid <> pid *)
+  assert (PI_f pinfo = F ->
+          lookupAL (GVsT DGVs) lc2 (PI_id pinfo) =
+          lookupAL (GVsT DGVs) lc' (PI_id pinfo)) as EQ.
+    unfold Opsem.exCallUpdateLocals in H34.
+    destruct_if; auto.
+    inv_mbind; auto.
+    solve_non_pid_updateAddAL.
+  dse_is_sim_mem_update.
 
 Transparent inscope_of_tmn inscope_of_cmd.
 

@@ -4072,3 +4072,90 @@ Proof.
       simpl. solve_in_list.
 Qed.
 
+Lemma wf_single_system__wf_uniq_fdef: forall los nts Ps1 f Ps2,
+  wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] ->
+  wf_fdef [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
+    (module_intro los nts (Ps1 ++ product_fdef f :: Ps2)) f /\
+  uniqFdef f.
+Proof.
+  intros.
+  assert (
+    moduleInSystemB (module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
+      [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] = true) as HmInS.
+    simpl. rewrite moduleEqB_refl. auto.
+  assert (
+    InProductsB (product_fdef f) (Ps1 ++ product_fdef f :: Ps2) = true)
+    as HpInM.
+    apply InProductsB_middle; auto.
+  split.
+    eapply wf_system__wf_fdef; eauto 1.
+    eapply wf_system__uniqFdef; eauto 1.
+Qed.
+
+Lemma wf_system__uniqSystem: forall S, wf_system S -> uniqSystem S.
+Proof.
+  intros.
+  destruct H; auto.
+Qed.
+
+Lemma wf_fdef__wf_phinodes': forall s m F l' ps' cs' tmn' l2,
+  wf_fdef s m F ->
+  ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l2 ->
+  uniqFdef F ->
+  wf_phinodes s m F (block_intro l' ps' cs' tmn') ps'.
+Proof.
+  intros.
+  symmetry in H0.
+  apply lookupBlockViaLabelFromFdef_inv in H0; auto.
+  destruct H0 as [_ Hlkup].
+  eapply wf_fdef__wf_phinodes in Hlkup; eauto.
+ Qed.
+
+Ltac get_wf_value_for_simop :=
+  match goal with
+  | HBinF: blockInFdefB (block_intro _ _ (_++_::_) _) _ = _ |- _ =>
+    let HBinF':=fresh "HBinF'" in
+    assert (HBinF':=HBinF);
+    eapply wf_system__wf_cmd in HBinF'; eauto using in_middle;
+    inv HBinF'; 
+    match goal with
+    | H: wf_trunc _ _ _ _ _ |- _ => inv H
+    | H: wf_cast _ _ _ _ _ |- _ => inv H 
+    | H: wf_ext _ _ _ _ _ |- _ => inv H 
+    | _ => idtac
+    end
+  end.
+
+Ltac get_wf_value_for_simop' :=
+  match goal with
+  | HBinF: blockInFdefB (block_intro _ _ (_++nil) _) _ = _ |- _ =>
+    let HBinF':=fresh "HBinF'" in
+    assert (HBinF':=HBinF);
+    eapply wf_system__wf_tmn in HBinF'; eauto using in_middle;
+    inv HBinF'
+  end.
+
+Ltac get_wf_value_for_simop_ex :=
+  match goal with
+  | HBinF: blockInFdefB ?B _ = _,
+    Hex: exists _:_, exists _:_, exists _:_,
+          ?B = (block_intro _ _ (_++_::_) _) |- _ =>
+    let l1:=fresh "l1" in
+    let ps1:=fresh "ps1" in
+    let cs1:=fresh "cs1" in
+      destruct Hex as [l1 [ps1 [cs1 Hex]]]; subst
+  | _ => idtac
+  end;
+  match goal with
+  | HBinF: blockInFdefB (block_intro _ _ (_++_::_) _) _ = _ |- _ =>
+    let HBinF':=fresh "HBinF'" in
+    assert (HBinF':=HBinF);
+    eapply wf_system__wf_cmd in HBinF'; eauto using in_middle;
+    inv HBinF'; 
+    match goal with
+    | H: wf_trunc _ _ _ _ _ |- _ => inv H
+    | H: wf_cast _ _ _ _ _ |- _ => inv H 
+    | H: wf_ext _ _ _ _ _ |- _ => inv H 
+    | _ => idtac
+    end
+  end.

@@ -298,13 +298,6 @@ Proof.
   apply undefined_state__stuck; auto.
 Qed.
 
-(* go to infra *)
-Lemma wf_system__uniqSystem: forall S, wf_system S -> uniqSystem S.
-Proof.
-  intros.
-  destruct H; auto.
-Qed.
-
 Lemma uniq_products_simulation: forall Ps1 f Ps2 f0 trans,
   NoDup (getProductsIDs (Ps1 ++ product_fdef f :: Ps2)) ->
   f0 = f ->

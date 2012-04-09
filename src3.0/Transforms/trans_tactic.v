@@ -73,30 +73,6 @@ end.
 
 Ltac unfold_blk2GV := unfold blk2GV, ptr2GV, val2GV.
 
-Ltac get_wf_value_for_simop :=
-  match goal with
-  | HBinF: blockInFdefB (block_intro _ _ (_++_::_) _) _ = _ |- _ =>
-    let HBinF':=fresh "HBinF'" in
-    assert (HBinF':=HBinF);
-    eapply wf_system__wf_cmd in HBinF'; eauto using in_middle;
-    inv HBinF'; 
-    match goal with
-    | H: wf_trunc _ _ _ _ _ |- _ => inv H
-    | H: wf_cast _ _ _ _ _ |- _ => inv H 
-    | H: wf_ext _ _ _ _ _ |- _ => inv H 
-    | _ => idtac
-    end
-  end.
-
-Ltac get_wf_value_for_simop' :=
-  match goal with
-  | HBinF: blockInFdefB (block_intro _ _ (_++nil) _) _ = _ |- _ =>
-    let HBinF':=fresh "HBinF'" in
-    assert (HBinF':=HBinF);
-    eapply wf_system__wf_tmn in HBinF'; eauto using in_middle;
-    inv HBinF'
-  end.
-
 Ltac anti_simpl_env :=
 simpl_env in *;
 repeat match goal with
@@ -119,29 +95,5 @@ repeat match goal with
 | H: ?A++[?a] = nil |- _ => 
        rewrite_env (A++[a]++nil) in H;
        contradict H; simpl; apply app_cons_not_nil
-end.
-
-
-Ltac simpl_locs_in_ctx :=
-match goal with
-| H: context [getCmdsLocs (_ ++ _)] |- _ => rewrite getCmdsLocs_app in H
-| H: context [getCmdsLocs (_ :: _)] |- _ => simpl in H
-end.
-
-Ltac simpl_locs :=
-match goal with
-| |- context [getCmdsLocs (_ ++ _)] => rewrite getCmdsLocs_app
-| |- context [getCmdsLocs (_ :: _)] => simpl
-end.
-
-Ltac xsolve_in_list :=
-match goal with
-| |- In ?a (_++_) =>
-  apply in_or_app;
-  first [left; solve [xsolve_in_list] | right; solve [xsolve_in_list]]
-| |- In ?a (_::_) =>
-  simpl;
-  first [left; solve [auto] | right; solve [xsolve_in_list]]
-| |- In ?a _ => solve_in_list
 end.
 

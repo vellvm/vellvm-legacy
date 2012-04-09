@@ -1557,9 +1557,46 @@ Proof.
     ].
 Qed.
 
-Lemma values2GVs_sim : forall los nts s gl pinfo lasinfo
+Lemma list_sz_value_simulation_nil_inv: forall pinfo lasinfo f1 idxs,
+  list_sz_value_simulation pinfo lasinfo f1 nil idxs -> idxs = nil.
+Proof.
+  unfold list_sz_value_simulation. simpl.
+  intros. destruct_if; auto.
+Qed.
+
+Definition sz_value_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) 
+  (f1:fdef) (idx idx':sz * value) : Prop :=
+(if (fdef_dec (PI_f pinfo) f1) then
+  let '(sz0, v) := idx in
+  (sz0, v {[ LAS_value pinfo lasinfo // LAS_lid pinfo lasinfo ]})
+else idx) = idx'.
+
+Lemma list_sz_value_simulation_cons_inv: forall pinfo lasinfo F idx1 idxs2 idxs',
+  list_sz_value_simulation pinfo lasinfo F (idx1 :: idxs2) idxs' ->
+  exists idx1', exists idxs2',
+    idxs' = idx1' :: idxs2' /\
+    sz_value_simulation pinfo lasinfo F idx1 idx1' /\
+    list_sz_value_simulation pinfo lasinfo F idxs2 idxs2'.
+Proof.
+  intros.
+  unfold list_sz_value_simulation, sz_value_simulation in *.
+  destruct idx1.
+  destruct_if; subst; simpl; eauto.
+Qed.
+
+Lemma sz_value_simulation__value_simulation: forall pinfo lasinfo 
+  F t1 v1 t2 v2,
+  sz_value_simulation pinfo lasinfo F (t1,v1) (t2,v2) ->
+  value_simulation pinfo lasinfo F v1 v2.
+Proof.
+  unfold sz_value_simulation, value_simulation.
+  intros.
+  destruct_if; auto.
+Qed.
+
+Lemma values2GVs_sim_aux : forall los nts s gl pinfo lasinfo
   ps (f : fdef) (Hwfg : wf_global (los,nts) s gl)
-  (HwfF : wf_fdef s (module_intro los nts ps) f)
+  (HwfF : wf_fdef s (module_intro los nts ps) f) (Huniq: uniqFdef f)
   (tmn : terminator)
   (lc : GVMap)
   (l1 : l)
@@ -1570,6 +1607,56 @@ Lemma values2GVs_sim : forall los nts s gl pinfo lasinfo
   (HbInF : blockInFdefB (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) f = true)
   (l0 : list atom)
   (HeqR : ret l0 = inscope_of_cmd f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) c)
+  (Hinscope' : @OpsemPP.wf_defs DGVs (los, nts) f lc l0)
+  (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
+                     (LAS_value pinfo lasinfo) (PI_f pinfo)
+                     (los, nts) gl f lc l0) t' t v id0 inbounds0 
+  idxs0 (Heq: insn_gep id0 inbounds0 t v idxs0 t' = c) 
+  idxs idxs' vidxss vidxss'
+  (Hex: exists idxs1, idxs0 = idxs1 ++ idxs)  
+  (Hget' :  @Opsem.values2GVs DGVs (los, nts) idxs lc gl = ret vidxss)
+  (Hvsim : list_sz_value_simulation pinfo lasinfo f idxs idxs')
+  (Hget : @Opsem.values2GVs DGVs (los, nts) idxs' lc gl = ret vidxss'),
+  vidxss = vidxss'.
+Proof.
+  induction idxs as [|[]]; simpl; intros.
+    uniq_result. 
+    apply list_sz_value_simulation_nil_inv in Hvsim. subst. 
+    simpl in Hget. 
+    uniq_result. auto.
+
+    inv_mbind.
+    apply list_sz_value_simulation_cons_inv in Hvsim.
+    destruct Hvsim as [idx1' [idxs2' [EQ [Hvsim1 Hvsim2]]]]; subst.
+    simpl in Hget.
+    inv_mbind.
+    destruct Hex as [idxs1 Hex]; subst.
+    assert (g = g0) as Heq.
+      apply sz_value_simulation__value_simulation in Hvsim1.
+      eapply getOperandValue_inCmdOperands_sim in Hvsim1; eauto.
+        simpl. unfold valueInParams. right.
+        unfold valueInListValue.
+        rewrite List.map_app. simpl.
+        apply In_middle.
+    subst.
+    erewrite IHidxs with (vidxss:=l2); eauto.
+      exists (idxs1 ++ [(s0,v0)]). simpl_env. auto.
+Qed.
+
+Lemma values2GVs_sim : forall los nts s gl pinfo lasinfo
+  ps (f : fdef) (Hwfg : wf_global (los,nts) s gl)
+  (HwfF : wf_fdef s (module_intro los nts ps) f) (Huniq: uniqFdef f)
+  (tmn : terminator)
+  (lc : GVMap)
+  (l1 : l)
+  (ps1 : phinodes)
+  (cs1 cs : list cmd)
+  (c : cmd)
+  (Hreach : isReachableFromEntry f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn))
+  (HbInF : blockInFdefB (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) f = true)
+  (l0 : list atom)
+  (HeqR : ret l0 = inscope_of_cmd f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) c)
+  (Hinscope' : @OpsemPP.wf_defs DGVs (los, nts) f lc l0)
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
                      (LAS_value pinfo lasinfo) (PI_f pinfo)
                      (los, nts) gl f lc l0) t' t v id0 inbounds0 
@@ -1578,7 +1665,11 @@ Lemma values2GVs_sim : forall los nts s gl pinfo lasinfo
   (Hvsim : list_sz_value_simulation pinfo lasinfo f idxs idxs')
   (Hget : @Opsem.values2GVs DGVs (los, nts) idxs' lc gl = ret vidxss'),
   vidxss = vidxss'.
-Admitted. (* refer to params2GVs_sim_aux *)
+Proof.
+  intros.
+  eapply values2GVs_sim_aux with (idxs0:=idxs)(idxs:=idxs)(idxs':=idxs'); eauto.
+    exists nil. auto.
+Qed.
 
 Ltac las_is_sim_tac :=
   destruct_ctx_other;

@@ -339,6 +339,7 @@ Proof.
   eapply mem_simulation__update_non_palloca; eauto.
 Qed.
 
+
 Lemma dae_is_sim_removable_state: forall (maxb : Values.block) (pinfo : PhiInfo)
   (mi : MoreMem.meminj) (Cfg1 : OpsemAux.Config) (St1 : Opsem.State)
   (Cfg2 : OpsemAux.Config) (St2 : Opsem.State) (Hwfpi : WF_PhiInfo pinfo)
@@ -361,10 +362,6 @@ Proof.
   simpl in Hrem.
   destruct (fdef_dec (PI_f pinfo) F1); subst; tinv Hrem.
   destruct (id_dec (PI_id pinfo) (getCmdLoc c1)); subst; tinv Hrem.
-  assert (exists v,
-    c1 = insn_alloca (PI_id pinfo) (PI_typ pinfo) v (PI_align pinfo)) as EQ.
-    admit. (* uniqness *)
-  destruct EQ as [v EQ]; subst.
 
   destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]]; subst.
   destruct Hwfpp as
@@ -381,8 +378,6 @@ Proof.
     ]; simpl in Hdisjals.
   fold Promotability.wf_ECStack in HwfECs'.
 
-  inv Hop1.
-
   destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2].
   destruct St2 as [ECs2 M2].
 
@@ -394,6 +389,15 @@ Proof.
   destruct Hecsim as
       [Hfsim2 [Heq1 [Halsim2 [Hbsim2
         [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst.
+
+  assert (c1 = 
+    insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) (PI_align pinfo)) 
+    as EQ.
+    destruct Heq3 as [? [? [? Heq3]]]; subst.
+    eapply WF_PhiInfo_spec1'; eauto 2 using wf_system__uniqFdef.
+  subst.
+
+  inv Hop1.
 
   uniq_result.
   eapply mem_simulation__palloca in Hmsim; eauto.
@@ -1145,7 +1149,7 @@ Focus.
   destruct_ctx_return.
   assert (PI_f pinfo <> F' \/ PI_id pinfo <> getCmdLoc (insn_call i0 n c t0 v0 v p))
     as Hneq.
-    admit. (* wf-formedness *)
+    WF_PhiInfo_spec10_tac.
   apply cmds_simulation_nelim_cons_inv in Hcssim2'; auto.
   destruct Hcssim2' as [cs3' [Heq Hcssim2']]; subst;
   inv Hop2;
@@ -1167,7 +1171,7 @@ Focus.
   destruct_ctx_return.
   assert (PI_f pinfo <> F' \/ PI_id pinfo <> getCmdLoc (insn_call i0 n c t0 v0 v p))
     as Hneq.
-    admit. (* wf-formedness *)
+    WF_PhiInfo_spec10_tac.
   apply cmds_simulation_nelim_cons_inv in Hcssim2'; auto.
   destruct Hcssim2' as [cs3' [Heq Hcssim2']]; subst;
   inv Hop2;
@@ -1201,11 +1205,11 @@ Focus.
   destruct Hbsim' as [Heq1 [Hpssim' [Hcssim' Heq5]]]; subst.
 
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
-  apply phis_simulation_inv in Hpssim'; auto.
+  assert (blockInFdefB (block_intro l'0 ps' cs' tmn'0) F) as HBinF1'.
+    solve_blockInFdefB.
+  eapply phis_simulation_inv in Hpssim'; eauto 2.
   subst.
 
-  assert (blockInFdefB (block_intro l'0 ps'0 cs' tmn'0) F) as HBinF1'.
-    admit. (* infra *)
   assert (reg_simulation pinfo mi F lc' lc'0) as Hlcsim2'.
     assert (HBinF1'':=HBinF1').
     eapply wf_system__blockInFdefB__wf_block in HBinF1''; eauto.     
@@ -1244,11 +1248,11 @@ Focus.
   destruct Hbsim' as [Heq1 [Hpssim' [Hcssim' Heq5]]]; subst.
 
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
-  apply phis_simulation_inv in Hpssim'; auto.
+  assert (blockInFdefB (block_intro l'0 ps' cs' tmn'0) F) as HBinF1'.
+    solve_blockInFdefB.
+  eapply phis_simulation_inv in Hpssim'; eauto 2.
   subst.
 
-  assert (blockInFdefB (block_intro l'0 ps'0 cs' tmn'0) F) as HBinF1'.
-    admit. (*infra *)
   assert (reg_simulation pinfo mi F lc' lc'0) as Hlcsim2'.
     assert (HBinF1'':=HBinF1').
     eapply wf_system__blockInFdefB__wf_block in HBinF1''; eauto.     
@@ -1400,6 +1404,12 @@ SCase "sCall".
   apply block_simulation_inv in Hbsim1'.
   destruct Hbsim1' as [Heq' [Hpsim1' [Hcsim1' Htsim1']]]; subst.
   exists mi.
+    match goal with
+    | H1: OpsemAux.lookupFdefViaPtr _ _ _ = Some ?F,
+      _ : fdef_simulation _ ?F _ |- _ =>
+      apply OpsemAux.lookupFdefViaPtr_inv in H1;
+      eapply wf_system__uniqFdef in H1; eauto 2
+    end.
   repeat_solve.
     exists l'0. exists ps'. exists nil. auto.
     exists l'0. exists ps'0. exists nil. auto.
@@ -1410,8 +1420,8 @@ SCase "sCall".
     assert (HBinF1':=HBinF1).
     eapply wf_system__wf_cmd in HBinF1'; eauto using in_middle.     
     inv HBinF1'.
-    find_wf_value_list.
-    eapply reg_simulation__initLocals; eauto using mem_simulation__wf_sb_sim,
+    find_wf_value_list.  
+    eapply reg_simulation__initLocals; eauto 2 using mem_simulation__wf_sb_sim,
       used_in_fdef__params_dont_use_pid, WF_PhiInfo__args_dont_use_pid.
 
     destruct Hmsim as [Hmsim1 [Hmsim2 Hmsim3]].

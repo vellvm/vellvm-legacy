@@ -780,7 +780,8 @@ Proof.
     unfold TopSim.products_simulation. unfold fsim. unfold Fsim. 
     apply uniq_products_simulation; auto.
   assert (uniqFdef (PI_f pinfo)) as HuniqF.
-    admit. (* wfF *)
+    rewrite Heq in *.
+    eapply wf_single_system__wf_uniq_fdef; eauto.
 
 Ltac laa_sim_init :=
 match goal with

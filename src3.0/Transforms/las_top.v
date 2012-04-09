@@ -750,10 +750,10 @@ Proof.
 
   assert (wf_fdef [module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)]
             (module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)) 
-            (PI_f pinfo)) as HwfF.
-    admit. (* wfF *)
-  assert (uniqFdef (PI_f pinfo)) as HuniqF.
-    admit. (* wfF *)
+            (PI_f pinfo) /\ uniqFdef (PI_f pinfo)) as J.
+    rewrite Heq in *.
+    apply wf_single_system__wf_uniq_fdef; auto.
+  destruct J as [HwfF HuniqF].
 
 Ltac las_sim_init :=
 match goal with

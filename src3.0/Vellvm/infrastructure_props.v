@@ -5117,6 +5117,22 @@ Proof.
 Qed.
 
 Ltac solve_blockInFdefB :=
+match goal with
+| |- is_true (blockInFdefB ?B ?F) => unfold is_true
+| |- _ => idtac
+end;
+match goal with
+| _ : Some ?B =
+       (if ?e
+        then lookupBlockViaLabelFromFdef ?F _
+        else lookupBlockViaLabelFromFdef ?F _) |-
+  blockInFdefB ?B ?F = true => destruct e
+| _ : (if ?e
+       then lookupBlockViaLabelFromFdef ?F _
+       else lookupBlockViaLabelFromFdef ?F _) = Some ?B |-
+  blockInFdefB ?B ?F = true => destruct e
+| |- _ => idtac
+end;
 repeat match goal with
 | H2: insnInFdefBlockB _ ?F ?b = true |- blockInFdefB ?b ?F = true =>
   apply insnInFdefBlockB__blockInFdefB in H2; auto
@@ -5130,6 +5146,11 @@ repeat match goal with
   try destruct b;
   apply lookupBlockViaLabelFromFdef_inv in H2; auto;
   destruct H2 as [EQ99 H2]; subst; auto
+| H: getEntryBlock ?F = Some ?B |- blockInFdefB ?B ?F = true =>
+  apply entryBlockInFdef; auto
+| H: getEntryBlock (fdef_intro _ ?ls) = Some ?B |- InBlocksB ?B ?lb = true =>
+  apply entryBlockInFdef in H; auto
+| |- _ => idtac
 end.
 
 Lemma IngetTmnID__lookupTmnViaIDFromFdef: forall l1 ps1 cs1 tmn1 f
@@ -5482,3 +5503,57 @@ Proof.
       apply orb_true_iff.
       right. apply IHbs in HBinF. auto.
 Qed.
+
+Lemma InProductsB_middle: forall Ps2 P Ps1,
+  InProductsB P (Ps1 ++ P :: Ps2) = true.
+Proof.
+  induction Ps1; simpl.
+    rewrite productEqB_refl. auto.
+    rewrite IHPs1. apply orb_true_intro; auto.
+Qed.  
+
+Lemma In_getArgsIDs_spec: forall t a i0 args5
+  (Hin: In (t, a, i0) args5), In i0 (getArgsIDs args5).
+Proof.
+  induction args5 as [|[[]]]; simpl; intros; auto.
+    destruct Hin as [Hin | Hin]; auto.
+      left. congruence.
+Qed.
+
+Ltac solve_lookupBlockViaLabelFromFdef:=
+match goal with
+| Huniq: uniqFdef ?F',
+  HBinF: blockInFdefB (block_intro ?l' ?ps' ?cs' ?tmn') ?F |-
+  lookupBlockViaLabelFromFdef ?F ?l' = Some (block_intro ?l' ?ps' ?cs' ?tmn') =>
+  apply blockInFdefB_lookupBlockViaLabelFromFdef; auto
+end.
+
+Ltac destruct_dec :=
+match goal with
+| |- context [id_dec ?b ?a] =>
+  destruct (id_dec b a); subst; try congruence; auto
+end.
+
+Ltac simpl_locs_in_ctx :=
+match goal with
+| H: context [getCmdsLocs (_ ++ _)] |- _ => rewrite getCmdsLocs_app in H
+| H: context [getCmdsLocs (_ :: _)] |- _ => simpl in H
+end.
+
+Ltac simpl_locs :=
+match goal with
+| |- context [getCmdsLocs (_ ++ _)] => rewrite getCmdsLocs_app
+| |- context [getCmdsLocs (_ :: _)] => simpl
+end.
+
+Ltac xsolve_in_list :=
+match goal with
+| |- In ?a (_++_) =>
+  apply in_or_app;
+  first [left; solve [xsolve_in_list] | right; solve [xsolve_in_list]]
+| |- In ?a (_::_) =>
+  simpl;
+  first [left; solve [auto] | right; solve [xsolve_in_list]]
+| |- In ?a _ => solve_in_list
+end.
+

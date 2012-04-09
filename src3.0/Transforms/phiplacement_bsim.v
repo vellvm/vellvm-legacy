@@ -876,7 +876,7 @@ Proof.
           destruct G as [[G _] _].
           eapply mload_mstore_same; eauto.
 
-          admit. (* WF_PhiInfo *)          
+          destruct_if. apply WF_PhiInfo_spec18; eauto using wf_system__uniqFdef.
 
     SCase "isnt_temporary".
       apply cmds_simulation_same_cons_inv in Htcmds; eauto.

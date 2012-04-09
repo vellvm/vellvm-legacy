@@ -31,15 +31,17 @@
   dse
    STATUS: partially
 
-9) infrastructure (0.5W)
+9) infrastructure (0.5W):0.5D
   promotable_props alive_store dae program_sim
+   STATUS: done
 
-9) typings (uniqness, wf) (0.5W)
+9) typings (uniqness, wf) (0.5W):0.5D
   alive_alloca las laa dae sas
+   STATUS: partial
 
-11.1) fdef/prod-simulation (0.5W)
+11.1) fdef/prod-simulation (0.5W):1D
   las laa sas dse
-  STATUS: Done 1D
+  STATUS: partial
 
 11.2) undef/final:4D
   STATUS: Done 

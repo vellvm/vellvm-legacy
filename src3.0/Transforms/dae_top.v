@@ -21,7 +21,8 @@ Require Import dae.
 Require Import dae_wfS.
 
 Lemma s_genInitState__dae_State_simulation': forall pinfo S1 S2 main VarArgs cfg2
-  IS2 (Hssym: system_simulation pinfo S1 S2)
+  IS2 (Hssym: system_simulation pinfo S1 S2) (HwfS: wf_system S1) 
+  (Hwfpi: WF_PhiInfo pinfo)
   (Hinit: Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2)),
   exists cfg1, exists IS1,
     Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
@@ -96,7 +97,11 @@ Proof.
       inv HIn. 
       destruct_if.
       assert (lookupAL (GVsT DGVs) lc (PI_id pinfo) = None) as Hnoin.
-        admit. (* pld <> args *)
+        assert (Huniq: uniqFdef (PI_f pinfo)).
+          rewrite e.
+          eauto using wf_system__uniqFdef.
+        eapply WF_PhiInfo__pid_isnt_in_init; eauto.
+          rewrite e. eauto.
       fill_ctxhole. auto.
 
     simpl.
@@ -105,7 +110,8 @@ Proof.
 Qed.
 
 Lemma s_genInitState__dae_State_simulation: forall pinfo S1 S2 main VarArgs cfg2
-  IS2 (Hssym: system_simulation pinfo S1 S2)
+  IS2 (Hssym: system_simulation pinfo S1 S2) (HwfS: wf_system S1) 
+  (Hwfpi: WF_PhiInfo pinfo)
   (Hinit: Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2)),
   exists maxb, exists mi, exists cfg1, exists IS1,
     Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
@@ -197,13 +203,14 @@ Proof.
       simpl in Hfinal.
       inTmnOp_isnt_stuck value5 H6 Hwfcfg2 Hwfpp2.
       destruct H2 as [_ [_ H2]].
-      assert (wf_value S2 (module_intro los2 nts2 gl2) CurFunction value5 typ5) as Hwft.
-        admit. (* wf *)
+      destruct H5 as [l5 [ps2 [cs21 H5]]]; subst;
+      destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
+      destruct Hwfpp1 as 
+          [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [_ _]]]]] _]].
+      assert (wf_value S1 (module_intro los2 nts2 gl1) CurFunction value5 typ5) 
+        as Hwft.
+        get_wf_value_for_simop'. eauto.
       assert (value_doesnt_use_pid pinfo CurFunction value5) as Hnotin.
-        destruct H5 as [l5 [ps2 [cs21 H5]]]; subst;
-        destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
-        destruct Hwfpp1 as 
-          [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [Hinscope1 _]]]]] _]].
         eapply used_in_fdef__tmn_value_doesnt_use_pid; eauto 1; simpl; auto.
       eapply simulation__getOperandValue in H7; eauto.
       admit. (* main sig *)
@@ -265,13 +272,14 @@ Proof.
         simpl in Hfinal.
         inTmnOp_isnt_stuck value5 H5 Hwfcfg1 Hwfpp1.
         destruct H2 as [_ [_ H2]].
-        assert (wf_value S1 (module_intro los2 nts2 gl1) CurFunction value5 typ5) as Hwft.
-          admit. (* wf *)
+        destruct H5 as [l5 [ps2 [cs21 H5]]]; subst;
+        destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
+        destruct Hwfpp1 as 
+          [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [_ _]]]]] _]].
+        assert (wf_value S1 (module_intro los2 nts2 gl1) CurFunction value5 typ5) 
+          as Hwft.
+          get_wf_value_for_simop'. eauto.
         assert (value_doesnt_use_pid pinfo CurFunction value5) as Hnotin.
-          destruct H5 as [l5 [ps2 [cs21 H5]]]; subst;
-          destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
-          destruct Hwfpp1 as 
-            [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [Hinscope1 _]]]]] _]].
           eapply used_in_fdef__tmn_value_doesnt_use_pid; eauto 1; simpl; auto.
         eapply simulation__getOperandValue in H7; eauto.
         admit. (* main sig *)
@@ -326,12 +334,21 @@ Proof.
   destruct CurCmds; tauto.
 Qed.
 
-Lemma nonfinal_stuck_state_goes_wrong: forall Cfg St,
-  @Opsem.stuck_state DGVs Cfg St ->
-  Opsem.s_isFinialState Cfg St = None -> sop_goeswrong Cfg St.
+Lemma removable_State_inv: forall pinfo F b c cs tmn lc als ECs Mem,
+  removable_State pinfo 
+    {| Opsem.ECS := {| Opsem.CurFunction := F;
+                       Opsem.CurBB := b;
+                       Opsem.CurCmds := c :: cs;
+                       Opsem.Terminator := tmn;
+                       Opsem.Locals := lc;
+                       Opsem.Allocas := als |} :: ECs;
+       Opsem.Mem := Mem |} ->
+  PI_f pinfo = F /\ PI_id pinfo = getCmdLoc c.
 Proof.
+  simpl.
   intros.
-  exists St. exists E0. split; auto.
+  destruct_if.
+  destruct_if. auto.
 Qed.
 
 Lemma dae_is_bsim_removable_steps : forall maxb pinfo Cfg1 St1 Cfg2 St2
@@ -361,13 +378,24 @@ Proof.
     eapply dae_is_sim in Hsim; eauto.
     destruct Hsim as [Hstsim1 _].
     assert (~ removable_State pinfo IS1'') as Hnrm.
-      assert (exists v,
-        c1 = insn_alloca (PI_id pinfo) (PI_typ pinfo) v (PI_align pinfo)) as EQ.
-        admit. (* uniqness *)
-      destruct EQ as [v EQ]; subst.
+      assert (c1 = insn_alloca (PI_id pinfo) (PI_typ pinfo) 
+               (PI_num pinfo) (PI_align pinfo)) as EQ.
+        destruct Cfg1 as [? [] ? ?].
+        destruct Hwfcfg as [_ [Hwfg1 [Hwfs1 HmInS1]]];
+        destruct Hwfpp as 
+          [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [_ [l1 [ps1 [cs1' EQ]]]]]]]] _]]; 
+          subst.
+        apply removable_State_inv in Hrm; auto. destruct Hrm; subst.
+        eapply WF_PhiInfo_spec1'; eauto 2 using wf_system__uniqFdef.
+      subst.
       inv Hop1.
       eapply removable_State__non_removable_State; eauto.
-        admit. (* uniqness *)      
+        apply wf_State__wfECs_inv in Hwfpp; auto.
+        simpl in Hwfpp. clear - Hwfpp.
+        inv Hwfpp. 
+        destruct H1 as [A [B [C [l0 [ps0 [cs0 D]]]]]]. simpl in *. subst.
+        apply uniqFdef__uniqBlockLocs in B; auto. simpl in B.
+        split_NoDup. simpl_locs_in_ctx. split_NoDup. simpl_locs_in_ctx. auto.
     eapply Hstsim1 in Hrm; eauto.
     destruct Hrm as [mi' [Hstsim [EQ Hinc]]]; subst.
     exists IS1''. exists mi'.
@@ -626,6 +654,7 @@ match goal with
 end.
 
 Lemma stacked_frame__unremovable: forall cfg EC1 EC2 ECS Mem0 pinfo
+  (Huniq: uniqEC EC2) (Hwfpi: WF_PhiInfo pinfo)
   (HBinF: match Opsem.CurBB EC1 with 
    | block_intro _ _ _ (insn_return _ _ _) => True
    | block_intro _ _ _ (insn_return_void _) => True
@@ -637,15 +666,20 @@ Lemma stacked_frame__unremovable: forall cfg EC1 EC2 ECS Mem0 pinfo
      {| Opsem.ECS := EC2 :: ECS; Opsem.Mem := Mem0 |}.
 Proof.
   intros.
+  destruct Huniq as [J1 [J2 J3]].
+  destruct J3 as [l1 [ps0 [cs0 J3]]]; subst.
   destruct EC1, EC2; simpl in *. destruct cfg. destruct CurTargetData.
   destruct Hwfpp1 as 
      [_ [[_ [HbInF1 [_ [_ [_ _]]]]] [_ Hiscall]]].
   apply Hiscall in HbInF1.
-  destruct CurBB as [? ? ? []]; tinv HBinF.
-    destruct CurCmds0 as [|[]]; tinv HbInF1.
-      simpl. admit. (*uniqness*)
-    destruct CurCmds0 as [|[]]; tinv HbInF1.
-      simpl. admit. (*uniqness*)
+  destruct CurBB as [? ? ? []]; tinv HBinF;
+    destruct CurCmds0 as [|[]]; try solve [
+      inv HbInF1 |
+      simpl; destruct_if; destruct_if;
+      eapply WF_PhiInfo_spec1' in J2; 
+        eauto using in_middle; simpl; auto; 
+      congruence
+    ].
 Qed.
 
 Lemma undefined_state__dae_State_simulation_r2l': forall pinfo maxb mi cfg1 St1 cfg2
@@ -661,6 +695,7 @@ Lemma undefined_state__dae_State_simulation_r2l': forall pinfo maxb mi cfg1 St1 
   OpsemPP.undefined_state cfg1 St1.
 Proof.
   intros.
+  assert (HuniqECs:=Hwfpp1). apply wf_State__uniqECs in HuniqECs; auto.
   unfold OpsemPP.undefined_state in Hundef.
   destruct cfg2 as [S2 [los2 nts2] gl2 fs2].
   destruct cfg1 as [S1 [los1 nts1] gl1 fs1].
@@ -682,9 +717,9 @@ Proof.
                             Opsem.Locals := Locals2;
                             Opsem.Allocas := Allocas2 |} :: ECS;
             Opsem.Mem := Mem0 |}).
-      clear - Hwfpp1 H5.
+      clear - Hwfpp1 H5 HuniqECs Hwfpi.
       destruct H5 as [l5 [ps5 [cs5 H5]]]; subst.
-      eapply stacked_frame__unremovable; eauto; simpl; auto.
+      eapply stacked_frame__unremovable; eauto; simpl; auto; find_uniqEC.
     eapply cmds_simulation_cons_inv' in Hnrem'; eauto.
     destruct Hnrem' as [cs1' [J1 J3]]; subst.
     left. 
@@ -709,9 +744,9 @@ Proof.
                             Opsem.Locals := Locals2;
                             Opsem.Allocas := Allocas2 |} :: ECS;
             Opsem.Mem := Mem0 |}).
-      clear - Hwfpp1 H5.
+      clear - Hwfpp1 H5 HuniqECs Hwfpi.
       destruct H5 as [l5 [ps5 [cs5 H5]]]; subst.
-      eapply stacked_frame__unremovable; eauto; simpl; auto.
+      eapply stacked_frame__unremovable; eauto; simpl; auto; find_uniqEC.
     eapply cmds_simulation_cons_inv' in Hnrem'; eauto.
     destruct Hnrem' as [cs1' [J1 J3]]; subst.
     right. left. 

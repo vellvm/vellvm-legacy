@@ -271,14 +271,14 @@ repeat match goal with
   try (destruct Hundef as [gv [J13 J14]]; inv J13);
   inv_mbind;
   elimtype False; try solve [
-    eapply WF_PhiInfo_spec19; 
+    eapply WF_PhiInfo_spec190; 
       try solve [eauto | erewrite simulation__lookup_pid; eauto]
   ]
 end.
 
   destruct (@G10 c) as [i1 [i2 [i3 [J11 [J12 | J12]]]]]; subst; simpl; auto.
     s_isFinialState__phiplacement_State_simulation'_tac.
-      eapply WF_PhiInfo_spec20; 
+      eapply WF_PhiInfo_spec200; 
         try solve [eauto using wf_system__wf_fdef | 
                    erewrite simulation__lookup_pid; eauto].
 
@@ -605,7 +605,7 @@ end.
             destruct Hnoalias as [Hnoalias _].
             simpl in Hnoalias. destruct Hnoalias as [[Hnoalias _] _].
             destruct_if; try congruence.
-            eapply WF_PhiInfo_spec19; 
+            eapply WF_PhiInfo_spec190; 
               try solve [eauto using wf_system__wf_fdef | 
                          erewrite simulation__lookup_pid; 
                            eauto using wf_system__uniqFdef].
@@ -643,8 +643,8 @@ end.
             destruct Hnoalias as [Hnoalias _].
             simpl in Hnoalias. destruct Hnoalias as [[Hnoalias _] _].
             destruct_if; try congruence.
-            eapply WF_PhiInfo_spec20; 
-              try solve [eauto using wf_system__wf_fdef | 
+            eapply WF_PhiInfo_spec200; 
+              try solve [eauto using wf_system__wf_fdef, wf_system__uniqFdef | 
                          erewrite simulation__lookup_pid; 
                            eauto using wf_system__uniqFdef].
 

@@ -368,7 +368,7 @@ Proof.
     simpl.
     assert (wf_const s (los,nts) (const_undef (PI_typ pinfo)) (PI_typ pinfo)) 
       as Hwfc.
-      admit. (* wf *)
+      admit. (* wf const_undef ptyp *)
     eapply (@OpsemPP.const2GV_isnt_stuck DGVs) in Hwfc; eauto.
     destruct Hwfc as [gvsv Hwfc]. 
     eauto.
@@ -581,7 +581,7 @@ else v = v'.
 (* same to las' *)
 Lemma getOperandValue_inTmnOperands_sim : forall los nts s ps gl pinfo 
   laainfo (f : fdef) (Hwfg : wf_global (los,nts) s gl) 
-  (HwfF: wf_fdef s (module_intro los nts ps) f)
+  (HwfF: wf_fdef s (module_intro los nts ps) f) (Huniq: uniqFdef f)
   (tmn : terminator)
   (lc : GVMap)
   (l1 : l)
@@ -609,14 +609,18 @@ Proof.
     try solve [uniq_result; auto].
   destruct (id_dec i0 (LAA_lid pinfo laainfo)); simpl in Hget'; subst;
     try solve [uniq_result; auto].
+  assert (In (LAA_lid pinfo laainfo) l0) as Hin.
+    (* lid is inscope *)
+    unfold inscope_of_tmn in HeqR.
+    eapply terminator_operands__in_scope' in HeqR; eauto 1.
+      apply valueInTmnOperands__InOps; auto.
   eapply Hinscope in Hget; eauto.
-    admit. (* wf *)
 Qed.
 
 (* same to las' *)
 Lemma getOperandValue_inCmdOperands_sim : forall los nts s gl pinfo laainfo
   ps (f : fdef) (Hwfg : wf_global (los,nts) s gl)
-  (HwfF : wf_fdef s (module_intro los nts ps) f)
+  (HwfF : wf_fdef s (module_intro los nts ps) f) (Huniq: uniqFdef f)
   (tmn : terminator)
   (lc : GVMap)
   (l1 : l)
@@ -645,8 +649,13 @@ Proof.
     try solve [uniq_result; auto].
   destruct (id_dec i0 (LAA_lid pinfo laainfo)); simpl in Hget'; subst;
     try solve [uniq_result; auto].
+  assert (In (LAA_lid pinfo laainfo) l0) as Hin.
+    (* lid is inscope *)
+    unfold inscope_of_cmd in HeqR.
+    eapply cmd_operands__in_scope' in HeqR; eauto 1.
+      solve_in_list.
+      apply valueInCmdOperands__InOps; auto.
   eapply Hinscope in Hget; eauto.
-    admit. (* wf *)
 Qed.
 
 Lemma phis_simulation_nil_inv: forall pinfo laainfo f1 ps,
@@ -974,7 +983,7 @@ Lemma params2GVs_sim_aux : forall
   (tmn : terminator)
   lc (gl : GVMap) 
   (Hwfg1 : wf_global (los,nts) s gl)
-  (HwfF : wf_fdef s (module_intro los nts ps) f)
+  (HwfF : wf_fdef s (module_intro los nts ps) f) (Huniq: uniqFdef f)
   (l1 : l)
   (ps1 : phinodes)
   (cs1 : list cmd)
@@ -1035,7 +1044,7 @@ Lemma params2GVs_sim : forall
   (tmn : terminator)
   lc (gl : GVMap) 
   (Hwfg1 : wf_global (los,nts) s gl)
-  (HwfF : wf_fdef s (module_intro los nts ps) f)
+  (HwfF : wf_fdef s (module_intro los nts ps) f) (Huniq: uniqFdef f)
   (l1 : l)
   (ps1 : phinodes)
   (cs1 : list cmd)
@@ -1295,10 +1304,96 @@ Proof.
     ].
 Qed.
 
+Lemma list_sz_value_simulation_nil_inv: forall pinfo laainfo f1 idxs,
+  list_sz_value_simulation pinfo laainfo f1 nil idxs -> idxs = nil.
+Proof.
+  unfold list_sz_value_simulation. simpl.
+  intros. destruct_if; auto.
+Qed.
+
+Definition sz_value_simulation (pinfo: PhiInfo) (laainfo: LAAInfo pinfo) 
+  (f1:fdef) (idx idx':sz * value) : Prop :=
+(if (fdef_dec (PI_f pinfo) f1) then
+  let '(sz0, v) := idx in
+  (sz0, v {[ [! pinfo !] // LAA_lid pinfo laainfo ]})
+else idx) = idx'.
+
+Lemma list_sz_value_simulation_cons_inv: forall pinfo laainfo F idx1 idxs2 idxs',
+  list_sz_value_simulation pinfo laainfo F (idx1 :: idxs2) idxs' ->
+  exists idx1', exists idxs2',
+    idxs' = idx1' :: idxs2' /\
+    sz_value_simulation pinfo laainfo F idx1 idx1' /\
+    list_sz_value_simulation pinfo laainfo F idxs2 idxs2'.
+Proof.
+  intros.
+  unfold list_sz_value_simulation, sz_value_simulation in *.
+  destruct idx1.
+  destruct_if; subst; simpl; eauto.
+Qed.
+
+Lemma sz_value_simulation__value_simulation: forall pinfo laainfo 
+  F t1 v1 t2 v2,
+  sz_value_simulation pinfo laainfo F (t1,v1) (t2,v2) ->
+  value_simulation pinfo laainfo F v1 v2.
+Proof.
+  unfold sz_value_simulation, value_simulation.
+  intros.
+  destruct_if; auto.
+Qed.
+
+(* same to las *)
+Lemma values2GVs_sim_aux : forall los nts s gl pinfo laainfo
+  ps (f : fdef) (Hwfg : wf_global (los,nts) s gl)
+  (HwfF : wf_fdef s (module_intro los nts ps) f) (Huniq: uniqFdef f)
+  (tmn : terminator)
+  (lc : GVMap)
+  (l1 : l)
+  (ps1 : phinodes)
+  (cs1 cs : list cmd)
+  (c : cmd)
+  (Hreach : isReachableFromEntry f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn))
+  (HbInF : blockInFdefB (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) f = true)
+  (l0 : list atom)
+  (HeqR : ret l0 = inscope_of_cmd f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) c)
+  (Hinscope : id_rhs_val.wf_defs (value_id (LAA_lid pinfo laainfo))
+                     [! pinfo !] (PI_f pinfo)
+                     (los, nts) gl f lc l0) t' t v id0 inbounds0 
+  idxs0 (Heq: insn_gep id0 inbounds0 t v idxs0 t' = c) 
+  idxs idxs' vidxss vidxss'
+  (Hex: exists idxs1, idxs0 = idxs1 ++ idxs)  
+  (Hget' :  @Opsem.values2GVs DGVs (los, nts) idxs lc gl = ret vidxss)
+  (Hvsim : list_sz_value_simulation pinfo laainfo f idxs idxs')
+  (Hget : @Opsem.values2GVs DGVs (los, nts) idxs' lc gl = ret vidxss'),
+  vidxss = vidxss'.
+Proof.
+  induction idxs as [|[]]; simpl; intros.
+    uniq_result. 
+    apply list_sz_value_simulation_nil_inv in Hvsim. subst. 
+    simpl in Hget. 
+    uniq_result. auto.
+
+    inv_mbind.
+    apply list_sz_value_simulation_cons_inv in Hvsim.
+    destruct Hvsim as [idx1' [idxs2' [EQ [Hvsim1 Hvsim2]]]]; subst.
+    simpl in Hget.
+    inv_mbind.
+    destruct Hex as [idxs1 Hex]; subst.
+    assert (g = g0) as Heq.
+      apply sz_value_simulation__value_simulation in Hvsim1.
+      eapply getOperandValue_inCmdOperands_sim in Hvsim1; eauto.
+        simpl. unfold valueInParams. right.
+        unfold valueInListValue.
+        rewrite List.map_app. simpl.
+        apply In_middle.
+    subst.
+    erewrite IHidxs with (vidxss:=l2); eauto.
+      exists (idxs1 ++ [(s0,v0)]). simpl_env. auto.
+Qed.
+
 (* same to las *)
 Lemma values2GVs_sim : forall los nts s gl pinfo laainfo
   ps (f : fdef) (Hwfg : wf_global (los,nts) s gl)
-  (HwfF : wf_fdef s (module_intro los nts ps) f)
+  (HwfF : wf_fdef s (module_intro los nts ps) f) (Huniq: uniqFdef f)
   (tmn : terminator)
   (lc : GVMap)
   (l1 : l)
@@ -1317,7 +1412,11 @@ Lemma values2GVs_sim : forall los nts s gl pinfo laainfo
   (Hvsim : list_sz_value_simulation pinfo laainfo f idxs idxs')
   (Hget : @Opsem.values2GVs DGVs (los, nts) idxs' lc gl = ret vidxss'),
   vidxss = vidxss'.
-Admitted. (* refer to params2GVs_sim_aux *)
+Proof.
+  intros.
+  eapply values2GVs_sim_aux with (idxs0:=idxs)(idxs:=idxs)(idxs':=idxs'); eauto.
+    exists nil. auto.
+Qed.
 
 (* same to las *)
 Ltac laa_is_sim_tac :=
@@ -1338,6 +1437,7 @@ Ltac laa_is_sim_tac :=
       _: InProductsB (product_fdef ?F) ?Ps = true |- _ =>
       assert (wf_fdef S (module_intro los nts Ps) F) as HwfF;
         eauto using wf_system__wf_fdef;
+      assert (uniqFdef F) as Huniq; eauto using wf_system__uniqFdef;
       unfold Opsem.BOP, Opsem.FBOP, Opsem.GEP, Opsem.TRUNC, Opsem.EXT,
         Opsem.CAST, Opsem.ICMP, Opsem.FCMP in *;
       inv_mbind'; inv_mfalse; app_inv; symmetry_ctx;
@@ -1409,7 +1509,7 @@ Case "sReturn".
     inv_mbind'.
     symmetry_ctx.
     eapply getOperandValue_inTmnOperands_sim in HeqR0; eauto
-      using wf_system__wf_fdef; simpl; auto.
+      using wf_system__wf_fdef, wf_system__uniqFdef; simpl; auto.
     subst. uniq_result. auto.
 
   subst.
@@ -1578,6 +1678,7 @@ Case "sCall".
 
   assert (wf_fdef S (module_intro los nts Ps) F) as HwfF.
     eauto using wf_system__wf_fdef.
+  assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
 
   inv Hop2.
 
@@ -1649,6 +1750,7 @@ Case "sExCall".
 
   assert (wf_fdef S (module_intro los nts Ps) F) as HwfF.
     eauto using wf_system__wf_fdef.
+  assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
 
   inv Hop2.
 

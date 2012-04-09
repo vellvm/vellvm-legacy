@@ -276,7 +276,7 @@ Proof.
     assert (J2':=J2).
     assert (uniqFdef (PI_f pinfo)) as Huniq. eauto using wf_system__uniqFdef.
     assert (getCmdLoc (insn_call i0 n c t0 v0 v p) <> PI_id pinfo) as Hneq.
-      admit. (* uniq *)
+      apply WF_PhiInfo_spec10 in HBinF1; auto.
     apply follow_alive_alloca_cons in J2; auto.
     assert (J2'':=J2).
     apply Hinscope2 in J2; auto.
@@ -377,9 +377,10 @@ Proof.
     destruct_cmd c'; try solve [inversion H].
     unfold wf_ExecutionContext in *. simpl in Hinscope1, Hinscope2.
     assert (J2':=J2).
+    assert (Huniq: uniqFdef (PI_f pinfo)) by eauto using wf_system__uniqFdef.
     assert (getCmdLoc (insn_call i0 n c t0 v0 v p) <> PI_id pinfo) as Hneq.
-      admit. (* uniq *)
-    apply follow_alive_alloca_cons in J2; eauto using wf_system__uniqFdef.
+      apply WF_PhiInfo_spec10 in HBinF1; auto.
+    apply follow_alive_alloca_cons in J2; auto.
     apply Hinscope2 in J2; auto.
     assert (NoDup (als ++ als')) as Hnodup.
       rewrite_env
@@ -399,7 +400,7 @@ Proof.
 Qed.
 
 Lemma malloc_preserves_wf_EC_at_head : forall pinfo los nts Ps M
-  (Hwfpi:WF_PhiInfo pinfo) s als'
+  (Hwfpi:WF_PhiInfo pinfo) s als' (Hwfpi: WF_PhiInfo pinfo)
   M' gl als lc t mb id0 align0 F gn tsz l1 ps1 cs1' cs tmn
   (HwfF: wf_fdef s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
   (Hsz: getTypeAllocSize (los, nts) t = ret tsz)
@@ -410,7 +411,7 @@ Lemma malloc_preserves_wf_EC_at_head : forall pinfo los nts Ps M
   (Hid : getCmdID c = Some id0)
   (Hnst : store_in_cmd (PI_id pinfo) c = false)
   (Hsort : match c with
-           | insn_malloc _ _ _ _ | insn_alloca _ _ _ _ => True
+           | insn_malloc _ t0 _ _ | insn_alloca _ t0 _ _ => t = t0
            | _ => False
            end)
   (Hinscope : wf_ExecutionContext pinfo alinfo (los,nts) M gl
@@ -448,9 +449,11 @@ Proof.
 
         SCase "c = alloca".
           inv Hid.
-          assert (wf_typ s (los,nts) t) as Hwft. 
-            admit. (* wf *)
-          clear - J2' J3 HwfF Hal Hsz Hwft. unfold follow_alive_alloca in J3.
+          assert (wf_typ s (los,nts) t0) as Hwft.
+            eapply wf_fdef__wf_cmd in HBinF; eauto using in_middle.
+            inv HBinF. auto.
+          clear - J2' J3 HwfF Hal Hsz Hwft HuniqF Hwfpi. 
+          unfold follow_alive_alloca in J3.
           rewrite <- J2' in J3.
           destruct alinfo. simpl in *. subst.
           destruct AI_alive0 as [J1 [J5 [cs1 [cs2 J4]]]].
@@ -461,8 +464,9 @@ Proof.
           rewrite lookupAL_updateAddAL_eq in Hlkpa. inv Hlkpa.
           simpl in Hlkpv.
           anti_simpl_env.
-          assert (t = PI_typ pinfo) as Heqt.
-            admit. (* WF_PhiInfo *)
+          assert (t0 = PI_typ pinfo) as Heqt.
+            simpl in J1.
+            apply WF_PhiInfo_spec1' in J1; auto. inv J1. auto.
           subst.
           eapply malloc_mload_undef; eauto.
 
@@ -648,11 +652,14 @@ Lemma mstore_preserves_wf_EC_at_head: forall (maxb : Z) (pinfo : PhiInfo)
   (H : Opsem.getOperandValue (los,nts) v1 lc gl = ret gvs1)
   (H0 : Opsem.getOperandValue (los,nts) v2 lc gl = ret mps2)
   (Hwft: wf_value S (module_intro los nts Ps) F v2 (typ_pointer t))
-  (H1 : gv1 @ gvs1) (H2 : mp2 @ mps2)
+  (H1 : gv1 @ gvs1) (H2 : mp2 @ mps2) (Hwfpi: WF_PhiInfo pinfo)
   (H3 : mstore (los,nts) Mem mp2 t gv1 align0 = ret Mem')
   (Hinscope' : if fdef_dec (PI_f pinfo) F
                then Promotability.wf_defs maxb pinfo (los,nts) Mem lc als
                else True)
+  (HBinF: blockInFdefB (block_intro l1 ps1
+                          (cs1' ++ insn_store sid t v1 v2 align0 :: cs)
+                          tmn) F = true) (Huniq: uniqFdef F)
   (Hinscope : wf_ExecutionContext pinfo alinfo (los,nts) Mem gl
                {|
                Opsem.CurFunction := F;
@@ -710,7 +717,7 @@ Proof.
       rewrite G3 in HeqR. congruence.
 
     assert (getCmdLoc (insn_store sid t v1 v2 align0) <> PI_id pinfo) as Hneq.
-      admit. (* uniqness *)
+      apply WF_PhiInfo_spec10 in HBinF; auto.
     apply follow_alive_alloca_cons in J2; auto.
     apply Hinscope in J2; auto. simpl in J2.
     destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
@@ -1018,6 +1025,14 @@ Proof.
   intros.
   unfold wf_defs.
   intros.
-  admit. (* pid isnt in args *)
+  apply getParentOfFdefFromSystem__moduleInProductsInSystemB in HeqR0.
+  destruct HeqR0 as [J1 J2].
+  rewrite H in *.
+  eapply wf_system__uniqFdef in J1; eauto.
+  replace a with (getArgsOfFdef (PI_f pinfo)) in HeqR3.
+    erewrite WF_PhiInfo__pid_isnt_in_init in Hlkpa; eauto.
+    congruence.
+
+    rewrite <- H. auto.
 Qed.
 

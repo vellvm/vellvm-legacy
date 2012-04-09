@@ -177,30 +177,6 @@ Proof.
     congruence.
 Qed.
 
-Lemma not_removable_State_inv: forall pinfo sasinfo St,
-  ~ removable_State pinfo sasinfo St ->
-  match St with
-  | {| Opsem.ECS := {| Opsem.CurFunction := F;
-                       Opsem.CurBB := _;
-                       Opsem.CurCmds := c :: _;
-                       Opsem.Terminator := _;
-                       Opsem.Locals := _;
-                       Opsem.Allocas := _ |} :: _;
-       Opsem.Mem := Mem |} => 
-       PI_f pinfo <> F \/ getCmdLoc c <> SAS_sid1 pinfo sasinfo
-  | _ => True
-  end.
-Proof.
-  intros.
-  destruct St; auto.
-  destruct ECS; auto.
-  destruct e; auto.
-  destruct CurCmds; auto.
-  simpl in H.
-  destruct (fdef_dec (PI_f pinfo) CurFunction); subst; auto.
-  destruct (id_dec (SAS_sid1 pinfo sasinfo) (getCmdLoc c)); subst; auto.
-Qed.
-
 Lemma s_isFinialState__sas_State_simulation_r2l':
   forall pinfo sasinfo cfg1 FS1 cfg2 FS2 r
   (Hnrem: ~removable_State pinfo sasinfo FS1) 
@@ -522,6 +498,7 @@ Ltac undefined_state__d_State_simulation_r2l_tac43 :=
      end.
 
 Lemma stacked_frame__unremovable: forall cfg EC1 EC2 ECS Mem0 pinfo sasinfo
+  (Huniq: uniqEC EC2) 
   (HBinF: match Opsem.CurBB EC1 with 
    | block_intro _ _ _ (insn_return _ _ _) => True
    | block_intro _ _ _ (insn_return_void _) => True
@@ -533,15 +510,19 @@ Lemma stacked_frame__unremovable: forall cfg EC1 EC2 ECS Mem0 pinfo sasinfo
      {| Opsem.ECS := EC2 :: ECS; Opsem.Mem := Mem0 |}.
 Proof.
   intros.
+  destruct Huniq as [J1 [J2 J3]].
+  destruct J3 as [l1 [ps0 [cs0 J3]]]; subst.
   destruct EC1, EC2; simpl in *. destruct cfg. destruct CurTargetData.
   destruct Hwfpp1 as 
      [_ [[_ [HbInF1 [_ [_ [_ _]]]]] [_ Hiscall]]].
   apply Hiscall in HbInF1.
-  destruct CurBB as [? ? ? []]; tinv HBinF.
-    destruct CurCmds0 as [|[]]; tinv HbInF1. 
-      simpl. admit. (* uniqness *)
-    destruct CurCmds0 as [|[]]; tinv HbInF1.
-      simpl. admit. (* uniqness *)
+  destruct CurBB as [? ? ? []]; tinv HBinF;
+    destruct CurCmds0 as [|[]]; try solve [
+      inv HbInF1 |
+      simpl; destruct_if; destruct_if;
+      eapply unstore_loc__neq__SAS_sid1 in J2; 
+        eauto using in_middle; simpl; auto
+    ].
 Qed.
 
 Lemma mem_simulation__malloc_l2r': forall (pinfo : PhiInfo) sasinfo TD ECs M1 M2
@@ -662,9 +643,9 @@ Proof.
                             Opsem.Locals := Locals0;
                             Opsem.Allocas := Allocas0 |} :: ECS;
             Opsem.Mem := Mem0 |}).
-      clear - Hwfpp1 H4.
+      clear - Hwfpp1 H4 HuniqECs.
       destruct H4 as [l5 [ps5 [cs5 H4]]]; subst.
-      eapply stacked_frame__unremovable; eauto; simpl; auto.
+      eapply stacked_frame__unremovable; eauto; simpl; auto; find_uniqEC.
     eapply cmds_simulation_cons_inv' in Hnrem'; eauto.
     destruct Hnrem' as [cs1' [J1 J3]]; subst.
     left. 
@@ -689,9 +670,9 @@ Proof.
                             Opsem.Locals := Locals0;
                             Opsem.Allocas := Allocas0 |} :: ECS;
             Opsem.Mem := Mem0 |}).
-      clear - Hwfpp1 H4.
+      clear - Hwfpp1 H4 HuniqECs.
       destruct H4 as [l5 [ps5 [cs5 H4]]]; subst.
-      eapply stacked_frame__unremovable; eauto; simpl; auto.
+      eapply stacked_frame__unremovable; eauto; simpl; auto; find_uniqEC.
     eapply cmds_simulation_cons_inv' in Hnrem'; eauto.
     destruct Hnrem' as [cs1' [J1 J3]]; subst.
     right. left. 

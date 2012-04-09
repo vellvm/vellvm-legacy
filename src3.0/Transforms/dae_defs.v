@@ -152,6 +152,12 @@ MoreMem.mem_inj mi Mem1 Mem2 /\
 (forall blk, ~ isnt_alloca_in_ECs pinfo ecs blk -> mi blk = None) /\
 wf_sb_mi mgb mi Mem1 Mem2.
 
+Ltac repeat_solve :=
+  repeat (match goal with
+          | |- mem_simulation _ _ _ _ _ _ => idtac
+          | |- _ => split; eauto 2 using cmds_at_block_tail_next
+          end).
+
 Definition State_simulation (pinfo: PhiInfo) mgb (mi:MoreMem.meminj)
   (Cfg1:OpsemAux.Config) (St1:Opsem.State)
   (Cfg2:OpsemAux.Config) (St2:Opsem.State) : Prop :=
@@ -307,12 +313,6 @@ Proof.
   destruct H1 as [b1 [J1 J2]].
   uniq_result. auto.
 Qed.
-
-Ltac repeat_solve :=
-  repeat (match goal with
-          | |- mem_simulation _ _ _ _ _ _ => idtac
-          | |- _ => split; eauto 2 using cmds_at_block_tail_next
-          end).
 
 Lemma reg_simulation_update_palloca: forall (pinfo : PhiInfo)
   (mi : MoreMem.meminj) TD (lc1 lc2 : Opsem.GVsMap)
@@ -649,15 +649,16 @@ Proof.
   eapply simulation__lift_opt1; eauto.
 Qed.
 
-Lemma phis_simulation_inv: forall pinfo F ps1 ps2,
+Lemma phis_simulation_inv: forall pinfo F ps1 ps2 l1 cs1 tmn1
+  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true),
   WF_PhiInfo pinfo -> uniqFdef F ->
   phis_simulation pinfo F ps1 ps2 -> ps1 = ps2.
 Proof.
   unfold phis_simulation.
   intros.
   destruct (fdef_dec (PI_f pinfo) F); subst; auto.
-  unfold remove_phinodes.
-  admit. (*WF_PI*)
+  apply remove_phinodes_stable.
+  WF_PhiInfo_spec6_tac.
 Qed.
 
 Lemma block_simulation__getValueViaBlockFromValuels: forall pinfo F B1 B2 l0,
@@ -786,7 +787,7 @@ Proof.
   unfold Opsem.switchToNewBasicBlock in *. simpl in *.
   inv_mbind'. symmetry_ctx.
   eapply getIncomingValuesForBlockFromPHINodes_rsim; eauto.
-    admit. (* wf_phi *)
+    WF_PhiInfo_spec6_tac.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_asim:
@@ -822,7 +823,7 @@ Proof.
   unfold Opsem.switchToNewBasicBlock in *. simpl in *.
   inv_mbind'. symmetry_ctx.
   eapply getIncomingValuesForBlockFromPHINodes_asim; eauto.
-    admit. (* wf_phi *)
+    WF_PhiInfo_spec6_tac.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_isnt_alloca_in_ECs :
@@ -864,7 +865,7 @@ Proof.
   inv_mbind'. symmetry_ctx.
   destruct B'. simpl in *.
   eapply getIncomingValuesForBlockFromPHINodes_isnt_alloca_in_ECs; eauto.
-    admit. (* wf_phi *)
+    WF_PhiInfo_spec6_tac.
 Qed.
 
 Lemma Promotability_wf_EC__isnt_alloca_in_EC: forall maxb pinfo TD M1 f lc als,
@@ -1192,9 +1193,6 @@ Proof.
       eapply simulation__getOperandValue; eauto.
 Qed.
 
-Definition args_dont_use_pid pinfo F (la:list (typ * attributes * id)) :=
-  PI_f pinfo <> F \/ (forall t a i0, In (t,a,i0) la -> PI_id pinfo <> i0).
-
 Lemma reg_simulation__initializeFrameValues: forall pinfo mi fa0 rt0 fid0 va0
     TD lb la2 la1 (gvs1 gvs2:list (GVsT DGVs)) lc1 lc2 lc1' lc2'
   (Hnuse: args_dont_use_pid pinfo
@@ -1285,46 +1283,15 @@ Proof.
   apply reg_simulation_nil; auto.
 Qed.
 
-Ltac get_wf_value_for_simop :=
-  match goal with
-  | HBinF: blockInFdefB (block_intro _ _ (_++_::_) _) _ = _ |- _ =>
-    let HBinF':=fresh "HBinF'" in
-    assert (HBinF':=HBinF);
-    eapply wf_system__wf_cmd in HBinF'; eauto using in_middle;
-    inv HBinF'; 
-    match goal with
-    | H: wf_trunc _ _ _ _ _ |- _ => inv H
-    | H: wf_cast _ _ _ _ _ |- _ => inv H 
-    | H: wf_ext _ _ _ _ _ |- _ => inv H 
-    | _ => idtac
-    end
-  end.
-
-Ltac get_wf_value_for_simop' :=
-  match goal with
-  | HBinF: blockInFdefB (block_intro _ _ (_++nil) _) _ = _ |- _ =>
-    let HBinF':=fresh "HBinF'" in
-    assert (HBinF':=HBinF);
-    eapply wf_system__wf_tmn in HBinF'; eauto using in_middle;
-    inv HBinF'
-  end.
-
-Lemma WF_PhiInfo__args_dont_use_pid: forall pinfo fa0 rt0 fid0 va0 lb la0,
-  WF_PhiInfo pinfo ->
-  args_dont_use_pid pinfo (fdef_intro (fheader_intro fa0 rt0 fid0 la0 va0) lb)
-    la0.
-Admitted. (* uniqness *)
-
 Lemma WF_PhiInfo__isnt_alloca_in_EC: forall pinfo fa rt fid va lb la blk lc gvs
-  TD,
+  TD (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb)),
   WF_PhiInfo pinfo ->
   Opsem.initLocals TD la gvs = ret lc ->
   is_alloca_in_EC pinfo (fdef_intro (fheader_intro fa rt fid la va) lb) lc blk
     = false.
 Proof.
   intros.
-  eapply WF_PhiInfo__args_dont_use_pid with (fa0:=fa)(rt0:=rt)(fid0:=fid)
-    (va0:=va)(lb:=lb)(la0:=la) in H; eauto.
+  eapply WF_PhiInfo__args_dont_use_pid with (la0:=la) in H; eauto 1.
   unfold is_alloca_in_EC.
   unfold args_dont_use_pid in H.
   destruct (fdef_dec (PI_f pinfo)

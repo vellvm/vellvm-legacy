@@ -595,20 +595,6 @@ Proof.
     rewrite simpl_blk2GV. simpl. tauto.
 Qed.
 
-(* go to mem props *)
-Lemma bounds_free_alloca: forall TD als M1 M2,
-  free_allocas TD M1 als = ret M2 ->
-  forall b, Mem.bounds M2 b = Mem.bounds M1 b.
-Proof.
-  induction als; simpl; intros.
-    congruence.
-
-    inv_mbind. symmetry_ctx.
-    apply IHals with (b:=b) in H1.
-    apply bounds_mfree with (b:=b) in HeqR.
-    congruence.
-Qed.
-
 Lemma free_allocas_preserves_alloca_size_prop: forall TD mb als M M'
   (Hnoalias: ~ In mb als) pinfo
   (Halc: alloca_size_prop TD pinfo M mb)
@@ -2669,20 +2655,6 @@ Proof.
       apply OpsemProps.updateValuesForNewBlock_spec7 in Hlk0; auto.
 Qed.
 
-(* go to typings_props *)
-Lemma wf_fdef__wf_phinodes': forall s m F l' ps' cs' tmn' l2,
-  wf_fdef s m F ->
-  ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l2 ->
-  uniqFdef F ->
-  wf_phinodes s m F (block_intro l' ps' cs' tmn') ps'.
-Proof.
-  intros.
-  symmetry in H0.
-  apply lookupBlockViaLabelFromFdef_inv in H0; auto.
-  destruct H0 as [_ Hlkup].
-  eapply wf_fdef__wf_phinodes in Hlkup; eauto.
- Qed.
-
 Lemma wf_ECStack_head_tail_br : forall (lc:DGVMap) l' ps' cs' lc' tmn' gl los
   nts Ps s (l3 : l) (ps : phinodes) (cs : list cmd) tmn F
   (Hlkup : Some (block_intro l' ps' cs' tmn') =
@@ -3592,6 +3564,7 @@ Qed.
 Opaque lift_op1.
 
 Lemma s_genInitState__wf_globals_promotable': forall S main VarArgs cfg IS pinfo
+  (Hwfpi: WF_PhiInfo pinfo) (HwfS: wf_system S)
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
   MemProps.wf_globals (Mem.nextblock (Opsem.Mem IS) - 1) (OpsemAux.Globals cfg)
     /\ 0 <= Mem.nextblock (Opsem.Mem IS) - 1 /\
@@ -3612,7 +3585,15 @@ Proof.
         destruct (fdef_dec (PI_f pinfo)
                    (fdef_intro (fheader_intro f t i0 a v) b)); auto.
         intros gvs Hlkup.
-        clear - HeqR3 Hlkup. admit. (* pid cannot be args *)
+        apply getParentOfFdefFromSystem__moduleInProductsInSystemB in HeqR0.
+        destruct HeqR0 as [J1 J2].
+        assert (uniqFdef (PI_f pinfo)) as Huniq. 
+          rewrite e in *. eauto using wf_system__uniqFdef.
+        replace a with (getArgsOfFdef (PI_f pinfo)) in HeqR3.
+          erewrite WF_PhiInfo__pid_isnt_in_init in Hlkup; eauto.
+          congruence.
+
+          rewrite e. auto.
     split; auto.
       intros EC Hin. inv Hin.
   split; auto.
@@ -3621,6 +3602,7 @@ Proof.
 Qed.
 
 Lemma s_genInitState__wf_globals_promotable: forall S main VarArgs cfg IS pinfo
+  (Hwfpi: WF_PhiInfo pinfo) (HwfS: wf_system S)
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
   exists maxb,
     MemProps.wf_globals maxb (OpsemAux.Globals cfg) /\ 0 <= maxb /\
@@ -3632,7 +3614,7 @@ Proof.
   destruct Hinit as [J1 [J2 J3]]. eauto.
 Qed.
 
-Lemma WF_PhiInfo_spec19: forall (pinfo : PhiInfo) (Locals : Opsem.GVsMap)
+Lemma WF_PhiInfo_spec190: forall (pinfo : PhiInfo) (Locals : Opsem.GVsMap)
   Allocas0 (Mem0 : mem) (Hwfpi : WF_PhiInfo pinfo) TD maxb
   (Hnoalias : wf_defs maxb pinfo TD Mem0 Locals Allocas0)
   (gv : GenericValue)
@@ -3681,7 +3663,7 @@ Proof.
 Qed.
 
 Lemma valid_mload__valid_mstore: forall gv1 pinfo m gv2 mb
-  S (Hwfpi: WF_PhiInfo pinfo) los nts Ps
+  S (Hwfpi: WF_PhiInfo pinfo) los nts Ps (HUniq: uniqFdef (PI_f pinfo))
   (HwfF: wf_fdef S (module_intro los nts Ps) (PI_f pinfo))
   (Heq: gv2 = ($ (blk2GV (los,nts) mb) # (typ_pointer (PI_typ pinfo)) $))
   (Hal: alloca_size_prop (los,nts) pinfo m mb)
@@ -3702,7 +3684,7 @@ Proof.
 
     symmetry_ctx.
     assert (wf_typ S (los,nts) (PI_typ pinfo)) as Hwft.
-      admit. (* PI wft *)
+      eapply WF_PhiInfo_spec21; eauto.
     eapply flatten_typ__getTypeSizeInBits in HeqR; eauto.
     destruct HeqR as [sz1 [al1 [J16 J14]]]; subst.
     apply WF_PhiInfo_spec16 in HwfF; auto.
@@ -3719,8 +3701,8 @@ Proof.
     omega.
 Qed.
 
-Lemma WF_PhiInfo_spec20: forall (pinfo : PhiInfo) (Locals : Opsem.GVsMap)
-  (Hwfpi: WF_PhiInfo pinfo) los nts Ps S
+Lemma WF_PhiInfo_spec200: forall (pinfo : PhiInfo) (Locals : Opsem.GVsMap)
+  (Hwfpi: WF_PhiInfo pinfo) los nts Ps S (HUniq: uniqFdef (PI_f pinfo))
   (HwfF: wf_fdef S (module_intro los nts Ps) (PI_f pinfo))
   Allocas0 (Mem0 : mem) (Hwfpi : WF_PhiInfo pinfo) maxb
   (Hnoalias : wf_defs maxb pinfo (los,nts) Mem0 Locals Allocas0)
