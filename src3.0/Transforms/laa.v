@@ -16,7 +16,12 @@ Require Import memory_props.
 Require Import trans_tactic.
 Require Import top_sim.
 
-Definition laa (lid: id) (cs2:cmds) (b:block) (pinfo:PhiInfo) : Prop :=
+(* 
+   The load can use a different alignment from (PI_align pinfo).
+   See the comments in alive_store.
+*)
+Definition laa (lid: id) (lalign:align) (cs2:cmds) (b:block) (pinfo:PhiInfo) 
+  : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\
 store_in_cmds (PI_id pinfo) cs2 = false /\
 let '(block_intro _ _ cs _) := b in
@@ -25,20 +30,21 @@ exists cs1, exists cs3,
   cs1 ++
   insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) (PI_align pinfo) ::
   cs2 ++
-  insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) (PI_align pinfo) ::
+  insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) lalign ::
   cs3.
 
 Record LAAInfo (pinfo: PhiInfo) := mkLAAInfo {
   LAA_lid : id;
+  LAA_lalign : align;
   LAA_tail : cmds;
   LAA_block : block;
-  LAA_prop : laa LAA_lid LAA_tail LAA_block pinfo
+  LAA_prop : laa LAA_lid LAA_lalign LAA_tail LAA_block pinfo
 }.
 
 Ltac destruct_laainfo :=
 match goal with
 | laainfo: LAAInfo _ |- _ =>
-  destruct laainfo as [LAA_lid0 LAA_tail0
+  destruct laainfo as [LAA_lid0 LAA_lalign0 LAA_tail0
                        [LAA_l0 LAA_ps0 LAA_cs0 LAA_tmn0] LAA_prop0];
   destruct LAA_prop0 as 
     [LAA_BInF0 [LAA_stincmds0 [LAA_cs1 [LAA_cs3 LAA_EQ]]]]; subst; simpl
@@ -49,7 +55,7 @@ Lemma lookup_LAA_lid__load: forall pinfo laainfo
   lookupInsnViaIDFromFdef (PI_f pinfo) (LAA_lid pinfo laainfo) =
     ret insn_cmd
           (insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo) 
-             (value_id (PI_id pinfo)) (PI_align pinfo)).
+             (value_id (PI_id pinfo)) (LAA_lalign pinfo laainfo)).
 Proof.
   intros.
   destruct_laainfo.
@@ -62,10 +68,10 @@ Proof.
   auto.
 Qed.  
 
-Lemma laa__alive_alloca: forall lid cs2 b pinfo,
-  laa lid cs2 b pinfo ->
+Lemma laa__alive_alloca: forall lid lalign cs2 b pinfo,
+  laa lid lalign cs2 b pinfo ->
   alive_alloca (cs2 ++
-    [insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) (PI_align pinfo)])
+    [insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) lalign])
     b pinfo.
 Proof.
   unfold laa. unfold alive_alloca.
@@ -85,7 +91,7 @@ Lemma laainfo__alinfo: forall pinfo (laainfo: LAAInfo pinfo),
     AI_tail pinfo alinfo =
       LAA_tail pinfo laainfo ++
       [insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo) (value_id (PI_id pinfo))
-        (PI_align pinfo)] }.
+        (LAA_lalign pinfo laainfo)] }.
 Proof.
   intros.
   destruct laainfo. simpl.
@@ -94,7 +100,7 @@ Proof.
     pinfo
     (LAA_tail0 ++
      [insn_load LAA_lid0 (PI_typ pinfo) (value_id (PI_id pinfo))
-        (PI_align pinfo)]) LAA_block0 LAA_prop0).
+        LAA_lalign0]) LAA_block0 LAA_prop0).
   auto.
 Defined.
 
@@ -109,17 +115,18 @@ Lemma LAA_block_spec: forall (pinfo : PhiInfo) (laainfo : LAAInfo pinfo)
                 (cs' ++
                  insn_load (LAA_lid pinfo laainfo) 
                    (PI_typ pinfo) (value_id (PI_id pinfo)) 
-                   (PI_align pinfo) :: CurCmds)))
+                   (LAA_lalign pinfo laainfo) :: CurCmds)))
   (HbInF : blockInFdefB
             (block_intro l' ps'
                (cs' ++
                 insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo)
-                  (value_id (PI_id pinfo)) (PI_align pinfo) :: CurCmds)
+                  (value_id (PI_id pinfo)) (LAA_lalign pinfo laainfo) :: CurCmds)
                Terminator) (PI_f pinfo) = true),
   block_intro l' ps'
      (cs' ++
       insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo)
-        (value_id (PI_id pinfo)) (PI_align pinfo) :: CurCmds) Terminator =
+        (value_id (PI_id pinfo)) (LAA_lalign pinfo laainfo) :: CurCmds) 
+     Terminator =
   LAA_block pinfo laainfo.
 Proof.
   intros.
@@ -129,7 +136,7 @@ Proof.
           (block_intro l' ps'
             (cs' ++
               insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo)
-              (value_id (PI_id pinfo)) (PI_align pinfo) :: CurCmds)
+              (value_id (PI_id pinfo)) (LAA_lalign pinfo laainfo) :: CurCmds)
             Terminator))) as Hin.
         simpl.
         rewrite getCmdsIDs_app.
@@ -153,7 +160,7 @@ Proof.
               :: (LAA_tail0 ++
                   [insn_load LAA_lid0
                      (PI_typ pinfo) (value_id (PI_id pinfo))
-                     (PI_align pinfo)] ++ cs3)) t))) as Hin.
+                     LAA_lalign0] ++ cs3)) t))) as Hin.
         simpl.
         apply in_or_app. right.
         rewrite getCmdsIDs_app.
@@ -264,7 +271,7 @@ Proof.
   destruct (LAA_lid pinfo laainfo == getCmdLoc c); auto.
 
   assert (c = insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo)
-             (value_id (PI_id pinfo)) (PI_align pinfo)) as EQ.
+             (value_id (PI_id pinfo)) (LAA_lalign pinfo laainfo)) as EQ.
       eapply IngetCmdsIDs__lookupCmdViaIDFromFdef with (c1:=c) in HbInF; eauto
         using in_middle.
       apply lookup_LAA_lid__load with (laainfo:=laainfo) in Huniq; auto.
@@ -274,7 +281,7 @@ Proof.
   assert (block_intro l' ps'
               (cs' ++ insn_load (LAA_lid pinfo laainfo)
                             (PI_typ pinfo) (value_id (PI_id pinfo))
-                            (PI_align pinfo) :: CurCmds) Terminator =
+                            (LAA_lalign pinfo laainfo) :: CurCmds) Terminator =
               AI_block pinfo alinfo) as Heq.
     clear H Hinscope HeqR Hreach.
     transitivity (LAA_block pinfo laainfo); auto.
@@ -296,13 +303,10 @@ Proof.
           CurCmds = cs3
           ) as EQ.
         clear - H2 Hnodup.
-        rewrite_env (
-          (cs1 ++
-           insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
-                  (PI_align pinfo)
-           :: LAA_tail pinfo laainfo) ++
-           insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo)
-              (value_id (PI_id pinfo)) (PI_align pinfo) :: cs3) in H2.
+        match goal with
+        | H: context [?A ++ ?b :: (?C ++ [?d]) ++ ?E] |- _ =>
+           rewrite_env ((A ++ b :: C) ++ d :: E) in H
+        end. 
         apply NoDup_cmds_split_middle in H2; auto.
 
       destruct EQ; subst. clear H2.
@@ -310,20 +314,12 @@ Proof.
       intros.
       assert (cs1 = cs0 /\ cs3 = cs2) as EQ.
         clear - H Hnodup.
-        rewrite_env (
-          (cs1 ++
-          insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
-                  (PI_align pinfo)
-          :: LAA_tail pinfo laainfo) ++
-          insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo)
-              (value_id (PI_id pinfo)) (PI_align pinfo) :: cs3) in H.
-        rewrite_env (
-          (cs0 ++
-          insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
-                  (PI_align pinfo)
-          :: LAA_tail pinfo laainfo) ++
-          insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo)
-              (value_id (PI_id pinfo)) (PI_align pinfo) :: cs2) in H.
+        match goal with
+        | H: ?A1 ++ ?b1 :: (?C1 ++ [?d1]) ++ ?E1 =
+             ?A2 ++ ?b2 :: (?C2 ++ [?d2]) ++ ?E2 |- _ =>
+          rewrite_env ((A1 ++ b1 :: C1) ++ d1 :: E1) in H;
+          rewrite_env ((A2 ++ b2 :: C2) ++ d2 :: E2) in H
+        end.
         apply NoDup_cmds_split_middle in H; auto.
         destruct H as [H1 H2].
         split; auto.
@@ -332,7 +328,7 @@ Proof.
       destruct EQ; subst. clear H.
       exists (LAA_tail pinfo laainfo).
       exists ([insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo)
-                   (value_id (PI_id pinfo)) (PI_align pinfo)]).
+                   (value_id (PI_id pinfo)) (LAA_lalign pinfo laainfo)]).
       auto.
 
   simpl.

@@ -40,35 +40,41 @@ Require Import top_sim.
    The properties do not depend on the concrete design in mem2reg, such as
    find_init_stld, find_next_stld, ... So the proofs can still work if we change
    mem2reg. We should prove that the design in mem2reg satisfy the properties.
+
+   We allow the pair of load/store use different alignments from the 
+   promotable's. See the comments in alive_store
  *)
 
-Definition las (lid sid: id) (v:value) (cs2:cmds) (b:block) (pinfo:PhiInfo)
-  : Prop :=
+Definition las (lid sid: id) (lalign salign: align) (v:value) (cs2:cmds) 
+  (b:block) (pinfo:PhiInfo) : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\
 store_in_cmds (PI_id pinfo) cs2 = false /\
 let '(block_intro _ _ cs _) := b in
 exists cs1, exists cs3,
   cs =
   cs1 ++
-  insn_store sid (PI_typ pinfo) v (value_id (PI_id pinfo)) (PI_align pinfo) ::
+  insn_store sid (PI_typ pinfo) v (value_id (PI_id pinfo)) salign ::
   cs2 ++
-  insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) (PI_align pinfo) ::
+  insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) lalign ::
   cs3.
 
 Record LASInfo (pinfo: PhiInfo) := mkLASInfo {
   LAS_lid : id;
   LAS_sid : id;
+  LAS_lalign : align;
+  LAS_salign : align;
   LAS_value : value;
   LAS_tail : cmds;
   LAS_block : block;
-  LAS_prop : las LAS_lid LAS_sid LAS_value LAS_tail LAS_block pinfo
+  LAS_prop : las LAS_lid LAS_sid LAS_lalign LAS_salign LAS_value LAS_tail 
+               LAS_block pinfo
 }.
 
 Ltac destruct_lasinfo :=
 match goal with
 | lasinfo: LASInfo _ |- _ =>
-  destruct lasinfo as [LAS_lid0 LAS_sid0 LAS_value0 LAS_tail0
-                       [LAS_l0 LAS_ps0 LAS_cs0 LAS_tmn0] LAS_prop0];
+  destruct lasinfo as [LAS_lid0 LAS_sid0 LAS_lalign0 LAS_salign0 LAS_value0 
+                       LAS_tail0 [LAS_l0 LAS_ps0 LAS_cs0 LAS_tmn0] LAS_prop0];
   destruct LAS_prop0 as 
     [LAS_BInF0 [LAS_stincmds0 [LAS_cs1 [LAS_cs3 LAS_EQ]]]]; subst; simpl
 end.
@@ -78,7 +84,7 @@ Lemma lookup_LAS_lid__load: forall pinfo lasinfo
   lookupInsnViaIDFromFdef (PI_f pinfo) (LAS_lid pinfo lasinfo) =
     ret insn_cmd
           (insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
-             (value_id (PI_id pinfo)) (PI_align pinfo)).
+             (value_id (PI_id pinfo)) (LAS_lalign pinfo lasinfo)).
 Proof.
   intros.
   destruct_lasinfo.
@@ -108,13 +114,14 @@ Lemma lookup_LAS_sid__store: forall pinfo lasinfo
   lookupInsnViaIDFromFdef (PI_f pinfo) (LAS_sid pinfo lasinfo) =
     ret insn_cmd
       (insn_store (LAS_sid pinfo lasinfo) (PI_typ pinfo) 
-        (LAS_value pinfo lasinfo) (value_id (PI_id pinfo)) (PI_align pinfo)).
+        (LAS_value pinfo lasinfo) (value_id (PI_id pinfo)) 
+        (LAS_salign pinfo lasinfo)).
 Proof.
   intros.
   destruct_lasinfo.
   eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in LAS_BInF0;eauto using in_middle.
   simpl in LAS_BInF0. auto.
-Qed.  
+Qed.
 
 Lemma LAS_value_is_substing: forall S m pinfo lasinfo
   (Huniq : uniqFdef (PI_f pinfo)) (HwfF : wf_fdef S m (PI_f pinfo)),
@@ -292,11 +299,10 @@ Proof.
     eapply LAS_value__dominates__LAS_lid; eauto.
 Qed.
 
-Lemma las__alive_store: forall lid sid v cs2 b pinfo,
-  las lid sid v cs2 b pinfo ->
-  alive_store sid v (cs2 ++
-    [insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) (PI_align pinfo)])
-    b pinfo.
+Lemma las__alive_store: forall lid sid lal sal v cs2 b pinfo,
+  las lid sid lal sal v cs2 b pinfo ->
+  alive_store sid sal v (cs2 ++
+    [insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) lal]) b pinfo.
 Proof.
   unfold las. unfold alive_store.
   intros. destruct b.
@@ -312,21 +318,22 @@ Qed.
 Lemma lasinfo__stinfo: forall pinfo (lasinfo: LASInfo pinfo),
   { stinfo: StoreInfo pinfo |
     SI_id pinfo stinfo = LAS_sid pinfo lasinfo /\
+    SI_align pinfo stinfo = LAS_salign pinfo lasinfo /\
     SI_value pinfo stinfo = LAS_value pinfo lasinfo /\
     SI_block pinfo stinfo = LAS_block pinfo lasinfo /\
     SI_tail pinfo stinfo =
       LAS_tail pinfo lasinfo ++
       [insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) (value_id (PI_id pinfo))
-        (PI_align pinfo)] }.
+        (LAS_lalign pinfo lasinfo)] }.
 Proof.
   intros.
   destruct lasinfo. simpl.
   apply las__alive_store in LAS_prop0.
   exists (mkStoreInfo
-    pinfo LAS_sid0 LAS_value0
+    pinfo LAS_sid0 LAS_salign0 LAS_value0
     (LAS_tail0 ++
      [insn_load LAS_lid0 (PI_typ pinfo) (value_id (PI_id pinfo))
-        (PI_align pinfo)]) LAS_block0 LAS_prop0).
+        LAS_lalign0]) LAS_block0 LAS_prop0).
   auto.
 Defined.
 
@@ -338,17 +345,17 @@ Lemma LAS_block_spec: forall (pinfo : PhiInfo) (lasinfo : LASInfo pinfo)
                 (cs' ++
                  insn_load (LAS_lid pinfo lasinfo) 
                    (PI_typ pinfo) (value_id (PI_id pinfo)) 
-                   (PI_align pinfo) :: CurCmds)))
+                   (LAS_lalign pinfo lasinfo) :: CurCmds)))
   (HbInF : blockInFdefB
             (block_intro l' ps'
                (cs' ++
                 insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
-                  (value_id (PI_id pinfo)) (PI_align pinfo) :: CurCmds)
+                  (value_id (PI_id pinfo)) (LAS_lalign pinfo lasinfo) :: CurCmds)
                Terminator) (PI_f pinfo) = true),
   block_intro l' ps'
      (cs' ++
       insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
-        (value_id (PI_id pinfo)) (PI_align pinfo) :: CurCmds) Terminator =
+        (value_id (PI_id pinfo)) (LAS_lalign pinfo lasinfo) :: CurCmds) Terminator =
   LAS_block pinfo lasinfo.
 Proof.
   intros.
@@ -358,7 +365,7 @@ Proof.
       (block_intro l' ps'
         (cs' ++
           insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
-          (value_id (PI_id pinfo)) (PI_align pinfo) :: CurCmds)
+          (value_id (PI_id pinfo)) (LAS_lalign pinfo lasinfo) :: CurCmds)
         Terminator))) as Hin.
     simpl.
     rewrite getCmdsIDs_app.
@@ -378,11 +385,11 @@ Proof.
       (block_intro l1 p
          (cs1 ++
           insn_store LAS_sid0 (PI_typ pinfo)
-            LAS_value0 (value_id (PI_id pinfo)) (PI_align pinfo)
+            LAS_value0 (value_id (PI_id pinfo)) LAS_salign0
           :: (LAS_tail0 ++
               [insn_load LAS_lid0
                  (PI_typ pinfo) (value_id (PI_id pinfo))
-                 (PI_align pinfo)] ++ cs3)) t))) as Hin.
+                 LAS_lalign0] ++ cs3)) t))) as Hin.
     simpl.
     apply in_or_app. right.
     rewrite getCmdsIDs_app.
@@ -426,7 +433,7 @@ Lemma las__alive_store__vev_EC: forall pinfo lasinfo los nts M gl ps ec s
     (LAS_value pinfo lasinfo) (PI_f pinfo) (los,nts) M gl ec.
 Proof.
   intros. clear Hlas2st.
-  destruct Hp as [J1 [J2 [J3 J4]]].
+  destruct Hp as [J1 [J5 [J2 [J3 J4]]]].
   intros.
   destruct ec. simpl in *.
   destruct CurCmds; auto.
@@ -454,7 +461,7 @@ Proof.
   destruct (LAS_lid pinfo lasinfo == getCmdLoc c); auto.
 
   assert (c = insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
-             (value_id (PI_id pinfo)) (PI_align pinfo)) as EQ.
+             (value_id (PI_id pinfo)) (LAS_lalign pinfo lasinfo)) as EQ.
       clear - HbInF J3 J1 J2 J4 e Huniq.
       eapply IngetCmdsIDs__lookupCmdViaIDFromFdef with (c1:=c) in HbInF; eauto
         using in_middle.
@@ -465,7 +472,7 @@ Proof.
   assert (block_intro l' ps'
               (cs' ++ insn_load (LAS_lid pinfo lasinfo)
                             (PI_typ pinfo) (value_id (PI_id pinfo))
-                            (PI_align pinfo) :: CurCmds) Terminator =
+                            (LAS_lalign pinfo lasinfo) :: CurCmds) Terminator =
               SI_block pinfo stinfo) as Heq.
     transitivity (LAS_block pinfo lasinfo); auto.
     eapply LAS_block_spec; eauto.
@@ -483,18 +490,14 @@ Proof.
           cs' = cs1 ++
                 insn_store (LAS_sid pinfo lasinfo) (PI_typ pinfo)
                   (LAS_value pinfo lasinfo) (value_id (PI_id pinfo))
-                  (PI_align pinfo) :: (LAS_tail pinfo lasinfo) /\
+                  (LAS_salign pinfo lasinfo) :: (LAS_tail pinfo lasinfo) /\
           CurCmds = cs3
           ) as EQ.
         clear - H2 Hnodup.
-        rewrite_env (
-          (cs1 ++
-          insn_store (LAS_sid pinfo lasinfo) (PI_typ pinfo)
-            (LAS_value pinfo lasinfo) (value_id (PI_id pinfo))
-            (PI_align pinfo)
-          :: LAS_tail pinfo lasinfo) ++
-          insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
-              (value_id (PI_id pinfo)) (PI_align pinfo) :: cs3) in H2.
+        match goal with
+        | H2: _ = ?A ++ ?b :: (?C ++ [?d]) ++ ?E |- _ =>
+          rewrite_env ((A ++ b :: C) ++ d :: E) in H2
+        end.
         apply NoDup_cmds_split_middle in H2; auto.
 
       destruct EQ; subst. clear H2.
@@ -502,22 +505,12 @@ Proof.
       intros.
       assert (cs1 = cs0 /\ cs3 = cs2) as EQ.
         clear - H Hnodup.
-        rewrite_env (
-          (cs1 ++
-          insn_store (LAS_sid pinfo lasinfo) (PI_typ pinfo)
-            (LAS_value pinfo lasinfo) (value_id (PI_id pinfo))
-            (PI_align pinfo)
-          :: LAS_tail pinfo lasinfo) ++
-          insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
-              (value_id (PI_id pinfo)) (PI_align pinfo) :: cs3) in H.
-        rewrite_env (
-          (cs0 ++
-          insn_store (LAS_sid pinfo lasinfo) (PI_typ pinfo)
-            (LAS_value pinfo lasinfo) (value_id (PI_id pinfo))
-            (PI_align pinfo)
-          :: LAS_tail pinfo lasinfo) ++
-          insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
-              (value_id (PI_id pinfo)) (PI_align pinfo) :: cs2) in H.
+        match goal with
+        | H: ?A1 ++ ?b1 :: (?C1 ++ [?d1]) ++ ?E1 =
+             ?A2 ++ ?b2 :: (?C2 ++ [?d2]) ++ ?E2 |- _ =>
+          rewrite_env ((A1 ++ b1 :: C1) ++ d1 :: E1) in H;
+          rewrite_env ((A2 ++ b2 :: C2) ++ d2 :: E2) in H
+        end.
         apply NoDup_cmds_split_middle in H; auto.
         destruct H as [H1 H2].
         split; auto.
@@ -526,7 +519,7 @@ Proof.
       destruct EQ; subst. clear H.
       exists (LAS_tail pinfo lasinfo).
       exists ([insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
-                   (value_id (PI_id pinfo)) (PI_align pinfo)]).
+                   (value_id (PI_id pinfo)) (LAS_lalign pinfo lasinfo)]).
       auto.
 
   simpl.
@@ -785,7 +778,8 @@ Proof.
     eapply idDominates_inscope_of_tmn__inscope_of_tmn
         with (instr0:=insn_cmd 
                (insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
-                  (value_id (PI_id pinfo)) (PI_align pinfo))) in HeqR; eauto 1.
+                  (value_id (PI_id pinfo)) (LAS_lalign pinfo lasinfo))) 
+      in HeqR; eauto 1.
       symmetry. apply lookup_LAS_lid__load; auto.
 Qed.
 
@@ -873,7 +867,8 @@ Proof.
     eapply idDominates_inscope_of_cmd__inscope_of_cmd 
       with (c:=c)
            (instr0:=insn_cmd (insn_load (LAS_lid pinfo lasinfo) 
-             (PI_typ pinfo) (value_id (PI_id pinfo)) (PI_align pinfo))) in HeqR; 
+             (PI_typ pinfo) (value_id (PI_id pinfo)) 
+             (LAS_lalign pinfo lasinfo))) in HeqR; 
       eauto 1.
       symmetry. apply lookup_LAS_lid__load; auto.
 Qed.

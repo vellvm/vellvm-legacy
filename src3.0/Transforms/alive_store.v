@@ -14,24 +14,33 @@ Require Import trans_tactic.
 
 Import Promotability.
 
-Definition alive_store (sid: id) (v:value) (cs2:cmds) (b:block) (pinfo:PhiInfo)
-  : Prop :=
+(* 
+  An alive store can use a different alignment from the promotable alloca's.
+  If the store's alignment is not legal w.r.t the promotable's, the original
+  program is undefined. Otherwise, the value we load should be the same.
+
+  So far, the memory model assumes all programs' alignments are correct. So,
+  we will not check if an alignment is proper. This is one of our future work.
+*)
+Definition alive_store (sid: id) (sal: align) (v:value) (cs2:cmds) (b:block) 
+  (pinfo:PhiInfo) : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\
 store_in_cmds (PI_id pinfo) cs2 = false /\
 let '(block_intro _ _ cs _) := b in
 exists cs1, exists cs3,
   cs =
   cs1 ++
-  insn_store sid (PI_typ pinfo) v (value_id (PI_id pinfo)) (PI_align pinfo) ::
+  insn_store sid (PI_typ pinfo) v (value_id (PI_id pinfo)) sal ::
   cs2 ++
   cs3.
 
 Record StoreInfo (pinfo: PhiInfo) := mkStoreInfo {
   SI_id : id;
+  SI_align : align;
   SI_value : value;
   SI_tail : cmds;
   SI_block : block;
-  SI_alive : alive_store SI_id SI_value SI_tail SI_block pinfo
+  SI_alive : alive_store SI_id SI_align SI_value SI_tail SI_block pinfo
 }.
 
 Lemma storeinfo_doesnt_use_promotable_allocas: forall pinfo stinfo
@@ -65,7 +74,7 @@ forall cs1 cs3,
   cs0 =
     cs1 ++
     insn_store (SI_id pinfo stinfo) (PI_typ pinfo) (SI_value pinfo stinfo)
-      (value_id (PI_id pinfo)) (PI_align pinfo) ::
+      (value_id (PI_id pinfo)) (SI_align pinfo stinfo) ::
     SI_tail pinfo stinfo ++
     cs3 ->
   (exists csa, exists csb,
@@ -231,7 +240,7 @@ end.
 Ltac destruct_stinfo :=
 match goal with
 | stinfo: StoreInfo _ |- _ =>
-  destruct stinfo as [SI_id0 SI_value0 SI_tail0
+  destruct stinfo as [SI_id0 SI_align0 SI_value0 SI_tail0
                        [SI_l0 SI_ps0 SI_cs0 SI_tmn0] SI_prop0];
   simpl in *;
   destruct SI_prop0 as 
@@ -269,12 +278,12 @@ Local Opaque isReachableFromEntry.
   find_wf_operand_list.
   eapply any_cmd_doesnt_use_following_operands 
     with (c1:=insn_store SI_id0 (PI_typ pinfo) SI_value0
-                 (value_id (PI_id pinfo)) (PI_align pinfo))
+                 (value_id (PI_id pinfo)) SI_align0)
     (l3:=SI_l0)(ps1:=SI_ps0)
     (c:=c)
     (cs:=SI_cs1 ++
              insn_store SI_id0 (PI_typ pinfo) SI_value0
-               (value_id (PI_id pinfo)) (PI_align pinfo) :: 
+               (value_id (PI_id pinfo)) (SI_align0) :: 
              csa ++ c :: cs)(tmn1:=SI_tmn0) in H8; eauto 1.
     clear - H8 H1.
     rewrite getCmdID__getCmdLoc with (id0:=id0) in H8; auto.

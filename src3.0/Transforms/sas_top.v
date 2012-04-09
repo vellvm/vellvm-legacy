@@ -278,7 +278,7 @@ Proof.
       eapply wf_system__uniqFdef in HwfS; eauto.
       assert (c1 = insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
                 (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) 
-                (PI_align pinfo)) as EQ.
+                (SAS_align1 pinfo sasinfo)) as EQ.
         simpl in Hrm. repeat destruct_if.
         eapply lookup_SAS_lid1__store with (sasinfo:=sasinfo) in HBinF; 
           eauto using in_middle.
@@ -937,6 +937,8 @@ Qed.
 Lemma find_st_ld__sasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones) v0
   (i1 : id) (Hld : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
+  (Hwfpi: WF_PhiInfo pinfo)
+  s m (HwfF: wf_fdef s m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo))
   (HBinF : blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true),
   exists sasinfo:SASInfo pinfo,
     SAS_sid1 pinfo sasinfo = i0 /\
@@ -946,19 +948,29 @@ Lemma find_st_ld__sasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
     SAS_block pinfo sasinfo = (block_intro l0 ps0 cs0 tmn0).
 Proof.
   intros.
-  assert (exists tail, sas i0 i1 v v0 tail (block_intro l0 ps0 cs0 tmn0) pinfo)
+  assert (exists tail, exists sal1, exists sal2, 
+            sas i0 i1 sal1 sal2 v v0 tail (block_intro l0 ps0 cs0 tmn0) pinfo)
     as Hsas. 
     unfold sas.
     apply find_init_stld_inl_spec in Hst.
-    destruct Hst as [cs1 Hst]; subst.
+    destruct Hst as [cs1 [ty1 [al1 Hst]]]; subst.
     apply find_next_stld_inr_spec in Hld.
-    destruct Hld as [cs2 [cs3 [Hld J]]]; subst.
-    exists cs2.
+    destruct Hld as [cs2 [cs3 [ty2 [al2 [Hld J]]]]]; subst.
+    exists cs2. exists al1. exists al2.
     split; auto.
     split; auto.
-    exists cs1. exists cs3. auto.
-  destruct Hsas as [tail Hsas].
-  exists (mkSASInfo pinfo i0 i1 v v0 tail (block_intro l0 ps0 cs0 tmn0) Hsas).
+    exists cs1. exists cs3. 
+      assert (J':=HBinF).
+      eapply WF_PhiInfo_spec24 in J'; eauto.
+      match goal with
+      | H1 : context [?A ++ ?b :: ?C ++ ?d :: ?E] |- _ =>
+        rewrite_env ((A ++ b :: C) ++ d :: E) in H1;
+        eapply WF_PhiInfo_spec24 in H1; eauto
+      end.
+      subst. auto.
+  destruct Hsas as [tail [sal1 [sal2 Hsas]]].
+  exists (mkSASInfo pinfo i0 i1 sal1 sal2 v v0 tail 
+           (block_intro l0 ps0 cs0 tmn0) Hsas).
   auto.
 Qed.
 
@@ -991,6 +1003,12 @@ Proof.
   assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true)
     as HBinF.
     rewrite Heq. simpl. apply InBlocksB_middle.
+  assert (wf_fdef [module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)]
+            (module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)) 
+            (PI_f pinfo) /\ uniqFdef (PI_f pinfo)) as J.
+    rewrite Heq in *. subst.
+    apply wf_single_system__wf_uniq_fdef; auto.
+  destruct J as [HwfF HuniqF].
   eapply find_st_ld__sasinfo in HBinF; eauto.
   destruct HBinF as [sasinfo [J1 [J2 [J3 [J4 J5]]]]]; subst.
   assert (Huniq:=HwfS). apply wf_system__uniqSystem in Huniq; auto.

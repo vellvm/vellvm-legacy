@@ -1953,8 +1953,9 @@ Proof.
 Qed.
 
 Lemma WF_PhiInfo__pid_isnt_in_init: forall pinfo (Hwfpi: WF_PhiInfo pinfo)
-  (Huniq: uniqFdef (PI_f pinfo)) lc VarArgs TD
-  (Hinit: @Opsem.initLocals DGVs TD (getArgsOfFdef (PI_f pinfo)) VarArgs = ret lc),
+  (Huniq: uniqFdef (PI_f pinfo)) lc VarArgs TD la
+  (Heq: la = getArgsOfFdef (PI_f pinfo))
+  (Hinit: @Opsem.initLocals DGVs TD la VarArgs = ret lc),
   lookupAL _ lc (PI_id pinfo) = None.
 Proof.
   intros.
@@ -1963,7 +1964,7 @@ Proof.
   eapply OpsemProps.In_initLocals__In_getArgsIDs with (id1:=PI_id pinfo) in Hinit; 
     eauto.
   apply WF_PhiInfo_spec1 in Hwfpi; auto.
-  destruct (PI_f pinfo) as [[]].
+  destruct (PI_f pinfo) as [[]]. subst.
   eapply IngetArgsIDs__lookupCmdViaIDFromFdef in Huniq; eauto.
   congruence.
 Qed.
@@ -2003,6 +2004,38 @@ Proof.
   destruct J1 as [cs1 [cs2 J1]]; subst.
   exists cs1. exists cs2. exists terminator5.
   auto.
+Qed.
+
+Lemma WF_PhiInfo_spec23: forall pinfo s m (Hwfpi : WF_PhiInfo pinfo)
+  (HUniq: uniqFdef (PI_f pinfo)) (Hwf: wf_fdef s m (PI_f pinfo)) l0 ps0 tmn0
+  t id0 al cs1 cs2
+  (HBinF: blockInFdefB 
+    (block_intro l0 ps0 
+      (cs1 ++ insn_load id0 t (value_id (PI_id pinfo)) al :: cs2) tmn0) 
+    (PI_f pinfo)),
+  t = PI_typ pinfo.
+Proof.
+  intros.
+  eapply wf_fdef__wf_cmd in HBinF; eauto using in_middle.
+  inv HBinF. inv H6.
+  eapply WF_PhiInfo_spec20 in Hwfpi; eauto.
+  uniq_result. auto.
+Qed.
+
+Lemma WF_PhiInfo_spec24: forall pinfo s m (Hwfpi : WF_PhiInfo pinfo)
+  (HUniq: uniqFdef (PI_f pinfo)) (Hwf: wf_fdef s m (PI_f pinfo)) l0 ps0 tmn0
+  t id0 al cs1 cs2 v0
+  (HBinF: blockInFdefB 
+    (block_intro l0 ps0 
+      (cs1 ++ insn_store id0 t v0 (value_id (PI_id pinfo)) al :: cs2) tmn0) 
+    (PI_f pinfo)),
+  t = PI_typ pinfo.
+Proof.
+  intros.
+  eapply wf_fdef__wf_cmd in HBinF; eauto using in_middle.
+  inv HBinF. inv H9.
+  eapply WF_PhiInfo_spec20 in Hwfpi; eauto.
+  uniq_result. auto.
 Qed.
 
 (***************************************************************************)
@@ -2574,11 +2607,10 @@ Qed.
 
 Lemma find_init_stld_inr_spec: forall pinfo v cs cs0 dones
  (H: ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones),
- v = value_const (const_undef (PI_typ pinfo)) /\
- exists cs1, 
+ exists cs1, exists ty, exists num, exists al,
+   v = value_const (const_undef ty) /\
    cs0 = cs1 ++
-          insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
-            (PI_align pinfo) :: cs.
+          insn_alloca (PI_id pinfo) ty num al :: cs.
 Proof.
   induction cs0; simpl; intros.
     congruence.
@@ -2590,16 +2622,16 @@ match goal with
   let H1 := fresh "H1" in
   let H2 := fresh "H2" in
   apply IHcs0 in H;
-  destruct H as [H1 [cs1 H2]]; subst;
-  split; auto;
-    match goal with
-    | |- exists _:_, ?c :: _ = _ => exists (c::cs1); auto
-    end
+  destruct H as [cs1 [ty [num [al [H1 H2]]]]]; subst;
+  match goal with
+  | |- exists _:_, exists _:_, exists _:_, exists _:_, _ /\ ?c :: _ = _ => 
+    exists (c::cs1); exists ty; exists num; exists al; split; auto
+  end
 end.
 
     destruct a; try find_init_stld_inr_spec_tac.
       repeat (destruct_if; try solve [find_init_stld_inr_spec_tac]).
-      admit. (* should find_init_stld check typ and align matches? *)
+      exists nil. exists typ5. exists value5. exists align5. auto.
 
       destruct value2; try solve [find_init_stld_inr_spec_tac].
       repeat (destruct_if; try solve [find_init_stld_inr_spec_tac]).
@@ -2607,10 +2639,9 @@ Qed.
 
 Lemma find_init_stld_inl_spec: forall pinfo i0 v cs cs0 dones
  (H: ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones),
- exists cs1, 
+ exists cs1, exists ty, exists al,
    cs0 = cs1 ++
-          insn_store i0 (PI_typ pinfo) v (value_id (PI_id pinfo))
-            (PI_align pinfo) :: cs.
+         insn_store i0 ty v (value_id (PI_id pinfo)) al :: cs.
 Proof.
   induction cs0; simpl; intros.
     congruence.
@@ -2620,9 +2651,10 @@ match goal with
 | H: Some _ = _,
   IHcs0 : forall _, Some _ = _ -> _ |- _ =>
       apply IHcs0 in H;
-      destruct H as [cs1 H]; subst;
+      destruct H as [cs1 [ty [al H]]]; subst;
       match goal with
-      | |- exists _:_, ?c :: _ = _ => exists (c::cs1); auto
+      | |- exists _:_, exists _:_, exists _:_, ?c :: _ = _ => 
+           exists (c::cs1); exists ty; exists al; auto
       end
 end.
 
@@ -2632,8 +2664,7 @@ end.
       destruct value2; try solve [find_init_stld_inl_spec_tac].
       repeat (destruct_if; try solve [find_init_stld_inl_spec_tac]).
 
-      exists nil. 
-      admit. (* should find_init_stld check typ and align matches? *)
+      exists nil. exists typ5. exists align5. auto.
 Qed.
 
 Ltac find_next_stld_spec_tac :=
@@ -2643,19 +2674,18 @@ match goal with
   let H1 := fresh "H1" in
   let H2 := fresh "H2" in
   apply IHcs0 in H;
-  destruct H as [cs1 [cs2 [H1 H2]]]; subst;
+  destruct H as [cs1 [cs2 [ty [al [H1 H2]]]]]; subst;
   match goal with
-  | |- exists _:_, exists _:_, ?c :: _ = _ /\ _ => 
-       exists (c::cs1); exists cs2; auto
+  | |- exists _:_, exists _:_, exists _:_, exists _:_, ?c :: _ = _ /\ _ => 
+       exists (c::cs1); exists cs2; exists ty; exists al; auto
   end
 end.
 
 Lemma find_next_stld_inl_spec: forall pinfo i1 cs
  (H: ret inl i1 = find_next_stld cs (PI_id pinfo)),
- exists cs1, exists cs2,
+ exists cs1, exists cs2, exists ty, exists al,
    cs = cs1 ++
-          insn_load i1 (PI_typ pinfo) (value_id (PI_id pinfo))
-            (PI_align pinfo) :: cs2 /\
+          insn_load i1 ty (value_id (PI_id pinfo)) al :: cs2 /\
    store_in_cmds (PI_id pinfo) cs1 = false.
 Proof.
   induction cs; simpl; intros.
@@ -2666,9 +2696,8 @@ Proof.
 
       destruct value1; try solve [find_next_stld_spec_tac].
       destruct_if.
-        exists nil. exists cs. 
+        exists nil. exists cs. exists typ5. exists align5.
         split; auto.
-          admit. (* should find_next_stld check typ and align matches? *)
 
         find_next_stld_spec_tac.
 
@@ -2684,10 +2713,9 @@ Qed.
 
 Lemma find_next_stld_inr_spec: forall pinfo i1 v0 cs
  (H: ret inr (i1, v0) = find_next_stld cs (PI_id pinfo)),
- exists cs1, exists cs2,
+ exists cs1, exists cs2, exists ty, exists al,
    cs = cs1 ++
-          insn_store i1 (PI_typ pinfo) v0 (value_id (PI_id pinfo))
-            (PI_align pinfo) :: cs2 /\
+          insn_store i1 ty v0 (value_id (PI_id pinfo)) al :: cs2 /\
    load_in_cmds (PI_id pinfo) cs1 = false.
 Proof.
   induction cs; simpl; intros.
@@ -2709,9 +2737,8 @@ Proof.
 
       destruct value2; try solve [find_next_stld_spec_tac].
       repeat (destruct_if; try solve [find_next_stld_spec_tac]).
-      exists nil. exists cs. 
+      exists nil. exists cs. exists typ5. exists align5.
       split; auto.
-        admit. (* should find_next_stld check typ and align matches? *)
 Qed.
 
 (*************************************)

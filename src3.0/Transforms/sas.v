@@ -16,27 +16,34 @@ Require Import sas_msim.
 Require Import memory_sim.
 Require Import top_sim.
 
-Definition sas (sid1 sid2: id) (v1 v2:value) (cs2:cmds) (b:block)
-  (pinfo:PhiInfo) : Prop :=
+(*
+  We allow the stores use different alignments from (PI_align pinfo). See
+  the comments in alivs_store.
+*)
+Definition sas (sid1 sid2: id) (align1 align2: align) (v1 v2:value) (cs2:cmds) 
+  (b:block) (pinfo:PhiInfo) : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\
 load_in_cmds (PI_id pinfo) cs2 = false /\
 let '(block_intro _ _ cs _) := b in
 exists cs1, exists cs3,
   cs =
   cs1 ++
-  insn_store sid1 (PI_typ pinfo) v1 (value_id (PI_id pinfo)) (PI_align pinfo) ::
+  insn_store sid1 (PI_typ pinfo) v1 (value_id (PI_id pinfo)) align1 ::
   cs2 ++
-  insn_store sid2 (PI_typ pinfo) v2 (value_id (PI_id pinfo)) (PI_align pinfo) ::
+  insn_store sid2 (PI_typ pinfo) v2 (value_id (PI_id pinfo)) align2 ::
   cs3.
 
 Record SASInfo (pinfo: PhiInfo) := mkSASInfo {
   SAS_sid1 : id;
   SAS_sid2 : id;
+  SAS_align1 : align;
+  SAS_align2 : align;
   SAS_value1 : value;
   SAS_value2 : value;
   SAS_tail : cmds;
   SAS_block : block;
-  SAS_prop: sas SAS_sid1 SAS_sid2 SAS_value1 SAS_value2 SAS_tail SAS_block pinfo
+  SAS_prop: sas SAS_sid1 SAS_sid2 SAS_align1 SAS_align2 SAS_value1 SAS_value2 
+    SAS_tail SAS_block pinfo
 }.
 
 Definition fdef_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) f1 f2
@@ -126,7 +133,8 @@ forall cs1 cs3,
   cs0 =
   cs1 ++
     insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo)
-      (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) (PI_align pinfo) ::
+      (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) 
+      (SAS_align1 pinfo sasinfo) ::
     SAS_tail pinfo sasinfo ++
     cs3 ->
   (exists csa, exists csb,
@@ -232,7 +240,7 @@ Proof.
     destruct J6 as [cs2 [cs3 J6]]; subst.
     destruct (@J3 cs2 
                 (insn_store SAS_sid4 (PI_typ pinfo) SAS_value4
-                  (value_id (PI_id pinfo)) (PI_align pinfo) :: cs3)) as
+                  (value_id (PI_id pinfo)) SAS_align4 :: cs3)) as
       [csa [csb [J7 J8]]]; subst; auto.
     clear J3.
     simpl_env in J4. simpl_env in J7. rewrite <- J7 in J4.
@@ -247,7 +255,8 @@ Qed.
 Ltac destruct_sasinfo :=
 match goal with
 | sasinfo: SASInfo _ |- _ =>
-  destruct sasinfo as [SAS_sid1 SAS_sid2 SAS_value1 SAS_value2 SAS_tail0
+  destruct sasinfo as [SAS_sid1 SAS_sid2 SAS_align1 SAS_align2 SAS_value1 
+                       SAS_value2 SAS_tail0
                        [SAS_l0 SAS_ps0 SAS_cs0 SAS_tmn0] SAS_prop0];
   destruct SAS_prop0 as 
     [SAS_BInF0 [SAS_ldincmds0 [SAS_cs1 [SAS_cs3 SAS_EQ]]]]; subst; simpl
@@ -290,7 +299,8 @@ Lemma lookup_SAS_lid1__store: forall l1 ps1 cs1 pinfo sasinfo
   (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) (PI_f pinfo)) c
   (Hin: In c cs1) (Heq: getCmdLoc c = SAS_sid1 pinfo sasinfo),
   c = insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
-         (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) (PI_align pinfo).
+        (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) 
+        (SAS_align1 pinfo sasinfo).
 Proof.
   intros.
   assert (block_intro l1 ps1 cs1 tmn1 = SAS_block pinfo sasinfo) as EQ.
@@ -308,7 +318,8 @@ Lemma lookup_SAS_lid2__store: forall l1 ps1 cs1 pinfo sasinfo
   (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) (PI_f pinfo)) c
   (Hin: In c cs1) (Heq: getCmdLoc c = SAS_sid2 pinfo sasinfo),
   c = insn_store (SAS_sid2 pinfo sasinfo) (PI_typ pinfo) 
-         (SAS_value2 pinfo sasinfo) (value_id (PI_id pinfo)) (PI_align pinfo).
+        (SAS_value2 pinfo sasinfo) (value_id (PI_id pinfo))
+        (SAS_align2 pinfo sasinfo).
 Proof.
   intros.
   assert (block_intro l1 ps1 cs1 tmn1 = SAS_block pinfo sasinfo) as EQ.
@@ -337,12 +348,13 @@ Lemma SAS_block_inv1: forall l1 ps1 cs11 t1 v1 v2 cs tmn2 align0 pinfo
   insn_store (SAS_sid1 pinfo sasinfo) t1 v1 v2 align0 =
     insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
       (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) 
-      (PI_align pinfo) /\
+      (SAS_align1 pinfo sasinfo) /\
   exists cs3, 
     cs = 
      SAS_tail pinfo sasinfo ++
      insn_store (SAS_sid2 pinfo sasinfo) (PI_typ pinfo) 
-       (SAS_value2 pinfo sasinfo) (value_id (PI_id pinfo)) (PI_align pinfo) 
+       (SAS_value2 pinfo sasinfo) (value_id (PI_id pinfo)) 
+       (SAS_align2 pinfo sasinfo) 
      :: cs3.
 Proof.
   intros.  
@@ -665,22 +677,22 @@ Proof.
   rewrite_env (
     (cs1 ++
      insn_store SAS_sid3 (PI_typ pinfo) SAS_value3
-         (value_id (PI_id pinfo)) (PI_align pinfo) :: (csa ++ csb)) ++
+         (value_id (PI_id pinfo)) SAS_align3 :: (csa ++ csb)) ++
      insn_store SAS_sid4 (PI_typ pinfo) SAS_value4
-            (value_id (PI_id pinfo)) (PI_align pinfo) :: cs3
+            (value_id (PI_id pinfo)) SAS_align4 :: cs3
     ) in J'.
   apply app_inv_tail in J'.
   rewrite_env (nil ++ csb) in J'.
   rewrite_env (
     (cs1 ++
        insn_store SAS_sid3 (PI_typ pinfo) SAS_value3
-         (value_id (PI_id pinfo)) (PI_align pinfo) ::
+         (value_id (PI_id pinfo)) SAS_align3 ::
        csa) ++ csb
     ) in J'.
   apply app_inv_tail in J'.
   assert (
     In (insn_store SAS_sid3 (PI_typ pinfo) SAS_value3
-         (value_id (PI_id pinfo)) (PI_align pinfo)) nil) as Hin.
+         (value_id (PI_id pinfo)) SAS_align3) nil) as Hin.
     rewrite J'. apply in_middle.
   inv Hin.
 Qed.
@@ -715,7 +727,7 @@ Proof.
   destruct J as [csa [csb [EQ1 EQ2]]]; subst.
   assert (
     In (insn_store SAS_sid4 (PI_typ pinfo) SAS_value4
-         (value_id (PI_id pinfo)) (PI_align pinfo)) nil) as Hin.
+         (value_id (PI_id pinfo)) SAS_align4) nil) as Hin.
     rewrite EQ1. apply in_middle.
   inv Hin.
 Qed.
@@ -1262,15 +1274,15 @@ Proof.
   destruct Huniq as [Huniq [_ Hex]].
   clear - Hex J1 Huniq. simpl in *.
   destruct (@list_suffix_dec _ cmd_dec CurCmds
-    (insn_store SAS_sid4 PI_typ SAS_value4 (value_id PI_id) PI_align :: cs3))
+    (insn_store SAS_sid4 PI_typ SAS_value4 (value_id PI_id) SAS_align4 :: cs3))
     as [J | J].
     destruct J as [l3 J]; subst.
     destruct (@list_suffix_dec _ cmd_dec SAS_tail0 l3) as [J' | J'].
       destruct J' as [l4 J']; subst.
       left.
       intros.
-      assert (cs2=insn_store SAS_sid4 PI_typ SAS_value4 (value_id PI_id) PI_align
-                    :: cs3 ) as EQ.
+      assert (cs2=insn_store SAS_sid4 PI_typ SAS_value4 (value_id PI_id) 
+                    SAS_align4 :: cs3 ) as EQ.
         apply NoDup_cmds_split_middle in H; auto.
         destruct H; subst.
         apply app_inv_head in H0. auto.
@@ -1283,7 +1295,7 @@ Proof.
       intro J.
       destruct (@J cs1 
                    (insn_store SAS_sid4 PI_typ SAS_value4 
-                     (value_id PI_id) PI_align :: cs3))
+                     (value_id PI_id) SAS_align4 :: cs3))
         as [csa1 [csb1 [J1' J2]]]; subst; auto.
       clear J.
       assert (l3 = csb1) as EQ. 
@@ -1302,7 +1314,7 @@ Proof.
     intro J'.
     destruct (@J' cs1 
                   (insn_store SAS_sid4 PI_typ SAS_value4 
-                    (value_id PI_id) PI_align :: cs3))
+                    (value_id PI_id) SAS_align4 :: cs3))
       as [csa1 [csb1 [J1' J2]]]; subst; auto.
     clear J'.
     apply J. exists csb1. auto.
@@ -1764,7 +1776,7 @@ Proof.
     destruct SAS_block0 as [? ? cs0 ?].
     destruct J6 as [cs2 [cs3 J6]]; subst. simpl in *.
     destruct (@J3 cs2 (insn_store SAS_sid4 (PI_typ pinfo) SAS_value4
-                         (value_id (PI_id pinfo)) (PI_align pinfo) :: cs3)) as
+                         (value_id (PI_id pinfo)) SAS_align4 :: cs3)) as
       [csa [csb [J7 J6]]]; subst; auto. clear J3.
     rewrite Heq in J7.
     destruct csb; inv J7.
@@ -1984,12 +1996,13 @@ Lemma SAS_block_inv2: forall l1 ps1 cs11 t1 v1 v2 cs tmn2 align0 pinfo
   insn_store (SAS_sid2 pinfo sasinfo) t1 v1 v2 align0 =
     insn_store (SAS_sid2 pinfo sasinfo) (PI_typ pinfo) 
       (SAS_value2 pinfo sasinfo) (value_id (PI_id pinfo)) 
-      (PI_align pinfo) /\
+      (SAS_align2 pinfo sasinfo) /\
   exists cs3, 
     cs = 
      cs3 ++
      insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
-       (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) (PI_align pinfo) ::
+       (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) 
+       (SAS_align1 pinfo sasinfo) ::
      SAS_tail pinfo sasinfo.
 Proof.
   intros.  
@@ -2050,7 +2063,7 @@ Proof.
   inv EQ1.
   destruct (@J3 cs1 (insn_store (SAS_sid2 pinfo sasinfo) (PI_typ pinfo) 
                       (SAS_value2 pinfo sasinfo) (value_id (PI_id pinfo))
-                      (PI_align pinfo) :: cs))
+                      (SAS_align2 pinfo sasinfo) :: cs))
     as [csa [csb [J6 J7]]]; simpl_env; auto.
     anti_simpl_env. 
 Qed.
@@ -2478,7 +2491,8 @@ Case "removable state".
 
   assert (
     c1 = insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
-         (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) (PI_align pinfo)) 
+           (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) 
+           (SAS_align1 pinfo sasinfo)) 
     as EQ.
     destruct Heq3 as [l1 [ps3 [cs11 Heq3]]]; subst.
     eapply lookup_SAS_lid1__store; eauto using wf_system__uniqFdef, in_middle.
