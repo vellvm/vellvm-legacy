@@ -748,22 +748,69 @@ Proof.
   eapply cs_follow_dead_store_at_end_false in J3; eauto.
 Qed.
 
+(* generalized? *)
 Lemma fdef_sim__block_sim : forall pinfo sasinfo f1 f2 b1 b2 l0,
   fdef_simulation pinfo sasinfo f1 f2 ->
   lookupBlockViaLabelFromFdef f1 l0 = Some b1 ->
   lookupBlockViaLabelFromFdef f2 l0 = Some b2 ->
   block_simulation pinfo sasinfo f1 b1 b2.
-Admitted. (* fsim -> bsim *)
+Proof.
+  intros.
+  unfold fdef_simulation in H.
+  unfold block_simulation.
+  destruct (fdef_dec (PI_f pinfo) f1); subst.
+    destruct (PI_f pinfo). simpl in *.
+    eapply fdef_sim__lookupAL_genLabel2Block_remove_block; eauto.
+
+    uniq_result. auto.
+Qed.
+
+Lemma lookup_SAS_lid1__cmd: forall pinfo sasinfo (Huniq : uniqFdef (PI_f pinfo)),
+  lookupInsnViaIDFromFdef (PI_f pinfo) (SAS_sid1 pinfo sasinfo) =
+    ret insn_cmd
+          (insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo)
+            (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo))
+            (SAS_align1 pinfo sasinfo)).
+Proof.
+  intros.
+  destruct_sasinfo.
+  replace SAS_sid1 with (getCmdLoc 
+     (insn_store SAS_sid1 (PI_typ pinfo)
+        SAS_value1 (value_id (PI_id pinfo)) SAS_align1)); auto.
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef; eauto.
+  simpl. solve_in_list.
+Qed.
+
+Lemma SAS_sid1__isnt__phi: forall (pinfo : PhiInfo) sasinfo (ps1 : phinodes) 
+  (l1 : l) (cs1 : cmds) (tmn1 : terminator)
+  (HBinF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) (PI_f pinfo) = true)
+  (H0 : uniqFdef (PI_f pinfo)),
+  ~ In (SAS_sid1 pinfo sasinfo) (getPhiNodesIDs ps1).
+Proof.
+  intros.
+  intro Hin.
+  assert (J:=HBinF).
+  apply blockInFdefB_lookupBlockViaLabelFromFdef in J; auto.
+  eapply phinode_isnt_cmd with (c1:=
+    insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
+        (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) 
+        (SAS_align1 pinfo sasinfo)) in Hin; eauto.
+  eapply lookup_SAS_lid1__cmd; eauto.
+Qed.
 
 Lemma remove_phinodes_eq: forall pinfo sasinfo l0 ps0 cs0 tmn0,
-  WF_PhiInfo pinfo -> uniqFdef (PI_f pinfo) ->
+  uniqFdef (PI_f pinfo) ->
   blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) ->
   remove_phinodes (SAS_sid1 pinfo sasinfo) ps0 = ps0.
-Admitted.  (* phi sim *)
+Proof.
+  intros.
+  rewrite <- remove_phinodes_stable; auto.
+  eapply SAS_sid1__isnt__phi; eauto.
+Qed.
 
 Lemma block_simulation_inv : forall pinfo sasinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
   tmn2,
-  WF_PhiInfo pinfo -> uniqFdef F ->
+  uniqFdef F ->
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) F ->
   block_simulation pinfo sasinfo F (block_intro l1 ps1 cs1 tmn1)
     (block_intro l2 ps2 cs2 tmn2) ->
@@ -772,12 +819,13 @@ Lemma block_simulation_inv : forall pinfo sasinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
 Proof.
   intros.
   unfold block_simulation, cmds_simulation in *.
-  destruct (fdef_dec (PI_f pinfo) F); inv H2; auto.
+  destruct (fdef_dec (PI_f pinfo) F); inv H1; auto.
   erewrite remove_phinodes_eq; eauto.
 Qed.
 
 Lemma switchToNewBasicBlock_sim : forall TD l1 l2 ps cs1 cs2 tmn1 tmn2 B1 B2
-  gl lc lc1 lc2 F pinfo sasinfo
+  gl lc lc1 lc2 F pinfo sasinfo (Huniq: uniqFdef F) 
+  (HbInF: blockInFdefB B1 F = true)
   (H23 : @Opsem.switchToNewBasicBlock DGVs TD
           (block_intro l1 ps cs1 tmn1) B1 gl lc =
          ret lc1)
@@ -785,7 +833,17 @@ Lemma switchToNewBasicBlock_sim : forall TD l1 l2 ps cs1 cs2 tmn1 tmn2 B1 B2
   (H2 : Opsem.switchToNewBasicBlock TD
          (block_intro l2 ps cs2 tmn2) B2 gl lc =
         ret lc2), lc1 = lc2.
-Admitted. (* switch sim *)
+Proof.
+  intros.
+  destruct B1, B2.
+  apply block_simulation_inv in Hbsim2; auto.
+  destruct Hbsim2 as [J1 [J2 [J3 J4]]]; subst.
+  unfold Opsem.switchToNewBasicBlock in *. simpl in *.
+  rewrite (@OpsemProps.getIncomingValuesForBlockFromPHINodes_eq 
+    DGVs ps TD l0 phinodes0 cmds0 terminator0
+                  phinodes0 cmds5 terminator0) in H2; auto.
+  rewrite H2 in H23. congruence.
+Qed.
 
 Lemma switchToNewBasicBlock_mem_simulation: forall (pinfo : PhiInfo)
   (sasinfo : SASInfo pinfo) (gl2 : GVMap) (lc2 : Opsem.GVsMap)
@@ -1015,13 +1073,34 @@ Proof.
   uniq_result. auto.
 Qed.
 
+(* generalized? *)
 Lemma fdef_simulation_inv: forall pinfo sasinfo fh1 fh2 bs1 bs2,
   fdef_simulation pinfo sasinfo (fdef_intro fh1 bs1) (fdef_intro fh2 bs2) ->
   fh1 = fh2 /\
   List.Forall2
     (fun b1 b2 =>
       block_simulation pinfo sasinfo (fdef_intro fh1 bs1) b1 b2) bs1 bs2.
-Admitted. (* fsim *)
+Proof.
+  intros.
+  unfold fdef_simulation in H.
+  destruct (fdef_dec (PI_f pinfo) (fdef_intro fh1 bs1)).
+    simpl in H. inv H.
+    split; auto.
+      unfold block_simulation.
+      rewrite e.
+      destruct (fdef_dec (fdef_intro fh2 bs1) (fdef_intro fh2 bs1));
+        try congruence.
+        clear.
+        induction bs1; simpl; constructor; auto.
+
+    inv H.
+    split; auto.
+      unfold block_simulation.
+      destruct (fdef_dec (PI_f pinfo) (fdef_intro fh2 bs2));
+        try congruence.
+        clear.
+        induction bs2; simpl; constructor; auto.
+Qed.
 
 (*
 Lemma undead_head_tail_cons_and: forall pinfo sasinfo ptr EC ECs,
@@ -2556,7 +2635,7 @@ Focus.
   destruct Hbsim' as [Heq1 [Heq2 [Hcssim' Heq5]]]; subst.
 
   assert (lc' = lc'0) as Heq.
-    clear - H2 H23 Hbsim2.
+    clear - H2 H23 Hbsim2 HBinF1 Huniq.
     eapply switchToNewBasicBlock_sim in Hbsim2; eauto.
   subst.
 
@@ -2587,7 +2666,7 @@ Focus.
   destruct Hbsim' as [Heq1 [Heq2 [Hcssim' Heq5]]]; subst.
 
   assert (lc' = lc'0) as Heq.
-    clear - H0 H17 Hbsim2.
+    clear - H0 H17 Hbsim2 HBinF1 Huniq.
     eapply switchToNewBasicBlock_sim in Hbsim2; eauto.
   subst.
 

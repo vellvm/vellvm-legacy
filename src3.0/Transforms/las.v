@@ -722,6 +722,7 @@ Proof.
   destruct (fdef_dec (PI_f pinfo) F); subst; simpl; eauto.
 Qed.
 
+(* generalized? *)
 Lemma fdef_sim__block_sim : forall pinfo lasinfo f1 f2 b1 b2 l0,
   fdef_simulation pinfo lasinfo f1 f2 ->
   lookupBlockViaLabelFromFdef f1 l0 = Some b1 ->
@@ -729,7 +730,14 @@ Lemma fdef_sim__block_sim : forall pinfo lasinfo f1 f2 b1 b2 l0,
   block_simulation pinfo lasinfo f1 b1 b2.
 Proof.
   intros.
-Admitted. (* fsim *)
+  unfold fdef_simulation in H.
+  unfold block_simulation.
+  destruct (fdef_dec (PI_f pinfo) f1); subst.
+    destruct (PI_f pinfo). simpl in *.
+    eapply fdef_sim__lookupAL_genLabel2Block_subst_block; eauto.
+
+    uniq_result. auto.
+Qed.
 
 Lemma block_simulation_inv : forall pinfo lasinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
   tmn2,
@@ -1184,13 +1192,34 @@ Proof.
   uniq_result. auto.
 Qed.
 
+(* generalized? *)
 Lemma fdef_simulation_inv: forall pinfo lasinfo fh1 fh2 bs1 bs2,
   fdef_simulation pinfo lasinfo (fdef_intro fh1 bs1) (fdef_intro fh2 bs2) ->
   fh1 = fh2 /\
   List.Forall2
     (fun b1 b2 => block_simulation pinfo lasinfo (fdef_intro fh1 bs1) b1 b2)
     bs1 bs2.
-Admitted. (* fsim *)
+Proof.
+  intros.
+  unfold fdef_simulation in H.
+  destruct (fdef_dec (PI_f pinfo) (fdef_intro fh1 bs1)).
+    simpl in H. inv H.
+    split; auto.
+      unfold block_simulation.
+      rewrite e.
+      destruct (fdef_dec (fdef_intro fh2 bs1) (fdef_intro fh2 bs1));
+        try congruence.
+        clear.
+        induction bs1; simpl; constructor; auto.
+
+    inv H.
+    split; auto.
+      unfold block_simulation.
+      destruct (fdef_dec (PI_f pinfo) (fdef_intro fh2 bs2));
+        try congruence.
+        clear.
+        induction bs2; simpl; constructor; auto.
+Qed.
 
 Lemma pars_simulation_nil_inv: forall pinfo lasinfo f1 ps,
   pars_simulation pinfo lasinfo f1 nil ps -> ps = nil.

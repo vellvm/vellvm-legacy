@@ -334,12 +334,34 @@ match goal with
   uniq_result
 end.
 
+Lemma fdef_sim__lookupAL_genLabel2Block_elim_dead_st_block : 
+  forall id0 l0 bs b b',
+  lookupAL _ (genLabel2Block_blocks bs) l0 = Some b ->
+  lookupAL _ (genLabel2Block_blocks (List.map (elim_dead_st_block id0) bs)) l0
+    = Some b' ->
+  elim_dead_st_block id0 b = b'.
+Proof.
+  intros.
+  eapply fdef_sim__lookupAL_genLabel2Block_block; eauto.
+  destruct b0; simpl; auto.
+Qed.
+
+(* generalized? *)
 Lemma fdef_sim__block_sim : forall pinfo f1 f2 b1 b2 l0,
   fdef_simulation pinfo f1 f2 ->
   lookupBlockViaLabelFromFdef f1 l0 = Some b1 ->
   lookupBlockViaLabelFromFdef f2 l0 = Some b2 ->
   block_simulation pinfo f1 b1 b2.
-Admitted. (* fsim *)
+Proof.
+  intros.
+  unfold fdef_simulation in H.
+  unfold block_simulation.
+  destruct (fdef_dec (PI_f pinfo) f1); subst.
+    destruct (PI_f pinfo). simpl in *.
+    eapply fdef_sim__lookupAL_genLabel2Block_elim_dead_st_block; eauto.
+
+    uniq_result. auto.
+Qed.
 
 Lemma block_simulation_inv : forall pinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
   tmn2,
@@ -398,7 +420,17 @@ Lemma switchToNewBasicBlock_sim : forall TD l1 l2 ps cs1 cs2 tmn1 tmn2 B1 B2
   (H2 : Opsem.switchToNewBasicBlock TD
          (block_intro l2 ps cs2 tmn2) B2 gl lc =
         ret lc2), lc1 = lc2.
-Admitted. (* switch sim *)
+Proof.
+  intros.
+  destruct B1, B2.
+  apply block_simulation_inv in Hbsim2; auto.
+  destruct Hbsim2 as [J1 [J2 [J3 J4]]]; subst.
+  unfold Opsem.switchToNewBasicBlock in *. simpl in *.
+  rewrite (@OpsemProps.getIncomingValuesForBlockFromPHINodes_eq 
+    DGVs ps TD l0 phinodes0 cmds0 terminator0
+                  phinodes0 cmds5 terminator0) in H2; auto.
+  rewrite H2 in H23. congruence.
+Qed.
 
 Lemma mem_simulation_update_locals :
   forall pinfo TD EC1 EC2 ECs M1 M2
@@ -596,13 +628,34 @@ Proof.
   uniq_result. auto.
 Qed.
 
+(* generalized? *)
 Lemma fdef_simulation_inv: forall pinfo fh1 fh2 bs1 bs2,
   fdef_simulation pinfo (fdef_intro fh1 bs1) (fdef_intro fh2 bs2) ->
   fh1 = fh2 /\
   List.Forall2
     (fun b1 b2 =>
       block_simulation pinfo (fdef_intro fh1 bs1) b1 b2) bs1 bs2.
-Admitted. (* fsim *)
+Proof.
+  intros.
+  unfold fdef_simulation in H.
+  destruct (fdef_dec (PI_f pinfo) (fdef_intro fh1 bs1)).
+    simpl in H. inv H.
+    split; auto.
+      unfold block_simulation.
+      rewrite e.
+      destruct (fdef_dec (fdef_intro fh2 bs1) (fdef_intro fh2 bs1));
+        try congruence.
+        clear.
+        induction bs1; simpl; constructor; auto.
+
+    inv H.
+    split; auto.
+      unfold block_simulation.
+      destruct (fdef_dec (PI_f pinfo) (fdef_intro fh2 bs2));
+        try congruence.
+        clear.
+        induction bs2; simpl; constructor; auto.
+Qed.
 
 (*
 Lemma no_alias_head_tail_cons_and: forall pinfo ptr EC ECs,

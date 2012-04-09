@@ -237,7 +237,7 @@ Proof.
   unfold block_simulation.
   destruct (fdef_dec (PI_f pinfo) f1); subst.
     destruct (PI_f pinfo). simpl in *.
-    eapply fdef_sim__lookupAL_genLabel2Block_block; eauto.
+    eapply fdef_sim__lookupAL_genLabel2Block_remove_block; eauto.
 
     uniq_result. auto.
 Qed.

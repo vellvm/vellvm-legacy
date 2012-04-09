@@ -18,7 +18,10 @@ Require Import dse.
 Require Import dse_wfS.
 
 Lemma s_genInitState__dse_State_simulation: forall pinfo S1 S2 main VarArgs cfg2
-  IS2 (Hssim: system_simulation pinfo S1 S2)
+  IS2 (Hssim: system_simulation pinfo S1 S2) (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS1: wf_system S1) Ps1 Ps2 los0 nts0 f0
+  (Heq1: PI_f pinfo = f0)
+  (Heq2: S1 = [module_intro los0 nts0 (Ps1 ++ product_fdef f0 :: Ps2)])
   (Hinit: Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2)),
   exists cfg1, exists IS1,
     Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
@@ -77,7 +80,17 @@ Proof.
     unfold dse_mem_inj. 
     assert (exists tsz, getTypeStoreSize (OpsemAux.initTargetData los nts Mem.empty)
              (PI_typ pinfo) = Some tsz) as Htsz.
-      admit. (* When dse runs PI_f must be in the system, see mem2reg_correct *)
+      simpl in HMinS. apply orb_true_elim in HMinS. 
+      destruct HMinS as [HMinS | HMinS]; try congruence.
+      uniq_result.
+      apply wf_single_system__wf_uniq_fdef in HwfS1; auto.
+      destruct HwfS1 as [HwfF_pi Huniq_pi].
+      apply WF_PhiInfo_spec21 in HwfF_pi; auto.
+      unfold OpsemAux.initTargetData.
+      apply wf_typ__getTypeSizeInBits_and_Alignment in HwfF_pi.
+      destruct HwfF_pi as [sz [al [J1 _]]].
+      apply getTypeSizeInBits_and_Alignment__getTypeStoreSize in J1.
+      eauto.
     destruct Htsz as [tsz Htsz]. fill_ctxhole.
     intros.
     eapply SASmsim.from_MoreMem_inj; eauto.

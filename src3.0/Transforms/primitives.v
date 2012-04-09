@@ -742,18 +742,51 @@ Proof.
   eapply used_in_blocks__used_in_block in H0; eauto.
 Qed.
 
-Lemma fdef_sim__lookupAL_genLabel2Block_block : forall id0 l0 bs b b',
+Lemma fdef_sim__lookupAL_genLabel2Block_block : forall f 
+  (EQ: forall b, getBlockLabel (f b) = getBlockLabel b) l0 bs b b',
+  lookupAL _ (genLabel2Block_blocks bs) l0 = Some b ->
+  lookupAL _ (genLabel2Block_blocks (List.map f bs)) l0
+    = Some b' ->
+  f b = b'.
+Proof.
+  induction bs as [|a ?]; simpl; intros.
+    congruence.
+ 
+    destruct a as [l1 ps1 cs1 tmn1]. simpl in *.
+    destruct (l0 == l1); subst.
+      inv H.
+      assert (J:=@EQ (block_intro l1 ps1 cs1 tmn1)).
+      destruct (f (block_intro l1 ps1 cs1 tmn1)) as [l2 ps2 cs2 tmn2].
+      simpl in J. subst. inv H0. 
+      destruct_if; try congruence.
+
+      apply IHbs; auto.
+      assert (J:=@EQ (block_intro l1 ps1 cs1 tmn1)).
+      destruct (f (block_intro l1 ps1 cs1 tmn1)) as [l2 ps2 cs2 tmn2].
+       simpl in J. subst. inv H0. 
+      destruct_if; try congruence.
+Qed.
+
+Lemma fdef_sim__lookupAL_genLabel2Block_remove_block : forall id0 l0 bs b b',
   lookupAL _ (genLabel2Block_blocks bs) l0 = Some b ->
   lookupAL _ (genLabel2Block_blocks (List.map (remove_block id0) bs)) l0
     = Some b' ->
   remove_block id0 b = b'.
 Proof.
-  induction bs as [|a ?]; simpl; intros.
-    congruence.
+  intros.
+  eapply fdef_sim__lookupAL_genLabel2Block_block; eauto.
+  destruct b0; simpl; auto.
+Qed.
 
-    destruct a as [l1 ? ? ?]. simpl in *.
-    destruct (l0 == l1); subst; eauto.
-      inv H. inv H0. auto.
+Lemma fdef_sim__lookupAL_genLabel2Block_subst_block : forall id0 v0 l0 bs b b',
+  lookupAL _ (genLabel2Block_blocks bs) l0 = Some b ->
+  lookupAL _ (genLabel2Block_blocks (List.map (subst_block id0 v0) bs)) l0
+    = Some b' ->
+  subst_block id0 v0 b = b'.
+Proof.
+  intros.
+  eapply fdef_sim__lookupAL_genLabel2Block_block; eauto.
+  destruct b0; simpl; auto.
 Qed.
 
 Lemma in_params__used: forall id1 A (t1 : A) (lp : list (A * value)) init,

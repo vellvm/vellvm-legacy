@@ -6,9 +6,9 @@
    las laa
    STATUS: done
 
-2) properties of LASInfo/LAAInfo/SASInfo (0.5W):1.5D
+2) properties of LASInfo/LAAInfo/SASInfo (0.5W):2D
    las laa sas
-   STATUS: las/laa are partially done
+   STATUS: done
 
 4) show that before the alloca, [|pid|] = None (0.5W):0.75D
    sas dse
@@ -26,10 +26,10 @@
    palloca_props
    STATUS: done
 
-8) properties of find_promotable_alloca (0.5W):0.25D
+8) properties of find_promotable_alloca (0.5W):0.5D
   palloca_props promotable_props phiplacement_bsim alive_alive dae primitives 
   dse
-   STATUS: partially
+   STATUS: done
 
 9) infrastructure (0.5W):0.5D
   promotable_props alive_store dae program_sim
@@ -37,11 +37,11 @@
 
 9) typings (uniqness, wf) (0.5W):0.5D
   alive_alloca las laa dae sas
-   STATUS: partial
+   STATUS: done
 
 11.1) fdef/prod-simulation (0.5W):1D
   las laa sas dse
-  STATUS: partial
+  STATUS: done
 
 11.2) undef/final:4D
   STATUS: Done 
@@ -56,6 +56,8 @@
   STATUS: done
 
 11.6) return value should be casted into eventgv (1D)
+
+11.7) excalls preserve traces (2D)
 
 13) proving DIE (2D)
 

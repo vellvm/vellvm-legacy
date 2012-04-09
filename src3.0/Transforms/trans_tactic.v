@@ -69,6 +69,7 @@ repeat match goal with
 | H1 : _ @ _ |- _ => inv H1
 | H : ?f _ = ?f _ |- _ => inv H
 | H : False |- _ => inv H
+| H: moduleEqB _ _ = true |- _ => apply moduleEqB_inv in H; inv H
 end.
 
 Ltac unfold_blk2GV := unfold blk2GV, ptr2GV, val2GV.
@@ -96,4 +97,23 @@ repeat match goal with
        rewrite_env (A++[a]++nil) in H;
        contradict H; simpl; apply app_cons_not_nil
 end.
+
+(* go to *)
+Ltac destruct_dec :=
+match goal with
+| |- context [id_dec ?b ?a] =>
+  destruct (id_dec b a); subst; try congruence; auto
+| _ : context [productInModuleB_dec ?p1 ?p2] |- _ =>
+  destruct (productInModuleB_dec p1 p2); try congruence
+end.
+
+(* go to *)
+Lemma getTypeSizeInBits_and_Alignment__getTypeStoreSize: forall TD t sz al,
+  getTypeSizeInBits_and_Alignment TD true t = Some (sz, al) ->
+  getTypeStoreSize TD t = Some (nat_of_Z (ZRdiv (Z_of_nat sz) 8)).
+Proof.
+  unfold getTypeStoreSize, getTypeSizeInBits.
+  intros. fill_ctxhole. auto.
+Qed.
+
 
