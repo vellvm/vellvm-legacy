@@ -1935,7 +1935,7 @@ Proof.
 Qed.
 
 Definition args_dont_use_pid pinfo F (la:list (typ * attributes * id)) :=
-  PI_f pinfo <> F \/ (forall t a i0, In (t,a,i0) la -> PI_id pinfo <> i0).
+  conditional_used_in_args (PI_f pinfo) F (PI_id pinfo) la.
 
 Lemma WF_PhiInfo__args_dont_use_pid: forall pinfo F la0
   (Huniq: uniqFdef F) (Hneq: la0 = getArgsOfFdef F) (Hwfpi: WF_PhiInfo pinfo),

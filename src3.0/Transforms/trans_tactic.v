@@ -116,4 +116,36 @@ Proof.
   intros. fill_ctxhole. auto.
 Qed.
 
+(* go to *)
+Ltac inTmnOp_isnt_stuck v H3 Hwfcfg1 Hwfpp1 :=
+match type of Hwfpp1 with
+| OpsemPP.wf_State 
+              {|
+              OpsemAux.CurSystem := _;
+              OpsemAux.CurTargetData := ?td;
+              OpsemAux.CurProducts := _;
+              OpsemAux.Globals := ?gl;
+              OpsemAux.FunTable := _ |}
+    {| Opsem.ECS := {| Opsem.CurFunction := _;
+                       Opsem.CurBB := ?b;
+                       Opsem.CurCmds := nil;
+                       Opsem.Terminator := ?tmn;
+                       Opsem.Locals := ?lc;
+                       Opsem.Allocas := _
+                     |} :: _;
+       Opsem.Mem := _ |}  =>
+    let G := fresh "G" in
+    let gvs := fresh "gvs" in
+    assert (exists gvs, Opsem.getOperandValue td v lc gl = Some gvs) as G; 
+      try solve [
+        destruct H3 as [l5 [ps2 [cs21 H3]]]; subst;
+        destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
+        destruct Hwfpp1 as 
+          [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [Hinscope1 _]]]]] _]];
+        inv_mbind;
+        eapply OpsemPP.getOperandValue_inTmnOperans_isnt_stuck; eauto 1;
+          simpl; auto
+      ];
+    destruct G as [gvs G]
+end.
 

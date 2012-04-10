@@ -407,7 +407,7 @@ Proof.
     eapply als_simulation_update_palloca; eauto.
       eapply WF_PhiInfo_spec15 in Hpalloca; eauto using wf_system__uniqFdef.
     eapply reg_simulation_update_palloca; eauto.
-    eapply cmds_simulation_elim_cons_inv; eauto.
+    eapply RemoveSim.cmds_simulation_elim_cons_inv; eauto.
     eapply inject_incr__preserves__ECs_simulation; eauto.
       eapply malloc__isnt_alloca_in_ECs; eauto.
     eapply OpsemAux.inject_incr__preserves__ftable_simulation; eauto.
@@ -1048,7 +1048,7 @@ match goal with
       [[Hdisjals _] HwfM]
     ]; simpl in Hdisjals;
   fold Promotability.wf_ECStack in HwfECs';
-  apply cmds_simulation_nil_inv in Hcssim2; subst;
+  apply RemoveSim.cmds_simulation_nil_inv in Hcssim2; subst;
   wfCall_inv
 end.
 
@@ -1072,9 +1072,9 @@ Ltac reg_simulation_update_non_palloca_tac :=
   end;
   eauto using mem_simulation__wf_sb_sim;
   try solve [
-    eapply used_in_fdef__cmd_value_doesnt_use_pid; eauto using in_middle;
+    eapply conditional_used_in_fdef__used_in_cmd_value; eauto using in_middle;
       simpl; auto |
-    eapply used_in_fdef__list_value_doesnt_use_pid; eauto using in_middle;
+    eapply conditional_used_in_fdef__used_in_list_value; eauto using in_middle;
       simpl; auto |
     get_wf_value_for_simop; try find_wf_value_list; eauto |
     get_wf_value_for_simop'; try find_wf_value_list; eauto
@@ -1087,7 +1087,7 @@ match goal with
   Heq3: exists _, exists _, exists _, ?B = _,
   Hop2: Opsem.sInsn _ _ _ _,
   Hmsim: mem_simulation _ _ ?mi _ _ _ |- _ =>
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result;
   exists mi;
@@ -1101,7 +1101,7 @@ end.
 
 Ltac simulation__getOperandValue_tac1 :=
     eauto using mem_simulation__wf_sb_sim;
-    try solve [eapply used_in_fdef__cmd_value_doesnt_use_pid;
+    try solve [eapply conditional_used_in_fdef__used_in_cmd_value;
                  eauto using in_middle; simpl; auto |
                get_wf_value_for_simop; eauto |
                get_wf_value_for_simop'; eauto].
@@ -1138,7 +1138,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
 Case "removable state". eapply dae_is_sim_removable_state; eauto.
 
 Case "unremovable state".
-  apply not_removable_State_inv in Hnrem.
+  apply RemoveSim.not_removable_State_inv in Hnrem.
   (sInsn_cases (destruct Hop1) SCase).
 
 SCase "sReturn".
@@ -1148,7 +1148,7 @@ Focus.
   assert (PI_f pinfo <> F' \/ PI_id pinfo <> getCmdLoc (insn_call i0 n c t0 v0 v p))
     as Hneq.
     WF_PhiInfo_spec10_tac.
-  apply cmds_simulation_nelim_cons_inv in Hcssim2'; auto.
+  apply RemoveSim.cmds_simulation_nelim_cons_inv in Hcssim2'; auto.
   destruct Hcssim2' as [cs3' [Heq Hcssim2']]; subst;
   inv Hop2;
   uniq_result.
@@ -1160,7 +1160,7 @@ Focus.
     eapply returnUpdateLocals_reg_simulation with (lc:=lc);
       eauto using mem_simulation__wf_sb_sim;
       try solve [get_wf_value_for_simop'; eauto].
-      eapply used_in_fdef__tmn_value_doesnt_use_pid; eauto; simpl; auto.
+      eapply conditional_used_in_fdef__used_in_tmn_value; eauto; simpl; auto.
 
 Unfocus.
 
@@ -1170,7 +1170,7 @@ Focus.
   assert (PI_f pinfo <> F' \/ PI_id pinfo <> getCmdLoc (insn_call i0 n c t0 v0 v p))
     as Hneq.
     WF_PhiInfo_spec10_tac.
-  apply cmds_simulation_nelim_cons_inv in Hcssim2'; auto.
+  apply RemoveSim.cmds_simulation_nelim_cons_inv in Hcssim2'; auto.
   destruct Hcssim2' as [cs3' [Heq Hcssim2']]; subst;
   inv Hop2;
   uniq_result.
@@ -1183,7 +1183,7 @@ Unfocus.
 SCase "sBranch".
 Focus.
   destruct_ctx_other.
-  apply cmds_simulation_nil_inv in Hcssim2; subst.
+  apply RemoveSim.cmds_simulation_nil_inv in Hcssim2; subst.
   inv Hop2.
   uniq_result.
 
@@ -1191,15 +1191,16 @@ Focus.
            (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
     destruct Hmsim as [_ [_ Hwf_mi]].
     eapply simulation__getOperandValue in Hlcsim2;
-      try solve [get_wf_value_for_simop'; eauto].
+      try solve [get_wf_value_for_simop'; eauto 2].
       erewrite simulation__isGVZero in H1; eauto.
       clear - H22 H1 Hfsim2.
-      destruct (isGVZero (los, nts) c0); eauto using fdef_sim__block_sim.
+      destruct (isGVZero (los, nts) c0); 
+        eapply RemoveSim.fdef_sim__block_sim; eauto.
 
-      eapply used_in_fdef__tmn_value_doesnt_use_pid; eauto; simpl; auto.
+      eapply conditional_used_in_fdef__used_in_tmn_value; eauto; simpl; auto.
 
   assert (Hbsim':=Hbsim).
-  apply block_simulation_inv in Hbsim'.
+  apply RemoveSim.block_simulation_inv in Hbsim'.
   destruct Hbsim' as [Heq1 [Hpssim' [Hcssim' Heq5]]]; subst.
 
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
@@ -1213,7 +1214,7 @@ Focus.
     eapply wf_system__blockInFdefB__wf_block in HBinF1''; eauto.     
     inv HBinF1''.
     eapply switchToNewBasicBlock_rsim in Hbsim2;
-      eauto using mem_simulation__wf_sb_sim, used_in_fdef__phis_dont_use_pid.
+      eauto using mem_simulation__wf_sb_sim, conditional_used_in_fdef__used_in_phis.
   assert (als_simulation pinfo mi F lc' als als2) as Halsim2'.
     eapply switchToNewBasicBlock_asim; eauto.
   exists mi.
@@ -1234,15 +1235,15 @@ Unfocus.
 SCase "sBranch_uncond".
 Focus.
   destruct_ctx_other.
-  apply cmds_simulation_nil_inv in Hcssim2; subst.
+  apply RemoveSim.cmds_simulation_nil_inv in Hcssim2; subst.
   inv Hop2.
   uniq_result.
 
   assert (block_simulation pinfo F (block_intro l' ps' cs' tmn')
            (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
-    eauto using fdef_sim__block_sim.
+    eapply RemoveSim.fdef_sim__block_sim; eauto.
   assert (Hbsim':=Hbsim).
-  apply block_simulation_inv in Hbsim'.
+  apply RemoveSim.block_simulation_inv in Hbsim'.
   destruct Hbsim' as [Heq1 [Hpssim' [Hcssim' Heq5]]]; subst.
 
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
@@ -1256,7 +1257,7 @@ Focus.
     eapply wf_system__blockInFdefB__wf_block in HBinF1''; eauto.     
     inv HBinF1''.
     eapply switchToNewBasicBlock_rsim in Hbsim2;
-      eauto using mem_simulation__wf_sb_sim, used_in_fdef__phis_dont_use_pid.
+      eauto using mem_simulation__wf_sb_sim, conditional_used_in_fdef__used_in_phis.
   assert (als_simulation pinfo mi F lc' als als2) as Halsim2'.
     eapply switchToNewBasicBlock_asim; eauto.
   exists mi.
@@ -1279,7 +1280,7 @@ SCase "sExtractValue". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sInsertValue". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sMalloc".
   abstract (destruct_ctx_other;
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result;
   eapply simulation__getOperandValue with (lc2:=lc2) in H0;
@@ -1297,7 +1298,7 @@ SCase "sMalloc".
 
 SCase "sFree".
   abstract (destruct_ctx_other;
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; auto;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv in Hcssim2; auto;
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result;
   eapply simulation__getOperandValue with (lc2:=lc2) in H;
@@ -1308,7 +1309,7 @@ SCase "sFree".
 
 SCase "sAlloca".
   abstract (destruct_ctx_other;
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result;
   eapply simulation__getOperandValue with (lc2:=lc2) in H0;
@@ -1326,7 +1327,7 @@ SCase "sAlloca".
 
 SCase "sLoad".
   abstract (destruct_ctx_other;
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result;
   exists mi;
@@ -1344,7 +1345,7 @@ SCase "sLoad".
 
 SCase "sStore".
   abstract (destruct_ctx_other;
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; auto;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv in Hcssim2; auto;
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result;
   exists mi;
@@ -1352,7 +1353,7 @@ SCase "sStore".
     simpl; eapply simulation__mstore; try solve [
       eauto 2 using mem_simulation__wf_sb_sim |
       eapply simulation__getOperandValue; eauto using mem_simulation__wf_sb_sim;
-        try solve [eapply used_in_fdef__cmd_value_doesnt_use_pid;
+        try solve [eapply conditional_used_in_fdef__used_in_cmd_value;
                      eauto using in_middle; simpl; auto |
                    get_wf_value_for_simop; eauto]
     ]
@@ -1366,7 +1367,7 @@ SCase "sIcmp". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sFcmp". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sSelect".
   destruct_ctx_other.
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result.
   exists mi.
@@ -1379,7 +1380,7 @@ SCase "sSelect".
       apply reg_simulation_update_non_palloca; eauto; try solve [
         eapply simulation__getOperandValue;
         eauto using mem_simulation__wf_sb_sim;
-        try solve [eapply used_in_fdef__cmd_value_doesnt_use_pid;
+        try solve [eapply conditional_used_in_fdef__used_in_cmd_value;
                      eauto using in_middle; simpl; auto|
                    get_wf_value_for_simop; eauto]
       ].
@@ -1389,7 +1390,7 @@ SCase "sSelect".
 SCase "sCall".
   destruct_ctx_other.
   assert (Hcssim2':=Hcssim2).
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; auto.
+  apply RemoveSim.cmds_simulation_nelim_cons_inv in Hcssim2; auto.
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst.
   inv Hop2; uniq_result.
   SSCase "SCall".
@@ -1406,9 +1407,9 @@ SCase "sCall".
   eapply TopSim.lookupFdefViaPtr_inj__simulation in Hfsim1; eauto. 
   simpl in Hfsim1.
   assert (Hbsim1:=Hfsim1).
-  eapply fdef_simulation__entry_block_simulation in Hbsim1; eauto.
+  eapply RemoveSim.fdef_simulation__entry_block_simulation in Hbsim1; eauto.
   assert (Hbsim1':=Hbsim1).
-  apply block_simulation_inv in Hbsim1'.
+  apply RemoveSim.block_simulation_inv in Hbsim1'.
   destruct Hbsim1' as [Heq' [Hpsim1' [Hcsim1' Htsim1']]]; subst.
   exists mi.
     match goal with
@@ -1421,15 +1422,17 @@ SCase "sCall".
     exists l'0. exists ps'. exists nil. auto.
     exists l'0. exists ps'0. exists nil. auto.
 
-    apply fdef_simulation_inv in Hfsim1.
+    apply RemoveSim.fdef_simulation_inv in Hfsim1.
     destruct Hfsim1 as [Hfhsim1 Hbssim1].
     inv Hfhsim1.
     assert (HBinF1':=HBinF1).
     eapply wf_system__wf_cmd in HBinF1'; eauto using in_middle.     
     inv HBinF1'.
     find_wf_value_list.  
-    eapply reg_simulation__initLocals; eauto 2 using mem_simulation__wf_sb_sim,
-      used_in_fdef__params_dont_use_pid, WF_PhiInfo__args_dont_use_pid.
+    eapply reg_simulation__initLocals; try solve [
+      eauto 2 using mem_simulation__wf_sb_sim, WF_PhiInfo__args_dont_use_pid |
+      eapply conditional_used_in_fdef__used_in_params; eauto 1
+    ].
 
     destruct Hmsim as [Hmsim1 [Hmsim2 Hmsim3]].
     split; auto.
@@ -1462,7 +1465,7 @@ SCase "sExCall".
 
   destruct_ctx_other.
   assert (Hcssim2':=Hcssim2).
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; auto.
+  apply RemoveSim.cmds_simulation_nelim_cons_inv in Hcssim2; auto.
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst.
   inv Hop2; uniq_result.
 
@@ -1499,8 +1502,10 @@ SCase "sExCall".
     eapply wf_system__wf_cmd in HBinF1'; eauto using in_middle.     
     inv HBinF1'.
     find_wf_value_list.  
-    eapply reg_simulation__params2GVs; eauto 2 using mem_simulation__wf_sb_sim,
-      used_in_fdef__params_dont_use_pid.
+    eapply reg_simulation__params2GVs; try solve [
+      eauto 2 using mem_simulation__wf_sb_sim |
+      eapply conditional_used_in_fdef__used_in_params; eauto 1
+    ].
   eapply callExternalFunction__mem_simulation in Hmsim; eauto.
   destruct Hmsim as [EQ' [EQ [mi' [Hmsim [Hinc [J1 [J2 J3]]]]]]]; subst.
   exists mi'.

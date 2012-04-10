@@ -48,46 +48,20 @@ Record SASInfo (pinfo: PhiInfo) := mkSASInfo {
 
 Definition fdef_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) f1 f2
   : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then
-    remove_fdef (SAS_sid1 pinfo sasinfo) f1 = f2
-  else f1 = f2.
+RemoveSim.fdef_simulation (PI_f pinfo) (SAS_sid1 pinfo sasinfo) f1 f2.
 
 Definition cmds_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) (f1:fdef)
   cs1 cs2 : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then
-    remove_cmds (SAS_sid1 pinfo sasinfo) cs1 = cs2
-  else cs1 = cs2.
+RemoveSim.cmds_simulation (PI_f pinfo) (SAS_sid1 pinfo sasinfo) f1 cs1 cs2.
 
 Definition block_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) (f1:fdef)
   b1 b2 : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then
-    remove_block (SAS_sid1 pinfo sasinfo) b1 = b2
-  else b1 = b2.
-
-Lemma fdef_simulation__eq_fheader: forall pinfo sasinfo f1 f2
-  (H: fdef_simulation pinfo sasinfo f1 f2),
-  fheaderOfFdef f1 = fheaderOfFdef f2.
-Proof.
-  unfold fdef_simulation.
-  intros.
-  destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
-    destruct (PI_f pinfo) as [fh b]; simpl; auto.
-Qed.
-
-Lemma fdef_simulation__det_right: forall pinfo sasinfo f f1 f2,
-  fdef_simulation pinfo sasinfo f f1 ->
-  fdef_simulation pinfo sasinfo f f2 ->
-  f1 = f2.
-Proof.
-  unfold fdef_simulation.
-  intros.
-  destruct_if; congruence.
-Qed.
+RemoveSim.block_simulation (PI_f pinfo) (SAS_sid1 pinfo sasinfo) f1 b1 b2.
 
 Definition Fsim (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) := mkFunSim 
 (fdef_simulation pinfo sasinfo)
-(fdef_simulation__eq_fheader pinfo sasinfo)
-(fdef_simulation__det_right pinfo sasinfo)
+(RemoveSim.fdef_simulation__eq_fheader (PI_f pinfo) (SAS_sid1 pinfo sasinfo))
+(RemoveSim.fdef_simulation__det_right (PI_f pinfo) (SAS_sid1 pinfo sasinfo))
 .
 
 Definition products_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) 
@@ -191,26 +165,7 @@ end.
 
 Definition removable_State (pinfo: PhiInfo) (sasinfo: SASInfo pinfo)
   (St:@Opsem.State DGVs) : Prop :=
-match St with
-| Opsem.mkState
-    (Opsem.mkEC f b (c :: cs) tmn lc als::_) _ =>
-    if (fdef_dec (PI_f pinfo) f) then
-      if (id_dec (SAS_sid1 pinfo sasinfo) (getCmdLoc c))
-      then True else False
-    else False
-| _ => False
-end.
-
-Lemma removable_State_dec : forall pinfo sasinfo St,
-  removable_State pinfo sasinfo St \/ ~ removable_State pinfo sasinfo St.
-Proof.
-  destruct St.
-  destruct ECS as [|[]]; auto.
-  destruct CurCmds; auto.
-  simpl.
-  destruct (fdef_dec (PI_f pinfo) CurFunction); auto.
-  destruct (id_dec (SAS_sid1 pinfo sasinfo) (getCmdLoc c)); auto.
-Qed.
+RemoveSim.removable_State (PI_f pinfo) (SAS_sid1 pinfo sasinfo) St.
 
 Ltac repeat_solve :=
   repeat (match goal with
@@ -428,45 +383,6 @@ Proof.
       apply NoDup_cmds_split_middle in H; auto.
         destruct H; auto.
         solve_NoDup.
-Qed.
-
-Lemma cmds_simulation_elim_cons_inv: forall (pinfo : PhiInfo) sasinfo
-  (t : typ) (v1 v2: value) (a : align) (cs1 : list cmd) (cs2 : cmds)
-  (Hcssim2 :
-   cmds_simulation pinfo sasinfo (PI_f pinfo)
-     (insn_store (SAS_sid1 pinfo sasinfo) t v1 v2 a :: cs1)
-     cs2),
-  cmds_simulation pinfo sasinfo (PI_f pinfo) cs1 cs2.
-Proof.
-  intros.
-  unfold cmds_simulation in *.
-  destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-  simpl in *.
-  destruct (id_dec (SAS_sid1 pinfo sasinfo) (SAS_sid1 pinfo sasinfo));
-    simpl in *; try congruence.
-Qed.
-
-Lemma cmds_simulation_nil_inv: forall pinfo sasinfo f1 cs,
-  cmds_simulation pinfo sasinfo f1 nil cs -> cs = nil.
-Proof.
-  unfold cmds_simulation. simpl.
-  intros. destruct (fdef_dec (PI_f pinfo) f1); auto.
-Qed.
-
-Lemma cmds_simulation_nelim_cons_inv: forall pinfo sasinfo F c cs2 cs',
-  cmds_simulation pinfo sasinfo F (c :: cs2) cs' ->
-  (PI_f pinfo = F -> getCmdLoc c <> SAS_sid1 pinfo sasinfo) ->
-  exists cs2',
-    cs' = c :: cs2' /\ cmds_simulation pinfo sasinfo F cs2 cs2'.
-Proof.
-  intros.
-  unfold cmds_simulation in *.
-  destruct (fdef_dec (PI_f pinfo) F); subst; simpl; eauto.
-  assert (PI_f pinfo = PI_f pinfo) as EQ. auto.
-  apply H0 in EQ.
-  destruct (id_dec (getCmdLoc c) (SAS_sid1 pinfo sasinfo));
-    simpl in *; try congruence.
-  eauto.
 Qed.
 
 Lemma cs_follow_dead_store_isnt_nil: forall pinfo sasinfo,
@@ -748,23 +664,6 @@ Proof.
   eapply cs_follow_dead_store_at_end_false in J3; eauto.
 Qed.
 
-(* generalized? *)
-Lemma fdef_sim__block_sim : forall pinfo sasinfo f1 f2 b1 b2 l0,
-  fdef_simulation pinfo sasinfo f1 f2 ->
-  lookupBlockViaLabelFromFdef f1 l0 = Some b1 ->
-  lookupBlockViaLabelFromFdef f2 l0 = Some b2 ->
-  block_simulation pinfo sasinfo f1 b1 b2.
-Proof.
-  intros.
-  unfold fdef_simulation in H.
-  unfold block_simulation.
-  destruct (fdef_dec (PI_f pinfo) f1); subst.
-    destruct (PI_f pinfo). simpl in *.
-    eapply fdef_sim__lookupAL_genLabel2Block_remove_block; eauto.
-
-    uniq_result. auto.
-Qed.
-
 Lemma lookup_SAS_lid1__cmd: forall pinfo sasinfo (Huniq : uniqFdef (PI_f pinfo)),
   lookupInsnViaIDFromFdef (PI_f pinfo) (SAS_sid1 pinfo sasinfo) =
     ret insn_cmd
@@ -818,7 +717,8 @@ Lemma block_simulation_inv : forall pinfo sasinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
   cmds_simulation pinfo sasinfo F cs1 cs2 /\ tmn1 = tmn2.
 Proof.
   intros.
-  unfold block_simulation, cmds_simulation in *.
+  unfold block_simulation, cmds_simulation, RemoveSim.block_simulation, 
+         RemoveSim.cmds_simulation in *.
   destruct (fdef_dec (PI_f pinfo) F); inv H1; auto.
   erewrite remove_phinodes_eq; eauto.
 Qed.
@@ -892,30 +792,6 @@ Proof.
       apply H32. apply EC_follow_dead_store_at_begin_false.
 Qed.
 
-Lemma not_removable_State_inv: forall pinfo sasinfo St,
-  ~ removable_State pinfo sasinfo St ->
-  match St with
-  | {| Opsem.ECS := {| Opsem.CurFunction := F;
-                       Opsem.CurBB := _;
-                       Opsem.CurCmds := c :: _;
-                       Opsem.Terminator := _;
-                       Opsem.Locals := _;
-                       Opsem.Allocas := _ |} :: _;
-       Opsem.Mem := Mem |} => 
-       PI_f pinfo <> F \/ getCmdLoc c <> SAS_sid1 pinfo sasinfo
-  | _ => True
-  end.
-Proof.
-  intros.
-  destruct St; auto.
-  destruct ECS; auto.
-  destruct e; auto.
-  destruct CurCmds; auto.
-  simpl in H.
-  destruct (fdef_dec (PI_f pinfo) CurFunction); subst; auto.
-  destruct (id_dec (SAS_sid1 pinfo sasinfo) (getCmdLoc c)); subst; auto.
-Qed.
-
 Lemma unremovable_loc__neq__SAS_sid1: forall pinfo sasinfo F B c cs tmn2 lc2
   als2 EC Mem id0
   (Hnrem : ~ removable_State pinfo sasinfo
@@ -929,8 +805,8 @@ Lemma unremovable_loc__neq__SAS_sid1: forall pinfo sasinfo F B c cs tmn2 lc2
   (EQ : id0 = getCmdLoc c),
   PI_f pinfo = F -> id0 <> SAS_sid1 pinfo sasinfo.
 Proof.
-  intros. subst.
-  apply not_removable_State_inv in Hnrem.
+  intros. subst. unfold removable_State in Hnrem.
+  apply RemoveSim.not_removable_State_inv in Hnrem.
   destruct Hnrem as [Hnrem | Hnrem]; try congruence.
 Qed.
 
@@ -1044,78 +920,6 @@ Proof.
     eapply in_SAS_tail_update; eauto.
 Qed.
 
-Lemma getEntryBlock__simulation: forall pinfo sasinfo f1 f2 b2,
-  getEntryBlock f2 = Some b2 ->
-  fdef_simulation pinfo sasinfo f1 f2 ->
-  exists b1, getEntryBlock f1 = Some b1 /\ 
-    block_simulation pinfo sasinfo f1 b1 b2.
-Proof.
-  unfold fdef_simulation.
-  unfold block_simulation.
-  intros.
-  destruct (fdef_dec (PI_f pinfo) f1); inv H0; eauto.
-    remember (PI_f pinfo) as R1.
-    destruct R1 as [[? ? ? a ?] b]; simpl in *.
-    destruct b; simpl in *; inv H.
-    exists b. 
-    split; auto.
-Qed.
-
-Lemma fdef_simulation__entry_block_simulation: forall pinfo sasinfo F1 F2 B1 B2,
-  fdef_simulation pinfo sasinfo F1 F2 ->
-  getEntryBlock F1 = ret B1 ->
-  getEntryBlock F2 = ret B2 ->
-  block_simulation pinfo sasinfo F1 B1 B2.
-Proof.
-  intros.
-  eapply getEntryBlock__simulation in H1; eauto.
-  destruct H1 as [b1 [J1 J2]].
-  uniq_result. auto.
-Qed.
-
-(* generalized? *)
-Lemma fdef_simulation_inv: forall pinfo sasinfo fh1 fh2 bs1 bs2,
-  fdef_simulation pinfo sasinfo (fdef_intro fh1 bs1) (fdef_intro fh2 bs2) ->
-  fh1 = fh2 /\
-  List.Forall2
-    (fun b1 b2 =>
-      block_simulation pinfo sasinfo (fdef_intro fh1 bs1) b1 b2) bs1 bs2.
-Proof.
-  intros.
-  unfold fdef_simulation in H.
-  destruct (fdef_dec (PI_f pinfo) (fdef_intro fh1 bs1)).
-    simpl in H. inv H.
-    split; auto.
-      unfold block_simulation.
-      rewrite e.
-      destruct (fdef_dec (fdef_intro fh2 bs1) (fdef_intro fh2 bs1));
-        try congruence.
-        clear.
-        induction bs1; simpl; constructor; auto.
-
-    inv H.
-    split; auto.
-      unfold block_simulation.
-      destruct (fdef_dec (PI_f pinfo) (fdef_intro fh2 bs2));
-        try congruence.
-        clear.
-        induction bs2; simpl; constructor; auto.
-Qed.
-
-(*
-Lemma undead_head_tail_cons_and: forall pinfo sasinfo ptr EC ECs,
-  undead_head_tail pinfo sasinfo ptr (EC :: ECs) ->
-  undead_head_in_tail pinfo sasinfo ptr EC /\
-    undead_head_tail pinfo sasinfo ptr ECs.
-Proof.
-  intros.
-  unfold undead_head_tail in *.
-  split.
-    apply H; simpl; auto.
-    intros. apply H; simpl; auto.
-Qed.
-*)
-
 Axiom callExternalFunction__mem_simulation_l2r: forall pinfo sasinfo 
   TD St1 M1 M2 fid0 gvss0 oresult1 M1' dck tr1 gl tret targs,
   mem_simulation pinfo sasinfo TD St1 M1 M2 ->
@@ -1142,108 +946,6 @@ Proof.
   destruct H as [M2'' [oresult2' [tr2' [J1 [J2 [J3 J4]]]]]]; subst.
   uniq_result. auto.
 Qed.
-
-Ltac destruct_ctx_other :=
-match goal with
-| Hwfcfg: OpsemPP.wf_Config _,
-  Hwfpp : OpsemPP.wf_State
-            {|
-            OpsemAux.CurSystem := _;
-            OpsemAux.CurTargetData := ?TD;
-            OpsemAux.CurProducts := _;
-            OpsemAux.Globals := _;
-            OpsemAux.FunTable := _
-             |} _,
-  Hnoalias : Promotability.wf_State _ _ _ _,
-  Hsim : State_simulation _ _ _ _ ?Cfg2 ?St2 ,
-  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
-  destruct TD as [los nts];
-  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]];
-  destruct Hwfpp as 
-    [_ [
-     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 _]]]] 
-     [ _ HwfCall'
-     ]]
-    ]; subst;
-  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
-  destruct St2 as [ECs2 M2];
-  simpl in Hsim;
-  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst;
-  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
-  destruct Hstksim as [Hecsim Hstksim];
-  unfold EC_simulation in Hecsim;
-  destruct Hecsim as 
-      [Hfsim2 [Heq1 [Heq2 [Hbsim2 
-        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
-  destruct Hnoalias as 
-    [
-      [[Hinscope' _] [HwfECs' HwfHT]] 
-      [[Hdisjals _] HwfM]
-    ]; simpl in Hdisjals;
-  fold Promotability.wf_ECStack in HwfECs'
-end.
-
-Ltac destruct_ctx_return :=
-match goal with
-| Hwfcfg: OpsemPP.wf_Config _,
-  Hwfpp : OpsemPP.wf_State
-            {|
-            OpsemAux.CurSystem := _;
-            OpsemAux.CurTargetData := ?TD;
-            OpsemAux.CurProducts := _;
-            OpsemAux.Globals := _;
-            OpsemAux.FunTable := _
-             |} _,
-  Hnoalias : Promotability.wf_State _ _ _ _,
-  Hsim : State_simulation _ _ _ _ ?Cfg2 ?St2 ,
-  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
-  destruct TD as [los nts];
-  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]];
-  destruct Hwfpp as 
-    [_ [
-     [Hreach1 [HBinF1 [HFinPs1 _]]] 
-     [ 
-       [
-         [Hreach2 [HBinF2 [HFinPs2 _]]]
-         _
-       ]
-       HwfCall'
-     ]]
-    ]; subst;
-  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
-  destruct St2 as [ECs2 M2];
-  simpl in Hsim;
-  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst;
-  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
-  destruct Hstksim as [Hecsim Hstksim];
-  destruct ECs2 as [|[F3 B3 cs3 tmn3 lc3 als3] ECs2]; tinv Hstksim;
-  destruct Hstksim as [Hecsim' Hstksim];
-  unfold EC_simulation in Hecsim;
-  destruct Hecsim as 
-      [Hfsim2 [Heq1 [Heq2 [Hbsim2 
-        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
-  destruct Hecsim' as 
-      [Hfsim2' [Htsim2' [Heq2' [Hbsim2' 
-        [Heq3' [Heq4' [Hlcsim2' Hcssim2']]]]]]]; subst;
-  destruct Hnoalias as 
-    [
-      [[Hinscope1' _] [[[Hinscope2' _] [HwfECs' _]] _]] 
-      [[Hdisjals _] HwfM]
-    ]; simpl in Hdisjals;
-  fold Promotability.wf_ECStack in HwfECs';
-  apply cmds_simulation_nil_inv in Hcssim2; subst;
-  wfCall_inv;
-  apply cmds_simulation_nelim_cons_inv in Hcssim2'; try solve [
-    auto |
-    try match goal with
-        | |- _ = _ -> _ <> _ => 
-          eapply unstore_loc__neq__SAS_sid1; 
-            eauto using wf_system__uniqFdef ; simpl; auto
-        end ];
-  destruct Hcssim2' as [cs3' [Heq Hcssim2']]; subst;
-  inv Hop2;
-  uniq_result
-end.
 
 Lemma mem_simulation__free : forall TD Mem1 Mem2 Mem1' Mem2'
   ECs1 pinfo sasinfo EC EC' ptr
@@ -2477,11 +2179,113 @@ match goal with
   Hcssim2: cmds_simulation _ _ _ _ _,
   Hop2: Opsem.sInsn _ _ _ _,
   Hmsim: mem_simulation _ _ _ _ _ _ |- _ =>
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; try solve 
+  apply RemoveSim.cmds_simulation_nelim_cons_inv' in Hcssim2; simpl; try solve 
     [eauto 2 using unremovable_loc__neq__SAS_sid1, wf_system__uniqFdef];
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result;
   dse_is_sim_mem_update
+end.
+
+Ltac destruct_ctx_other :=
+match goal with
+| Hwfcfg: OpsemPP.wf_Config _,
+  Hwfpp : OpsemPP.wf_State
+            {|
+            OpsemAux.CurSystem := _;
+            OpsemAux.CurTargetData := ?TD;
+            OpsemAux.CurProducts := _;
+            OpsemAux.Globals := _;
+            OpsemAux.FunTable := _
+             |} _,
+  Hnoalias : Promotability.wf_State _ _ _ _,
+  Hsim : State_simulation _ _ _ _ ?Cfg2 ?St2 ,
+  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
+  destruct TD as [los nts];
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]];
+  destruct Hwfpp as 
+    [_ [
+     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 _]]]] 
+     [ _ HwfCall'
+     ]]
+    ]; subst;
+  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
+  destruct St2 as [ECs2 M2];
+  simpl in Hsim;
+  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst;
+  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
+  destruct Hstksim as [Hecsim Hstksim];
+  unfold EC_simulation in Hecsim;
+  destruct Hecsim as 
+      [Hfsim2 [Heq1 [Heq2 [Hbsim2 
+        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
+  destruct Hnoalias as 
+    [
+      [[Hinscope' _] [HwfECs' HwfHT]] 
+      [[Hdisjals _] HwfM]
+    ]; simpl in Hdisjals;
+  fold Promotability.wf_ECStack in HwfECs'
+end.
+
+Ltac destruct_ctx_return :=
+match goal with
+| Hwfcfg: OpsemPP.wf_Config _,
+  Hwfpp : OpsemPP.wf_State
+            {|
+            OpsemAux.CurSystem := _;
+            OpsemAux.CurTargetData := ?TD;
+            OpsemAux.CurProducts := _;
+            OpsemAux.Globals := _;
+            OpsemAux.FunTable := _
+             |} _,
+  Hnoalias : Promotability.wf_State _ _ _ _,
+  Hsim : State_simulation _ _ _ _ ?Cfg2 ?St2 ,
+  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
+  destruct TD as [los nts];
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]];
+  destruct Hwfpp as 
+    [_ [
+     [Hreach1 [HBinF1 [HFinPs1 _]]] 
+     [ 
+       [
+         [Hreach2 [HBinF2 [HFinPs2 _]]]
+         _
+       ]
+       HwfCall'
+     ]]
+    ]; subst;
+  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
+  destruct St2 as [ECs2 M2];
+  simpl in Hsim;
+  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst;
+  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
+  destruct Hstksim as [Hecsim Hstksim];
+  destruct ECs2 as [|[F3 B3 cs3 tmn3 lc3 als3] ECs2]; tinv Hstksim;
+  destruct Hstksim as [Hecsim' Hstksim];
+  unfold EC_simulation in Hecsim;
+  destruct Hecsim as 
+      [Hfsim2 [Heq1 [Heq2 [Hbsim2 
+        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
+  destruct Hecsim' as 
+      [Hfsim2' [Htsim2' [Heq2' [Hbsim2' 
+        [Heq3' [Heq4' [Hlcsim2' Hcssim2']]]]]]]; subst;
+  destruct Hnoalias as 
+    [
+      [[Hinscope1' _] [[[Hinscope2' _] [HwfECs' _]] _]] 
+      [[Hdisjals _] HwfM]
+    ]; simpl in Hdisjals;
+  fold Promotability.wf_ECStack in HwfECs';
+  apply RemoveSim.cmds_simulation_nil_inv in Hcssim2; subst;
+  wfCall_inv;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv' in Hcssim2'; try solve [
+    auto |
+    try match goal with
+        | |- _ = _ -> _ <> _ => 
+          eapply unstore_loc__neq__SAS_sid1; 
+            eauto using wf_system__uniqFdef ; simpl; auto
+        end ];
+  destruct Hcssim2' as [cs3' [Heq Hcssim2']]; subst;
+  inv Hop2;
+  uniq_result
 end.
 
 Ltac dse_is_sim_malloc :=
@@ -2489,7 +2293,7 @@ Ltac dse_is_sim_malloc :=
   match goal with 
   | Hcssim2: cmds_simulation _ _ _ _ _,
     Hop2: Opsem.sInsn _ _ _ _ |- _ =>
-    apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+    apply RemoveSim.cmds_simulation_nelim_cons_inv' in Hcssim2; simpl;
       try solve [eauto using unremovable_loc__neq__SAS_sid1];
     destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
     inv Hop2; uniq_result
@@ -2579,7 +2383,7 @@ Case "removable state".
 
   uniq_result.
   repeat_solve.
-    eapply cmds_simulation_elim_cons_inv; eauto.
+    eapply RemoveSim.cmds_simulation_elim_cons_inv; eauto.
     assert (wf_value S1 (module_intro los nts Ps1) (PI_f pinfo)
               (SAS_value1 pinfo sasinfo) (PI_typ pinfo)) as Hwfv.
       get_wf_value_for_simop_ex. auto.
@@ -2591,6 +2395,7 @@ Case "unremovable state".
 
 SCase "sReturn".
 Focus.
+
   destruct_ctx_return.
   repeat_solve.
     assert (Huniq: uniqFdef F') by eauto using wf_system__uniqFdef.
@@ -2618,14 +2423,15 @@ Unfocus.
 SCase "sBranch".
 Focus.
   destruct_ctx_other.
-  apply cmds_simulation_nil_inv in Hcssim2; subst.
+  apply RemoveSim.cmds_simulation_nil_inv in Hcssim2; subst.
   inv Hop2.
   uniq_result.
 
   assert (block_simulation pinfo sasinfo F (block_intro l' ps' cs' tmn')
            (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
     clear - H22 H1 Hfsim2.
-    destruct (isGVZero (los, nts) c); eauto using fdef_sim__block_sim.
+    destruct (isGVZero (los, nts) c); 
+      eapply RemoveSim.fdef_sim__block_sim; eauto.
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
   assert (blockInFdefB (block_intro l' ps' cs' tmn') F) as HBinF1'.
     solve_blockInFdefB.
@@ -2650,13 +2456,13 @@ Unfocus.
 SCase "sBranch_uncond".
 Focus.
   destruct_ctx_other.
-  apply cmds_simulation_nil_inv in Hcssim2; subst.
+  apply RemoveSim.cmds_simulation_nil_inv in Hcssim2; subst.
   inv Hop2.
   uniq_result.
 
   assert (block_simulation pinfo sasinfo F (block_intro l' ps' cs' tmn')
            (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
-    eauto using fdef_sim__block_sim.
+    eapply RemoveSim.fdef_sim__block_sim; eauto.
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
   assert (blockInFdefB (block_intro l' ps' cs' tmn') F) as HBinF1'.
     solve_blockInFdefB.
@@ -2682,11 +2488,12 @@ SCase "sBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sFBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sExtractValue". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sInsertValue". abstract (destruct_ctx_other; dse_is_sim_common_case).
-SCase "sMalloc". abstract (dse_is_sim_malloc).
+SCase "sMalloc".  abstract (dse_is_sim_malloc).
+
 SCase "sFree".
   destruct_ctx_other.
 
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv' in Hcssim2; simpl;
     try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result.
@@ -2707,7 +2514,7 @@ SCase "sLoad".
   assert (HuniqECs:=Hwfpp). eapply wf_State__uniqECs in HuniqECs; eauto.
   destruct_ctx_other.
 
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv' in Hcssim2; simpl;
     try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result.
@@ -2724,7 +2531,7 @@ SCase "sStore".
 
   destruct_ctx_other.
 
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv' in Hcssim2; simpl;
     try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result.
@@ -2743,7 +2550,7 @@ SCase "sFcmp". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sSelect".
   destruct_ctx_other.
 
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv' in Hcssim2; simpl;
     try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result.
@@ -2755,7 +2562,7 @@ SCase "sCall".
 
   destruct_ctx_other.
   assert (Hcssim2':=Hcssim2).
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv' in Hcssim2; simpl;
     try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst.
 
@@ -2768,7 +2575,7 @@ SCase "sCall".
   eapply TopSim.lookupFdefViaPtr__simulation in Hfsim1; eauto.
   simpl in Hfsim1.
   assert (Hbsim1:=Hfsim1).
-  eapply fdef_simulation__entry_block_simulation in Hbsim1; eauto.
+  eapply RemoveSim.fdef_simulation__entry_block_simulation in Hbsim1; eauto.
 
   assert (InProductsB (product_fdef (fdef_intro
     (fheader_intro fa rt fid la va) lb)) Ps = true) as HFinPs'.
@@ -2788,7 +2595,7 @@ SCase "sCall".
   repeat_solve.
     exists l'0. exists ps'0. exists nil. auto.
 
-    apply fdef_simulation_inv in Hfsim1.
+    apply RemoveSim.fdef_simulation_inv in Hfsim1.
     destruct Hfsim1 as [Heq _]. inv Heq. uniq_result.
     auto.
 
@@ -2814,7 +2621,7 @@ SCase "sExCall".
 
   destruct_ctx_other.
   assert (Hcssim2':=Hcssim2).
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+  apply RemoveSim.cmds_simulation_nelim_cons_inv' in Hcssim2; simpl;
     try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst.
 

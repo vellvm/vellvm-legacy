@@ -51,13 +51,13 @@ Proof.
     destruct HeqR1 as [gl1 [fs1 [M1 [HeqR1 [EQ1 [EQ2 EQ3]]]]]]; subst.
     fill_ctxhole.
     assert (J:=HeqR2).
-    eapply getEntryBlock__simulation in J; eauto.
+    eapply RemoveSim.getEntryBlock__simulation in J; eauto.
     destruct J as [b1 [J5 J6]].
     fill_ctxhole.
     destruct b1 as [l2 ps2 cs2 tmn2].
     destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1].
     assert (J:=Hfsim).
-    apply fdef_simulation__eq_fheader in J.
+    apply RemoveSim.fdef_simulation__eq_fheader in J.
     inv J.
     fill_ctxhole. eauto.
   match goal with
@@ -69,7 +69,7 @@ Proof.
     destruct H as [HMinS HinPs]
   end.
   assert (J:=J6).
-  apply block_simulation_inv in J.
+  apply RemoveSim.block_simulation_inv in J.
   destruct J as [J1 [J2 [J3 J7]]]; subst.
   assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0)
            (fdef_intro (fheader_intro fa rt fid la va) bs) = true) as HBinF.
@@ -134,38 +134,6 @@ Proof.
       (main:=main)(VarArgs:=VarArgs); eauto.
 Qed.
 
-Ltac inTmnOp_isnt_stuck v H3 Hwfcfg1 Hwfpp1 :=
-match type of Hwfpp1 with
-| OpsemPP.wf_State 
-              {|
-              OpsemAux.CurSystem := _;
-              OpsemAux.CurTargetData := ?td;
-              OpsemAux.CurProducts := _;
-              OpsemAux.Globals := ?gl;
-              OpsemAux.FunTable := _ |}
-    {| Opsem.ECS := {| Opsem.CurFunction := _;
-                       Opsem.CurBB := ?b;
-                       Opsem.CurCmds := nil;
-                       Opsem.Terminator := ?tmn;
-                       Opsem.Locals := ?lc;
-                       Opsem.Allocas := _
-                     |} :: _;
-       Opsem.Mem := _ |}  =>
-    let G := fresh "G" in
-    let gvs := fresh "gvs" in
-    assert (exists gvs, Opsem.getOperandValue td v lc gl = Some gvs) as G; 
-      try solve [
-        destruct H3 as [l5 [ps2 [cs21 H3]]]; subst;
-        destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
-        destruct Hwfpp1 as 
-          [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [Hinscope1 _]]]]] _]];
-        inv_mbind;
-        eapply OpsemPP.getOperandValue_inTmnOperans_isnt_stuck; eauto 1;
-          simpl; auto
-      ];
-    destruct G as [gvs G]
-end.
-
 Ltac s_isFinialState__dae_State_simulation cfg1 cfg2 FS1 FS2 Hstsim Hfinal := 
   destruct cfg2 as [S2 [los2 nts2] gl2 fs2];
   destruct cfg1 as [S1 [los1 nts1] gl1 fs1];
@@ -181,25 +149,9 @@ Ltac s_isFinialState__dae_State_simulation cfg1 cfg2 FS1 FS2 Hstsim Hfinal :=
   destruct Hstsim as [? [Htmn [? [? [? [? [? Hstsim]]]]]]]; subst;
   destruct cs1, cs2; try solve [
     eauto 3 using result_match_relf |
-    apply cmds_simulation_nil_inv in Hstsim; try congruence |
+    apply RemoveSim.cmds_simulation_nil_inv in Hstsim; try congruence |
     inv Hfinal
   ].
-
-Lemma val_inject__result_match: forall mi v1 v2
-  (Hinj: MoreMem.val_inject mi v1 v2), val_result_match v1 v2.
-Proof.
-  intros.
-  inv Hinj; constructor; auto.
-Qed.
-
-Lemma gv_inject__result_match: forall mi gvs1 gvs2
-  (Hinj: gv_inject mi gvs1 gvs2), result_match gvs1 gvs2.
-Proof.
-  unfold result_match.
-  induction 1; auto.
-    constructor; auto.
-      split; eauto using val_inject__result_match.
-Qed.
 
 Lemma s_isFinialState__dae_State_simulation_l2r: forall maxb mi pinfo cfg1 FS1 cfg2
   FS2 r1
@@ -227,7 +179,7 @@ Proof.
         as Hwft.
         get_wf_value_for_simop'. eauto.
       assert (value_doesnt_use_pid pinfo CurFunction value5) as Hnotin.
-        eapply used_in_fdef__tmn_value_doesnt_use_pid; eauto 1; simpl; auto.
+        eapply conditional_used_in_fdef__used_in_tmn_value; eauto 1; simpl; auto.
       eapply simulation__getOperandValue in H7; eauto.
       apply gv_inject__result_match in H7. eauto.
 
@@ -297,76 +249,17 @@ Proof.
           as Hwft.
           get_wf_value_for_simop'. eauto.
         assert (value_doesnt_use_pid pinfo CurFunction value5) as Hnotin.
-          eapply used_in_fdef__tmn_value_doesnt_use_pid; eauto 1; simpl; auto.
+          eapply conditional_used_in_fdef__used_in_tmn_value; eauto 1; simpl; auto.
         eapply simulation__getOperandValue in H7; eauto.
         apply gv_inject__result_match in H7. eauto.
 
       destruct ES1, ES2; 
         try solve [eauto 3 using result_match_relf | inv Hstsim'].
 
-   apply not_removable_State_inv in Hnrem.
-   apply cmds_simulation_nelim_cons_inv in Hstsim; auto. 
+   unfold removable_State in Hnrem.
+   apply RemoveSim.not_removable_State_inv in Hnrem.
+   apply RemoveSim.cmds_simulation_nelim_cons_inv in Hstsim; auto. 
    destruct Hstsim as [cs2' [J1 Hstsim]]; congruence.
-Qed.
-
-Lemma removable_State__non_removable_State: forall pinfo f b c cs1 tmn lc als
-  ES1 lc' als' Mem Mem' (Hnodup: NoDup (getCmdsLocs (c::cs1)))
-  (Hrem : removable_State pinfo
-           {|
-           Opsem.ECS := {|
-                        Opsem.CurFunction := f;
-                        Opsem.CurBB := b;
-                        Opsem.CurCmds := c :: cs1;
-                        Opsem.Terminator := tmn;
-                        Opsem.Locals := lc;
-                        Opsem.Allocas := als |} :: ES1;
-           Opsem.Mem := Mem |}),
-  ~ removable_State pinfo
-           {|
-           Opsem.ECS := {|
-                        Opsem.CurFunction := f;
-                        Opsem.CurBB := b;
-                        Opsem.CurCmds := cs1;
-                        Opsem.Terminator := tmn;
-                        Opsem.Locals := lc';
-                        Opsem.Allocas := als' |} :: ES1;
-           Opsem.Mem := Mem' |}.
-Proof.
-  simpl. intros.
-  destruct_if; auto.
-  destruct_if; auto.
-  destruct cs1; auto.
-  destruct_if; auto.
-  inv Hnodup. inv H2. intro J. apply H1. simpl. left. congruence.
-Qed.
-
-Lemma removable_State__isnt__final: forall pinfo cfg St
-  (Hrm: removable_State pinfo St),
-  Opsem.s_isFinialState cfg St = None.
-Proof.
-  intros.
-  destruct St as [Es Mem].
-  destruct cfg.
-  destruct Es as [|[] Es]; tinv Hrm.
-  simpl in *.
-  destruct CurCmds; tauto.
-Qed.
-
-Lemma removable_State_inv: forall pinfo F b c cs tmn lc als ECs Mem,
-  removable_State pinfo 
-    {| Opsem.ECS := {| Opsem.CurFunction := F;
-                       Opsem.CurBB := b;
-                       Opsem.CurCmds := c :: cs;
-                       Opsem.Terminator := tmn;
-                       Opsem.Locals := lc;
-                       Opsem.Allocas := als |} :: ECs;
-       Opsem.Mem := Mem |} ->
-  PI_f pinfo = F /\ PI_id pinfo = getCmdLoc c.
-Proof.
-  simpl.
-  intros.
-  destruct_if.
-  destruct_if. auto.
 Qed.
 
 Lemma dae_is_bsim_removable_steps : forall maxb pinfo Cfg1 St1 Cfg2 St2
@@ -385,13 +278,14 @@ Lemma dae_is_bsim_removable_steps : forall maxb pinfo Cfg1 St1 Cfg2 St2
     Values.inject_incr mi mi'.
 Proof.
   intros.
-  destruct (@removable_State_dec pinfo St1) as [Hrm | Hnrm]; try solve 
-    [exists St1; exists mi; split; auto using inject_incr_refl].
+  destruct (@RemoveSim.removable_State_dec (PI_f pinfo) (PI_id pinfo) St1) 
+    as [Hrm | Hnrm]; try solve 
+      [exists St1; exists mi; split; auto using inject_incr_refl].
   destruct St1 as [[|[f1 b1 [|c1 cs1] tmn1 lc1 als1] ES1] M1]; tinv Hrm.
   assert (J:=Hwfpp).
   apply OpsemPP.progress in J; auto.
   assert (Hnfinal1:=Hrm).
-  apply removable_State__isnt__final with (cfg:=Cfg1) in Hnfinal1.
+  apply RemoveSim.removable_State__isnt__final with (cfg:=Cfg1) in Hnfinal1.
   destruct J as [Hfinal1 | [[IS1'' [tr0 Hop1]] | Hundef1]]; try congruence.
     eapply dae_is_sim in Hsim; eauto.
     destruct Hsim as [Hstsim1 _].
@@ -403,11 +297,11 @@ Proof.
         destruct Hwfpp as 
           [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [_ [l1 [ps1 [cs1' EQ]]]]]]]] _]]; 
           subst.
-        apply removable_State_inv in Hrm; auto. destruct Hrm; subst.
+        apply RemoveSim.removable_State_inv in Hrm; auto. destruct Hrm; subst.
         eapply WF_PhiInfo_spec1'; eauto 2 using wf_system__uniqFdef.
       subst.
       inv Hop1.
-      eapply removable_State__non_removable_State; eauto.
+      eapply RemoveSim.removable_State__non_removable_State; eauto.
         apply wf_State__wfECs_inv in Hwfpp; auto.
         simpl in Hwfpp. clear - Hwfpp.
         inv Hwfpp. 
@@ -535,57 +429,6 @@ Proof.
       eauto using (@OpsemPP.preservation_star DGVs).
 Qed.
 
-Lemma cmds_simulation_nil_inv' : forall (pinfo : PhiInfo) 
-  (f1 : fdef) (cs1 : list cmd) b1 tmn1 lc1 als1 ECS Mem1
-  (Hnrem : ~
-          removable_State pinfo
-            {|
-            Opsem.ECS := {|
-                         Opsem.CurFunction := f1;
-                         Opsem.CurBB := b1;
-                         Opsem.CurCmds := cs1;
-                         Opsem.Terminator := tmn1;
-                         Opsem.Locals := lc1;
-                         Opsem.Allocas := als1 |} :: ECS;
-            Opsem.Mem := Mem1 |}),
-  cmds_simulation pinfo f1 cs1 nil -> cs1 = nil.
-Proof.
-  simpl.
-  unfold cmds_simulation. intros.
-  destruct_if; auto.
-  destruct cs1; auto.
-  destruct_if; try tauto.
-  simpl in H1.
-  destruct ((id_dec (getCmdLoc c) (PI_id pinfo))); simpl in *; congruence.
-Qed.
-
-Lemma cmds_simulation_cons_inv' : forall (pinfo : PhiInfo) 
-  (f1 : fdef) b1 lc1 cs tmn1 als1 c cs2 ECS Mem1
-  (Hnrem : ~
-          removable_State pinfo
-            {|
-            Opsem.ECS := {|
-                         Opsem.CurFunction := f1;
-                         Opsem.CurBB := b1;
-                         Opsem.CurCmds := cs;
-                         Opsem.Terminator := tmn1;
-                         Opsem.Locals := lc1;
-                         Opsem.Allocas := als1 |} :: ECS;
-            Opsem.Mem := Mem1 |}),
-  cmds_simulation pinfo f1 cs (c::cs2) -> 
-   exists cs1, 
-     cs = c::cs1 /\
-     cmds_simulation pinfo f1 cs1 cs2.
-Proof.
-  simpl.
-  unfold cmds_simulation. intros.
-  destruct_if; eauto.
-  destruct cs; inv H1.
-  destruct (id_dec (PI_id pinfo) (getCmdLoc c0)); try tauto.
-  destruct (id_dec (getCmdLoc c0) (PI_id pinfo)); simpl in *; try congruence.
-  inv H0. eauto.
-Qed.
-
 Ltac undefined_state__State_simulation_r2l_tac1 :=
   match goal with
   | Hstsim: State_simulation _ _ _ _ ?St1 _ ?St2 |- _ =>
@@ -634,7 +477,7 @@ Ltac undefined_state__State_simulation_r2l_tac41 :=
 Ltac undefined_state__d_State_simulation_r2l_tac43 := 
       match goal with
       | Hstsim: cmds_simulation _ _ _ (_::_) |- _ =>
-      eapply cmds_simulation_cons_inv' in Hstsim; eauto; subst;
+      eapply RemoveSim.cmds_simulation_cons_inv' in Hstsim; eauto; subst;
       destruct Hstsim as [c1' [J2 J3]]; subst
      end.
 
@@ -665,7 +508,7 @@ match goal with
       destruct H2 as [H21 [H22 H23]];
       eapply simulation__getOperandValue with (v:=v'); try solve [
         eauto |
-        eapply used_in_fdef__cmd_value_doesnt_use_pid; eauto using in_middle;
+        eapply conditional_used_in_fdef__used_in_cmd_value; eauto using in_middle;
           simpl; auto |
         eapply wf_system__wf_fdef in HfInPs1; eauto;
         eapply wf_fdef__wf_cmd in HbInF1; eauto using in_middle;
@@ -715,6 +558,7 @@ Lemma undefined_state__dae_State_simulation_r2l': forall pinfo maxb mi cfg1 St1 
   (Hundef: OpsemPP.undefined_state cfg2 St2),
   OpsemPP.undefined_state cfg1 St1.
 Proof.
+  unfold removable_State.
   intros.
   assert (HuniqECs:=Hwfpp1). apply wf_State__uniqECs in HuniqECs; auto.
   unfold OpsemPP.undefined_state in Hundef.
@@ -726,7 +570,7 @@ Proof.
   Case "1".
 
     undefined_state__State_simulation_r2l_tac1.
-    eapply cmds_simulation_nil_inv' in Hstsim; eauto; subst.
+    eapply RemoveSim.cmds_simulation_nil_inv' in Hstsim; eauto; subst.
     assert (Hnrem' : ~
           removable_State pinfo
             {|
@@ -741,7 +585,7 @@ Proof.
       clear - Hwfpp1 H5 HuniqECs Hwfpi.
       destruct H5 as [l5 [ps5 [cs5 H5]]]; subst.
       eapply stacked_frame__unremovable; eauto; simpl; auto; find_uniqEC.
-    eapply cmds_simulation_cons_inv' in Hnrem'; eauto.
+    eapply RemoveSim.cmds_simulation_cons_inv' in Hnrem'; eauto.
     destruct Hnrem' as [cs1' [J1 J3]]; subst.
     left. 
     remember (free_allocas (los2, nts2) Mem0 Allocas1) as R.
@@ -751,9 +595,10 @@ Proof.
     destruct HeqR as [M2' [Hfree [Hmsim']]].
     congruence.
 
+
   Case "2".
     undefined_state__State_simulation_r2l_tac1.
-    eapply cmds_simulation_nil_inv' in Hstsim; eauto; subst.
+    eapply RemoveSim.cmds_simulation_nil_inv' in Hstsim; eauto; subst.
     assert (Hnrem' : ~
           removable_State pinfo
             {|
@@ -768,7 +613,7 @@ Proof.
       clear - Hwfpp1 H5 HuniqECs Hwfpi.
       destruct H5 as [l5 [ps5 [cs5 H5]]]; subst.
       eapply stacked_frame__unremovable; eauto; simpl; auto; find_uniqEC.
-    eapply cmds_simulation_cons_inv' in Hnrem'; eauto.
+    eapply RemoveSim.cmds_simulation_cons_inv' in Hnrem'; eauto.
     destruct Hnrem' as [cs1' [J1 J3]]; subst.
     right. left. 
     destruct Hundef as [Hundef | Hundef]; auto.
@@ -782,7 +627,7 @@ Proof.
 
   Case "3".
     undefined_state__State_simulation_r2l_tac3.
-    eapply cmds_simulation_nil_inv' in Hstsim; eauto; subst.
+    eapply RemoveSim.cmds_simulation_nil_inv' in Hstsim; eauto; subst.
     right. right. left.
     destruct H5 as [l6 [ps6 [cs6 H5]]]; subst. auto.
 
@@ -857,7 +702,7 @@ Proof.
     inv_mbind.
     destruct Hundef as [fptr [EQ Hundef]]; inv EQ.
     inv_mbind.
-    eapply cmds_simulation_cons_inv' in Hstsim; subst; eauto.
+    eapply RemoveSim.cmds_simulation_cons_inv' in Hstsim; subst; eauto.
     destruct Hstsim as [cs2' [J1 J2]]; subst.
     undefined_state__d_State_simulation_r2l_tac42 value0.
       destruct H4 as [l1 [ps1 [cs11 H4]]]; subst.
@@ -872,7 +717,7 @@ Proof.
       destruct Hwfv as [tv Hwfv].
       eapply simulation__getOperandValue with (v:=value0); try solve [
         eauto 2 |
-        eapply used_in_fdef__cmd_value_doesnt_use_pid; eauto 4 using in_middle;
+        eapply conditional_used_in_fdef__used_in_cmd_value; eauto 4 using in_middle;
           simpl; auto
       ].
     repeat fill_ctxhole.
@@ -905,7 +750,7 @@ Proof.
         eapply reg_simulation__params2GVs; 
           eauto 2 using wf_system__wf_fdef, wf_system__uniqFdef; 
             try solve [simpl; auto].
-          eapply used_in_fdef__params_dont_use_pid; eauto 1.
+          eapply conditional_used_in_fdef__used_in_params; eauto 1.
       repeat fill_ctxhole.
       remember (OpsemAux.lookupFdefViaPtr gl1 FunTable0 gvs) as R.
       destruct R.

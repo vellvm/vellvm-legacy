@@ -742,6 +742,16 @@ Proof.
   eapply used_in_blocks__used_in_block in H0; eauto.
 Qed.
 
+Lemma used_in_getValueViaLabelFromValuels : forall l1 id0 l2 v
+  (Hnouse : used_in_list_value_l id0 l2 = false)
+  (HeqR0 : ret v = getValueViaLabelFromValuels l2 l1),
+  used_in_value id0 v = false.
+Proof.
+  induction l2 as [|[]]; simpl; intros; try congruence.
+    binvf Hnouse as J1 J2.
+    destruct (l0 == l1); subst; inv HeqR0; auto.
+Qed.
+
 Lemma fdef_sim__lookupAL_genLabel2Block_block : forall f 
   (EQ: forall b, getBlockLabel (f b) = getBlockLabel b) l0 bs b b',
   lookupAL _ (genLabel2Block_blocks bs) l0 = Some b ->
@@ -890,4 +900,123 @@ Proof.
       contradict Hnotin. auto.
       simpl. rewrite <- IHps; auto.
 Qed.
+
+Definition conditional_used_in_value (F0 F:fdef) id0 v :=
+ F0 <> F \/ used_in_value id0 v = false.
+
+Lemma conditional_used_in_fdef__used_in_tmn_value: forall (l3 : l)
+  (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator) (F: fdef) F0 id0,
+  used_in_fdef id0 F0 = false ->
+  blockInFdefB (block_intro l3 ps1 cs tmn1) F = true ->
+  valueInTmnOperands v tmn1 ->
+  conditional_used_in_value F0 F id0 v.
+Proof.
+  intros.
+  unfold conditional_used_in_value.
+  destruct (fdef_dec F0 F); subst; auto.
+    right. eapply used_in_fdef__used_in_tmn_value; eauto; simpl; auto.
+Qed.
+
+Lemma conditional_used_in_fdef__used_in_cmd_value: forall (l3 : l) c
+  (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator) (F: fdef) F0 id0,
+  used_in_fdef id0 F0= false ->
+  blockInFdefB (block_intro l3 ps1 cs tmn1) F = true ->
+  In c cs ->
+  valueInCmdOperands v c ->
+  conditional_used_in_value F0 F id0 v.
+Proof.
+  intros.
+  unfold conditional_used_in_value.
+  destruct (fdef_dec F0 F); subst; auto.
+    right. eapply used_in_fdef__used_in_cmd_value; eauto; simpl; auto.
+Qed.
+
+Lemma conditional_used_in_getValueViaLabelFromValuels: forall F0 id0 F l3 l0 v
+  (Hnuse : F0 <> F \/ used_in_list_value_l id0 l0 = false)
+  (HeqR3 : getValueViaLabelFromValuels l0 l3 = ret v),
+  conditional_used_in_value F0 F id0 v.
+Proof.
+  intros.
+  unfold conditional_used_in_value.
+  destruct (fdef_dec F0 F); subst; auto.
+  destruct Hnuse as [Hnuse | Hnuse]; try congruence.
+  right.
+  eapply used_in_getValueViaLabelFromValuels; eauto.
+Qed.
+
+Definition conditional_used_in_list_value (F0 F:fdef) id0 idxs :=
+  F0 <> F \/ used_in_list_value id0 idxs = false.
+
+Lemma conditional_used_in_fdef__used_in_list_value: forall (l3 : l)
+  (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator) (F: fdef) F0 id1
+  cs11 id0 inbounds0 t v idxs cs t',
+  used_in_fdef id1 F0 = false ->
+  blockInFdefB
+    (block_intro l3 ps1 (cs11 ++ insn_gep id0 inbounds0 t v idxs t':: cs) tmn1) F
+      = true ->
+  conditional_used_in_list_value F0 F id1 idxs.
+Proof.
+  intros.
+  unfold conditional_used_in_list_value.
+  destruct (fdef_dec F0 F); subst; auto.
+    right.
+    destruct F. simpl in *.
+    eapply used_in_blocks__used_in_block in H0; eauto 1.
+    binvf H0 as J3 J4. binvf J3 as J1 J2.
+    eapply used_in_cmds__used_in_cmd in J2; eauto 1 using in_middle.
+    simpl in J2.
+    binvf J2 as J3 J5. auto.
+Qed.
+
+Definition conditional_used_in_params (F0 F:fdef) id0 (ps:params) :=
+  F0 <> F \/
+  List.fold_left
+    (fun acc p => let '(_, v):=p in used_in_value id0 v || acc)
+    ps false = false.
+
+Lemma conditional_used_in_fdef__used_in_params: forall (l3 : l)
+  (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator) (F: fdef) F0 id0
+  cs11 rid noret0 ca rt1 va1 fv lp cs,
+  used_in_fdef id0 F0 = false ->
+  blockInFdefB
+    (block_intro l3 ps1 (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1) F
+      = true ->
+  conditional_used_in_params F0 F id0 lp.
+Proof.
+  intros.
+  unfold conditional_used_in_params.
+  destruct (fdef_dec F0 F); subst; auto.
+    right.
+    destruct F. simpl in *.
+    eapply used_in_blocks__used_in_block in H0; eauto 1.
+    binvf H0 as J3 J4. binvf J3 as J1 J2.
+    eapply used_in_cmds__used_in_cmd in J2; eauto 1 using in_middle.
+    simpl in J2.
+    binvf J2 as J3 J5. auto.
+Qed.
+
+Lemma conditional_used_in_fdef__used_in_phis: forall (l3 : l)
+  (ps1 : phinodes) (cs : cmds) (tmn1 : terminator) (F: fdef) F0 id0 cs1,
+  used_in_fdef id0 F0 = false ->
+  blockInFdefB (block_intro l3 ps1 cs1 tmn1) F = true ->
+  F0 <> F \/
+  fold_left
+         (fun (re : bool) (p : phinode) => re || used_in_phi id0 p)
+         ps1 false = false.
+Proof.
+  intros.
+  destruct (fdef_dec F0 F); subst; auto.
+    right.
+    destruct F. simpl in *.
+    eapply used_in_blocks__used_in_block in H0; eauto 1.
+    binvf H0 as J3 J4. binvf J3 as J1 J2. auto.
+Qed.
+
+Definition conditional_used_in_args (F0 F:fdef) id0 
+  (la:list (typ * attributes * id)) :=
+  F0 <> F \/ (forall t a i0, In (t,a,i0) la -> id0 <> i0).
+
+Hint Unfold conditional_used_in_value conditional_used_in_list_value 
+  conditional_used_in_params conditional_used_in_args.
+
 

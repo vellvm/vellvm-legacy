@@ -16,44 +16,18 @@ Require Import trans_tactic.
 Require Import top_sim.
 
 Definition fdef_simulation (pinfo: PhiInfo) f1 f2 : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then
-    remove_fdef (PI_id pinfo) f1 = f2
-  else f1 = f2.
+RemoveSim.fdef_simulation (PI_f pinfo) (PI_id pinfo) f1 f2.
 
 Definition cmds_simulation (pinfo: PhiInfo) (f1:fdef) cs1 cs2 : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then
-    remove_cmds (PI_id pinfo) cs1 = cs2
-  else cs1 = cs2.
+RemoveSim.cmds_simulation (PI_f pinfo) (PI_id pinfo) f1 cs1 cs2.
 
 Definition block_simulation (pinfo: PhiInfo) (f1:fdef) b1 b2 : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then
-    remove_block (PI_id pinfo) b1 = b2
-  else b1 = b2.
-
-Lemma fdef_simulation__eq_fheader: forall pinfo f1 f2
-  (H: fdef_simulation pinfo f1 f2),
-  fheaderOfFdef f1 = fheaderOfFdef f2.
-Proof.
-  unfold fdef_simulation.
-  intros.
-  destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
-    destruct (PI_f pinfo) as [fh b]; simpl; auto.
-Qed.
-
-Lemma fdef_simulation__det_right: forall pinfo f f1 f2,
-  fdef_simulation pinfo f f1 ->
-  fdef_simulation pinfo f f2 ->
-  f1 = f2.
-Proof.
-  unfold fdef_simulation.
-  intros.
-  destruct_if; congruence.
-Qed.
+RemoveSim.block_simulation (PI_f pinfo) (PI_id pinfo) f1 b1 b2.
 
 Definition Fsim (pinfo: PhiInfo) := mkFunSim 
 (fdef_simulation pinfo)
-(fdef_simulation__eq_fheader pinfo)
-(fdef_simulation__det_right pinfo)
+(RemoveSim.fdef_simulation__eq_fheader (PI_f pinfo) (PI_id pinfo))
+(RemoveSim.fdef_simulation__det_right (PI_f pinfo) (PI_id pinfo))
 .
 
 Definition products_simulation (pinfo: PhiInfo) Ps1 Ps2 : Prop :=
@@ -173,146 +147,7 @@ match (St1, St2) with
 end.
 
 Definition removable_State (pinfo: PhiInfo) (St:@Opsem.State DGVs) : Prop :=
-match St with
-| Opsem.mkState
-    (Opsem.mkEC f b (c :: cs) tmn lc als::_) _ =>
-    if (fdef_dec (PI_f pinfo) f) then
-      if (id_dec (PI_id pinfo) (getCmdLoc c)) then True else False
-    else False
-| _ => False
-end.
-
-Lemma removable_State_dec : forall pinfo St,
-  removable_State pinfo St \/ ~ removable_State pinfo St.
-Proof.
-  destruct St.
-  destruct ECS as [|[]]; auto.
-  destruct CurCmds; auto.
-  simpl.
-  destruct (fdef_dec (PI_f pinfo) CurFunction); auto.
-  destruct (id_dec (PI_id pinfo) (getCmdLoc c)); auto.
-Qed.
-
-Lemma cmds_simulation_elim_cons_inv: forall (pinfo : PhiInfo) c (cs1 : list cmd)
-  (cs2 : cmds) (Heq : PI_id pinfo = getCmdLoc c)
-  (Hcssim2 : cmds_simulation pinfo (PI_f pinfo) (c :: cs1) cs2),
-  cmds_simulation pinfo (PI_f pinfo) cs1 cs2.
-Proof.
-  intros.
-  unfold cmds_simulation in *.
-  destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-  simpl in *. rewrite Heq in Hcssim2.
-  destruct (id_dec (getCmdLoc c) (getCmdLoc c)); simpl in *; try congruence.
-Qed.
-
-Lemma cmds_simulation_nil_inv: forall pinfo f1 cs,
-  cmds_simulation pinfo f1 nil cs -> cs = nil.
-Proof.
-  unfold cmds_simulation. simpl.
-  intros. destruct (fdef_dec (PI_f pinfo) f1); auto.
-Qed.
-
-Lemma cmds_simulation_nelim_cons_inv: forall pinfo F c cs2 cs',
-  cmds_simulation pinfo F (c :: cs2) cs' ->
-  PI_f pinfo <> F \/ PI_id pinfo <> getCmdLoc c ->
-  exists cs2',
-    cs' = c :: cs2' /\ cmds_simulation pinfo F cs2 cs2'.
-Proof.
-  intros.
-  unfold cmds_simulation in *.
-  destruct (fdef_dec (PI_f pinfo) F); subst; simpl; eauto.
-  destruct (id_dec (getCmdLoc c) (PI_id pinfo)); subst; simpl; eauto.
-  rewrite e in H0.
-  destruct H0; congruence.
-Qed.
-
-Lemma fdef_sim__block_sim : forall pinfo f1 f2 l0 b1 b2,
-  fdef_simulation pinfo f1 f2 ->
-  lookupBlockViaLabelFromFdef f1 l0 = Some b1 ->
-  lookupBlockViaLabelFromFdef f2 l0 = Some b2 ->
-  block_simulation pinfo f1 b1 b2.
-Proof.
-  intros.
-  unfold fdef_simulation in H.
-  unfold block_simulation.
-  destruct (fdef_dec (PI_f pinfo) f1); subst.
-    destruct (PI_f pinfo). simpl in *.
-    eapply fdef_sim__lookupAL_genLabel2Block_remove_block; eauto.
-
-    uniq_result. auto.
-Qed.
-
-Definition phis_simulation (pinfo: PhiInfo) (f1:fdef) ps1 ps2 : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then remove_phinodes (PI_id pinfo) ps1 = ps2
-  else ps1 = ps2.
-
-Lemma block_simulation_inv : forall pinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
-  tmn2,
-  block_simulation pinfo F (block_intro l1 ps1 cs1 tmn1)
-    (block_intro l2 ps2 cs2 tmn2) ->
-  l1 = l2 /\ phis_simulation pinfo F ps1 ps2 /\
-  cmds_simulation pinfo F cs1 cs2 /\ tmn1 = tmn2.
-Proof.
-  intros.
-  unfold block_simulation, cmds_simulation, phis_simulation in *.
-  destruct (fdef_dec (PI_f pinfo) F); inv H; auto.
-Qed.
-
-Lemma fdef_simulation_inv: forall pinfo fh1 fh2 bs1 bs2,
-  fdef_simulation pinfo (fdef_intro fh1 bs1) (fdef_intro fh2 bs2) ->
-  fh1 = fh2 /\
-  List.Forall2
-    (fun b1 b2 => block_simulation pinfo (fdef_intro fh1 bs1) b1 b2) bs1 bs2.
-Proof.
-  intros.
-  unfold fdef_simulation in H.
-  destruct (fdef_dec (PI_f pinfo) (fdef_intro fh1 bs1)).
-    simpl in H. inv H.
-    split; auto.
-      unfold block_simulation.
-      rewrite e.
-      destruct (fdef_dec (fdef_intro fh2 bs1) (fdef_intro fh2 bs1));
-        try congruence.
-        clear.
-        induction bs1; simpl; constructor; auto.
-
-    inv H.
-    split; auto.
-      unfold block_simulation.
-      destruct (fdef_dec (PI_f pinfo) (fdef_intro fh2 bs2));
-        try congruence.
-        clear.
-        induction bs2; simpl; constructor; auto.
-Qed.
-
-Lemma getEntryBlock__simulation: forall pinfo f1 f2 b2,
-  getEntryBlock f2 = Some b2 ->
-  fdef_simulation pinfo f1 f2 ->
-  exists b1, getEntryBlock f1 = Some b1 /\ 
-    block_simulation pinfo f1 b1 b2.
-Proof.
-  unfold fdef_simulation.
-  unfold block_simulation.
-  intros.
-  destruct (fdef_dec (PI_f pinfo) f1); inv H0; eauto.
-    remember (PI_f pinfo) as R1.
-    destruct R1 as [[? ? ? a ?] b]; simpl in *.
-    destruct b; simpl in *; inv H.
-    exists b. 
-    split; auto.
-Qed.
-
-Lemma fdef_simulation__entry_block_simulation: forall pinfo F1 F2 B1 B2,
-  fdef_simulation pinfo F1 F2 ->
-  getEntryBlock F1 = ret B1 ->
-  getEntryBlock F2 = ret B2 ->
-  block_simulation pinfo F1 B1 B2.
-Proof.
-  intros.
-  eapply getEntryBlock__simulation in H1; eauto.
-  destruct H1 as [b1 [J1 J2]].
-  uniq_result. auto.
-Qed.
+RemoveSim.removable_State (PI_f pinfo) (PI_id pinfo) St.
 
 Lemma reg_simulation_update_palloca: forall (pinfo : PhiInfo)
   (mi : MoreMem.meminj) TD (lc1 lc2 : Opsem.GVsMap)
@@ -546,34 +381,7 @@ Proof.
 Qed.
 
 Definition value_doesnt_use_pid pinfo F v :=
- PI_f pinfo <> F \/ used_in_value (PI_id pinfo) v = false.
-
-Lemma used_in_fdef__tmn_value_doesnt_use_pid: forall (l3 : l)
-  (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator) (F: fdef) pinfo,
-  used_in_fdef (PI_id pinfo) (PI_f pinfo) = false ->
-  blockInFdefB (block_intro l3 ps1 cs tmn1) F = true ->
-  valueInTmnOperands v tmn1 ->
-  value_doesnt_use_pid pinfo F v.
-Proof.
-  intros.
-  unfold value_doesnt_use_pid.
-  destruct (fdef_dec (PI_f pinfo) F); subst; auto.
-    right. eapply used_in_fdef__used_in_tmn_value; eauto; simpl; auto.
-Qed.
-
-Lemma used_in_fdef__cmd_value_doesnt_use_pid: forall (l3 : l) c
-  (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator) (F: fdef) pinfo,
-  used_in_fdef (PI_id pinfo) (PI_f pinfo) = false ->
-  blockInFdefB (block_intro l3 ps1 cs tmn1) F = true ->
-  In c cs ->
-  valueInCmdOperands v c ->
-  value_doesnt_use_pid pinfo F v.
-Proof.
-  intros.
-  unfold value_doesnt_use_pid.
-  destruct (fdef_dec (PI_f pinfo) F); subst; auto.
-    right. eapply used_in_fdef__used_in_cmd_value; eauto; simpl; auto.
-Qed.
+  conditional_used_in_value (PI_f pinfo) F (PI_id pinfo) v.
 
 Lemma simulation__getOperandValue : forall pinfo maxb mi lc lc2 los nts Mem Mem2 
   gl F v gv gv' (Hprop: value_doesnt_use_pid pinfo F v) S Ps t
@@ -649,47 +457,17 @@ Proof.
   eapply simulation__lift_opt1; eauto.
 Qed.
 
+Definition phis_simulation (pinfo: PhiInfo) (f1:fdef) ps1 ps2 : Prop :=
+RemoveSim.phis_simulation (PI_f pinfo) (PI_id pinfo) f1 ps1 ps2.
+
 Lemma phis_simulation_inv: forall pinfo F ps1 ps2 l1 cs1 tmn1
   (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true),
   WF_PhiInfo pinfo -> uniqFdef F ->
   phis_simulation pinfo F ps1 ps2 -> ps1 = ps2.
 Proof.
-  unfold phis_simulation.
   intros.
-  destruct (fdef_dec (PI_f pinfo) F); subst; auto.
-  apply remove_phinodes_stable.
-  WF_PhiInfo_spec6_tac.
-Qed.
-
-Lemma block_simulation__getValueViaBlockFromValuels: forall pinfo F B1 B2 l0,
-  block_simulation pinfo F B1 B2 ->
-  getValueViaBlockFromValuels l0 B1 = getValueViaBlockFromValuels l0 B2.
-Proof.
-  destruct B1, B2; simpl; intros.
-  unfold block_simulation in H.
-  destruct (fdef_dec (PI_f pinfo) F); subst.
-    simpl in H. inv H. auto.
-    inv H. auto.
-Qed.
-
-Lemma incoming_values_dont_use_pid: forall pinfo F l3 l0 v
-  (Hnuse : PI_f pinfo <> F \/ used_in_list_value_l (PI_id pinfo) l0 = false)
-  (HeqR3 : getValueViaLabelFromValuels l0 l3 = ret v),
-  value_doesnt_use_pid pinfo F v.
-Proof.
-  induction l0; simpl; intros.
-    congruence.
-    
-    simpl_prod.
-    unfold value_doesnt_use_pid.
-    destruct (fdef_dec (PI_f pinfo) F); subst; auto.
-      right.
-      destruct Hnuse as [Hnuse | Hnuse]; try congruence.
-      binvf Hnuse as J1 J2.
-      destruct (l1 == l3); inv HeqR3; auto.
-      apply IHl0 in H0; auto.
-      unfold value_doesnt_use_pid in H0.
-      destruct H0 as [H0 | H0]; try congruence.
+  eapply RemoveSim.phis_simulation_inv; eauto 1.
+    intro. subst. WF_PhiInfo_spec6_tac.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_rsim : forall los nts B1 B2 gl F mi lc1'
@@ -749,7 +527,7 @@ Proof.
         end
       end.
     apply reg_simulation_update_non_palloca; auto.
-      erewrite block_simulation__getValueViaBlockFromValuels in HeqR3; eauto.
+      erewrite RemoveSim.block_simulation__getValueViaBlockFromValuels in HeqR3; eauto.
       rewrite HeqR3 in HeqR1. inv HeqR1.
       eapply simulation__getOperandValue with (lc:=lc1')(lc2:=lc2'); eauto.
 
@@ -761,7 +539,7 @@ Proof.
         right.
         apply fold_left_eq in Hnuse'; auto.
           intros. apply orb_false_iff in H. destruct H; auto.
-      eapply incoming_values_dont_use_pid; eauto.
+      eapply conditional_used_in_getValueViaLabelFromValuels; eauto.
 Qed.
 
 Lemma switchToNewBasicBlock_rsim : forall los nts l1 l2 ps cs1 cs2 tmn1 tmn2 B1 B2
@@ -1029,52 +807,8 @@ Proof.
       contradict J. omega.
 Qed.
 
-Lemma not_removable_State_inv: forall pinfo St,
-  ~ removable_State pinfo St ->
-  match St with
-  | {| Opsem.ECS := {| Opsem.CurFunction := F;
-                       Opsem.CurBB := _;
-                       Opsem.CurCmds := c :: _;
-                       Opsem.Terminator := _;
-                       Opsem.Locals := _;
-                       Opsem.Allocas := _ |} :: _;
-       Opsem.Mem := Mem |} => PI_f pinfo <> F \/ PI_id pinfo <> getCmdLoc c
-  | _ => True
-  end.
-Proof.
-  intros.
-  destruct St; auto.
-  destruct ECS; auto.
-  destruct e; auto.
-  destruct CurCmds; auto.
-  simpl in H.
-  destruct (fdef_dec (PI_f pinfo) CurFunction); subst; auto.
-  destruct (id_dec (PI_id pinfo) (getCmdLoc c)); subst; auto.
-Qed.
-
 Definition list_value_doesnt_use_pid pinfo F idxs :=
-  PI_f pinfo <> F \/ used_in_list_value (PI_id pinfo) idxs = false.
-
-Lemma used_in_fdef__list_value_doesnt_use_pid: forall (l3 : l)
-  (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator) (F: fdef) pinfo
-  cs11 id0 inbounds0 t v idxs cs t',
-  used_in_fdef (PI_id pinfo) (PI_f pinfo) = false ->
-  blockInFdefB
-    (block_intro l3 ps1 (cs11 ++ insn_gep id0 inbounds0 t v idxs t':: cs) tmn1) F
-      = true ->
-  list_value_doesnt_use_pid pinfo F idxs.
-Proof.
-  intros.
-  unfold list_value_doesnt_use_pid.
-  destruct (fdef_dec (PI_f pinfo) F); subst; auto.
-    right.
-    destruct (PI_f pinfo). simpl in *.
-    eapply used_in_blocks__used_in_block in H0; eauto.
-    binvf H0 as J3 J4. binvf J3 as J1 J2.
-    eapply used_in_cmds__used_in_cmd in J2; eauto using in_middle.
-    simpl in J2.
-    binvf J2 as J3 J5. auto.
-Qed.
+  conditional_used_in_list_value (PI_f pinfo) F (PI_id pinfo) idxs.
 
 Lemma mem_simulation__wf_sb_sim: forall pinfo maxb mi ECs M1 M2,
   mem_simulation pinfo maxb mi ECs M1 M2 -> wf_sb_mi maxb mi M1 M2.
@@ -1104,48 +838,7 @@ Proof.
 Qed.
 
 Definition params_dont_use_pid pinfo F (ps:params) :=
-  PI_f pinfo <> F \/
-  List.fold_left
-    (fun acc p => let '(_, v):=p in used_in_value (PI_id pinfo) v || acc)
-    ps false = false.
-
-Lemma used_in_fdef__params_dont_use_pid: forall (l3 : l)
-  (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator) (F: fdef) pinfo
-  cs11 rid noret0 ca rt1 va1 fv lp cs,
-  used_in_fdef (PI_id pinfo) (PI_f pinfo) = false ->
-  blockInFdefB
-    (block_intro l3 ps1 (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1) F
-      = true ->
-  params_dont_use_pid pinfo F lp.
-Proof.
-  intros.
-  unfold params_dont_use_pid.
-  destruct (fdef_dec (PI_f pinfo) F); subst; auto.
-    right.
-    destruct (PI_f pinfo). simpl in *.
-    eapply used_in_blocks__used_in_block in H0; eauto.
-    binvf H0 as J3 J4. binvf J3 as J1 J2.
-    eapply used_in_cmds__used_in_cmd in J2; eauto using in_middle.
-    simpl in J2.
-    binvf J2 as J3 J5. auto.
-Qed.
-
-Lemma used_in_fdef__phis_dont_use_pid: forall (l3 : l)
-  (ps1 : phinodes) (cs : cmds) (tmn1 : terminator) (F: fdef) pinfo cs1,
-  used_in_fdef (PI_id pinfo) (PI_f pinfo) = false ->
-  blockInFdefB (block_intro l3 ps1 cs1 tmn1) F = true ->
-  PI_f pinfo <> F \/
-  fold_left
-         (fun (re : bool) (p : phinode) => re || used_in_phi (PI_id pinfo) p)
-         ps1 false = false.
-Proof.
-  intros.
-  destruct (fdef_dec (PI_f pinfo) F); subst; auto.
-    right.
-    destruct (PI_f pinfo). simpl in *.
-    eapply used_in_blocks__used_in_block in H0; eauto.
-    binvf H0 as J3 J4. binvf J3 as J1 J2. auto.
-Qed.
+  conditional_used_in_params (PI_f pinfo) F (PI_id pinfo) ps.
 
 Lemma reg_simulation__params2GVs: forall pinfo mi F lc1 lc2 gl
   los nts (Hrsim: reg_simulation pinfo mi F lc1 lc2) maxb Mem1 Mem2

@@ -1,6 +1,7 @@
 Require Import vellvm.
 Require Import genericvalues_inject.
 Require Import palloca_props.
+Require Import primitives.
 
 Structure FunSim := mkFunSim {
 fsim: fdef -> fdef -> Prop;
@@ -644,3 +645,358 @@ Qed.
 End TopSim.
 
 End TopSim.
+
+Module RemoveSim.
+
+Section RemoveSim.
+
+Variable (F0:fdef) (ID0:id).
+
+Definition fdef_simulation f1 f2 : Prop :=
+  if (fdef_dec F0 f1) then
+    remove_fdef ID0 f1 = f2
+  else f1 = f2.
+
+Definition cmds_simulation f1 cs1 cs2 : Prop :=
+  if (fdef_dec F0 f1) then
+    remove_cmds ID0 cs1 = cs2
+  else cs1 = cs2.
+
+Definition block_simulation f1 b1 b2 : Prop :=
+  if (fdef_dec F0 f1) then
+    remove_block ID0 b1 = b2
+  else b1 = b2.
+
+Lemma fdef_simulation__eq_fheader: forall f1 f2
+  (H: fdef_simulation f1 f2),
+  fheaderOfFdef f1 = fheaderOfFdef f2.
+Proof.
+  unfold fdef_simulation.
+  intros.
+  destruct (fdef_dec F0 f1); inv H; auto.
+    destruct f1 as [fh b]; simpl; auto.
+Qed.
+
+Lemma fdef_simulation__det_right: forall f1 f2 f2',
+  fdef_simulation f1 f2 ->
+  fdef_simulation f1 f2' ->
+  f2 = f2'.
+Proof.
+  unfold fdef_simulation.
+  intros.
+  destruct_if; congruence.
+Qed.
+
+Lemma cmds_simulation_elim_cons_inv: forall c (cs1 : list cmd)
+  (cs2 : cmds) (Heq : ID0 = getCmdLoc c)
+  (Hcssim2 : cmds_simulation F0 (c :: cs1) cs2),
+  cmds_simulation F0 cs1 cs2.
+Proof.
+  intros.
+  unfold cmds_simulation in *.
+  destruct (fdef_dec F0 F0); try congruence.
+  simpl in *. rewrite Heq in Hcssim2.
+  destruct (id_dec (getCmdLoc c) (getCmdLoc c)); simpl in *; try congruence.
+Qed.
+
+Lemma cmds_simulation_nil_inv: forall f1 cs,
+  cmds_simulation f1 nil cs -> cs = nil.
+Proof.
+  unfold cmds_simulation. simpl.
+  intros. destruct (fdef_dec F0 f1); auto.
+Qed.
+
+Lemma cmds_simulation_nelim_cons_inv: forall F c cs2 cs',
+  cmds_simulation F (c :: cs2) cs' ->
+  F0 <> F \/ ID0 <> getCmdLoc c ->
+  exists cs2',
+    cs' = c :: cs2' /\ cmds_simulation F cs2 cs2'.
+Proof.
+  intros.
+  unfold cmds_simulation in *.
+  destruct (fdef_dec F0 F); subst; simpl; eauto.
+  destruct (id_dec (getCmdLoc c) ID0); subst; simpl; eauto.
+  destruct H0; congruence.
+Qed.
+
+Lemma cmds_simulation_nelim_cons_inv': forall F c cs2 cs',
+  cmds_simulation F (c :: cs2) cs' ->
+  (F0 = F -> getCmdLoc c <> ID0) ->
+  exists cs2',
+    cs' = c :: cs2' /\ cmds_simulation F cs2 cs2'.
+Proof.
+  intros.
+  unfold cmds_simulation in *.
+  destruct (fdef_dec F0 F); subst; simpl; eauto.
+  destruct (id_dec (getCmdLoc c) ID0); subst; simpl; eauto.
+  assert (F=F) as EQ. auto.
+  apply H0 in EQ. congruence.
+Qed.
+
+Lemma fdef_sim__block_sim : forall f1 f2 l0 b1 b2,
+  fdef_simulation f1 f2 ->
+  lookupBlockViaLabelFromFdef f1 l0 = Some b1 ->
+  lookupBlockViaLabelFromFdef f2 l0 = Some b2 ->
+  block_simulation f1 b1 b2.
+Proof.
+  intros.
+  unfold fdef_simulation in H.
+  unfold block_simulation.
+  destruct (fdef_dec F0 f1); subst.
+    destruct f1. simpl in *.
+    eapply fdef_sim__lookupAL_genLabel2Block_remove_block; eauto.
+
+    uniq_result. auto.
+Qed.
+
+Definition phis_simulation (f1:fdef) ps1 ps2 : Prop :=
+  if (fdef_dec F0 f1) then remove_phinodes ID0 ps1 = ps2
+  else ps1 = ps2.
+
+Lemma block_simulation_inv : forall F l1 ps1 cs1 tmn1 l2 ps2 cs2
+  tmn2,
+  block_simulation F (block_intro l1 ps1 cs1 tmn1)
+    (block_intro l2 ps2 cs2 tmn2) ->
+  l1 = l2 /\ phis_simulation F ps1 ps2 /\
+  cmds_simulation F cs1 cs2 /\ tmn1 = tmn2.
+Proof.
+  intros.
+  unfold block_simulation, cmds_simulation, phis_simulation in *.
+  destruct (fdef_dec F0 F); inv H; auto.
+Qed.
+
+Lemma fdef_simulation_inv: forall fh1 fh2 bs1 bs2,
+  fdef_simulation (fdef_intro fh1 bs1) (fdef_intro fh2 bs2) ->
+  fh1 = fh2 /\
+  List.Forall2
+    (fun b1 b2 => block_simulation (fdef_intro fh1 bs1) b1 b2) bs1 bs2.
+Proof.
+  intros.
+  unfold fdef_simulation in H.
+  unfold block_simulation.
+  destruct (fdef_dec F0 (fdef_intro fh1 bs1)).
+    simpl in H. clear e. inv H.
+    split; auto.
+      clear.
+      induction bs1; simpl; constructor; auto.
+
+    inv H.
+    split; auto.
+      clear.
+      induction bs2; simpl; constructor; auto.
+Qed.
+
+Lemma getEntryBlock__simulation: forall f1 f2 b2,
+  getEntryBlock f2 = Some b2 ->
+  fdef_simulation f1 f2 ->
+  exists b1, getEntryBlock f1 = Some b1 /\ 
+    block_simulation f1 b1 b2.
+Proof.
+  unfold fdef_simulation.
+  unfold block_simulation.
+  intros.
+  destruct (fdef_dec F0 f1); inv H0; eauto.
+    remember f1 as R1.
+    destruct R1 as [[? ? ? a ?] b]; simpl in *.
+    destruct b; simpl in *; inv H.
+    exists b. 
+    split; auto.
+Qed.
+
+Lemma fdef_simulation__entry_block_simulation: forall F1 F2 B1 B2,
+  fdef_simulation F1 F2 ->
+  getEntryBlock F1 = ret B1 ->
+  getEntryBlock F2 = ret B2 ->
+  block_simulation F1 B1 B2.
+Proof.
+  intros.
+  eapply getEntryBlock__simulation in H1; eauto.
+  destruct H1 as [b1 [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+Lemma block_simulation__getValueViaBlockFromValuels: forall F B1 B2 l0,
+  block_simulation F B1 B2 ->
+  getValueViaBlockFromValuels l0 B1 = getValueViaBlockFromValuels l0 B2.
+Proof.
+  destruct B1, B2; simpl; intros.
+  unfold block_simulation in H.
+  destruct (fdef_dec F0 F); subst.
+    simpl in H. inv H. auto.
+    inv H. auto.
+Qed.
+
+Lemma phis_simulation_inv: forall F ps1 ps2 l1 cs1 tmn1
+  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true)
+  (Hnotin: F0 = F -> ~ In ID0 (getPhiNodesIDs ps1)),
+  phis_simulation F ps1 ps2 -> ps1 = ps2.
+Proof.
+  unfold phis_simulation.
+  intros.
+  destruct (fdef_dec F0 F); subst; auto.
+  apply remove_phinodes_stable; auto.
+Qed.
+
+Definition removable_State (St:@Opsem.State DGVs) : Prop :=
+match St with
+| Opsem.mkState
+    (Opsem.mkEC f b (c :: cs) tmn lc als::_) _ =>
+    if (fdef_dec F0 f) then
+      if (id_dec ID0 (getCmdLoc c)) then True else False
+    else False
+| _ => False
+end.
+
+Lemma removable_State_dec : forall St,
+  removable_State St \/ ~ removable_State St.
+Proof.
+  destruct St.
+  destruct ECS as [|[]]; auto.
+  destruct CurCmds; auto.
+  simpl.
+  destruct (fdef_dec F0 CurFunction); auto.
+  destruct (id_dec ID0 (getCmdLoc c)); auto.
+Qed.
+
+Lemma not_removable_State_inv: forall St,
+  ~ removable_State St ->
+  match St with
+  | {| Opsem.ECS := {| Opsem.CurFunction := F;
+                       Opsem.CurBB := _;
+                       Opsem.CurCmds := c :: _;
+                       Opsem.Terminator := _;
+                       Opsem.Locals := _;
+                       Opsem.Allocas := _ |} :: _;
+       Opsem.Mem := Mem |} => F0 <> F \/ ID0 <> getCmdLoc c
+  | _ => True
+  end.
+Proof.
+  intros.
+  destruct St; auto.
+  destruct ECS; auto.
+  destruct e; auto.
+  destruct CurCmds; auto.
+  simpl in H.
+  destruct (fdef_dec F0 CurFunction); subst; auto.
+  destruct (id_dec ID0 (getCmdLoc c)); subst; auto.
+Qed.
+
+Lemma removable_State__non_removable_State: forall f b c cs1 tmn lc als
+  ES1 lc' als' Mem Mem' (Hnodup: NoDup (getCmdsLocs (c::cs1)))
+  (Hrem : removable_State
+           {|
+           Opsem.ECS := {|
+                        Opsem.CurFunction := f;
+                        Opsem.CurBB := b;
+                        Opsem.CurCmds := c :: cs1;
+                        Opsem.Terminator := tmn;
+                        Opsem.Locals := lc;
+                        Opsem.Allocas := als |} :: ES1;
+           Opsem.Mem := Mem |}),
+  ~ removable_State
+           {|
+           Opsem.ECS := {|
+                        Opsem.CurFunction := f;
+                        Opsem.CurBB := b;
+                        Opsem.CurCmds := cs1;
+                        Opsem.Terminator := tmn;
+                        Opsem.Locals := lc';
+                        Opsem.Allocas := als' |} :: ES1;
+           Opsem.Mem := Mem' |}.
+Proof.
+  simpl. intros.
+  destruct_if; auto.
+  destruct_if; auto.
+  destruct cs1; auto.
+  destruct_if; auto.
+  inv Hnodup. inv H2. intro J. apply H1. simpl. left. congruence.
+Qed.
+
+Lemma removable_State__isnt__final: forall cfg St
+  (Hrm: removable_State St),
+  Opsem.s_isFinialState cfg St = None.
+Proof.
+  intros.
+  destruct St as [Es Mem].
+  destruct cfg.
+  destruct Es as [|[] Es]; tinv Hrm.
+  simpl in *.
+  destruct CurCmds; tauto.
+Qed.
+
+Lemma removable_State_inv: forall F b c cs tmn lc als ECs Mem,
+  removable_State
+    {| Opsem.ECS := {| Opsem.CurFunction := F;
+                       Opsem.CurBB := b;
+                       Opsem.CurCmds := c :: cs;
+                       Opsem.Terminator := tmn;
+                       Opsem.Locals := lc;
+                       Opsem.Allocas := als |} :: ECs;
+       Opsem.Mem := Mem |} ->
+  F0 = F /\ ID0 = getCmdLoc c.
+Proof.
+  simpl.
+  intros.
+  destruct_if.
+  destruct_if. auto.
+Qed.
+
+Lemma cmds_simulation_nil_inv' : forall
+  (f1 : fdef) (cs1 : list cmd) b1 tmn1 lc1 als1 ECS Mem1
+  (Hnrem : ~
+          removable_State
+            {|
+            Opsem.ECS := {|
+                         Opsem.CurFunction := f1;
+                         Opsem.CurBB := b1;
+                         Opsem.CurCmds := cs1;
+                         Opsem.Terminator := tmn1;
+                         Opsem.Locals := lc1;
+                         Opsem.Allocas := als1 |} :: ECS;
+            Opsem.Mem := Mem1 |}),
+  cmds_simulation f1 cs1 nil -> cs1 = nil.
+Proof.
+  simpl.
+  unfold cmds_simulation. intros.
+  destruct_if; auto.
+  destruct cs1; auto.
+  destruct_if; try tauto.
+  simpl in H1.
+  destruct (id_dec (getCmdLoc c) ID0); simpl in *; congruence.
+Qed.
+
+Lemma cmds_simulation_cons_inv' : forall 
+  (f1 : fdef) b1 lc1 cs tmn1 als1 c cs2 ECS Mem1
+  (Hnrem : ~
+          removable_State
+            {|
+            Opsem.ECS := {|
+                         Opsem.CurFunction := f1;
+                         Opsem.CurBB := b1;
+                         Opsem.CurCmds := cs;
+                         Opsem.Terminator := tmn1;
+                         Opsem.Locals := lc1;
+                         Opsem.Allocas := als1 |} :: ECS;
+            Opsem.Mem := Mem1 |}),
+  cmds_simulation f1 cs (c::cs2) -> 
+   exists cs1, 
+     cs = c::cs1 /\
+     cmds_simulation f1 cs1 cs2.
+Proof.
+  simpl.
+  unfold cmds_simulation. intros.
+  destruct_if; eauto.
+  destruct cs; inv H1.
+  destruct (id_dec ID0 (getCmdLoc c0)); try tauto.
+  destruct (id_dec (getCmdLoc c0) ID0); simpl in *; try congruence.
+  inv H0. eauto.
+Qed.
+
+End RemoveSim.
+
+End RemoveSim.
+
+Hint Unfold RemoveSim.fdef_simulation RemoveSim.cmds_simulation 
+  RemoveSim.block_simulation RemoveSim.phis_simulation
+  RemoveSim.removable_State.
+
