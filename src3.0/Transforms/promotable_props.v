@@ -2064,17 +2064,19 @@ Proof.
       intro J. subst. contradict H; omega.
 Qed.
 
-(* The current design of malloc is incorrect! It must ensure that mload is
-   successful at the allocated address. To do so, malloc must ensure all
-   subcomponents in an aggregated object are well-aligned! *)
-Lemma malloc_mload_aux_undef: forall TD t tsz mcs M gn align0 M' mb gvs gl
+(* We assume alignment is correct. *)
+Axiom align_is_always_correct: forall m ofs, (align_chunk m | ofs).
+
+(* The current design of malloc does not check alignment! It must ensure that 
+   mload is successful at the allocated address. To do so, malloc must ensure 
+   all subcomponents in an aggregated object are well-aligned! *)
+Axiom malloc_mload_aux_undef: forall TD t tsz mcs M gn align0 M' mb gvs gl
   (Hsz: getTypeAllocSize TD t = Some tsz)
   (Hflatten: flatten_typ TD t = Some mcs)
   (Hal : malloc TD M tsz gn align0 = ret (M', mb))
   (Hc2v : @Opsem.const2GV DGVs TD gl (const_undef t) = ret gvs),
   mload_aux M' mcs mb (Int.signed 31 (Int.repr 31 0)) = ret gvs.
-Admitted. (* alignment *)
-
+  
 Lemma malloc_mload_undef: forall TD t tsz M gn align0 M' mb gvs gl S
   (Hwft: wf_typ S TD t)
   (Hsz: getTypeAllocSize TD t = Some tsz)
@@ -2090,11 +2092,19 @@ Proof.
   eapply malloc_mload_aux_undef; eauto.
 Qed.
 
-(* Same to malloc_mload_aux_undef *)
-Lemma mload_aux_malloc_same': forall TD M M' mb align0 gn tsz mcs
+Lemma mload_aux_malloc_same': forall TD M M' mb align0 gn tsz mcs t
+  (Hsz: getTypeAllocSize TD t = Some tsz)
+  (Hflatten: flatten_typ TD t = Some mcs)
   (Hal : malloc TD M tsz gn align0 = ret (M', mb)),
   exists gvs1, mload_aux M' mcs mb (Int.signed 31 (Int.repr 31 0)) = ret gvs1.
-Admitted. (* alignment *)
+Proof.
+  intros.
+  assert (exists gvs, @Opsem.const2GV DGVs TD nil (const_undef t) = ret gvs) 
+    as J.
+    unfold Opsem.const2GV. simpl. unfold gundef. rewrite Hflatten. eauto.
+  destruct J as [gvs J].
+  exists gvs. eapply malloc_mload_aux_undef; eauto.
+Qed.
 
 Lemma promotable_alloc_encode_decode_ident_aux: forall (M : mem) (M' : mem)
   (mc : list AST.memory_chunk)
@@ -2212,6 +2222,7 @@ Proof.
 
         rewrite simpl_blk2GV.
         unfold mload. rewrite G. simpl.
+        rewrite <- Heq in G; auto.
         eapply mload_aux_malloc_same'; eauto.
 
       intros.
@@ -3649,7 +3660,7 @@ Proof.
           omega.
           omega.
 
-        admit. (* aligment. We should assume (align_chunk m | ofs) *)
+        apply align_is_always_correct.
     destruct J as [m2 J].
     fill_ctxhole.
     apply IHgv.

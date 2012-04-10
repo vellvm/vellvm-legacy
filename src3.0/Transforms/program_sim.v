@@ -10,12 +10,32 @@ Definition undefined_program (P:system) (main:id) (VarArgs:list (GVsT DGVs)) :=
 Definition defined_program (P:system) (main:id) (VarArgs:list (GVsT DGVs)) :=
   ~ (undefined_program P main VarArgs).
 
+Inductive val_result_match: val -> val -> Prop :=
+  | val_result_match_int:
+      forall wz i, val_result_match (Vint wz i) (Vint wz i)
+  | val_result_match_float:
+      forall f, val_result_match (Vfloat f) (Vfloat f)
+  | val_result_match_ptr:
+      forall b1 ofs1 b2 ofs2, 
+      val_result_match (Vptr b1 ofs1) (Vptr b2 ofs2)
+  | val_result_match_inttoptr:
+      forall i1 i2, val_result_match (Vinttoptr i1) (Vinttoptr i2)
+  | val_result_match_undef: val_result_match Vundef Vundef
+.
+
+Definition result_match (gv1 gv2: GenericValue) : Prop :=
+List.Forall2 (fun vm1 vm2 =>
+              let '(v1,m1):=vm1 in
+              let '(v2,m2):=vm2 in
+              val_result_match v1 v2 /\ m1 = m2) gv1 gv2.
+
 Inductive program_sim (P1 P2:system) (main:id) (VarArgs:list (GVsT DGVs)) :
    Prop :=
 | program_sim_intro: 
-    (forall tr r, 
-      Opsem.s_converges P1 main VarArgs tr r -> 
-      Opsem.s_converges P2 main VarArgs tr r) -> 
+    (forall tr r1, 
+      Opsem.s_converges P1 main VarArgs tr r1 -> 
+      exists r2, 
+        Opsem.s_converges P2 main VarArgs tr r2 /\ result_match r1 r2) -> 
     (forall Tr, 
       Opsem.s_diverges P1 main VarArgs Tr -> 
       Opsem.s_diverges P2 main VarArgs Tr) ->
@@ -26,11 +46,77 @@ Inductive program_sim (P1 P2:system) (main:id) (VarArgs:list (GVsT DGVs)) :
     program_sim P1 P2 main VarArgs
 .
 
+Lemma val_result_match_relf: forall v, val_result_match v v.
+Proof.
+  induction v; constructor; auto.
+Qed.
+
+Lemma result_match_relf: forall gv, result_match gv gv.
+Proof.
+  unfold result_match.
+  induction gv as [|[]]; auto.
+    constructor; auto using val_result_match_relf.
+Qed.
+
 Lemma program_sim_refl: forall P main VarArgs 
   (Hok: defined_program P main VarArgs), program_sim P P main VarArgs.
 Proof.
-  intros. apply program_sim_intro; intros; eauto.
+  intros.
+  apply program_sim_intro; intros; eauto using result_match_relf.
     exists tr1. exists St1. auto.
+Qed.
+
+Lemma val_result_match_symm: forall v1 v2
+  (Hinj: val_result_match v1 v2), val_result_match v2 v1.
+Proof.
+  intros. inv Hinj; constructor; auto.
+Qed.
+
+Lemma result_match_symm: forall gv1 gv2
+  (Hinj: result_match gv1 gv2), result_match gv2 gv1.
+Proof.
+  unfold result_match.
+  intros. 
+  induction Hinj; auto.
+    constructor; auto.
+      destruct y. destruct x.
+      destruct H.
+      split.
+        apply val_result_match_symm; auto.
+        congruence.
+Qed.
+
+(* copied from events.v *)
+Ltac drewrite_int :=
+  match goal with
+  | H: existT _ ?wz ?i = _ |- context [?C ?wz ?i] =>
+      let R := fresh "R" in
+      remember (C wz i) as R;
+      match goal with
+      | HeqR: _ = ?C ?wz ?i |- _ =>
+        dependent rewrite H in HeqR; subst R
+      end
+  end.
+
+Lemma val_result_match_trans: forall v1 v2 v3
+  (Hm: val_result_match v1 v2) (Hm': val_result_match v2 v3),
+  val_result_match v1 v3.
+Proof.
+  destruct 1; intros; inv Hm'; try constructor.
+      drewrite_int. constructor.
+Qed.
+
+Lemma result_match_trans: forall gv1 gv2
+  (Hm: result_match gv1 gv2) gv3 (Hm': result_match gv2 gv3),
+  result_match gv1 gv3.
+Proof.
+  unfold result_match.
+  induction 1; intros; inv Hm'; try constructor; auto.
+    destruct x. destruct y. destruct y0.
+    destruct H. destruct H2.
+    split.
+      eapply val_result_match_trans; eauto.
+      congruence.
 Qed.
 
 Lemma program_sim_trans: forall P1 P2 P3 main VarArgs
@@ -38,7 +124,12 @@ Lemma program_sim_trans: forall P1 P2 P3 main VarArgs
   (Hsim2: program_sim P2 P3 main VarArgs),
   program_sim P1 P3 main VarArgs.
 Proof.
-  intros. inv Hsim1. inv Hsim2. constructor; intros; eauto.
+  intros. inv Hsim1. inv Hsim2. 
+  constructor; intros; eauto.
+    apply H in H7. destruct H7 as [r2 [J1 J2]].
+    apply H3 in J1. destruct J1 as [r3 [J3 J4]].
+    exists r3. split; eauto using result_match_trans.
+
     apply H1 in H7. unfold defined_program in H2. tauto. 
 Qed.
 

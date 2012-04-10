@@ -364,7 +364,7 @@ Proof.
     simpl.
     assert (wf_const s (los,nts) (const_undef (PI_typ pinfo)) (PI_typ pinfo)) 
       as Hwfc.
-      admit. (* wf const_undef ptyp *)
+      constructor. eapply WF_PhiInfo_spec21; eauto.
     eapply (@OpsemPP.const2GV_isnt_stuck DGVs) in Hwfc; eauto.
     destruct Hwfc as [gvsv Hwfc]. 
     eauto.

@@ -1091,7 +1091,7 @@ end.
     assert (Opsem.sop_star cfg1 IS1 FS1' tr) as Hopstar1''.
       rewrite <- E0_right.
       eapply OpsemProps.sop_star_trans; eauto.
-    econstructor; eauto.
+    exists t. split; auto using result_match_relf. econstructor; eauto.
 
     intros tr Hdiv.
     inv Hdiv.

@@ -776,7 +776,7 @@ end.
     eapply sop_star__phiplacement_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
     eapply s_isFinialState__phiplacement_State_simulation_r2l in Hstsim'; eauto.
-    econstructor; eauto.
+    exists t. split; auto using result_match_relf. econstructor; eauto.
 
     intros tr Hdiv.
     inv Hdiv.

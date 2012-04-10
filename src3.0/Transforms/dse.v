@@ -669,7 +669,7 @@ Proof.
     intros. apply H; simpl; auto.
 Qed.
 *)
-Lemma callExternalFunction__mem_simulation_l2r: forall pinfo TD St1 M1 M2 fid0 gvss0
+Axiom callExternalFunction__mem_simulation_l2r: forall pinfo TD St1 M1 M2 fid0 gvss0
   oresult1 M1' dck tr1 gl tret targs,
   mem_simulation pinfo TD St1 M1 M2 ->
   callExternalOrIntrinsics TD gl M1 fid0 tret targs dck gvss0 =
@@ -678,7 +678,6 @@ Lemma callExternalFunction__mem_simulation_l2r: forall pinfo TD St1 M1 M2 fid0 g
     callExternalOrIntrinsics TD gl M2 fid0 tret targs dck gvss0 =
       ret (oresult2, tr2, M2') /\
     oresult1 = oresult2 /\ mem_simulation pinfo TD St1 M1' M2' /\ tr1 = tr2.
-Admitted. (* excall sim *)
 
 Lemma callExternalFunction__mem_simulation: forall pinfo TD St1 M1 M2 fid0 gvss0
   oresult1 M1' oresult2 M2' dck tr1 tr2 gl tret targs,

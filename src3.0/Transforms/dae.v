@@ -892,16 +892,15 @@ Proof.
 Qed.
 
 Axiom callExternalFunction__mem_simulation_l2r: forall pinfo mi M1 M2 fid0 gvs1
-  gvs2 oresult1 M1' mgb gl lc1 lc2 TD F rid noret0 ft lp
-  EC lc1' als1 als2 dck tret targs tr1,
-  mem_simulation pinfo mgb mi ((F,lc1) :: strip_ECs EC) M1 M2 ->
-  reg_simulation pinfo mi F lc1 lc2 ->
-  Opsem.params2GVs TD lp lc1 gl = ret gvs1 ->
-  Opsem.params2GVs TD lp lc2 gl = ret gvs2 ->
-  callExternalOrIntrinsics TD gl M1 fid0 tret targs dck
-    gvs1 = ret (oresult1, tr1, M1') ->
-  Opsem.exCallUpdateLocals TD ft noret0 rid oresult1 lc1 = ret lc1' ->
-  als_simulation pinfo mi F lc1 als1 als2 ->
+  gvs2 oresult1 M1' mgb gl lc1 lc2 TD F rid noret0 ft 
+  EC lc1' als1 als2 dck tret targs tr1
+  (Hmsim: mem_simulation pinfo mgb mi ((F,lc1) :: strip_ECs EC) M1 M2)
+  (Hmsim: reg_simulation pinfo mi F lc1 lc2)
+  (Hpsim: List.Forall2 (fun gv1 => fun gv2 => gv_inject mi gv1 gv2) gvs1 gvs2)
+  (Hcall: callExternalOrIntrinsics TD gl M1 fid0 tret targs dck
+    gvs1 = ret (oresult1, tr1, M1'))
+  (Hret: Opsem.exCallUpdateLocals TD ft noret0 rid oresult1 lc1 = ret lc1')
+  (Hasim: als_simulation pinfo mi F lc1 als1 als2),
   exists tr2, exists M2', exists lc2', exists oresult2, exists mi',
     callExternalOrIntrinsics TD gl M2 fid0 tret targs dck
       gvs2 = ret (oresult2, tr2, M2') /\
@@ -917,12 +916,11 @@ Axiom callExternalFunction__mem_simulation_l2r: forall pinfo mi M1 M2 fid0 gvs1
        mi blk = merror -> mi' blk = merror).
 
 Lemma callExternalFunction__mem_simulation: forall pinfo mi M1 M2 fid0 gvs1
-  gvs2 oresult1 M1' oresult2 M2' mgb gl lc1 lc2 TD F rid noret0 ft lp
+  gvs2 oresult1 M1' oresult2 M2' mgb gl lc1 lc2 TD F rid noret0 ft 
   EC lc1' lc2' als1 als2 dck tret targs tr1 tr2,
   mem_simulation pinfo mgb mi ((F,lc1) :: strip_ECs EC) M1 M2 ->
   reg_simulation pinfo mi F lc1 lc2 ->
-  Opsem.params2GVs TD lp lc1 gl = ret gvs1 ->
-  Opsem.params2GVs TD lp lc2 gl = ret gvs2 ->
+  List.Forall2 (fun gv1 => fun gv2 => gv_inject mi gv1 gv2) gvs1 gvs2 ->
   callExternalOrIntrinsics TD gl M1 fid0 tret targs dck
     gvs1 = ret (oresult1, tr1, M1') ->
   callExternalOrIntrinsics TD gl M2 fid0 tret targs dck
@@ -1280,76 +1278,85 @@ SCase "sFBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sExtractValue". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sInsertValue". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sMalloc".
-  destruct_ctx_other.
+  abstract (destruct_ctx_other;
   apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
-  inv Hop2; uniq_result.
+  inv Hop2; uniq_result;
   eapply simulation__getOperandValue with (lc2:=lc2) in H0;
-    simulation__getOperandValue_tac1.
-  eapply mem_simulation__malloc in Hmsim; eauto. simpl in Hmsim.
-  destruct Hmsim as [mi' [Hmsim [Hinc [Hprop1 Hprop2]]]].
-  exists mi'.
-  repeat_solve.
-    eapply als_simulation__malloc; eauto.
-    eapply reg_simulation__malloc; eauto.
-    eapply inject_incr__preserves__ECs_simulation; eauto.
-      eapply malloc__isnt_alloca_in_ECs; eauto.
-    eapply OpsemAux.inject_incr__preserves__ftable_simulation; eauto.
+    try simulation__getOperandValue_tac1;
+  eapply mem_simulation__malloc in Hmsim; eauto 2; simpl in Hmsim;
+  destruct Hmsim as [mi' [Hmsim [Hinc [Hprop1 Hprop2]]]];
+  exists mi';
+  repeat_solve; try solve [
+    eapply als_simulation__malloc; eauto | 
+    eapply reg_simulation__malloc; eauto |
+    eapply inject_incr__preserves__ECs_simulation; 
+      try solve [eauto | eapply malloc__isnt_alloca_in_ECs; eauto] |
+    eapply OpsemAux.inject_incr__preserves__ftable_simulation; eauto
+  ]).
 
 SCase "sFree".
-  destruct_ctx_other.
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; auto.
+  abstract (destruct_ctx_other;
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; auto;
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
-  inv Hop2; uniq_result.
+  inv Hop2; uniq_result;
   eapply simulation__getOperandValue with (lc2:=lc2) in H;
-    simulation__getOperandValue_tac1.
-  eapply mem_simulation__free in Hmsim; eauto.
-  exists mi.
-  repeat_solve.
+    try simulation__getOperandValue_tac1;
+  eapply mem_simulation__free in Hmsim; eauto 2;
+  exists mi;
+  repeat_solve).
 
 SCase "sAlloca".
-  destruct_ctx_other.
+  abstract (destruct_ctx_other;
   apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
-  inv Hop2; uniq_result.
+  inv Hop2; uniq_result;
   eapply simulation__getOperandValue with (lc2:=lc2) in H0;
-    simulation__getOperandValue_tac1.
-  eapply mem_simulation__malloc in Hmsim; eauto. simpl in Hmsim.
-  destruct Hmsim as [mi' [Hmsim [Hinc [Hprop1 Hprop2]]]].
-  exists mi'.
-  repeat_solve.
-    eapply als_simulation__alloca; eauto.
-    eapply reg_simulation__malloc; eauto.
-    eapply inject_incr__preserves__ECs_simulation; eauto.
-      eapply malloc__isnt_alloca_in_ECs; eauto.
-    eapply OpsemAux.inject_incr__preserves__ftable_simulation; eauto.
+    try simulation__getOperandValue_tac1;
+  eapply mem_simulation__malloc in Hmsim; eauto 2; simpl in Hmsim;
+  destruct Hmsim as [mi' [Hmsim [Hinc [Hprop1 Hprop2]]]];
+  exists mi';
+  repeat_solve; try solve [
+    eapply als_simulation__alloca; eauto | 
+    eapply reg_simulation__malloc; eauto |
+    eapply inject_incr__preserves__ECs_simulation; 
+      try solve [eauto | eapply malloc__isnt_alloca_in_ECs; eauto] |
+    eapply OpsemAux.inject_incr__preserves__ftable_simulation; eauto
+  ]).
 
 SCase "sLoad".
-  destruct_ctx_other.
+  abstract (destruct_ctx_other;
   apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
-  inv Hop2; uniq_result.
-  exists mi.
-  repeat_solve.
-    apply als_simulation_update_lc; auto.
-    apply reg_simulation_update_non_palloca; auto.
-      eapply simulation__mload; eauto using mem_simulation__wf_sb_sim.
-      simulation__getOperandValue_tac2.
-    eapply mem_simulation__update_non_palloca; eauto; simpl; eauto.
+  inv Hop2; uniq_result;
+  exists mi;
+  repeat_solve; try solve [
+    apply als_simulation_update_lc; auto |
+    apply reg_simulation_update_non_palloca; try solve [
+      auto |
+      eapply simulation__mload; try solve [
+        eauto 2 using mem_simulation__wf_sb_sim |
+        simulation__getOperandValue_tac2
+      ]
+    ] |
+    eapply mem_simulation__update_non_palloca; eauto; simpl; eauto
+  ]).
 
 SCase "sStore".
-  destruct_ctx_other.
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; auto.
+  abstract (destruct_ctx_other;
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; auto;
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
-  inv Hop2; uniq_result.
-  exists mi.
-  repeat_solve.
-    simpl.
-    eapply simulation__mstore; eauto using mem_simulation__wf_sb_sim;
-    eapply simulation__getOperandValue; eauto using mem_simulation__wf_sb_sim;
-      try solve [eapply used_in_fdef__cmd_value_doesnt_use_pid;
-                   eauto using in_middle; simpl; auto |
-                 get_wf_value_for_simop; eauto].
+  inv Hop2; uniq_result;
+  exists mi;
+  repeat_solve; try solve [
+    simpl; eapply simulation__mstore; try solve [
+      eauto 2 using mem_simulation__wf_sb_sim |
+      eapply simulation__getOperandValue; eauto using mem_simulation__wf_sb_sim;
+        try solve [eapply used_in_fdef__cmd_value_doesnt_use_pid;
+                     eauto using in_middle; simpl; auto |
+                   get_wf_value_for_simop; eauto]
+    ]
+  ]).
 
 SCase "sGEP". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sTrunc". abstract (destruct_ctx_other; dse_is_sim_common_case).
@@ -1486,6 +1493,14 @@ SCase "sExCall".
   uniq_result.
 
   match goal with | H1 : fdec_intro _ _ = fdec_intro _ _ |- _ => inv H1 end.
+  assert (List.Forall2 (fun gv1 => fun gv2 => gv_inject mi gv1 gv2) gvss gvss0)
+    as Hparsim.
+    assert (HBinF1':=HBinF1).
+    eapply wf_system__wf_cmd in HBinF1'; eauto using in_middle.     
+    inv HBinF1'.
+    find_wf_value_list.  
+    eapply reg_simulation__params2GVs; eauto 2 using mem_simulation__wf_sb_sim,
+      used_in_fdef__params_dont_use_pid.
   eapply callExternalFunction__mem_simulation in Hmsim; eauto.
   destruct Hmsim as [EQ' [EQ [mi' [Hmsim [Hinc [J1 [J2 J3]]]]]]]; subst.
   exists mi'.

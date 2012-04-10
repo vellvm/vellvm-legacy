@@ -863,7 +863,7 @@ end.
       eapply s_isFinialState__laa_State_simulation in Hstsim'; eauto; try tauto;
       rewrite <- Hstsim' in H
     end.
-    econstructor; eauto.
+    exists t. split; auto using result_match_relf. econstructor; eauto.
 
     intros tr Hdiv.
     inv Hdiv.
