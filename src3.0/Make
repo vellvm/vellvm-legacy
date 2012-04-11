@@ -141,6 +141,8 @@
 ./Transforms/laa_top.v
 ./Transforms/laa_wfS.v
 ./Transforms/die.v
+./Transforms/die_top.v
+./Transforms/die_wfS.v
 ./Transforms/mem2reg_correct.v
 ./Transforms/program_sim.v
 ./Transforms/subst.v

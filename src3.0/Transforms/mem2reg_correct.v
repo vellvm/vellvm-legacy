@@ -21,7 +21,8 @@ Require Import dae_wfS.
 Require Import dae_top.
 Require Import dse_wfS.
 Require Import dse_top.
-Require Import die.
+Require Import die_wfS.
+Require Import die_top.
 Require Import sas_top.
 Require Import sas_wfS.
 Require Import phiplacement_bsim_wfS.

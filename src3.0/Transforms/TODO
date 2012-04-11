@@ -58,7 +58,8 @@
 11.6) return value should be casted into eventgv, excalls preserve traces (2D)
   STATUS: done (0.25D)
 
-13) proving DIE (2D)
+13) proving DIE (2D):1D
+  STATUS: done
 
 14) WF preservation (2.5W)
   phiplacement_bsim alive_store las laa dae sas mem2reg_correct die subst dse
