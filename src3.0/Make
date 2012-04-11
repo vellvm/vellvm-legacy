@@ -115,6 +115,7 @@
 ./Transforms/mem2reg.v
 ./Transforms/promotable_props.v
 ./Transforms/top_sim.v
+./Transforms/top_wfS.v
 ./Transforms/phiplacement_bsim_defs.v
 ./Transforms/phiplacement_bsim_wfS.v
 ./Transforms/phiplacement_bsim.v
