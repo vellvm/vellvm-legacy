@@ -261,8 +261,8 @@ Definition phinodes_placement_block (pid:id) (ty:typ) (al:align)
   | _ => b
   end.
 
-Definition phinodes_placement_blocks (bs:blocks) (pid:id) (ty:typ) (al:align)
-  (nids:ATree.t (id*id*id)) (succs preds:ATree.t (list l)) : blocks :=
+Definition phinodes_placement_blocks (pid:id) (ty:typ) (al:align)
+  (nids:ATree.t (id*id*id)) (succs preds:ATree.t (list l)) (bs:blocks): blocks:=
 List.map (phinodes_placement_block pid ty al nids succs preds) bs.
 (*
 List.fold_left
@@ -270,11 +270,11 @@ List.fold_left
   (List.rev bs) nil.
 *)
 
-Definition phinodes_placement (f:fdef) (rd:list l) (pid:id) (ty:typ) (al:align)
-  (succs preds:ATree.t (list l)) : fdef :=
+Definition phinodes_placement (rd:list l) (pid:id) (ty:typ) (al:align)
+  (succs preds:ATree.t (list l)) (f:fdef) : fdef :=
 let '(fdef_intro fh bs) := f in
 let '(nids, _) := gen_fresh_ids rd (getFdefLocs f) in
-let bs1 := phinodes_placement_blocks bs pid ty al nids succs preds in
+let bs1 := phinodes_placement_blocks pid ty al nids succs preds bs in
 fdef_intro fh bs1.
 
 Fixpoint find_init_stld (cs:cmds) (pid:id) (dones:list id)
@@ -371,7 +371,7 @@ match getEntryBlock f with
     match find_promotable_alloca f cs dones with
     | None => (f, false, dones)
     | Some (pid, ty, num, al) =>
-        let f1 := phinodes_placement f rd pid ty al succs preds in
+        let f1 := phinodes_placement rd pid ty al succs preds f in
         let '(f2, _) :=
           if does_stld_elim tt then
             SafePrimIter.iterate _ (elim_stld_step pid) (f1, nil)

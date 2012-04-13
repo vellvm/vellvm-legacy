@@ -9,7 +9,6 @@ Require Import opsem_props.
 Require Import primitives.
 Require Import memory_sim.
 Require Import memory_props.
-Require Import program_sim.
 Require Import palloca_props.
 Require Import top_sim.
 Require Import trans_tactic.

@@ -1598,7 +1598,7 @@ Lemma phinodes_placement_blocks__disjoint_tmps: forall l0 i1 i2 i3 i0
   (J2: i0 = i1 \/ i0 = i2 \/ i0 = i3) bs,
   ~ In l0 (getBlocksLabels bs) ->
   In i0 (getBlocksLocs
-           (phinodes_placement_blocks bs pid t al nids succs preds)) ->
+           (phinodes_placement_blocks pid t al nids succs preds bs)) ->
   In i0 (getBlocksLocs bs).
 Proof.
   induction bs as [|a bs]; simpl; intros; auto.

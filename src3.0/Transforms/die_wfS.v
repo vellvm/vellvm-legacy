@@ -5,7 +5,6 @@ Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
 Require Import primitives.
-Require Import program_sim.
 Require Import palloca_props.
 Require Import die.
 

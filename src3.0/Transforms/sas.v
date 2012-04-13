@@ -10,7 +10,6 @@ Require Import primitives.
 Require Import palloca_props.
 Require Import memory_props.
 Require Import mem2reg.
-Require Import program_sim.
 Require Import trans_tactic.
 Require Import sas_msim.
 Require Import memory_sim.

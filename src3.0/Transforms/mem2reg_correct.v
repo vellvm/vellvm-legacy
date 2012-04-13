@@ -666,8 +666,8 @@ Proof.
     rewrite does_stld_elim_is_true.
     remember (SafePrimIter.iterate (fdef * list id)
                (elim_stld_step pid)
-               (phinodes_placement f rd pid ty al (successors f1)
-               (make_predecessors (successors f1)), nil)) as R.
+               (phinodes_placement rd pid ty al (successors f1)
+               (make_predecessors (successors f1)) f, nil)) as R.
     destruct R as [f0 dones0].
 
     assert (P (f0, dones0)) as HPf0.
@@ -678,11 +678,11 @@ Proof.
         apply program_sim_wfS_trans with (P2:=
             [module_intro los nts (Ps1 ++
               product_fdef
-                 (phinodes_placement f rd pid ty al (successors f1)
-                   (make_predecessors (successors f1))) :: Ps2)]); auto; intros.
+                 (phinodes_placement rd pid ty al (successors f1)
+                   (make_predecessors (successors f1)) f) :: Ps2)]); auto; intros.
           eapply elim_stld_sim_wfS_wfPI with
-            (pinfo:=mkPhiInfo (phinodes_placement f rd pid ty al
-              (successors f1) (make_predecessors (successors f1)))
+            (pinfo:=mkPhiInfo (phinodes_placement rd pid ty al
+              (successors f1) (make_predecessors (successors f1)) f)
                 rd pid ty num al); eauto.
             rewrite EQ1. destruct HPa as [Hpa1 [Hpa2 Hpa3]].
             eapply phinodes_placement_wfPI; eauto.
@@ -702,24 +702,24 @@ Proof.
         destruct HeqR1.
         split.
           transitivity (reachablity_analysis
-            (phinodes_placement f rd pid ty al (successors f1)
-              (make_predecessors (successors f1)))); auto.
+            (phinodes_placement rd pid ty al (successors f1)
+              (make_predecessors (successors f1)) f)); auto.
             rewrite EQ1. rewrite EQ2.
             apply phinodes_placement_reachablity_analysis.
 
           transitivity (successors
-            (phinodes_placement f rd pid ty al (successors f1)
-              (make_predecessors (successors f1)))); auto.
+            (phinodes_placement rd pid ty al (successors f1)
+              (make_predecessors (successors f1)) f)); auto.
             rewrite EQ1.
 
-            apply phinodes_placement_reachablity_successors.
+            apply phinodes_placement_successors.
 
     assert (WF_PhiInfo (update_pinfo pinfo f0)) as HwfPIf0.
       change (update_pinfo pinfo f0) with
              (update_pinfo
                (update_pinfo pinfo
-                 (phinodes_placement f rd pid ty al (successors f)
-                   (make_predecessors (successors f)))) f0).
+                 (phinodes_placement rd pid ty al (successors f)
+                   (make_predecessors (successors f)) f)) f0).
      destruct HPa as [HPa1 [HPa2 HPa3]].
      eapply elim_stld_sim_wfS_wfPI; eauto.
        rewrite EQ1. auto.
@@ -765,8 +765,8 @@ Proof.
                  (update_pinfo
                    (update_pinfo
                      (update_pinfo pinfo
-                       (phinodes_placement f rd pid ty al (successors f)
-                         (make_predecessors (successors f))))
+                       (phinodes_placement rd pid ty al (successors f)
+                         (make_predecessors (successors f)) f))
                    f0)
                    (elim_dead_st_fdef pid f0)
                  ).

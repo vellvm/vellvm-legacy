@@ -1193,10 +1193,15 @@ Proof.
       destruct Hin as [Hin | Hin]; eauto.
         inv Hin.
         symmetry in HeqR1.
-        inv H7.
+        match goal with
+        | H7: wf_insn _ _ _ _ _ |- _ => inv H7
+        end.
         destruct b. simpl in HeqR0.
         find_wf_value_list.
-        eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H4; eauto.
+        match goal with
+        | H4: wf_value_list _ |- _ =>
+          eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H4; eauto
+        end.
         eapply wf_rmetadata__get_reg_metadata in HeqR1; eauto.
 
       simpl in Hin.

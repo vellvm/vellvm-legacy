@@ -10,7 +10,6 @@ Require Import mem2reg.
 Require Import opsem_props.
 Require Import promotable_props.
 Require Import palloca_props.
-Require Import program_sim.
 Require Import memory_props.
 Require Import trans_tactic.
 Require Import top_sim.
@@ -30,8 +29,8 @@ Definition reg_simulation (pinfo: PhiInfo) (f1:fdef) (lc1 lc2:DGVMap) : Prop :=
 
 Definition fdef_simulation (pinfo: PhiInfo) f1 f2: Prop :=
   if (fdef_dec (PI_f pinfo) f1) then
-    phinodes_placement f1 (PI_rd pinfo) (PI_id pinfo) (PI_typ pinfo)
-      (PI_align pinfo) (PI_succs pinfo) (PI_preds pinfo) = f2
+    phinodes_placement (PI_rd pinfo) (PI_id pinfo) (PI_typ pinfo)
+      (PI_align pinfo) (PI_succs pinfo) (PI_preds pinfo) f1 = f2
   else f1 = f2.
 
 Definition wf_tmp_value (pinfo: PhiInfo) TD (M2:mem) (lc2:DGVMap) (tid:id)
@@ -158,6 +157,14 @@ match ECs1, ECs2 with
 | _, _ => False
 end.
 
+Lemma phinodes_placement_fheaderOfFdef: forall f rd pid ty al,
+  fheaderOfFdef f =
+  fheaderOfFdef (phinodes_placement rd pid ty al (successors f)
+                  (make_predecessors (successors f)) f).
+Proof.
+  intros. destruct f as [fh bs]. simpl. destruct_let. auto.
+Qed.
+
 Lemma fdef_simulation__eq_fheader: forall pinfo f1 f2
   (H: fdef_simulation pinfo f1 f2),
   fheaderOfFdef f1 = fheaderOfFdef f2.
@@ -165,8 +172,7 @@ Proof.
   unfold fdef_simulation.
   intros.
   destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
-    destruct (PI_f pinfo) as [fh b]; simpl.
-    destruct_let; auto.
+    apply phinodes_placement_fheaderOfFdef.
 Qed.
 
 Lemma fdef_simulation__det_right: forall pinfo f f1 f2,
@@ -1215,7 +1221,7 @@ Qed.
 Lemma phinodes_placement_blocks__getBlocksLabels: forall pid t al nids succs
   preds bs,
   getBlocksLabels bs =
-  getBlocksLabels (phinodes_placement_blocks bs pid t al nids succs preds).
+  getBlocksLabels (phinodes_placement_blocks pid t al nids succs preds bs).
 Proof.
   induction bs as [|[l0 ? ? ?]]; simpl; intros; auto.
     rewrite <- IHbs.
@@ -1427,7 +1433,7 @@ Lemma phinodes_placement_blocks__getBlocksLocs: forall pid t al nids succs
            ~ In i0 (prefix ++ getBlocksLocs bs)),
   NoDup (prefix ++ getBlocksLocs bs) ->
   NoDup (prefix ++
-         getBlocksLocs (phinodes_placement_blocks bs pid t al nids succs preds)).
+         getBlocksLocs (phinodes_placement_blocks pid t al nids succs preds bs)).
 Proof.
   induction bs; simpl; intros; auto.
 
@@ -1449,8 +1455,8 @@ Proof.
 
   assert (~ In i1 (prefix ++ getPhiNodesIDs p ++ getCmdsLocs c ++
     [getTerminatorID t0] ++
-    getBlocksLocs (phinodes_placement_blocks bs pid t al
-      (fst (gen_fresh_ids rds exids)) succs preds)
+    getBlocksLocs (phinodes_placement_blocks pid t al
+      (fst (gen_fresh_ids rds exids)) succs preds bs)
     )) as Hnotin1.
     assert (is_temporary i1 (fst (gen_fresh_ids rds exids))) as Histmp.
       exists l0. rewrite <- HeqR.
@@ -1465,8 +1471,8 @@ Proof.
 
   assert (~ In i2 (prefix ++ getPhiNodesIDs p ++ getCmdsLocs c ++
     [getTerminatorID t0] ++
-    getBlocksLocs (phinodes_placement_blocks bs pid t al
-      (fst (gen_fresh_ids rds exids)) succs preds)))
+    getBlocksLocs (phinodes_placement_blocks pid t al
+      (fst (gen_fresh_ids rds exids)) succs preds bs)))
     as Hnotin2.
     assert (is_temporary i2 (fst (gen_fresh_ids rds exids))) as Histmp.
       exists l0. rewrite <- HeqR.
@@ -1481,8 +1487,8 @@ Proof.
 
   assert (~ In i3 (prefix ++ getPhiNodesIDs p ++ getCmdsLocs c ++
     [getTerminatorID t0] ++
-    getBlocksLocs (phinodes_placement_blocks bs pid t al
-      (fst (gen_fresh_ids rds exids)) succs preds)))
+    getBlocksLocs (phinodes_placement_blocks pid t al
+      (fst (gen_fresh_ids rds exids)) succs preds bs)))
     as Hnotin3.
     assert (is_temporary i3 (fst (gen_fresh_ids rds exids))) as Histmp.
       exists l0. rewrite <- HeqR.
@@ -1498,21 +1504,21 @@ Proof.
   assert (NoDup
      (prefix ++ getPhiNodesIDs p ++
       getCmdsLocs c ++ i1 :: [getTerminatorID t0] ++
-      getBlocksLocs (phinodes_placement_blocks bs pid t al
-        (fst (gen_fresh_ids rds exids)) succs preds)))
+      getBlocksLocs (phinodes_placement_blocks pid t al
+        (fst (gen_fresh_ids rds exids)) succs preds bs)))
     as Hnodup1.
     rewrite_env
       ((prefix ++ getPhiNodesIDs p ++ getCmdsLocs c) ++
        i1 :: [getTerminatorID t0] ++
-       getBlocksLocs (phinodes_placement_blocks bs pid t al
-         (fst (gen_fresh_ids rds exids)) succs preds)).
+       getBlocksLocs (phinodes_placement_blocks pid t al
+         (fst (gen_fresh_ids rds exids)) succs preds bs)).
     apply NoDup_insert; simpl_env; auto.
 
   assert(~ In i3
      (prefix ++ [i2] ++ getPhiNodesIDs p ++
       getCmdsLocs c ++ [getTerminatorID t0] ++
-      getBlocksLocs (phinodes_placement_blocks bs pid t al
-        (fst (gen_fresh_ids rds exids)) succs preds)))
+      getBlocksLocs (phinodes_placement_blocks pid t al
+        (fst (gen_fresh_ids rds exids)) succs preds bs)))
     as Hnotin4.
     intro G. simpl_env in G.
     apply Hnotin3.
@@ -1524,21 +1530,21 @@ Proof.
   assert (NoDup (prefix ++ [i2] ++
       getPhiNodesIDs p ++ [i3] ++ getCmdsLocs c ++
       [getTerminatorID t0] ++
-      getBlocksLocs (phinodes_placement_blocks bs pid t al
-        (fst (gen_fresh_ids rds exids)) succs preds)))
+      getBlocksLocs (phinodes_placement_blocks pid t al
+        (fst (gen_fresh_ids rds exids)) succs preds bs)))
     as Hnodup2.
     rewrite_env
       ((prefix ++ [i2] ++ getPhiNodesIDs p) ++
         i3 :: getCmdsLocs c ++ [getTerminatorID t0] ++
-        getBlocksLocs (phinodes_placement_blocks bs pid t al
-          (fst (gen_fresh_ids rds exids)) succs preds)).
+        getBlocksLocs (phinodes_placement_blocks pid t al
+          (fst (gen_fresh_ids rds exids)) succs preds bs)).
     apply NoDup_insert; simpl_env; auto.
       simpl.
       rewrite_env
         (prefix ++ i2 :: getPhiNodesIDs p ++
          getCmdsLocs c ++ [getTerminatorID t0] ++
-         getBlocksLocs (phinodes_placement_blocks bs pid t al
-           (fst (gen_fresh_ids rds exids)) succs preds)).
+         getBlocksLocs (phinodes_placement_blocks pid t al
+           (fst (gen_fresh_ids rds exids)) succs preds bs)).
       apply NoDup_insert; auto.
 
   remember (preds ! l0) as R1.
@@ -1554,8 +1560,8 @@ Proof.
             | ret (_ :: _) => [insn_load i1 t (value_id pid) al]
             | merror => nil
             end) t0) ++
-      getBlocksLocs (phinodes_placement_blocks bs pid t al
-        (fst (gen_fresh_ids rds exids)) succs preds)))
+      getBlocksLocs (phinodes_placement_blocks pid t al
+        (fst (gen_fresh_ids rds exids)) succs preds bs)))
     as Hnodup3.
     destruct R2 as [[]|]; simpl; simpl_env; auto.
       rewrite getCmdsLocs_app. simpl. simpl_env. auto.
@@ -1567,8 +1573,8 @@ Proof.
       rewrite_env
         ((prefix ++ [i2] ++ getPhiNodesIDs p) ++
           i3 :: getCmdsLocs c ++ [i1] ++ [getTerminatorID t0] ++
-          getBlocksLocs (phinodes_placement_blocks bs pid t al
-            (fst (gen_fresh_ids rds exids)) succs preds
+          getBlocksLocs (phinodes_placement_blocks pid t al
+            (fst (gen_fresh_ids rds exids)) succs preds bs
         )).
       apply NoDup_insert.
         simpl in Hnodup3.
@@ -1577,8 +1583,8 @@ Proof.
         rewrite_env
          (prefix ++ i2:: getPhiNodesIDs p ++
          getCmdsLocs c ++ [i1] ++ [getTerminatorID t0] ++
-         getBlocksLocs (phinodes_placement_blocks bs pid t al
-           (fst (gen_fresh_ids rds exids)) succs preds)).
+         getBlocksLocs (phinodes_placement_blocks pid t al
+           (fst (gen_fresh_ids rds exids)) succs preds bs)).
         apply NoDup_insert; simpl_env; auto.
           intro G.
           apply Hnotin2.
@@ -1598,42 +1604,48 @@ Proof.
         destruct G as [G | G]; try congruence.
 Qed.
 
+Lemma phinodes_placement__uniqFdef: forall pinfo (Hwfpi: WF_PhiInfo pinfo),
+  uniqFdef (PI_f pinfo) ->
+  uniqFdef (phinodes_placement (PI_rd pinfo) (PI_id pinfo) (PI_typ pinfo)
+             (PI_align pinfo) (PI_succs pinfo) (PI_preds pinfo) (PI_f pinfo)).
+Proof.
+  intros.
+  remember (PI_f pinfo) as E.
+  destruct E as [[fa1 t1 fid1 la1 va1] bs1].
+  simpl.
+  remember (gen_fresh_ids (PI_rd pinfo)
+      (getArgsIDs la1 ++ getBlocksLocs bs1)) as R.
+  destruct R. simpl.
+  destruct Hwfpi as [J1 J2].
+  unfold uniqBlocks in *.
+  destruct H as [[H1 H2] H3].
+  rewrite <- phinodes_placement_blocks__getBlocksLabels; auto.
+  assert (PI_newids pinfo = t) as EQ.
+    unfold PI_newids. rewrite <- HeqE. simpl. rewrite <- HeqR. auto.
+  assert (forall l0 lib pid sid,
+              (PI_newids pinfo) ! l0 = Some (lib, pid, sid) ->
+              lib <> pid /\ lib <> sid /\ pid <> sid) as Hprop1.
+    intros. eapply gen_fresh_ids__spec3; eauto.
+  assert (forall i0,
+              is_temporary i0 (fst (gen_fresh_ids (PI_rd pinfo)
+                 (getArgsIDs la1 ++ getBlocksLocs bs1))) ->
+              ~ In i0 (getArgsIDs la1 ++ getBlocksLocs bs1)) as Hprop2.
+    intros. eapply gen_fresh_ids__spec; eauto.
+  rewrite EQ in Hprop1.
+  rewrite <- HeqR in Hprop2.
+  eapply phinodes_placement_blocks__getBlocksLocs in H3; simpl; eauto.
+  split; eauto.
+  apply NoDup_inv in H3. destruct H3.
+  split; auto.
+Qed.
+
 Lemma fdef_simulation__uniqFdef : forall pinfo f1 f2 (Hwfpi: WF_PhiInfo pinfo),
   uniqFdef f1 -> fdef_simulation pinfo f1 f2 -> uniqFdef f2.
 Proof.
   unfold fdef_simulation.
-  destruct f1 as [[fa1 t1 fid1 la1 va1] bs1],
-           f2 as [[fa2 t2 fid2 la2 va2] bs2].
-  simpl.
   intros.
-  destruct (fdef_dec (PI_f pinfo)
-             (fdef_intro (fheader_intro fa1 t1 fid1 la1 va1) bs1)).
-    remember (gen_fresh_ids (PI_rd pinfo)
-      (getArgsIDs la1 ++ getBlocksLocs bs1)) as R.
-    destruct R. inv H0.
-    destruct Hwfpi as [J1 J2].
-    unfold uniqBlocks in *.
-    destruct H as [[H1 H2] H3].
-    rewrite <- phinodes_placement_blocks__getBlocksLabels; auto.
-    assert (PI_newids pinfo = t) as EQ.
-      unfold PI_newids. rewrite e. simpl. rewrite <- HeqR. auto.
-    assert (forall l0 lib pid sid,
-              (PI_newids pinfo) ! l0 = Some (lib, pid, sid) ->
-              lib <> pid /\ lib <> sid /\ pid <> sid) as Hprop1.
-      intros. eapply gen_fresh_ids__spec3; eauto.
-    assert (forall i0,
-              is_temporary i0 (fst (gen_fresh_ids (PI_rd pinfo)
-                 (getArgsIDs la2 ++ getBlocksLocs bs1))) ->
-              ~ In i0 (getArgsIDs la2 ++ getBlocksLocs bs1)) as Hprop2.
-      intros. eapply gen_fresh_ids__spec; eauto.
-    rewrite EQ in Hprop1.
-    rewrite <- HeqR in Hprop2.
-    eapply phinodes_placement_blocks__getBlocksLocs in H3; simpl; eauto.
-    split; eauto.
-    apply NoDup_inv in H3. destruct H3.
-    split; auto.
-
-    inv H0. auto.
+  destruct_if; auto.
+    apply phinodes_placement__uniqFdef; auto.
 Qed.
 
 Lemma lookup_fdef_sim__block_sim : forall pinfo f1 f2 l0 b2 (Huniq: uniqFdef f1)

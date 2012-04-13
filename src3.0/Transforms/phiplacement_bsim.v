@@ -9,8 +9,8 @@ Require Import mem2reg.
 Require Import opsem_props.
 Require Import promotable_props.
 Require Import palloca_props.
-Require Import program_sim.
 Require Import memory_props.
+Require Import program_sim.
 Require Import trans_tactic.
 Require Import top_sim.
 Require Import phiplacement_bsim_defs.

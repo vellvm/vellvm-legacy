@@ -2701,18 +2701,25 @@ Proof.
 
     Case "vc".
       find_wf_value_list.
-      eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H2; eauto.
-      inv H2.
+      match goal with
+      | H2: wf_value_list _ |- _ =>
+        eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H2; eauto;
+        inv H2
+      end.
       destruct (@const2GV_isnt_stuck (los,nts) s gl vc t0); auto.
       simpl. rewrite H.
-      apply IHps2 in H6.
-        destruct H6 as [RVs H6].
-        rewrite H6. simpl.
-        exists ((i0, x) :: RVs). auto.
+      match goal with
+      | H6: wf_phinodes _ _ _ _ _ |- _ =>
+      apply IHps2 in H6; try solve [
+        destruct H6 as [RVs H6];
+        rewrite H6; simpl;
+        exists ((i0, x) :: RVs); auto |
 
-        destruct Hin as [ps3 Hin]. subst.
-        exists (ps3++[insn_phi i0 t0 l2]).
-        simpl_env. auto.
+        destruct Hin as [ps3 Hin]; subst;
+        exists (ps3++[insn_phi i0 t0 l2]);
+        simpl_env; auto
+      ]
+      end.
 Qed.
 
 Lemma params2GVs_isnt_stuck : forall

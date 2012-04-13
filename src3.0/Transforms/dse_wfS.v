@@ -8,7 +8,6 @@ Require Import opsem_props.
 Require Import primitives.
 Require Import palloca_props.
 Require Import mem2reg.
-Require Import program_sim.
 Require Import top_sim.
 
 Lemma dse_wfS: forall (pinfo:PhiInfo) f pid Ps1 Ps2 los nts

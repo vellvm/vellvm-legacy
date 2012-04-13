@@ -1041,12 +1041,12 @@ Jwf_insn :: '' ::=
 
       % Check typs
       </ system , module , fdef |- valuej : typ // j />
-      typ =t= void \/ isFirstClassTyp typ
+      %   typ =t= void \/ isFirstClassTyp typ
       % Check that the instruction doesn't produce metadata or metadata*. Calls
       % all already checked against the callee type.
-      not typ =t= metadata
+      %   not typ =t= metadata
       % Instructions may not produce pointer to metadata.
-      (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' =t= metadata))
+      %   (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' =t= metadata))
       % Check invariance for instructions
       {{ insnInFdefBlockB [[:user_syntax__insn:id = phi typ </ [ valuej , lj ] // j />]] [[:user_syntax__fdef:fdef]] [[:user_syntax__block:block]] = true }}
       %
@@ -1199,14 +1199,14 @@ Jwf_fdec :: '' ::=
       {{ com [[fdec]] is well-formed w.r.t. [[module]] [[system]] }} by
 
       % inclusion
-      (declare ( fnattrs typ id ( args varg ) ) deckind) in system , (layouts namedts products)
+      (declare fheader deckind) in system , (layouts namedts products)
       % header
-      system , (layouts namedts) |- fnattrs typ id ( args varg )
-      {{ wf_deckind [[( fnattrs typ id ( args varg ) )]] [[deckind]] }}
+      system , (layouts namedts) |- fheader
+      {{ wf_deckind [[ fheader ]] [[deckind]] }}
       %
       % Check invalid linkage type for function declaration
       ------------------------------------------------------------------------------------------ :: wf_fdec_intro
-      system , (layouts namedts products) |-f declare ( fnattrs typ id ( args varg ) ) deckind
+      system , (layouts namedts products) |-f declare fheader deckind
 
 defns
 Jwf_fdef :: '' ::=
@@ -1215,18 +1215,18 @@ Jwf_fdef :: '' ::=
       {{ com [[fdef]] is well-formed w.r.t. [[module]] [[system]] }} by
 
       % inclusion
-      (define ( fnattrs typ id ( args varg ) ) { blocks } ) in system , (layouts namedts products)
+      (define fheader { blocks } ) in system , (layouts namedts products)
       % header
-      system , (layouts namedts) |- fnattrs typ id ( args varg )
+      system , (layouts namedts) |- fheader
       % Check the entry node
       % Entry block to function must not have predecessors!
-      getEntryBlock (define ( fnattrs typ id ( args varg ) ) { blocks }) = block
+      getEntryBlock (define fheader { blocks }) = block
       {{ genBlockUseDef_fdef [[:user_syntax__fdef:define fheader { blocks }]] = [[usedef_block]] }}
       {{ hasNonePredecessor [[:user_syntax__block:block]] [[usedef_block]] = true }}
       % Checking function body
-      system , (layouts namedts products) , define ( fnattrs typ id ( args varg ) ) { blocks } |- blocks
+      system , (layouts namedts products) , define fheader { blocks } |- blocks
       ------------------------------------------------------------------------------------------------------------------- :: wf_fdef_intro
-      system , (layouts namedts products) |-f define ( fnattrs typ id ( args varg ) ) { blocks }
+      system , (layouts namedts products) |-f define fheader { blocks }
 
 defns
 Jwf_g :: '' ::=     % visitGlobalValue

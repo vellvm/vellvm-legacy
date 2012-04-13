@@ -11,7 +11,6 @@ Require Import palloca_props.
 Require Import memory_props.
 Require Import memory_sim.
 Require Import genericvalues_inject.
-Require Import program_sim.
 Require Import trans_tactic.
 Require Import top_sim.
 

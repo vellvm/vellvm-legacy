@@ -11,7 +11,6 @@ Require Import palloca_props.
 Require Import alive_alloca.
 Require Import id_rhs_val.
 Require Import mem2reg.
-Require Import program_sim.
 Require Import memory_props.
 Require Import trans_tactic.
 Require Import top_sim.

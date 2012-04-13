@@ -1173,7 +1173,7 @@ Proof.
         destruct bs as [|b ?]; tinv J.
         destruct b as [l5 ? ? ?]. subst entry.
         unfold successors_list in Hin. simpl in Hin. rewrite ATree.gss in Hin.
-        clear H1 J.
+        clear J.
         exists (index l0::nil). exists (A_ends (index s) (index l0)::nil).
         constructor.
           constructor.
@@ -1353,9 +1353,7 @@ Proof.
              !!! l0) as Hin. rewrite <- HeqR0. simpl; auto.
            unfold DomComplete.predecessors in Hin.
            apply make_predecessors_correct' in Hin.
-           apply successors_blocks__blockInFdefB with (fh:=
-             (fheader_intro fnattrs5 typ5 id5 args5 varg5))
-             in Hin.
+           apply successors_blocks__blockInFdefB with (fh:=fh) in Hin.
            destruct Hin as [ps0 [cs0 [tmn0 [J1 J2]]]].
            eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.
            congruence.
@@ -1947,9 +1945,7 @@ Proof.
              !!! l0) as Hin. rewrite <- HeqR0. simpl; auto.
            unfold DomComplete.predecessors in Hin.
            apply make_predecessors_correct' in Hin.
-           apply successors_blocks__blockInFdefB with (fh:=
-             (fheader_intro fnattrs5 typ5 id5 args5 varg5))
-             in Hin.
+           apply successors_blocks__blockInFdefB with (fh:=fh) in Hin.
            destruct Hin as [ps0 [cs0 [tmn0 [J1 J2]]]].
            eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.
            congruence.
@@ -2770,14 +2766,17 @@ Lemma wf_phinodes__nth_list_value_l__wf_value: forall s m f b ps id1 t1 vls1
 Proof.
   intros.
   eapply wf_phinodes__wf_phinode in Hwfps; eauto. inv Hwfps.
-  clear H10 H11 Hin.
+  match goal with
+  | Hnth: nth_error _ _ = _,
+    H6: forall _:_, In _ _ -> _ |- _ => clear - Hnth H6
+  end.
   generalize dependent vls1.
   induction n as [|n]; simpl; intros; auto.
     destruct vls1 as [|[val l0] vls1]; inv Hnth.
-      apply H2. left. trivial.
+      apply H6. left. trivial.
     destruct vls1 as [|[vla l0] vls1]; inv Hnth.
       apply IHn with vls1; auto.
-      intros v' Hv'. apply H2. right. trivial.
+      intros v' Hv'. apply H6. right. trivial.
 Qed.
 
 Lemma block_in_scope__strict: forall (l' : l) (ps' : phinodes) (cs' : cmds)
