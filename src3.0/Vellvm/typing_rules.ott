@@ -714,13 +714,13 @@ Jwf_insn_base :: '' ::=
       % We dont need to check this in Ott
       %
       % Check that the return value of the instruction is either void or a legal value type.
-      getInsnTyp insn = typ
-      typ =t= void \/ isFirstClassTyp typ
+      %  getInsnTyp insn = typ
+      %  typ =t= void \/ isFirstClassTyp typ
       % Check that the instruction doesn't produce metadata or metadata*. Calls
       % all already checked against the callee type.
-      (not typ =t= metadata) \/ isCallInsn insn
+      %   (not typ =t= metadata) \/ isCallInsn insn
       % Instructions may not produce pointer to metadata.
-      (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' =t= metadata))
+      %   (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' =t= metadata))
       % Check that all uses of the instruction, if they are instructions
       % themselves, actually have parent basic blocks.  If the use is not an
       % instruction, it is an error!

@@ -3240,10 +3240,13 @@ Proof.
     solve_blockInFdefB.
   unfold wf_operand_list.
   remove_irrelevant wf_operand.
-  generalize H8.
-  generalize (getInsnOperands (insn_cmd c0)).
-  clear H8. intros is H. unfold ids in *.
-  solve_forall_like_ind.
+  match goal with
+  | H8: forall _:_, _ -> _ |- _ =>
+    generalize H8;
+    generalize (getInsnOperands (insn_cmd c0));
+    clear H8; intros is H; unfold ids in *;
+    solve_forall_like_ind
+  end.
 Qed.
 
 Lemma c1_in_scope_of_c2__c1_insnDominates_c2: forall (ids1 : list atom)

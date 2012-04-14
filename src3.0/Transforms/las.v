@@ -136,7 +136,7 @@ Proof.
   destruct (LAS_value pinfo lasinfo) as [vid|]; auto.
   find_wf_operand_list.
   match goal with
-  | H5: getInsnOperands (insn_cmd ?c) = _ |- _ =>
+  | H5: getInsnOperands (insn_cmd ?c) = _, H6: wf_operand_list _ |- _ =>
     apply wf_operand_list__elim with (f1:=PI_f pinfo)(b1:=b)
       (insn1:=insn_cmd c) (id1:=vid)
       in H6; try solve [
@@ -145,10 +145,12 @@ Proof.
           [match goal with
            | EQ: ?A = ?B |- In _ ?B => rewrite <- EQ; simpl; auto
            end]
-        ]
+        ];
+    inv H6
   end.
-  inv H6. 
-  destruct H10 as [[block' [H10 G]] | H10]; eauto.
+  match goal with
+  | H10: _ \/ _ |- _ => destruct H10 as [[block' [H10 G]] | H10]; eauto
+  end.
 Qed.
 
 Lemma LAS_value__exists: forall pinfo lasinfo s m 

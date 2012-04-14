@@ -1988,7 +1988,6 @@ Proof.
 Qed.
 
 Lemma WF_PhiInfo_spec22: forall pinfo (Hwfpi : WF_PhiInfo pinfo)
-  (los : layouts) (nts : namedts) (Ps : products)  
   (HUniq: uniqFdef (PI_f pinfo)),
   exists l0, exists ps0, exists cs1, exists cs2, exists tmn0,
     getEntryBlock (PI_f pinfo) = 

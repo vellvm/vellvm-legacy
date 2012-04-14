@@ -425,14 +425,22 @@ Proof.
     rewrite <- pres_genBlockUseDef_block; auto.
 Qed.
 
+Lemma pres_genBlockUseDef_fdef : forall f,
+  genBlockUseDef_fdef f =
+  genBlockUseDef_fdef (pass.(ftrans) f).
+Proof.
+  destruct f as [fh bs]. ftrans_spec_tac. simpl.
+  rewrite <- pres_genBlockUseDef_blocks. auto.
+Qed.
+
 Lemma pres_hasNonePredecessor : forall f b
   (Hnpred : hasNonePredecessor b (genBlockUseDef_fdef f) = true),
   hasNonePredecessor (pass.(btrans) b)
     (genBlockUseDef_fdef (pass.(ftrans) f)) = true.
 Proof.
   unfold hasNonePredecessor. unfold predOfBlock.
-  intros. destruct f as [fh bs]. ftrans_spec_tac. simpl.
-  rewrite <- pres_genBlockUseDef_blocks.
+  intros. 
+  rewrite <- pres_genBlockUseDef_fdef.
   rewrite <- pass.(btrans_eq_label). auto.
 Qed.
 

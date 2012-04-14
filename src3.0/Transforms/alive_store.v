@@ -276,6 +276,8 @@ Local Opaque isReachableFromEntry.
   apply destruct_insnInFdefBlockB in H0'. destruct H0' as [HcInB HcInF].
   rewrite <- EQ1 in *.
   find_wf_operand_list.
+  match goal with
+  | H4: wf_operand_list _, H1: getCmdID _ = _ |- _ =>
   eapply any_cmd_doesnt_use_following_operands 
     with (c1:=insn_store SI_id0 (PI_typ pinfo) SI_value0
                  (value_id (PI_id pinfo)) SI_align0)
@@ -284,16 +286,17 @@ Local Opaque isReachableFromEntry.
     (cs:=SI_cs1 ++
              insn_store SI_id0 (PI_typ pinfo) SI_value0
                (value_id (PI_id pinfo)) (SI_align0) :: 
-             csa ++ c :: cs)(tmn1:=SI_tmn0) in H8; eauto 1.
-    clear - H8 H1.
-    rewrite getCmdID__getCmdLoc with (id0:=id0) in H8; auto.
-    destruct SI_value0 as [i0|].
-      simpl in H8. simpl. 
-      destruct (id_dec i0 id0); subst.
-        tauto.
-        destruct (id_dec id0 (PI_id pinfo)); subst; auto.
-      simpl in H8. simpl. 
-      destruct (id_dec id0 (PI_id pinfo)); subst; auto.
+             csa ++ c :: cs)(tmn1:=SI_tmn0) in H4; eauto 1;
+    clear - H4 H1;
+    rewrite getCmdID__getCmdLoc with (id0:=id0) in H4; auto;
+    destruct SI_value0 as [i0|]; simpl in H4; simpl; try solve [
+      destruct (id_dec i0 id0); subst; try solve [
+        tauto |
+        destruct (id_dec id0 (PI_id pinfo)); subst; auto
+      ] |
+      destruct (id_dec id0 (PI_id pinfo)); subst; auto
+    ]
+  end.
 Qed.
 
 Lemma alive_store_doesnt_use_its_followers: forall l1 ps1 cs1' c cs tmn 

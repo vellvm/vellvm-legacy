@@ -2778,8 +2778,7 @@ Qed.
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     list (value * l) -> Prop :=
 | wf_phi_operands_nil : wf_phi_operands f b id0 t0 nil
-| wf_phi_operands_cons_vid : forall vid1 l1 vls b1 vb,
-    lookupBlockViaIDFromFdef f vid1 = Some vb ->
+| wf_phi_operands_cons_vid : forall vid1 l1 vls b1,
     lookupBlockViaLabelFromFdef f l1 = Some b1 ->
     ((exists vb, lookupBlockViaIDFromFdef f vid1 = Some vb /\ 
        (blockDominates f vb b1 \/ not (isReachableFromEntry f b))) \/ 
