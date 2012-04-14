@@ -1771,7 +1771,10 @@ Proof.
   decide equality.
   decide equality.
   apply value_dec.
-  apply eq_nat_dec.
+  apply Size.dec. (* eq_nat_dec works for the proofs, but on extraction,
+                     we want to map sz into int, and Size.dec to int cmp in OCaml.
+                     eq_nat_dec wont be changed on extraction. So, we should use
+                     Size.dec here. *)
 Qed.
 
 Lemma callconv_dec : forall (cc1 cc2:callconv), {cc1=cc2}+{~cc1=cc2}.

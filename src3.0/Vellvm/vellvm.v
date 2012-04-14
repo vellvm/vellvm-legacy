@@ -7,6 +7,7 @@ Require Export events.
 Require Export Memory.
 Require Export Metatheory.
 Require Export Znumtheory.
+Require Export datatype_base.
 Require Import syntax.
 Require Import infrastructure.
 Require Export analysis.

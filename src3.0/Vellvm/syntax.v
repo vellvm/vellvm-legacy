@@ -12,6 +12,7 @@ Require Import ZArith.
 Require Import Coqlib.
 Require Import Floats.
 Require Import alist.
+Require Export datatype_base.
 Require Import syntax_base.
 
 

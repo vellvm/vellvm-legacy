@@ -218,7 +218,8 @@ Qed.
 
 Lemma getPointerAlignmentInfo_pos: forall los, 
  (getPointerAlignmentInfo los true > 0)%nat.
-Admitted. (* Typing should check this on the top *)
+Admitted. (* Typing should check this on the top, wf_insn_base should 
+             ensure insn's typ is well-formed. *)
 
 Lemma wf_typ_pointer: forall S td t (Hwft: wf_typ S td t),
   wf_typ S td (typ_pointer t).
@@ -733,6 +734,8 @@ Hypothesis (Hwfpi: WF_PhiInfo pinfo)
 Lemma phinodes_placement_lookupTypViaIDFromFdef: forall id0 t
   (Hlkty: lookupTypViaIDFromFdef (PI_f pinfo) id0 = Some t),
   lookupTypViaIDFromFdef f' id0 = Some t.
+
+
 Admitted.
 
 Lemma phinodes_placement_wf_const : forall c t
@@ -848,12 +851,6 @@ Proof.
   inv EQ. auto.
 Qed.
 
-Lemma phinodes_placement_lookupBlockViaLabelFromFdef: forall l0 b,
-  lookupBlockViaLabelFromFdef (PI_f pinfo) l0 = Some b ->
-  lookupBlockViaLabelFromFdef (phinodes_placement_f pinfo (PI_f pinfo)) l0 
-    = Some (phinodes_placement_blk pinfo b).
-Admitted.
-
 Lemma phinodes_placement_wf_trunc : forall b b' 
   (Heqb': b' = phinodes_placement_blk pinfo b) instr
   (HwfI : wf_trunc [M] M (PI_f pinfo) b instr),
@@ -909,7 +906,8 @@ Proof.
   destruct Hwfps as [b1 [J1 Hwfps]].
   exists (phinodes_placement_blk pinfo b1).
   split.
-    apply phinodes_placement_lookupBlockViaLabelFromFdef; auto.
+    fold_PhiPlacement_tac.
+    apply TransCFG.pres_lookupBlockViaLabelFromFdef; auto.
 
     destruct Hwfps as [[b0 [J2 Hwfps]] | J3]; auto.
     left.
@@ -965,7 +963,7 @@ Proof.
 Ltac phinodes_placement_wf_insn_tac :=
 repeat match goal with
 | H1 : lookupBlockViaLabelFromFdef (PI_f pinfo) _ = ret _ |- _ =>
-  apply phinodes_placement_lookupBlockViaLabelFromFdef in H1
+  apply (@TransCFG.pres_lookupBlockViaLabelFromFdef (PhiPlacement pinfo)) in H1
 | H1 : context [Function.getDefReturnType (PI_f pinfo)] |- _ =>
   rewrite <- phinodes_placement_getDefReturnType in H1
 | |- context [Function.getDefReturnType (PI_f pinfo)] =>

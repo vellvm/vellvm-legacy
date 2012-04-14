@@ -67,6 +67,7 @@
 ./Vellvm/opsem.v
 ./Vellvm/opsem_wf.v
 ./Vellvm/static.v
+./Vellvm/datatype_base.v
 ./Vellvm/syntax_base.v
 ./Vellvm/syntax.v
 ./Vellvm/targetdata_props.v

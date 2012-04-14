@@ -6,6 +6,7 @@ LNGEN = lngen  # optional
 
 RELEASE = $(HOME)/src/vol
 METALIB = $(RELEASE)/theory/metatheory_8.3
-LLVM_LIB = $(HOME)/Tools/llvm-3.0/lib/
+LLVM = $(HOME)/Tools/llvm-3.0/
+LLVM_LIB = $(LLVM)/lib/
 LLVM_OCAML_LIB = $(LLVM_LIB)/ocaml/
 EXTRACTION_LIB = $(RELEASE)/vol/src3.0/Extraction/_build/

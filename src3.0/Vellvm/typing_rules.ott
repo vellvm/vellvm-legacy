@@ -82,7 +82,7 @@ formula :: 'formula_' ::=
 				{{ tex [[block1]] = [[block2]] }}
 				{{ coq [[block1]] = [[block2]] }}
   | int1			::   :: intone
-       	 			{{ coq [[typ_int Size.One]] }}
+       	 			{{ coq (typ_int Size.One) }}
   | sz = 1			::   :: isOne
        	 			{{ coq [[sz]] = Size.One }}
   | typ = i32	        	::   :: thirtyTwoInt
@@ -1160,7 +1160,7 @@ defns
 Jwf_fheader :: '' ::=
       defn
       system , targetdata |- fheader :: :: wf_fheader :: ''
-      {{ com [[fdeader]] is well-formed w.r.t. [[system]] [[targetdata]] }} by
+      {{ com [[fheader]] is well-formed w.r.t. [[system]] [[targetdata]] }} by
 
       % Check function arguments.
       args <-> </ (typj attributesj idj) // j />
