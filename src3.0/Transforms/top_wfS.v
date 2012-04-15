@@ -1,65 +1,5 @@
 Require Import vellvm.
 
-Ltac destruct_in H :=
-match type of H with
-| In _ [_] => simpl in H; destruct H as [H | H]; subst; try tauto
-| In _ (_::_) => simpl in H; destruct H as [H | H]; subst; try tauto
-| In _ (_++_) => apply in_app_or in H; destruct H as [H | H]
-end.
-
-Lemma wf_prods_elim: forall (prod:product) S md prods 
-  (Hwfps: wf_prods S md prods) (Hin: In prod prods), 
-  wf_prod S md prod.
-Proof.
-  induction 1; intros; try tauto.
-    destruct_in Hin; auto.
-Qed.    
-
-Ltac xsolve_in_list :=
-match goal with
-| |- In ?a (_++_) =>
-  apply in_or_app;
-  first [left; solve [xsolve_in_list] | right; solve [xsolve_in_list]]
-| |- In ?a (_::_) =>
-  simpl;
-  first [left; solve [auto] | right; solve [xsolve_in_list]]
-| |- In ?a _ => solve_in_list || auto
-end.
-
-Lemma wf_prods_intro: forall S md prods 
-  (H: forall (prod:product) (Hin: In prod prods), wf_prod S md prod),
-  wf_prods S md prods.
-Proof.
-  induction prods; intros.
-    constructor.
-    constructor.
-      apply IHprods. intros.
-      apply H. xsolve_in_list.
-
-      apply H. xsolve_in_list.
-Qed.    
-
-Lemma wf_modules_elim: forall (md:module) S mds 
-  (Hwfms: wf_modules S mds) (Hin: In md mds), 
-  wf_module S md.
-Proof.
-  induction 1; intros; try tauto.
-    destruct_in Hin; auto.
-Qed.
-
-Lemma wf_modules_intro: forall S mds 
-  (H: forall (md:module) (Hin: In md mds), wf_module S md),
-  wf_modules S mds.
-Proof.
-  induction mds; intros.
-    constructor.
-    constructor.
-      apply H. xsolve_in_list.
-
-      apply IHmds. intros.
-      apply H. xsolve_in_list.
-Qed.    
-
 Lemma subst_module_preserves_uniqModules: forall Ms2 M M'
   (HuniqM': uniqModule M') Ms1 
   (HuniqMs: uniqModules (Ms1 ++ M :: Ms2)),
@@ -68,42 +8,12 @@ Proof.
   induction Ms1; simpl; intros; inv HuniqMs; constructor; auto.
 Qed.
 
-Lemma uniqModules_elim: forall M Ms (Hin: In M Ms) (Huniq: uniqModules Ms),
-  uniqModule M.
-Proof.
-  induction Ms; simpl; intros.
-    tauto.
-    destruct Hin as [Hin | Hin]; subst; tauto.
-Qed.
-
-(* The following independency lemmas do not mean the rules are over-stated
-   When we extend the rules to support multiple modules, we need to find 
-   type names from other modules in systems. Then, we should strengthen the
-   lemmas to check if the signatures in the two systems match.
-*)
-Lemma wf_styp_independent: forall (sys1 sys2 : system) (td: targetdata)
-  (t: typ) (Hwft: wf_styp sys1 td t), wf_styp sys2 td t.
-Proof.
-  induction 1; try solve [constructor; auto].
-Qed.
-
-Lemma noncycled_independent : forall (sys1 sys2 : system) los nts
-  (Hnclc: noncycled sys1 los nts), noncycled sys2 los nts.
-Proof.
-  induction 1; constructor; auto.
-    eapply wf_styp_independent. eauto.
-Qed.
-
-Lemma wf_namedts_independent :
-  forall (sys1 sys2 : system) (p : layouts * namedts),
-    wf_namedts sys1 p -> wf_namedts sys2 p.
-Proof.
-  intros sys1 sys2 p Hwf. destruct p as [los nts].
-  inversion Hwf as [? ? ? Hnts Htarget]. subst.
-  constructor; trivial. clear Hwf Htarget.
-
-  eapply noncycled_independent. eauto.
-Qed.
+Ltac inv_module_intro :=
+match goal with
+| H1 : module_intro ?layouts5 ?namedts5 ?products5 =
+       module_intro ?los ?nts ?ps |- _ => inv H1
+| _ => idtac
+end.
 
 Module TopWFS.
 
@@ -161,12 +71,95 @@ Qed.
 
 End Uniqness.
 
-Section SubstFdefWF.
+Section EqSig.
 
-Variable (f f':fdef).
-Hypothesis (Heq_fheader: fheaderOfFdef f = fheaderOfFdef f').
+Definition eq_product_sig (prod1 prod2: product) : Prop :=
+match prod1, prod2 with
+| product_gvar g1, product_gvar g2 => g1 = g2
+| product_fdec f1, product_fdec f2 => f1 = f2
+| product_fdef f1, product_fdef f2 => fheaderOfFdef f1 = fheaderOfFdef f2
+| _, _ => False
+end.
 
-(* This lemma is provable. But it shows a bug in the typing. 
+Definition eq_module_sig (m1 m2: module) : Prop :=
+let '(module_intro los1 nts1 ps1) := m1 in 
+let '(module_intro los2 nts2 ps2) := m2 in
+los1 = los2 /\ nts1 = nts2 /\ List.Forall2 eq_product_sig ps1 ps2.
+
+Definition eq_system_sig (s1 s2: system) : Prop :=
+List.Forall2 eq_module_sig s1 s2.
+
+Lemma eq_product_sig_refl: forall P, eq_product_sig P P.
+Proof.
+  unfold eq_product_sig.
+  destruct P; auto.
+Qed.
+
+Lemma eq_products_sig_refl: forall Ps, Forall2 eq_product_sig Ps Ps.
+Proof.
+  induction Ps; auto.
+    constructor; auto.
+      apply eq_product_sig_refl.
+Qed.
+
+Lemma eq_module_sig_refl: forall M, eq_module_sig M M.
+Proof.
+  destruct M as [? ? Ps].
+  split; auto.
+  split; auto.
+    induction Ps; auto.
+      apply eq_products_sig_refl.
+Qed. 
+
+Lemma eq_system_sig_refl: forall S, eq_system_sig S S.
+Proof.
+  induction S.
+    constructor.
+
+    constructor; auto.
+      apply eq_module_sig_refl.
+Qed.
+
+Lemma eqsig_lookupTypViaGIDFromProduct: forall id5 P1 P2
+  (Heq: eq_product_sig P1 P2),
+  lookupTypViaGIDFromProduct P1 id5 = lookupTypViaGIDFromProduct P2 id5.
+Proof.
+  intros.
+  destruct P1, P2; inv Heq; auto.
+Qed.
+
+Lemma eqsig_lookupTypViaGIDFromProducts: forall id5 Ps1 Ps2
+  (Heq: List.Forall2 eq_product_sig Ps1 Ps2),
+  lookupTypViaGIDFromProducts Ps1 id5 = lookupTypViaGIDFromProducts Ps2 id5.
+Proof.
+  induction 1; simpl in *; auto.
+    rewrite IHHeq.
+    erewrite eqsig_lookupTypViaGIDFromProduct; eauto.
+Qed.
+
+Lemma eqsig_lookupTypViaGIDFromModule: forall id5 M1 M2
+  (Heq: eq_module_sig M1 M2),
+  lookupTypViaGIDFromModule M1 id5 = lookupTypViaGIDFromModule M2 id5.
+Proof.
+  destruct M1, M2. simpl.
+  intros.
+  erewrite eqsig_lookupTypViaGIDFromProducts; eauto.
+    tauto.
+Qed.
+
+Lemma eqsig_lookupTypViaGIDFromSystem: forall S1 S2
+  (Heq: eq_system_sig S1 S2) id5,
+  lookupTypViaGIDFromSystem S1 id5 = lookupTypViaGIDFromSystem S2 id5.
+Proof.
+  induction 1; simpl in *; intros; auto.
+    rewrite IHHeq.
+    erewrite eqsig_lookupTypViaGIDFromModule; eauto.
+Qed.
+
+Variable (M M':module) (S S':system).
+Hypothesis (HeqM: eq_module_sig M M') (HeqS: eq_system_sig S S').
+
+(* These lemmas are provable. But it shows a bug in the typing. 
    The wf_const_gid rule does not look up types of functions!!
 
    The second issue is that in all the rules, module is completely 
@@ -181,120 +174,422 @@ Hypothesis (Heq_fheader: fheaderOfFdef f = fheaderOfFdef f').
    that only takes the signatures of products, rather than the entire 
    definitions, then the following lemma is trivial!
 *)
-Lemma subst_fdef_preserves_wf_the_prod: forall M M' los nts Ps1 Ps2 Ms1 
-  Ms2 prod (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
-  (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
-  (HwfPs: wf_prod (Ms1 ++ M :: Ms2) M prod) 
-  (Hin: In prod Ps1 \/ In prod Ps2),
-  wf_prod (Ms1 ++ M' :: Ms2) M' prod.
-Admitted. (* need to fix typing *)
+(* The following independency lemmas do not mean the rules are over-stated
+   When we extend the rules to support multiple modules, we need to find 
+   type names from other modules in systems. Then, we should strengthen the
+   lemmas to check if the signatures in the two systems match.
+*)
+Lemma eqsig_wf_styp: forall (td: targetdata)
+  (t: typ) (Hwft: wf_styp S td t), wf_styp S' td t.
+Proof.
+  induction 1; try solve [constructor; auto].
+Qed.
 
-Lemma subst_fdef_preserves_wf_other_prod: forall M M' los nts Ps1 Ps2 Ms1 
-  Ms2 prod (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
-  (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
-  md (HwfPs: wf_prod (Ms1 ++ M :: Ms2) md prod) 
-  (Hin: In md Ms1 \/ In md Ms2),
-  wf_prod (Ms1 ++ M' :: Ms2) md prod.
-Admitted. (* need to fix typing, See subst_fdef_preserves_wf_the_prod *)
+Lemma eqsig_noncycled : forall los nts
+  (Hnclc: noncycled S los nts), noncycled S' los nts.
+Proof.
+  intros.
+  assert (J:=eqsig_wf_styp).
+  induction Hnclc; constructor; auto.
+Qed.
 
-Lemma subst_fdef_preserves_wf_other_module: forall los nts Ps2 
-  Ms1 Ms2 Ps1 S S' M M'
-  (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
-  (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
-  (HeqS: S = Ms1 ++ M :: Ms2) (HeqS': S' = Ms1 ++ M' :: Ms2) md
-  (Hin: In md Ms1 \/ In md Ms2) (HwfS : wf_module S md), 
+Lemma eqsig_wf_namedts :
+  forall (p : layouts * namedts), wf_namedts S p -> wf_namedts S' p.
+Proof.
+  intros p Hwf. destruct p as [los nts].
+  inversion Hwf as [? ? ? Hnts Htarget]. subst.
+  constructor; trivial. clear Hwf Htarget.
+
+  eapply eqsig_noncycled. eauto.
+Qed.
+
+Lemma eqsig_wf_typ: forall (td: targetdata)
+  (t: typ) (Hwft: wf_typ S td t), wf_typ S' td t.
+Proof.
+  intros.
+  inv Hwft.
+  constructor; eauto using eqsig_wf_styp, eqsig_noncycled.
+Qed.
+
+Lemma eqsig_wf_const : forall td c t
+  (Hwfc: wf_const S td c t),
+  wf_const S' td c t.
+Proof.
+  intros.
+  assert (J3:=@eqsig_wf_typ).
+  assert (J4:=@eqsig_lookupTypViaGIDFromSystem S S' HeqS).
+  induction Hwfc; subst; try solve 
+    [econstructor; try solve [eauto 3 | rewrite <- J4; auto]].
+Qed.
+
+Ltac inv_eq_module_sig :=
+destruct M, M'; destruct HeqM as [EQ1 [EQ2 HeqM']]; subst.
+
+Lemma eqsig_wf_value : forall f v t
+  (Hwfv: wf_value S M f v t),
+  wf_value S' M' f v t.
+Proof.
+  intros.
+  assert (J1:=eqsig_wf_const).
+  inv_eq_module_sig.
+  inv Hwfv; uniq_result;
+    constructor; eauto using eqsig_wf_typ.
+Qed.
+
+Ltac solve_eqsig_wf_cmd HwfI :=
+  intros;
+  assert (J2:=eqsig_wf_value);
+  assert (J3:=@eqsig_wf_typ);
+  inv_eq_module_sig;
+  inv HwfI; uniq_result; try solve [
+    econstructor; eauto 3
+  ].
+
+Lemma eqsig_wf_trunc : forall f b instr
+  (HwfI : wf_trunc S M f b instr),
+  wf_trunc S' M' f b instr.
+Proof. solve_eqsig_wf_cmd HwfI. Qed.
+
+Lemma eqsig_wf_ext : forall f b instr
+  (HwfI : wf_ext S M f b instr),
+  wf_ext S' M' f b instr.
+Proof. solve_eqsig_wf_cmd HwfI. Qed.
+
+Lemma eqsig_wf_cast : forall f b instr
+  (HwfI : wf_cast S M f b instr),
+  wf_cast S' M' f b instr.
+Proof. solve_eqsig_wf_cmd HwfI. Qed.
+
+Lemma eqsig_wf_insn: forall f b instr
+  (Hwf : wf_insn S M f b instr), wf_insn S' M' f b instr.
+Proof.
+  intros.
+  assert (J2:=eqsig_wf_value).
+  assert (J3:=@eqsig_wf_typ);
+  assert (J4:=eqsig_wf_const).
+  assert (J5:=@eqsig_wf_trunc f b instr).
+  assert (J6:=@eqsig_wf_ext f b instr).
+  assert (J7:=@eqsig_wf_cast f b instr).
+  inv_eq_module_sig.
+  inv Hwf; uniq_result; try solve [
+    econstructor; eauto 3
+  ].
+Qed.
+
+Lemma eqsig_wf_cmds: forall f b cs
+  (Hwf : wf_cmds S M f b cs), wf_cmds S' M' f b cs.
+Proof.
+  intros.
+  induction cs; intros.
+    constructor.
+
+    inversion Hwf.
+    econstructor; eauto using eqsig_wf_insn.
+Qed.
+
+Lemma eqsig_wf_phinodes: forall f b ps
+  (Hwf : wf_phinodes S M f b ps), wf_phinodes S' M' f b ps.
+Proof.
+  intros.
+  induction ps; intros.
+    constructor.
+
+    inversion Hwf.
+    econstructor; eauto using eqsig_wf_insn.
+Qed.
+
+Lemma eqsig_wf_block: forall f b
+  (HfInSM: productInSystemModuleB (product_fdef f) S' M' = true)
+  (Hwf : wf_block S M f b), wf_block S' M' f b.
+Proof.
+  intros.
+  assert (J1:=eqsig_wf_phinodes).
+  assert (J2:=eqsig_wf_cmds).
+  assert (J3:=eqsig_wf_insn).
+  inv Hwf.
+  constructor; auto.
+    destruct M. destruct M'.
+    apply blockInSystemModuleFdef_inv in H.
+    apply productInSystemModuleB_inv in HfInSM.
+    apply blockInSystemModuleFdef_intro; tauto.
+Qed.
+
+Lemma eqsig_wf_blocks: forall f bs
+  (HfInSM: productInSystemModuleB (product_fdef f) S' M' = true)
+  (Hwf : wf_blocks S M f bs), wf_blocks S' M' f bs.
+Proof.
+  intros.
+  assert (J1:=eqsig_wf_block).
+  induction Hwf.
+    constructor.
+    econstructor; eauto 2.
+Qed.
+
+Lemma eqsig_wf_gvar: forall gvar5
+  (Hwf : wf_gvar S M gvar5), wf_gvar S' M' gvar5.
+Proof.
+  intros.
+  inv_eq_module_sig.
+  inv Hwf. 
+  constructor; auto.
+    eapply eqsig_wf_const; eauto.
+Qed.
+
+Lemma eqsig_wf_fheader: forall fheader5 td
+  (Hwfh: wf_fheader S td fheader5),
+  wf_fheader S' td fheader5.
+Proof.
+  intros.
+  inv Hwfh.
+  econstructor; eauto.
+    intros t0 Hint0.
+    apply H0 in Hint0.
+    eapply eqsig_wf_typ; eauto.
+Qed.
+
+Lemma eqsig_wf_fdec: forall fdec5
+  (Hin': productInSystemModuleB (product_fdec fdec5) S' M' = true)
+  (Hwf : wf_fdec S M fdec5), wf_fdec S' M' fdec5.
+Proof.
+  intros.
+  assert (J2:=eqsig_wf_fheader).
+  inv_eq_module_sig.
+  inv Hwf. 
+  constructor; eauto 2.
+Qed.
+
+Lemma eqsig_wf_fdef: forall fdef5
+  (Hin': productInSystemModuleB (product_fdef fdef5) S' M' = true)
+  (Hwf : wf_fdef S M fdef5), wf_fdef S' M' fdef5.
+Proof.
+  intros.
+  assert (J2:=eqsig_wf_fheader).
+  assert (J3:=eqsig_wf_blocks).
+  inv_eq_module_sig.
+  inv Hwf. 
+  econstructor; eauto 2.
+Qed.
+
+Lemma eqsig_wf_prod: forall prod 
+  (HwfP: wf_prod S M prod)
+  (Hin': productInSystemModuleB prod S' M' = true),
+  wf_prod S' M' prod.
+Proof.
+  intros.
+  assert (J1:=eqsig_wf_gvar).
+  assert (J2:=eqsig_wf_fdec).
+  assert (J3:=eqsig_wf_fdef).
+  inv HwfP; try solve [constructor; try solve [eauto | constructor]].
+Qed.
+
+End EqSig.
+
+Section SubstFdefWF.
+
+Variable (f f':fdef) (M M':module) (los:layouts) (nts:namedts) (Ps1 Ps2:products)
+         (Ms1 Ms2:modules) (S S':system).
+Hypothesis (Heq_fheader: fheaderOfFdef f = fheaderOfFdef f')
+           (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
+           (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
+           (HeqS: S = Ms1 ++ M :: Ms2) (HeqS': S' = Ms1 ++ M' :: Ms2) 
+           .
+
+Lemma subst_fdef_eq_module_sig: eq_module_sig M M'.
+Proof.
+  subst.
+  split; auto.
+  split; auto.
+    induction Ps1.
+      constructor; auto.
+        apply eq_products_sig_refl.
+      constructor; auto.
+        apply eq_product_sig_refl.
+Qed.
+
+Lemma subst_fdef_eq_system_sig: eq_system_sig S S'.
+Proof.
+  assert (J1:=subst_fdef_eq_module_sig).
+  subst.
+  induction Ms1.
+    constructor; auto.
+      apply eq_system_sig_refl.
+    constructor; auto.
+      apply eq_module_sig_refl.
+Qed.
+
+Lemma subst_fdef_InSystemModuleB:
+  productInSystemModuleB (product_fdef f') S' M'.
+Proof.
+  intros.
+  subst.
+  apply productInSystemModuleB_intro.
+    apply InProductsB_middle.
+    apply moduleInSystem_middle.
+Qed.  
+
+Lemma subst_fdef_preserves_wf_typ: forall (td: targetdata)
+  (t: typ) (Hwft: wf_typ S td t), wf_typ S' td t.
+Proof.
+  intros.
+  eapply eqsig_wf_typ; eauto using subst_fdef_eq_system_sig.
+Qed.
+
+Lemma subst_fdef_preserves_wf_const : forall td c t
+  (Hwfc: wf_const S td c t),
+  wf_const S' td c t.
+Proof.
+  intros.
+  eapply eqsig_wf_const; eauto using subst_fdef_eq_system_sig.
+Qed.
+
+Lemma subst_fdef_preserves_wf_value : forall f v t
+  (Hwfv: wf_value S M f v t),
+  wf_value S' M' f v t.
+Proof.
+  intros.
+  eapply eqsig_wf_value; 
+    eauto using subst_fdef_eq_system_sig, subst_fdef_eq_module_sig.
+Qed.
+
+Lemma subst_fdef_preserves_wf_other_module: forall md
+  (Hin': moduleInSystemB md S' = true)
+  (HwfS : wf_module S md), 
   wf_module S' md.
 Proof.
-  intros. subst.
+  intros. 
+  assert (Ja:=subst_fdef_eq_system_sig).
+  assert (J:=eqsig_wf_prod).
+  assert (J4:=eq_module_sig_refl md).
+  subst.
   inv HwfS.
   constructor.
-    eapply wf_namedts_independent; eauto.
+    eapply eqsig_wf_namedts; eauto.
 
-    destruct Hin as [Hin | Hin]; xsolve_in_list.
+    apply InModulesB_In. auto.
 
     apply wf_prods_intro.
       intros.
       eapply wf_prods_elim with (prod:=prod) in H1; eauto.
-        eapply subst_fdef_preserves_wf_other_prod; eauto. 
+      eapply J; eauto 1.
+      apply productInSystemModuleB_intro'; auto.
+        apply In_InProductsB. auto.
 Qed.
 
-Lemma subst_fdef_preserves_wf_the_module: forall los nts Ps2 
-  Ms1 Ms2 Ps1 S S' M M'
-  (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
-  (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
-  (HeqS: S = Ms1 ++ M :: Ms2) (HeqS': S' = Ms1 ++ M' :: Ms2) 
-  (HwfF': wf_fdef (Ms1 ++ M' :: Ms2) M' f') (HwfS : wf_module S M),
+Lemma subst_fdef_preserves_wf_the_module: forall 
+  (Hin': moduleInSystemB M' S' = true)
+  (HwfF': wf_fdef S' M' f') (HwfS : wf_module S M),
   wf_module S' M'.
 Proof.
-  intros. subst.
+  intros. 
+  assert (Ja:=subst_fdef_eq_system_sig).
+  assert (Jb:=subst_fdef_eq_module_sig).
+  assert (J:=eqsig_wf_prod).
+  subst.
   inv HwfS.
   constructor.
-    eapply wf_namedts_independent; eauto.
+    eapply eqsig_wf_namedts; eauto.
 
     solve_in_list.
 
     apply wf_prods_intro.
       intros.
-
+      assert (Hin0: 
+        productInSystemModuleB prod 
+          (Ms1 ++
+            module_intro los nts (Ps1 ++ product_fdef f' :: Ps2) :: Ms2)
+          (module_intro los nts (Ps1 ++ product_fdef f' :: Ps2)) = true).
+        apply productInSystemModuleB_intro'.
+          apply In_InProductsB. auto.
+          apply moduleInSystem_middle.
       destruct_in Hin.
         eapply wf_prods_elim with (prod:=prod) in H5; eauto.
-          eapply subst_fdef_preserves_wf_the_prod; eauto. 
           xsolve_in_list.
       destruct_in Hin.
         constructor; auto.
           constructor.
-
         eapply wf_prods_elim with (prod:=prod) in H5; eauto.
-          eapply subst_fdef_preserves_wf_the_prod; eauto.
           xsolve_in_list.
 Qed.
 
-Lemma subst_fdef_preserves_wf_system: forall los nts Ps2 
-  Ms1 Ms2 Ps1 S S' M M'
-  (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
-  (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
-  (HeqS: S = Ms1 ++ M :: Ms2) (HeqS': S' = Ms1 ++ M' :: Ms2) 
-  (HwfF': wf_fdef (Ms1 ++ M' :: Ms2) M' f') (Huniqf': uniqFdef f') 
+Lemma subst_fdef_preserves_wf_system: forall 
+  (HwfF': wf_fdef S' M' f') (Huniqf': uniqFdef f') 
   (HwfS : wf_system S),
   wf_system S'.
 Proof.
   intros.
+  assert (Ja:=subst_fdef_eq_system_sig).
+  assert (Jb:=subst_fdef_eq_module_sig).
+  assert (J:=subst_fdef_preserves_wf_other_module).
+  assert (J':=subst_fdef_preserves_wf_the_module).
   inv HwfS.
   constructor.
     apply wf_modules_intro.
       intros.
+      assert (Hin': moduleInSystemB md
+        (Ms1 ++ module_intro los nts (Ps1 ++ product_fdef f' :: Ps2) :: Ms2) 
+        = true).
+        unfold moduleInSystemB.
+        apply In_InModulesB; auto.        
       destruct_in Hin.
         eapply wf_modules_elim with (md:=md) in H; eauto.
-          eapply subst_fdef_preserves_wf_other_module in H; eauto. 
           xsolve_in_list.
       destruct_in Hin.
         eapply wf_modules_elim 
           with (md:=module_intro los nts (Ps1 ++ product_fdef f :: Ps2)) 
           in H; eauto.
-          eapply subst_fdef_preserves_wf_the_module in H; eauto. 
         solve_in_list.
 
         eapply wf_modules_elim with (md:=md) in H; eauto.
-          eapply subst_fdef_preserves_wf_other_module in H; eauto. 
           xsolve_in_list.
     eapply subst_fdef_preserves_uniqSystem in H0; eauto.
 Qed.
 
-Lemma subst_fdef_preserves_wf_single_module: forall los nts M M' Ps1 Ps2
-  (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
-  (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
-  (HwfF': wf_fdef [M'] M' f') (Huniqf': uniqFdef f') 
-  (HwfS : wf_system [M]), wf_system [M'].
-Proof.
-  intros. subst.
+End SubstFdefWF.
+
+Section SubstFdefSingleWF.
+
+Variable (f f':fdef) (M M':module) (los:layouts) (nts:namedts)(Ps1 Ps2:products).
+Hypothesis (Heq_fheader: fheaderOfFdef f = fheaderOfFdef f')
+           (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
+           (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2)).
+
+Ltac spa_ctx :=
   repeat match goal with
   | |- context [ [?A ] ] => rewrite_env (nil ++ A :: nil)
   | H:context [ [?A ] ] |- _ => rewrite_env (nil ++ A :: nil) in H
-  end.
+  end. 
+
+Lemma subst_fdef_preserves_single_wf_typ: forall 
+  (t: typ) (Hwft: wf_typ [M] (los,nts) t), wf_typ [M'] (los,nts) t.
+Proof.
+  intros. spa_ctx.
+  eapply subst_fdef_preserves_wf_typ; eauto.
+Qed.
+
+Lemma subst_fdef_preserves_single_wf_const : forall c t
+  (Hwfc: wf_const [M] (los,nts) c t), wf_const [M'] (los,nts) c t.
+Proof.
+  intros. spa_ctx.
+  eapply subst_fdef_preserves_wf_const; eauto.
+Qed.
+
+Lemma subst_fdef_preserves_single_wf_fheader : forall fh
+  (Hwfc: wf_fheader [M] (los,nts) fh), wf_fheader [M'] (los,nts) fh.
+Proof.
+  intros. spa_ctx.
+  eapply eqsig_wf_fheader; eauto.
+    eapply subst_fdef_eq_system_sig; eauto.
+Qed.
+
+Lemma subst_fdef_preserves_wf_single_module: forall 
+  (HwfF': wf_fdef [M'] M' f') (Huniqf': uniqFdef f') 
+  (HwfS : wf_system [M]), wf_system [M'].
+Proof.
+  intros. spa_ctx.
   eapply subst_fdef_preserves_wf_system; eauto.
 Qed.
 
-End SubstFdefWF.
+End SubstFdefSingleWF.
 
 Section TopWFS.
 
@@ -323,12 +618,44 @@ Qed.
 
 End TopWFS.
 
-End TopWFS.
+Section SingleModule.
 
-Definition getBlockTmn (b:block) : terminator :=
-match b with
-| block_intro _ _ _ tmn => tmn
-end.
+Variable (los:layouts) (nts:namedts) (Ps1 Ps2:products) (M M':module) 
+         (f f':fdef).
+Hypothesis (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
+           (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
+           (Heq_fheader: fheaderOfFdef f = fheaderOfFdef f').
+
+Lemma pres_lookupTypViaGIDFromSystem: forall id5 t5
+  (Hlkup: lookupTypViaGIDFromSystem [M] id5 = Some t5),
+  lookupTypViaGIDFromSystem [M'] id5 = Some t5.
+Proof.
+  subst. simpl. intros.
+  clear - Hlkup.
+  inv_mbind. 
+  induction Ps1; simpl in *.
+    rewrite <- HeqR. auto.
+
+    symmetry_ctx.
+    inv_mbind_app; auto.
+Qed.
+
+Lemma pres_productInSystemModuleB:
+  productInSystemModuleB (product_fdef f') [M'] M'.
+Proof.
+  intros.
+  subst.
+  apply productInSystemModuleB_intro.
+    apply InProductsB_middle.
+
+    unfold moduleInSystem. simpl.
+    apply orb_true_intro.
+    left. solve_refl.
+Qed.
+
+End SingleModule.
+
+End TopWFS.
 
 Definition terminator_match (tmn1 tmn2: terminator) : Prop :=
 match tmn1, tmn2 with
@@ -693,6 +1020,27 @@ Lemma pres_predOfBlock : forall b,
 Proof.
   intros.
   btrans_eq_label_tac b. auto.
+Qed.
+
+Lemma pres_getArgsIDsOfFdef: forall f,
+  getArgsIDsOfFdef f = getArgsIDsOfFdef (pass.(ftrans) f).
+Proof.
+  intros. destruct f as [fh bs].
+  rewrite ftrans_spec. simpl. auto.
+Qed.
+
+Lemma pres_getArgsOfFdef: forall f,
+  getArgsOfFdef f = getArgsOfFdef (pass.(ftrans) f).
+Proof.
+  intros. destruct f as [fh bs].
+  rewrite ftrans_spec. simpl. auto.
+Qed.
+
+Lemma pres_getDefReturnType: forall f,
+  Function.getDefReturnType (pass.(ftrans) f) = Function.getDefReturnType f.
+Proof.
+  intros. destruct f as [fh bs].
+  rewrite ftrans_spec. simpl. auto.
 Qed.
 
 End TransCFG.

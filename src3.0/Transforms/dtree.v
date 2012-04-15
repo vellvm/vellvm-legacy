@@ -62,12 +62,6 @@ Qed.
 
 End MoreMove.
 
-Definition getEntryLabel (f:fdef) : option l :=
-match f with
-| fdef_intro _ ((block_intro l0 _ _ _)::_) => Some l0
-| _ => None
-end.
-
 Program Fixpoint reachablity_analysis_aux (nvisited: list l) (succs : ATree.t ls)
   (curr: l) (acc: list l) {measure (List.length nvisited)%nat}
   : option (list l) :=

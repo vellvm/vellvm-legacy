@@ -3682,6 +3682,13 @@ Proof.
     subst. apply getCmdID_getCmdLoc; auto.
 Qed.
 
+Lemma uniqFdef__uniqArgsID: forall f (Huniq : uniqFdef f),
+  NoDup (getArgsIDs (getArgsOfFdef f)).
+Proof.
+  destruct f as [[]]. simpl. intros.
+  destruct Huniq. split_NoDup. auto.
+Qed.
+
 Ltac solve_NoDup :=
 match goal with
 | H1: uniqFdef ?F,
@@ -3700,6 +3707,8 @@ match goal with
   NoDup (getCmdsLocs ?cs0) =>
   apply uniqFdef__uniqBlockLocs in H2; auto;
   simpl in H2; split_NoDup; auto
+| Huniq: uniqFdef ?f |- NoDup (getArgsIDs (getArgsOfFdef ?f)) =>
+    apply uniqFdef__uniqArgsID; auto
 end.
 
 Lemma getCmdLoc__in__getBlockIDs: forall c f b
@@ -3719,6 +3728,8 @@ Ltac solve_in_list :=
 repeat match goal with
 | H1: ~ In ?id0 (?A ++ ?C) |- ~ In ?id0 ?A => intro Q; apply H1
 | H1: ~ In ?id0 (?A ++ ?C) |- ~ In ?id0 ?C => intro Q; apply H1
+| H1: In ?id0 ?B |- In ?id0 (?A ++ ?B ++ ?C) =>
+    apply in_or_app; right
 | H1: In ?id0 ?A |- In ?id0 (?A ++ ?C) =>
     apply in_or_app; auto
 | H1: In ?id0 ?C |- In ?id0 (?A ++ ?C) =>
@@ -3771,6 +3782,10 @@ repeat match goal with
     apply in_getBlockIDs__in_getBlockLocs; auto
 | H1: In ?p ?ps |- InPhiNodesB ?p ?ps = true => apply In_InPhiNodesB; auto
 | H1: InPhiNodesB ?p ?ps = true |- In ?p ?ps => apply InPhiNodesB_In; auto
+| H1: InPhiNodesB ?p ?ps = true |- InPhiNodesB ?p (_++?ps) = true => 
+    apply In_InPhiNodesB
+| H1: InPhiNodesB ?p ?ps = true |- InPhiNodesB ?p (?ps++_) = true => 
+    apply In_InPhiNodesB
 | H1: lookupPhiNodeViaIDFromPhiNodes ?ps _ = Some ?p |- In ?p ?ps =>
     apply lookupPhiNodeViaIDFromPhiNodes__InPhiNodes in H1; auto
 | H1: lookupPhiNodeViaIDFromPhiNodes ?ps _ = Some ?p |- 
@@ -5520,8 +5535,12 @@ Proof.
       left. congruence.
 Qed.
 
-Ltac solve_lookupBlockViaLabelFromFdef:=
+Ltac solve_lookupBlockViaLabelFromFdef :=
 match goal with
+| H1: uniqFdef ?f,
+  H2: blockInFdefB (block_intro ?l ?ps ?cs ?tmn) ?f = true |-
+  lookupBlockViaLabelFromFdef ?f ?l = Some (block_intro ?l ?ps ?cs ?tmn) =>
+  apply blockInFdefB_lookupBlockViaLabelFromFdef; auto
 | Huniq: uniqFdef ?F',
   HBinF: blockInFdefB (block_intro ?l' ?ps' ?cs' ?tmn') ?F |-
   lookupBlockViaLabelFromFdef ?F ?l' = Some (block_intro ?l' ?ps' ?cs' ?tmn') =>
@@ -5546,6 +5565,31 @@ match goal with
 | |- context [getCmdsLocs (_ :: _)] => simpl
 end.
 
+Ltac inv_mbind_app :=
+  match goal with
+  | H: match ?e with
+       | Some _ => _
+       | None => _
+       end = _ |- _ => remember e as R; destruct R
+  end.
+
+Ltac solve_refl :=
+match goal with
+| |- ?c =cmd= ?c = true => apply cmdEqB_refl
+| |- ?p =phi= ?p = true => apply phinodeEqB_refl
+| |- moduleEqB ?m ?m = true => apply moduleEqB_refl
+| |- ?t =tmn= ?t = true => apply terminatorEqB_refl
+| |- ?b =b= ?b = true => apply blockEqB_refl
+| |- productEqB ?p ?p = true => apply productEqB_refl
+end.
+
+Ltac destruct_in H :=
+match type of H with
+| In _ [_] => simpl in H; destruct H as [H | H]; subst; try tauto
+| In _ (_::_) => simpl in H; destruct H as [H | H]; subst; try tauto
+| In _ (_++_) => apply in_app_or in H; destruct H as [H | H]
+end.
+
 Ltac xsolve_in_list :=
 match goal with
 | |- In ?a (_++_) =>
@@ -5554,6 +5598,466 @@ match goal with
 | |- In ?a (_::_) =>
   simpl;
   first [left; solve [auto] | right; solve [xsolve_in_list]]
-| |- In ?a _ => solve_in_list
+| |- In ?a _ => solve_in_list || auto
 end.
+
+Lemma uniqModules_elim: forall M Ms (Hin: In M Ms) (Huniq: uniqModules Ms),
+  uniqModule M.
+Proof.
+  induction Ms; simpl; intros.
+    tauto.
+    destruct Hin as [Hin | Hin]; subst; tauto.
+Qed.
+
+Lemma uniqF__uniqBlocksLocs : forall fh lb,
+  uniqFdef (fdef_intro fh lb) -> NoDup (getBlocksLocs lb).
+Proof.
+  intros. destruct fh. inversion H. split_NoDup; auto.
+Qed.
+
+Lemma In_InBlocksB: forall b bs, In b bs -> InBlocksB b bs = true.
+Proof.
+  induction bs; intros.
+    tauto.
+
+    simpl.
+    apply orb_true_intro.
+    destruct_in H; auto.
+      left. solve_refl.
+Qed.
+
+Lemma InPhiNodes_lookupTypViaIDFromPhiNodes' : forall ps p,
+  NoDup (getPhiNodesIDs ps) ->
+  In p ps ->
+  lookupTypViaIDFromPhiNodes ps (getPhiNodeID p) = Some (getPhiNodeTyp p).
+Proof.
+  induction ps; intros.
+    inversion H0.
+
+    simpl in *.
+    inv H. unfold lookupTypViaIDFromPhiNodes, lookupTypViaIDFromPhiNode.
+    destruct H0 as [H0 | H0]; subst.
+      destruct (@eq_dec id 
+        (@EqDec_eq_of_EqDec id EqDec_atom) (getPhiNodeID p) (getPhiNodeID p)); 
+        subst; auto.
+        congruence.
+
+      destruct (@eq_dec id 
+        (@EqDec_eq_of_EqDec id EqDec_atom) (getPhiNodeID p) (getPhiNodeID a)); 
+        subst; auto.
+
+        contradict H3; auto.
+        rewrite <- e. solve_in_list.
+Qed.
+
+Lemma InArgs_lookupTypViaIDFromArgs : forall t1 attr1 id1 la0
+  (Hnodup: NoDup (getArgsIDs la0))
+  (Hin: In (t1, attr1, id1) la0),
+  lookupTypViaIDFromArgs la0 id1 = Some t1.
+Proof.
+  induction la0 as [|[[]]]; intros.
+    tauto.
+
+    simpl.
+    destruct_in Hin.
+      uniq_result.
+      destruct_if. congruence.
+
+      inv Hnodup.
+      destruct_if.
+        apply In_getArgsIDs_spec in Hin. tauto.
+Qed.
+
+Lemma InArgs_lookupTypViaIDFromFdef : forall t1 attr1 id1 f la0
+  (Hnodup: NoDup (getArgsIDs la0))
+  (Hin: In (t1, attr1, id1) la0) (Heq: la0 = getArgsOfFdef f),
+  lookupTypViaIDFromFdef f id1 = Some t1.
+Proof.
+  unfold lookupTypViaIDFromFdef.
+  intros.
+  destruct f as [[]]. simpl in Heq. subst.
+  erewrite InArgs_lookupTypViaIDFromArgs; eauto.
+Qed.
+
+Lemma uniqF__lookupPhiNodeTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f p,
+  uniqFdef f ->
+  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
+  In p ps1 ->
+  lookupTypViaIDFromFdef f (getPhiNodeID p) = Some (getPhiNodeTyp p).
+Proof.
+  intros.
+  destruct f as [f b].
+  destruct f as [fnattrs5 typ5 id5 args5 varg5]. inversion H.
+  split_NoDup.
+  simpl in *.
+  assert (In (getPhiNodeID p) (getBlocksLocs b)) as Hin.
+    eapply in_getBlockLocs__in_getBlocksLocs in H0; eauto.
+    simpl. xsolve_in_list.
+  destruct H as [J1 J2].
+  assert (~ In (getPhiNodeID p) (getArgsIDs args5)) as Hnotin.
+    eapply NoDup_disjoint; eauto.
+  apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
+  rewrite Hnotin.
+  eapply lookupTypViaIDFromBlock__inBlocks; eauto.
+  simpl.
+  apply NoDup__InBlocksB in H0; auto.
+  simpl in H0.
+  split_NoDup.
+  rewrite InPhiNodes_lookupTypViaIDFromPhiNodes'; auto.
+Qed.
+
+Lemma lookupTypViaIDFromArgs_elim : forall id0 t la
+  (Hin: lookupTypViaIDFromArgs la id0 = Some t),
+  exists attr0, In (t, attr0, id0) la.
+Proof.
+  induction la as [|[[]]]; simpl; intros.
+    congruence.
+
+    destruct_if. 
+      eauto.
+      apply IHla in H0. destruct H0 as [? H0]. eauto.
+Qed.
+
+Lemma lookupTypViaIDFromPhiNodes_elim : forall id0 t ps
+  (Hin: lookupTypViaIDFromPhiNodes ps id0 = Some t),
+  exists p, 
+    In p ps /\
+    getPhiNodeTyp p = t /\ getPhiNodeID p = id0.
+Proof.
+  induction ps; simpl; intros.
+    congruence.
+
+    inv_mbind_app.
+      inv Hin.
+      unfold lookupTypViaIDFromPhiNode in *.
+      destruct_if.
+      eauto.
+
+      apply IHps in Hin.
+      destruct Hin as [p [J1 [J2 J3]]]; subst.
+      eauto.
+Qed.
+
+Lemma lookupTypViaIDFromCmds_elim : forall id0 t cs
+  (Hin: lookupTypViaIDFromCmds cs id0 = Some t),
+  exists c, 
+    In c cs /\
+    getCmdTyp c = Some t /\ getCmdLoc c = id0.
+Proof.
+  induction cs; simpl; intros.
+    congruence.
+
+    inv_mbind_app.
+      inv Hin.
+      unfold lookupTypViaIDFromCmd in *.
+      inv_mbind.
+      destruct_if.
+      exists a. split; auto. 
+
+      apply IHcs in Hin.
+      destruct Hin as [c [J1 [J2 J3]]]; subst.
+      eauto.
+Qed.
+
+Lemma lookupTypViaIDFromBlock_elim : forall id0 t b
+  (Hin: lookupTypViaIDFromBlock b id0 = Some t),
+  (exists instr, 
+    insnInBlockB instr b = true /\
+    getInsnTyp instr = Some t /\ getInsnLoc instr = id0).
+Proof.
+  unfold lookupTypViaIDFromBlock. destruct b.
+  intros.
+    inv_mbind_app.
+    inv Hin. symmetry in HeqR.
+    apply lookupTypViaIDFromPhiNodes_elim in HeqR.
+    destruct HeqR as [p [J1 [J2 J3]]]. 
+    subst. 
+    exists (insn_phinode p). 
+    simpl. split; auto. solve_in_list.
+ 
+    inv_mbind_app.
+    inv Hin. symmetry in HeqR0.
+    apply lookupTypViaIDFromCmds_elim in HeqR0.
+    destruct HeqR0 as [c [J1 [J2 J3]]]. 
+    subst. 
+    exists (insn_cmd c). 
+    simpl. split; auto. solve_in_list.
+
+    exists (insn_terminator terminator5).
+    unfold lookupTypViaIDFromTerminator in Hin.
+    destruct_if.
+    simpl. split; auto. solve_refl.
+Qed.
+
+Lemma lookupTypViaIDFromBlocks_elim : forall id0 t bs
+  (Hin: lookupTypViaIDFromBlocks bs id0 = Some t),
+  exists b, In b bs /\
+  exists instr, 
+    insnInBlockB instr b = true /\ 
+    getInsnTyp instr = Some t /\ getInsnLoc instr = id0.
+Proof.
+  induction bs as [|b bs]; simpl; intros.
+    congruence.
+
+    inv_mbind_app.
+      inv Hin. symmetry_ctx.
+      apply lookupTypViaIDFromBlock_elim in HeqR; auto.
+      exists b. split; auto.
+
+      apply IHbs in Hin.
+      destruct Hin as [b0 [Hin J]].
+      exists b0. repeat (split; auto).
+Qed.
+
+Lemma lookupTypViaIDFromFdef_elim : forall f id0 t
+  (Hin: lookupTypViaIDFromFdef f id0 = Some t),
+  (exists attr0, In (t, attr0, id0) (getArgsOfFdef f)) \/
+  exists b, 
+  exists instr, 
+    insnInFdefBlockB instr f b = true /\
+    getInsnTyp instr = Some t /\ getInsnLoc instr = id0.
+Proof.
+  unfold lookupTypViaIDFromFdef.
+  intros.
+  destruct f as [[]].
+  inv_mbind_app.
+    uniq_result.
+    left.
+    apply lookupTypViaIDFromArgs_elim; auto.
+
+    right.
+    apply lookupTypViaIDFromBlocks_elim in Hin.
+    destruct Hin as [b [J1 [instr [J2 [J3 J4]]]]].
+    exists b.
+    exists instr.
+    split; auto.
+    apply insnInFdefBlockB_intro; auto.
+      simpl. apply In_InBlocksB; auto.
+Qed.
+
+Lemma uniqF__lookupTmnTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f,
+  uniqFdef f ->
+  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
+  lookupTypViaIDFromFdef f (getTerminatorID tmn1) = Some (getTerminatorTyp tmn1).
+Proof.
+  intros.
+  destruct f as [f b].
+  destruct f as [fnattrs5 typ5 id5 args5 varg5]. inversion H.
+  assert (In (getTerminatorID tmn1) (getBlocksLocs b)) as Hin.
+    eapply in_getBlockLocs__in_getBlocksLocs in H0; eauto.
+    simpl. solve_in_list.
+  assert (~ In (getTerminatorID tmn1) (getArgsIDs args5)) as Hnotin.
+    eapply NoDup_disjoint; eauto.
+  apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
+  simpl.
+  rewrite Hnotin. split_NoDup.
+  eapply lookupTypViaIDFromBlock__inBlocks; eauto.
+  simpl.
+  apply NoDup__InBlocksB in H0; auto.
+  simpl in H0.
+  assert (~ In (getTerminatorID tmn1) (getPhiNodesIDs ps1)) as HnotinPs.
+    eapply NoDup_disjoint; eauto.
+      solve_in_list.
+  apply NotInPhiNodesIDs__lookupTypViaIDFromPhiNodes in HnotinPs.
+  rewrite HnotinPs.
+  apply NoDup_inv in H0. destruct H0 as [_ H0].
+  assert (~ In (getTerminatorID tmn1) (getCmdsLocs cs1)) as HnotinCs.
+    eapply NoDup_disjoint; eauto.
+      xsolve_in_list.
+  apply NotInCmdLocs__lookupTypViaIDFromCmds in HnotinCs.
+  rewrite HnotinCs. 
+  unfold lookupTypViaIDFromTerminator. 
+  destruct_if. congruence.
+Qed.
+
+Lemma InCmds_lookupTypViaIDFromCmds : forall cs id1 c t1,
+  NoDup (getCmdsLocs cs) ->
+  In c cs ->
+  getCmdLoc c = id1 ->
+  getCmdTyp c = Some t1 ->
+  lookupTypViaIDFromCmds cs id1 = Some t1.
+Proof.
+  induction cs; intros.
+    inversion H0.
+
+    simpl in *.
+    inv H. unfold lookupTypViaIDFromCmd.
+    destruct H0 as [H0 | H0]; subst.
+      rewrite H2.
+      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) 
+                  (getCmdLoc c) (getCmdLoc c)); subst;
+        auto.
+        contradict n; auto.
+
+      remember (getCmdTyp a) as R.
+      destruct R; eauto.
+      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) 
+                  (getCmdLoc c) (getCmdLoc a));
+        subst; eauto.
+
+        apply getCmdLoc_in_getCmdsLocs in H0; auto.
+        rewrite e in H0.
+        contradict H0; auto.
+Qed.
+
+Lemma uniqF__lookupCmdTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f c i0 t0,
+  uniqFdef f ->
+  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
+  In c cs1 ->
+  getCmdLoc c = i0 ->
+  getCmdTyp c = Some t0 ->
+  lookupTypViaIDFromFdef f i0 = Some t0.
+Proof.
+  intros.
+  destruct f as [f b].
+  destruct f as [fnattrs5 typ5 id5 args5 varg5]. inversion H.
+  apply NoDup_inv in H5.
+  destruct H5.
+  simpl in *.
+  assert (In i0 (getCmdsLocs cs1)) as HInCs.
+    subst.
+    eapply getCmdLoc_in_getCmdsLocs in H1; eauto.
+  assert (In i0 (getBlocksLocs b)) as Hin.
+    eapply in_getBlockLocs__in_getBlocksLocs in H0; eauto.
+    simpl. apply in_or_app. right. apply in_or_app; auto.
+  destruct H as [J1 J2].
+  assert (~ In i0 (getArgsIDs args5)) as Hnotin.
+    eapply NoDup_disjoint; eauto.
+  apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
+  rewrite Hnotin.
+  eapply lookupTypViaIDFromBlock__inBlocks; eauto.
+  simpl.
+  apply NoDup__InBlocksB in H0; auto.
+  simpl in H0.
+  rewrite_env ((getPhiNodesIDs ps1 ++ getCmdsLocs cs1) ++ [getTerminatorID tmn1])
+    in H0.
+  apply NoDup_inv in H0. destruct H0 as [H0 _].
+  assert (~ In i0 (getPhiNodesIDs ps1)) as HnotinPs.
+    eapply NoDup_disjoint; eauto.
+  apply NotInPhiNodesIDs__lookupTypViaIDFromPhiNodes in HnotinPs.
+  rewrite HnotinPs.
+  apply NoDup_inv in H0. destruct H0 as [_ H0].
+  erewrite InCmds_lookupTypViaIDFromCmds; eauto.
+Qed.
+
+Lemma lookupTypViaIDFromFdef_intro : forall f id0 t
+  (Huniq: uniqFdef f)
+  (Hin:
+   (exists attr0, In (t, attr0, id0) (getArgsOfFdef f)) \/
+    exists b, 
+    exists instr, 
+      insnInFdefBlockB instr f b = true /\
+      getInsnTyp instr = Some t /\ getInsnLoc instr = id0
+  ),
+  lookupTypViaIDFromFdef f id0 = Some t.
+Proof.
+  intros.
+  destruct Hin as [[attr0 Hin] | 
+                   [b [instr [Hin [J1 J2]]] ]].
+    eapply InArgs_lookupTypViaIDFromFdef; eauto.
+    solve_NoDup.
+
+    apply destruct_insnInFdefBlockB in Hin.
+    destruct Hin as [Hin1 Hin2].
+    destruct b. simpl in Hin1.
+    destruct instr; simpl in *.
+      uniq_result.
+      eapply uniqF__lookupPhiNodeTypViaIDFromFdef; eauto.
+        solve_in_list.
+
+      eapply uniqF__lookupCmdTypViaIDFromFdef; eauto.
+        solve_in_list.
+
+      uniq_result.    
+      apply terminatorEqB_inv in Hin1. subst.
+      eapply uniqF__lookupTmnTypViaIDFromFdef; eauto.    
+Qed.
+
+Ltac solve_isNotPhiNode := unfold isPhiNode; simpl; congruence.
+
+Lemma in_map_fst__in_map: forall value_ vls,
+  In value_ 
+    (List.map (fun pat_ : value * l => let (value_0, _) := pat_ in value_0) vls) 
+  ->
+  exists l0, In (value_, l0) vls.
+Proof.
+  induction vls as [|[]]; intros.
+    inv H.
+
+    simpl in H. simpl.
+    inv H; eauto.
+      apply IHvls in H0. 
+      destruct H0 as [l1 H0]. eauto.
+Qed.
+
+Lemma In_InProductsB: forall p ps, In p ps -> InProductsB p ps = true.
+Proof.
+  induction ps; intros.
+    tauto.
+
+    simpl. apply orb_true_intro.
+    destruct_in H.
+      left. solve_refl.
+Qed.
+
+Lemma InProductsB_In: forall p ps, InProductsB p ps = true -> In p ps.
+Proof.
+  induction ps; simpl; intros.
+    congruence.
+
+    apply orb_true_elim in H.
+    destruct H as [H | H]; auto.
+      apply productEqB_inv in H. auto.
+Qed.
+
+Lemma In_InModulesB: forall m ms, In m ms -> InModulesB m ms = true.
+Proof.
+  induction ms; intros.
+    tauto.
+
+    simpl. apply orb_true_intro.
+    destruct_in H.
+      left. solve_refl.
+Qed.
+
+Lemma InModulesB_In: forall m ms, InModulesB m ms = true -> In m ms.
+Proof.
+  induction ms; simpl; intros.
+    congruence.
+
+    apply orb_true_elim in H.
+    destruct H as [H | H]; auto.
+      apply moduleEqB_inv in H. auto.
+Qed.
+
+Lemma moduleInSystem_middle: forall Ms2 M Ms1,
+  moduleInSystem M (Ms1 ++ M :: Ms2).
+Proof.
+  intros. apply In_InModulesB. solve_in_list.
+Qed.
+
+Lemma productInSystemModuleB_inv' : forall P Ps nts los S,
+  productInSystemModuleB P S (module_intro los nts Ps) ->
+  InProductsB P Ps /\
+  moduleInSystem (module_intro los nts Ps) S.
+Proof.
+  intros.
+  unfold productInSystemModuleB in *.
+  unfold productInModuleB in *.
+  apply andb_true_iff in H. destruct H.
+  split; auto.
+Qed.
+
+Lemma productInSystemModuleB_intro' : forall P Ps nts los S,
+  InProductsB P Ps ->
+  moduleInSystem (module_intro los nts Ps) S ->
+  productInSystemModuleB P S (module_intro los nts Ps).
+Proof.
+  intros.
+  unfold productInSystemModuleB.
+  unfold productInModuleB.
+  eapply andb_true_iff.
+  split; auto.
+Qed.
+
 

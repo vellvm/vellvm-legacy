@@ -89,23 +89,6 @@ Proof.
   simpl in HeqR. auto.
 Qed.
 
-Definition is_promotable_fun pid :=
-  (fun acc b =>
-     let '(block_intro _ ps cs tmn) := b in
-     if (List.fold_left (fun re p => re || used_in_phi pid p) ps
-          (used_in_tmn pid tmn)) then false
-     else
-       fold_left
-         (fun acc0 c =>
-          if used_in_cmd pid c then
-            match c with
-            | insn_load _ _ _ _ => acc0
-            | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && acc0
-            | _ => false
-            end
-          else acc0) cs acc
-  ).
-
 Lemma used_in_phi_fun_spec: forall pid (a0 : bool) (b : phinode),
   a0 || used_in_phi pid b = false -> a0 = false.
 Proof.
@@ -2035,6 +2018,185 @@ Proof.
   inv HBinF. inv H9.
   eapply WF_PhiInfo_spec20 in Hwfpi; eauto.
   uniq_result. auto.
+Qed.
+
+Lemma WF_PhiInfo__lookupBlockViaIDFromFdef: forall pinfo 
+  (Hwfpi : WF_PhiInfo pinfo) (Huniq: uniqFdef (PI_f pinfo)),
+  exists b, 
+    getEntryBlock (PI_f pinfo) = Some b /\
+    lookupBlockViaIDFromFdef (PI_f pinfo) (PI_id pinfo) = Some b.
+Proof.
+  intros.
+  subst.
+  apply WF_PhiInfo_spec22 in Hwfpi; auto.
+  destruct Hwfpi as [l0 [ps0 [cs1 [cs2 [tmn0 Hentry]]]]].
+  match goal with
+  | Hentry: getEntryBlock _ = Some ?b |- _ => exists b; split; auto
+  end.
+  eapply inGetBlockIDs__lookupBlockViaIDFromFdef; eauto 1.
+    simpl. rewrite getCmdsIDs_app. simpl. xsolve_in_list.
+    solve_blockInFdefB.
+Qed.
+
+(* entry_cmds_simulation in phiplacement_bsim_defs.v should 
+   also use the lemma *)
+Lemma PI_preds_of_entry_cannot_be_nonempty: forall s m pinfo
+  (HwfF: wf_fdef s m (PI_f pinfo)) b
+  (Hentry: getEntryBlock (PI_f pinfo) = Some b),
+  forall (pd : l) (pds : list l), 
+    (PI_preds pinfo) ! (getBlockLabel b) <> ret (pd :: pds).
+Proof.
+  intros.
+  unfold PI_preds.
+  intros. intro J.
+  assert (In pd (make_predecessors (PI_succs pinfo))!!!(getBlockLabel b)) as G.
+    unfold successors_list. unfold l in J. rewrite J. simpl. auto.
+  apply make_predecessors_correct' in G.
+  unfold PI_succs in G.
+  apply successors__blockInFdefB in G.
+  destruct G as [ps1 [cs1' [tmn1 [G1 G2]]]].
+  destruct (PI_f pinfo) as [fh bs].
+  simpl in G1.
+  destruct b.
+  eapply getEntryBlock_inv in G1; eauto.
+Qed.
+
+Lemma gen_fresh_ids__spec2_aux': forall l1 rds newids nids exids,
+  fst (fold_left gen_fresh_ids_fun rds (nids, exids)) = newids ->
+  newids ! l1 <> None ->
+  In l1 rds \/ nids ! l1 <> None.
+Proof.
+  induction rds; simpl; intros.
+    subst. auto.
+
+    remember (atom_fresh_for_list exids) as R1.
+    destruct R1 as [lid' Jlid'].
+    remember (atom_fresh_for_list (lid'::exids)) as R2.
+    destruct R2 as [pid' Jpid'].
+    remember (atom_fresh_for_list (pid'::lid'::exids)) as R3.
+    destruct R3 as [sid' Jsid'].
+    apply IHrds in H; auto.
+    destruct H as [H | H]; auto.
+    destruct (a == l1); auto.
+    rewrite ATree.gso in H; auto.
+Qed.
+
+Lemma gen_fresh_ids__spec2': forall l1 newids rds exids,
+  fst (gen_fresh_ids rds exids) = newids ->
+  newids ! l1 <> None ->
+  In l1 rds.
+Proof.
+  unfold gen_fresh_ids.
+  fold gen_fresh_ids_fun.
+  intros.
+  eapply gen_fresh_ids__spec2_aux' in H; eauto.
+  destruct H as [H | H]; auto.
+  rewrite ATree.gempty in H. 
+  contradict H; auto.
+Qed.
+
+Lemma PI_newids_are_in_PI_rd: forall pinfo l1 
+  (Hnempty: (PI_newids pinfo) ! l1 <> merror),
+  In l1 (PI_rd pinfo).
+Proof.
+  intros.
+  unfold PI_newids in *.
+  eapply gen_fresh_ids__spec2'; eauto.
+Qed.
+
+Lemma PI_rd__lookupBlockViaLabelFromFdef: forall pinfo (Hwfpi: WF_PhiInfo pinfo) l0
+  (Hin: In l0 (PI_rd pinfo)) (Huniq: uniqFdef (PI_f pinfo)),
+  exists b1 : block,
+    lookupBlockViaLabelFromFdef (PI_f pinfo) l0 = ret b1.
+Proof.
+  intros.
+  destruct Hwfpi.
+  apply reachablity_analysis__in_bound in H0.
+  apply H0 in Hin.
+  apply In_bound_fdef__blockInFdefB in Hin.
+  destruct Hin as [ps [cs [tmn Hin]]].
+  exists (block_intro l0 ps cs tmn).
+  solve_lookupBlockViaLabelFromFdef.
+Qed.
+
+Lemma WF_PhiInfo_br_preds_succs: forall pinfo l0 l3 (Hwfpi : WF_PhiInfo pinfo)
+  prds (Hin : In l3 prds) (Heq' : (PI_preds pinfo) ! l0 = ret prds),
+  exists succs, (PI_succs pinfo) ! l3 = ret succs /\ In l0 succs.
+Proof.
+  unfold PI_preds. unfold PI_succs.
+  intros.
+  destruct Hwfpi as [J1 J2].
+  assert (In l3 ((make_predecessors (successors (PI_f pinfo)))!!!l0)) as Hin'.
+    unfold successors_list.
+    unfold ls, l in *.
+    rewrite Heq'. auto.
+  apply make_predecessors_correct' in Hin'.
+  unfold successors_list in Hin'.
+  remember (@ATree.get (list atom) l3 (successors (PI_f pinfo))) as R.
+  destruct R; tinv Hin'. eauto.
+Qed.
+
+Lemma PI_newids_arent_in_getFdefLocs: forall pinfo id5 lid pid sid l0
+  (Hfresh : In id5 (getFdefLocs (PI_f pinfo)))
+  (Hnids : ret (lid, pid, sid) = (PI_newids pinfo) ! l0)
+  (Heq: id5 = lid \/ id5 = pid \/ id5 = sid),
+  False.
+Proof.
+  intros.
+  unfold PI_newids in Hnids.
+  contradict Hfresh.
+  apply gen_fresh_ids__spec with (rds:=PI_rd pinfo); auto.
+  unfold is_temporary. 
+  exists l0. rewrite <- Hnids. 
+  destruct (id5 == lid); subst; simpl.
+    left. congruence.
+  destruct (id5 == pid); subst; simpl.
+    right. left. congruence.
+  destruct (id5 == sid); subst; simpl.
+    right. right. congruence.
+    tauto.
+Qed.
+
+Lemma load_is_promotable: forall id5 acc lid ty v al,
+  is_promotable_cmd id5 acc (insn_load lid ty v al)  = acc.
+Proof.
+  intros.
+  unfold is_promotable_cmd.
+  destruct_if.
+Qed.
+
+Definition isnt_alloca c :=
+match c with
+| insn_alloca _ _ _ _ => False
+| _ => True
+end.
+
+Lemma find_promotable_alloca_weaken_head: forall f dones cs cs1
+  (H: List.Forall isnt_alloca cs1),
+  find_promotable_alloca f cs dones =
+    find_promotable_alloca f (cs1++cs) dones.
+Proof.
+  induction 1; simpl; intros; auto.
+    destruct x; tinv H; auto.
+Qed.
+
+Lemma nonalloca_cannot_find_promotable_alloca: forall f dones cs
+  (H: List.Forall isnt_alloca cs),
+  find_promotable_alloca f cs dones = None.
+Proof.
+  induction 1; simpl; intros; auto.
+    destruct x; tinv H; auto.
+Qed.
+
+Lemma find_promotable_alloca_weaken_tail: forall f dones cs1
+  (H: List.Forall isnt_alloca cs1) cs,
+  find_promotable_alloca f cs dones =
+    find_promotable_alloca f (cs++cs1) dones.
+Proof.
+  induction cs; simpl; intros.
+    rewrite nonalloca_cannot_find_promotable_alloca; auto.
+
+    rewrite IHcs; auto.
 Qed.
 
 (***************************************************************************)

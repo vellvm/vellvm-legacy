@@ -720,6 +720,12 @@ match fd with
 | _ => None
 end.
 
+Definition getEntryLabel (f:fdef) : option l :=
+match f with
+| fdef_intro _ ((block_intro l0 _ _ _)::_) => Some l0
+| _ => None
+end.
+
 Definition getEntryCmds (b:block) : cmds :=
 match b with
 | block_intro _ _ lc _ => lc
@@ -1155,6 +1161,11 @@ lookupTypViaTIDFromModules s id0.
   match b with
   | block_intro l _ _ _ => l
   end.
+
+Definition getBlockTmn (b:block) : terminator :=
+match b with
+| block_intro _ _ _ tmn => tmn
+end.
 
   Definition getBlockUseDef (udb:usedef_block) (b:block) : option (list l) :=
   lookupAL _ udb (getBlockLabel b).

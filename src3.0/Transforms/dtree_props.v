@@ -50,12 +50,6 @@ Proof.
         apply HdRel_insert; auto.
 Qed.
 
-Lemma In_bound_fdef__blockInFdefB: forall f l3,
-  In l3 (bound_fdef f) ->
-  exists ps, exists cs, exists tmn,
-    blockInFdefB (block_intro l3 ps cs tmn) f = true.
-Admitted. (* infra *)
-
 Lemma gt_dom_prop_trans : forall S M f l1 l2 l3
   (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
   (HBinF1: In l1 (bound_fdef f))
@@ -193,86 +187,6 @@ Lemma sdom_is_complete: forall
 Proof.
 
 *)
-
-Lemma dom_analysis__entry_doms_others1: forall S M f 
-  (HwfF: wf_fdef S M f) entry
-  (H: getEntryLabel f = Some entry)
-  (Hex: exists b,  match (AMap.get b (dom_analyze f)) with
-                   | Dominators.mkBoundedSet dts _ => dts <> nil
-                   end),
-  (forall b, b <> entry /\ reachable f b ->
-     match (AMap.get b (dom_analyze f)) with
-     | Dominators.mkBoundedSet dts _ => In entry dts
-     end).
-Proof.
-  intros.
-  destruct H0 as [J1 J2].
-  case_eq ((dom_analyze f) !! b).
-  intros bs_contents bs_bound H1.
-  unfold dom_analyze in H1, Hex.
-  destruct f as [f b0].
-  remember (entry_dom b0) as R.
-  destruct R.
-  destruct x as [[]|]; subst.
-    destruct b0 as [|b0 b2]; inv H.
-    destruct b1; tinv y.
-    destruct bs_contents0; tinv y.
-    destruct b0 as [l1 p c t]. inv HeqR.
-    inv H2.
-    remember (
-      DomDS.fixpoint (bound_blocks (block_intro entry p c t :: b2))
-           (successors_blocks (block_intro entry p c t :: b2))
-           (transfer (bound_blocks (block_intro entry p c t :: b2)))
-           ((entry,
-            {| DomDS.L.bs_contents := nil; DomDS.L.bs_bound := bs_bound0 |})
-            :: nil)) as R.
-    destruct R.
-      symmetry in HeqR.
-      eapply EntryDomsOthers.dom_entry_doms_others with (entry:=entry) in HeqR;
-        eauto.
-        unfold EntryDomsOthers.entry_doms_others in HeqR.
-        apply HeqR in J1.
-        unfold Dominators.member in J1.
-        unfold EntryDomsOthers.dt, EntryDomsOthers.bound, DomDS.dt, DomDS.L.t
-          in J1.
-        unfold Dominators.t in H1. simpl in J1, H1.
-        rewrite H1 in J1; auto.
-
-        split.
-           remember (Kildall.successors_list
-             (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
-               entry) as R.
-           destruct R; auto.
-           assert (
-             In a
-               (Kildall.successors_list
-                 (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
-               entry)) as Hin. rewrite <- HeqR0. simpl; auto.
-           apply Kildall.make_predecessors_correct' in Hin.
-           change (successors_blocks (block_intro entry p c t :: b2)) with
-             (successors (fdef_intro f (block_intro entry p c t :: b2))) in Hin.
-           apply successors__blockInFdefB in Hin.
-           destruct Hin as [ps0 [cs0 [tmn0 [G1 G2]]]].
-           eapply getEntryBlock_inv with (l3:=a)(a:=entry) in G2; simpl; eauto.
-           congruence.
-
-        split; auto.
-          exists{| DomDS.L.bs_contents := nil; DomDS.L.bs_bound := bs_bound0 |}.
-          simpl.
-          split; auto.
-            split; intros x Hin; auto.
-
-      rewrite AMap.gso in H1; auto.
-      rewrite AMap.gi in H1. inv H1.
-      destruct Hex as [b0 Hex].
-      destruct (l_dec entry b0); subst.
-        rewrite AMap.gss in Hex; auto. congruence.
-
-        rewrite AMap.gso in Hex; auto. rewrite AMap.gi in Hex. simpl in Hex.
-        contradict Hex; auto.
-
-    inv H.
-Qed.
 
 Lemma gt_dom_dec_aux: forall S M f (HwfF: wf_fdef S M f) 
   (Huniq: uniqFdef f) l1 l2 l3
@@ -699,15 +613,6 @@ Qed.
 Lemma reachablity_analysis__reachable: forall f rd a,
   reachablity_analysis f = Some rd -> In a rd -> reachable f a.
 Admitted. (* need PrimIter.iterate_prop *)
-
-Lemma reachablity_analysis__in_bound: forall f rd,
-  reachablity_analysis f = Some rd ->
-  incl rd (bound_fdef f).
-Proof.
-  intros. intros x Hin.
-  apply reachable__in_bound.
-  eapply reachablity_analysis__reachable; eauto.
-Qed.
 
 Lemma gt_sdom_prop_irrefl: forall S M f (HwfF : wf_fdef S M f) 
   (HuniqF: uniqFdef f) a (Hreach : reachable f a),

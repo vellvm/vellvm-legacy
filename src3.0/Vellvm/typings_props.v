@@ -4161,3 +4161,279 @@ Ltac get_wf_value_for_simop_ex :=
     | _ => idtac
     end
   end.
+
+Lemma wf_prods_elim: forall (prod:product) S md prods 
+  (Hwfps: wf_prods S md prods) (Hin: In prod prods), 
+  wf_prod S md prod.
+Proof.
+  induction 1; intros; try tauto.
+    destruct_in Hin; auto.
+Qed.    
+
+Lemma wf_prods_intro: forall S md prods 
+  (H: forall (prod:product) (Hin: In prod prods), wf_prod S md prod),
+  wf_prods S md prods.
+Proof.
+  induction prods; intros.
+    constructor.
+    constructor.
+      apply IHprods. intros.
+      apply H. xsolve_in_list.
+
+      apply H. xsolve_in_list.
+Qed.    
+
+Lemma wf_modules_elim: forall (md:module) S mds 
+  (Hwfms: wf_modules S mds) (Hin: In md mds), 
+  wf_module S md.
+Proof.
+  induction 1; intros; try tauto.
+    destruct_in Hin; auto.
+Qed.
+
+Lemma wf_modules_intro: forall S mds 
+  (H: forall (md:module) (Hin: In md mds), wf_module S md),
+  wf_modules S mds.
+Proof.
+  induction mds; intros.
+    constructor.
+    constructor.
+      apply H. xsolve_in_list.
+
+      apply IHmds. intros.
+      apply H. xsolve_in_list.
+Qed.    
+
+Lemma wf_styp__isValidElementTyp: forall S td t (Hty: wf_styp S td t),
+  isValidElementTyp t.
+Proof.
+  intros.
+  unfold isValidElementTyp, isValidElementTypB, isNotValidElementTypB.
+  inv Hty; simpl; auto.
+Qed.
+
+Lemma dom_analysis__entry_doms_others1: forall S M f 
+  (HwfF: wf_fdef S M f) entry
+  (H: getEntryLabel f = Some entry)
+  (Hex: exists b,  match (AMap.get b (dom_analyze f)) with
+                   | Dominators.mkBoundedSet dts _ => dts <> nil
+                   end),
+  (forall b, b <> entry /\ reachable f b ->
+     match (AMap.get b (dom_analyze f)) with
+     | Dominators.mkBoundedSet dts _ => In entry dts
+     end).
+Proof.
+  intros.
+  destruct H0 as [J1 J2].
+  case_eq ((dom_analyze f) !! b).
+  intros bs_contents bs_bound H1.
+  unfold dom_analyze in H1, Hex.
+  destruct f as [f b0].
+  remember (entry_dom b0) as R.
+  destruct R.
+  destruct x as [[]|]; subst.
+    destruct b0 as [|b0 b2]; inv H.
+    destruct b1; tinv y.
+    destruct bs_contents0; tinv y.
+    destruct b0 as [l1 p c t]. inv HeqR.
+    inv H2.
+    remember (
+      DomDS.fixpoint (bound_blocks (block_intro entry p c t :: b2))
+           (successors_blocks (block_intro entry p c t :: b2))
+           (transfer (bound_blocks (block_intro entry p c t :: b2)))
+           ((entry,
+            {| DomDS.L.bs_contents := nil; DomDS.L.bs_bound := bs_bound0 |})
+            :: nil)) as R.
+    destruct R.
+      symmetry in HeqR.
+      eapply EntryDomsOthers.dom_entry_doms_others with (entry:=entry) in HeqR;
+        eauto.
+        unfold EntryDomsOthers.entry_doms_others in HeqR.
+        apply HeqR in J1.
+        unfold Dominators.member in J1.
+        unfold EntryDomsOthers.dt, EntryDomsOthers.bound, DomDS.dt, DomDS.L.t
+          in J1.
+        unfold Dominators.t in H1. simpl in J1, H1.
+        rewrite H1 in J1; auto.
+
+        split.
+           remember (Kildall.successors_list
+             (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
+               entry) as R.
+           destruct R; auto.
+           assert (
+             In a
+               (Kildall.successors_list
+                 (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
+               entry)) as Hin. rewrite <- HeqR0. simpl; auto.
+           apply Kildall.make_predecessors_correct' in Hin.
+           change (successors_blocks (block_intro entry p c t :: b2)) with
+             (successors (fdef_intro f (block_intro entry p c t :: b2))) in Hin.
+           apply successors__blockInFdefB in Hin.
+           destruct Hin as [ps0 [cs0 [tmn0 [G1 G2]]]].
+           eapply getEntryBlock_inv with (l3:=a)(a:=entry) in G2; simpl; eauto.
+           congruence.
+
+        split; auto.
+          exists{| DomDS.L.bs_contents := nil; DomDS.L.bs_bound := bs_bound0 |}.
+          simpl.
+          split; auto.
+            split; intros x Hin; auto.
+
+      rewrite AMap.gso in H1; auto.
+      rewrite AMap.gi in H1. inv H1.
+      destruct Hex as [b0 Hex].
+      destruct (l_dec entry b0); subst.
+        rewrite AMap.gss in Hex; auto. congruence.
+
+        rewrite AMap.gso in Hex; auto. rewrite AMap.gi in Hex. simpl in Hex.
+        contradict Hex; auto.
+
+    inv H.
+Qed.
+
+Lemma entry_blockStrictDominates_others: forall s m f (HwfF : wf_fdef s m f)
+  (b be : block) (Hentry : getEntryBlock f = ret be)
+  (n : getBlockLabel be <> getBlockLabel b)
+  (Hreach : isReachableFromEntry f b),
+  blockStrictDominates f be b.
+Proof.
+  unfold blockStrictDominates.
+  intros.
+  destruct be as [l1 ? ? ?].
+  destruct b as [l2 ? ? ?].
+  simpl in n.
+  assert (getEntryLabel f = Some l1) as Gentry.
+    destruct f as [? blocks5].
+    destruct blocks5; inv Hentry. auto.
+  eapply dom_analysis__entry_doms_others1 with (b:=l2) in Gentry; eauto.
+    admit. (* typings should ensure dom_analysis always succeeds. *)
+Qed.
+
+Lemma wf_cmds_intro: forall s m f b cs,
+  (forall c, In c cs -> wf_insn s m f b (insn_cmd c)) ->
+  wf_cmds s m f b cs.
+Proof.
+  induction cs; intros.
+    constructor.
+    constructor.
+      apply H; simpl; auto.
+      apply IHcs. intros. apply H; simpl; auto.
+Qed.
+
+Lemma wf_cmds_elim: forall s m f b cs,
+  wf_cmds s m f b cs -> forall c, In c cs -> wf_insn s m f b (insn_cmd c).
+Proof.
+  intros s m f b cs J.
+  induction J; intros.
+    inv H.
+
+    simpl in H0.
+    destruct H0 as [H0 | H0]; subst; auto.
+Qed.
+
+Lemma wf_cmds_app: forall s m f b cs2 (Hwfcs2: wf_cmds s m f b cs2) cs1
+  (Hwfcs1: wf_cmds s m f b cs1), wf_cmds s m f b (cs1++cs2).
+Proof.
+  induction cs1; simpl; intros; auto.
+    inv Hwfcs1. constructor; auto.
+Qed.
+
+Lemma wf_phinodes_app: forall s m f b ps2 (Hwfps2: wf_phinodes s m f b ps2) ps1
+  (Hwfps1: wf_phinodes s m f b ps1), wf_phinodes s m f b (ps1++ps2).
+Proof.
+  induction ps1; simpl; intros; auto.
+    inv Hwfps1. constructor; auto.
+Qed.
+
+Ltac inv_wf_block H :=
+let S5 := fresh "S5" in
+let M5 := fresh "M5" in
+let F5 := fresh "F5" in
+let l5 := fresh "l5" in 
+let ps5 := fresh "ps5" in 
+let cs5 := fresh "cs5" in 
+let tmn5 := fresh "tmn5" in 
+let HBinSMF := fresh "HBinSMF" in 
+let Hwfps := fresh "Hwfps" in 
+let Hwfcs := fresh "Hwfcs" in 
+let Hwfi := fresh "Hwfi" in 
+let EQ1 := fresh "EQ1" in
+let EQ2 := fresh "EQ2" in
+let EQ3 := fresh "EQ3" in 
+let EQ4 := fresh "EQ4" in
+inversion H as 
+  [S5 M5 F5 l5 ps5 cs5 tmn5 HBinSMF Hwfps Hwfcs Hwfi EQ1 EQ2 EQ3 EQ4];
+subst S5 M5 F5.
+
+Ltac inv_wf_fdef H :=
+let S5 := fresh "S5" in
+let los5 := fresh "los5" in
+let nts5 := fresh "nts5" in
+let prods5 := fresh "prods5" in
+let fh5 := fresh "fh5" in
+let bs5 := fresh "bs5" in
+let b5 := fresh "b5" in
+let udb5 := fresh "udb5" in
+let HpInS := fresh "HpInS" in
+let Hwffh := fresh "Hwffh" in
+let Hentry := fresh "Hentry" in
+let EQ0 := fresh "EQ0" in
+let Hnpred := fresh "Hnpred" in
+let Hwfb := fresh "Hwfb" in
+let EQ1 := fresh "EQ1" in
+let EQ2 := fresh "EQ2" in
+let EQ3 := fresh "EQ3" in
+inversion H as 
+  [S5 los5 nts5 prods5 fh5 bs5 b5 udb5 HpInS Hwffh Hentry EQ0 Hnpred
+   Hwfb EQ1 EQ2 EQ3]; subst udb5 S5.
+
+(* wf_phi_operands doesnt depend on i0 and t0, which should be removed. *)
+Lemma wf_phi_operands__intro : forall f b i0 t0 vls0,
+  (forall vid1 l1 (Hin: In (value_id vid1, l1) vls0), 
+     exists b1,
+      lookupBlockViaLabelFromFdef f l1 = Some b1 /\
+      ((exists vb,
+         lookupBlockViaIDFromFdef f vid1 = Some vb /\
+         (blockDominates f vb b1 \/ not (isReachableFromEntry f b))) \/
+      In vid1 (getArgsIDsOfFdef f))) ->
+  wf_phi_operands f b i0 t0 vls0.
+Proof.
+  induction vls0 as [|[[vid5|] l0]]; intros.
+    constructor.
+
+    assert (In (value_id vid5, l0) ((value_id vid5, l0) :: vls0)) as Hin.
+      xsolve_in_list.
+    apply H in Hin.
+    destruct Hin as [b1 [J1 J2]].
+    econstructor; eauto.
+      apply IHvls0.
+      intros.
+      apply H. simpl. auto.
+
+    constructor.
+      apply IHvls0.
+      intros.
+      apply H. simpl. auto.
+Qed.
+
+Lemma wf_phi_operands__elim' : forall f b i0 t0 vls0 vid1 l1
+  (Hwfop: wf_phi_operands f b i0 t0 vls0)
+  (Hin: In (value_id vid1, l1) vls0),
+  exists b1,
+    lookupBlockViaLabelFromFdef f l1 = Some b1 /\
+    ((exists vb,
+       lookupBlockViaIDFromFdef f vid1 = Some vb /\
+       (blockDominates f vb b1 \/ not (isReachableFromEntry f b))) \/
+    In vid1 (getArgsIDsOfFdef f)).
+Proof.
+  induction 1; intros.
+    tauto.
+
+    destruct_in Hin.
+      inv Hin. eauto.
+
+    destruct_in Hin.
+      congruence.
+Qed.
+

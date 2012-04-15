@@ -503,6 +503,13 @@ Qed.
 Lemma reachable_dec: forall (f:fdef) (l1:l), reachable f l1 \/ ~ reachable f l1.
 Proof. intros. tauto. Qed. (* classic logic *)
 
+Lemma isReachableFromEntry_dec: forall f b,
+  isReachableFromEntry f b \/ ~ isReachableFromEntry f b.
+Proof.
+  destruct f as [fh bs]. destruct b as [l0 ? ? ?]. simpl.
+  apply reachable_dec; auto.
+Qed.
+
 Lemma reachable_entrypoint:
   forall (f:fdef) l0 ps cs tmn,
     getEntryBlock f = Some (block_intro l0 ps cs tmn) ->
@@ -2773,6 +2780,68 @@ Proof.
   unfold id_in_reachable_block.
   intros.
   contradict Hin. solve_notin_getArgsIDs.
+Qed.
+
+Lemma get_reachable_labels__spec_aux': forall a (t:AMap.t bool)
+  bnd acc (Hinbnd : In a (get_reachable_labels bnd t acc)),
+  In a bnd \/ In a acc.
+Proof.
+  induction bnd; simpl; intros; try tauto.
+    destruct_if.
+      apply IHbnd in Hinbnd.
+      simpl in Hinbnd.
+      tauto.
+
+      apply IHbnd in Hinbnd.
+      tauto.
+Qed.
+
+Lemma get_reachable_labels__spec': forall a (t:AMap.t bool) bnd
+  (Hinbnd : In a (get_reachable_labels bnd t nil)),
+  In a bnd.
+Proof.
+  intros.
+  apply get_reachable_labels__spec_aux' in Hinbnd.
+  tauto.
+Qed.
+
+Lemma reachablity_analysis__in_bound: forall f rd,
+  reachablity_analysis f = Some rd ->
+  incl rd (bound_fdef f).
+Proof.
+  unfold reachablity_analysis.
+  intros. intros x Hin.
+  inv_mbind.
+  destruct b.
+  inv_mbind.
+  eapply get_reachable_labels__spec'; eauto.
+Qed.
+
+Lemma blockDominates_refl: forall f b, blockDominates f b b.
+Proof.
+  unfold blockDominates.
+  destruct b. destruct (dom_analyze f) !! l5. auto.
+Qed.
+
+Lemma In_bound_fdef__blockInFdefB: forall f l3
+  (Hin: In l3 (bound_fdef f)),
+  exists ps, exists cs, exists tmn,
+    blockInFdefB (block_intro l3 ps cs tmn) f = true.
+Proof.
+  destruct f as [[] bs].
+  simpl. intros.
+  induction bs as [|[l0 ps0 cs0 tmn0]]; simpl in *.
+    tauto.
+
+    destruct Hin as [Hin | Hin]; subst.
+      exists ps0. exists cs0. exists tmn0.
+      apply orb_true_intro.
+      left. solve_refl.      
+
+      apply IHbs in Hin.
+      destruct Hin as [ps [cs [tmn Hin]]].
+      exists ps. exists cs. exists tmn.
+      apply orb_true_intro. auto.
 Qed.
 
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :

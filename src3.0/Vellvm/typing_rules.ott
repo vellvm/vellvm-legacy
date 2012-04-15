@@ -1243,9 +1243,9 @@ Jwf_gvar :: '' ::=  % visitGlobalVariable
       system , module |-v gvar :: :: wf_gvar :: ''
       {{ com [[gvar]] is well-formed w.r.t. [[module]] [[system]]}} by
 
-      system , targetdata |-c const : typ
+      system , (layouts namedts) |-c const : typ
       ----------------------------------------------------------------------------- :: wf_gv_intro
-      system , module |-v id = linkage gvar_spec typ const align
+      system , (layouts namedts products) |-v id = linkage gvar_spec typ const align
 
 defns
 Jwf_prod :: '' ::=

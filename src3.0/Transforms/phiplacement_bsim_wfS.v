@@ -194,28 +194,6 @@ end.
 (*********************************************************)
 (* wfness *)
 
-Lemma wf_typ_independent: forall (sys1 sys2 : system) (td: targetdata)
-  (t: typ) (Hwft: wf_typ sys1 td t), wf_typ sys2 td t.
-Proof.
-  intros.
-  inv Hwft.
-  constructor; eauto using wf_styp_independent, noncycled_independent.
-Qed.
-
-Lemma uniqF__uniqBlocksLocs : forall fh lb,
-  uniqFdef (fdef_intro fh lb) -> NoDup (getBlocksLocs lb).
-Proof.
-  intros. destruct fh. inversion H. split_NoDup; auto.
-Qed.
-
-Lemma wf_styp__isValidElementTyp: forall S td t (Hty: wf_styp S td t),
-  isValidElementTyp t.
-Proof.
-  intros.
-  unfold isValidElementTyp, isValidElementTypB, isNotValidElementTypB.
-  inv Hty; simpl; auto.
-Qed.
-
 Lemma getPointerAlignmentInfo_pos: forall los, 
  (getPointerAlignmentInfo los true > 0)%nat.
 Admitted. (* Typing should check this on the top, wf_insn_base should 
@@ -244,386 +222,6 @@ Proof.
     apply wf_typ_pointer; auto.
 
     apply WF_PhiInfo_spec20 in HUniq; auto.
-Qed.
-
-Lemma WF_PhiInfo__lookupBlockViaIDFromFdef: forall pinfo 
-  (Hwfpi : WF_PhiInfo pinfo) (Huniq: uniqFdef (PI_f pinfo)),
-  exists b, 
-    getEntryBlock (PI_f pinfo) = Some b /\
-    lookupBlockViaIDFromFdef (PI_f pinfo) (PI_id pinfo) = Some b.
-Proof.
-  intros.
-  subst.
-  apply WF_PhiInfo_spec22 in Hwfpi; auto.
-  destruct Hwfpi as [l0 [ps0 [cs1 [cs2 [tmn0 Hentry]]]]].
-  match goal with
-  | Hentry: getEntryBlock _ = Some ?b |- _ => exists b; split; auto
-  end.
-  eapply inGetBlockIDs__lookupBlockViaIDFromFdef; eauto 1.
-    simpl. rewrite getCmdsIDs_app. simpl. xsolve_in_list.
-    solve_blockInFdefB.
-Qed.
-
-(* from dtree.v *)
-Definition getEntryLabel (f:fdef) : option l :=
-match f with
-| fdef_intro _ ((block_intro l0 _ _ _)::_) => Some l0
-| _ => None
-end.
-
-(* from dtree_props.v *)
-Lemma dom_analysis__entry_doms_others1: forall S M f 
-  (HwfF: wf_fdef S M f) entry
-  (H: getEntryLabel f = Some entry)
-  (Hex: exists b,  match (AMap.get b (dom_analyze f)) with
-                   | Dominators.mkBoundedSet dts _ => dts <> nil
-                   end),
-  (forall b, b <> entry /\ reachable f b ->
-     match (AMap.get b (dom_analyze f)) with
-     | Dominators.mkBoundedSet dts _ => In entry dts
-     end).
-Proof.
-  intros.
-  destruct H0 as [J1 J2].
-  case_eq ((dom_analyze f) !! b).
-  intros bs_contents bs_bound H1.
-  unfold dom_analyze in H1, Hex.
-  destruct f as [f b0].
-  remember (entry_dom b0) as R.
-  destruct R.
-  destruct x as [[]|]; subst.
-    destruct b0 as [|b0 b2]; inv H.
-    destruct b1; tinv y.
-    destruct bs_contents0; tinv y.
-    destruct b0 as [l1 p c t]. inv HeqR.
-    inv H2.
-    remember (
-      DomDS.fixpoint (bound_blocks (block_intro entry p c t :: b2))
-           (successors_blocks (block_intro entry p c t :: b2))
-           (transfer (bound_blocks (block_intro entry p c t :: b2)))
-           ((entry,
-            {| DomDS.L.bs_contents := nil; DomDS.L.bs_bound := bs_bound0 |})
-            :: nil)) as R.
-    destruct R.
-      symmetry in HeqR.
-      eapply EntryDomsOthers.dom_entry_doms_others with (entry:=entry) in HeqR;
-        eauto.
-        unfold EntryDomsOthers.entry_doms_others in HeqR.
-        apply HeqR in J1.
-        unfold Dominators.member in J1.
-        unfold EntryDomsOthers.dt, EntryDomsOthers.bound, DomDS.dt, DomDS.L.t
-          in J1.
-        unfold Dominators.t in H1. simpl in J1, H1.
-        rewrite H1 in J1; auto.
-
-        split.
-           remember (Kildall.successors_list
-             (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
-               entry) as R.
-           destruct R; auto.
-           assert (
-             In a
-               (Kildall.successors_list
-                 (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
-               entry)) as Hin. rewrite <- HeqR0. simpl; auto.
-           apply Kildall.make_predecessors_correct' in Hin.
-           change (successors_blocks (block_intro entry p c t :: b2)) with
-             (successors (fdef_intro f (block_intro entry p c t :: b2))) in Hin.
-           apply successors__blockInFdefB in Hin.
-           destruct Hin as [ps0 [cs0 [tmn0 [G1 G2]]]].
-           eapply getEntryBlock_inv with (l3:=a)(a:=entry) in G2; simpl; eauto.
-           congruence.
-
-        split; auto.
-          exists{| DomDS.L.bs_contents := nil; DomDS.L.bs_bound := bs_bound0 |}.
-          simpl.
-          split; auto.
-            split; intros x Hin; auto.
-
-      rewrite AMap.gso in H1; auto.
-      rewrite AMap.gi in H1. inv H1.
-      destruct Hex as [b0 Hex].
-      destruct (l_dec entry b0); subst.
-        rewrite AMap.gss in Hex; auto. congruence.
-
-        rewrite AMap.gso in Hex; auto. rewrite AMap.gi in Hex. simpl in Hex.
-        contradict Hex; auto.
-
-    inv H.
-Qed.
-
-Lemma entry_blockStrictDominates_others: forall s m f (HwfF : wf_fdef s m f)
-  (b be : block) (Hentry : getEntryBlock f = ret be)
-  (n : getBlockLabel be <> getBlockLabel b)
-  (Hreach : isReachableFromEntry f b),
-  blockStrictDominates f be b.
-Proof.
-  unfold blockStrictDominates.
-  intros.
-  destruct be as [l1 ? ? ?].
-  destruct b as [l2 ? ? ?].
-  simpl in n.
-  assert (getEntryLabel f = Some l1) as Gentry.
-    destruct f as [? blocks5].
-    destruct blocks5; inv Hentry. auto.
-  eapply dom_analysis__entry_doms_others1 with (b:=l2) in Gentry; eauto.
-    admit. (* typings should ensure dom_analysis always succeeds. *)
-Qed.
-
-Lemma isReachableFromEntry_dec: forall f b,
-  isReachableFromEntry f b \/ ~ isReachableFromEntry f b.
-Proof.
-  destruct f as [fh bs]. destruct b as [l0 ? ? ?]. simpl.
-  apply reachable_dec; auto.
-Qed.
-
-Lemma wf_cmds_intro: forall s m f b cs,
-  (forall c, In c cs -> wf_insn s m f b (insn_cmd c)) ->
-  wf_cmds s m f b cs.
-Proof.
-  induction cs; intros.
-    constructor.
-    constructor.
-      apply H; simpl; auto.
-      apply IHcs. intros. apply H; simpl; auto.
-Qed.
-
-Lemma wf_cmds_elim: forall s m f b cs,
-  wf_cmds s m f b cs -> forall c, In c cs -> wf_insn s m f b (insn_cmd c).
-Proof.
-  intros s m f b cs J.
-  induction J; intros.
-    inv H.
-
-    simpl in H0.
-    destruct H0 as [H0 | H0]; subst; auto.
-Qed.
-
-Lemma wf_cmds_app: forall s m f b cs2 (Hwfcs2: wf_cmds s m f b cs2) cs1
-  (Hwfcs1: wf_cmds s m f b cs1), wf_cmds s m f b (cs1++cs2).
-Proof.
-  induction cs1; simpl; intros; auto.
-    inv Hwfcs1. constructor; auto.
-Qed.
-
-Lemma wf_phinodes_app: forall s m f b ps2 (Hwfps2: wf_phinodes s m f b ps2) ps1
-  (Hwfps1: wf_phinodes s m f b ps1), wf_phinodes s m f b (ps1++ps2).
-Proof.
-  induction ps1; simpl; intros; auto.
-    inv Hwfps1. constructor; auto.
-Qed.
-
-Ltac inv_wf_block H :=
-let S5 := fresh "S5" in
-let M5 := fresh "M5" in
-let F5 := fresh "F5" in
-let l5 := fresh "l5" in 
-let ps5 := fresh "ps5" in 
-let cs5 := fresh "cs5" in 
-let tmn5 := fresh "tmn5" in 
-let HBinSMF := fresh "HBinSMF" in 
-let Hwfps := fresh "Hwfps" in 
-let Hwfcs := fresh "Hwfcs" in 
-let Hwfi := fresh "Hwfi" in 
-let EQ1 := fresh "EQ1" in
-let EQ2 := fresh "EQ2" in
-let EQ3 := fresh "EQ3" in 
-let EQ4 := fresh "EQ4" in
-inversion H as 
-  [S5 M5 F5 l5 ps5 cs5 tmn5 HBinSMF Hwfps Hwfcs Hwfi EQ1 EQ2 EQ3 EQ4];
-subst S5 M5 F5.
-
-Ltac inv_wf_fdef H :=
-let S5 := fresh "S5" in
-let los5 := fresh "los5" in
-let nts5 := fresh "nts5" in
-let prods5 := fresh "prods5" in
-let fh5 := fresh "fh5" in
-let bs5 := fresh "bs5" in
-let b5 := fresh "b5" in
-let udb5 := fresh "udb5" in
-let HpInS := fresh "HpInS" in
-let Hwffh := fresh "Hwffh" in
-let Hentry := fresh "Hentry" in
-let EQ0 := fresh "EQ0" in
-let Hnpred := fresh "Hnpred" in
-let Hwfb := fresh "Hwfb" in
-let EQ1 := fresh "EQ1" in
-let EQ2 := fresh "EQ2" in
-let EQ3 := fresh "EQ3" in
-inversion H as 
-  [S5 los5 nts5 prods5 fh5 bs5 b5 udb5 HpInS Hwffh Hentry EQ0 Hnpred
-   Hwfb EQ1 EQ2 EQ3]; subst udb5 S5.
-
-Lemma In_InBlocksB: forall b bs, In b bs -> InBlocksB b bs = true.
-Admitted.
-
-(* entry_cmds_simulation in phiplacement_bsim_defs.v should 
-   also use the lemma *)
-Lemma PI_preds_of_entry_cannot_be_nonempty: forall s m pinfo
-  (HwfF: wf_fdef s m (PI_f pinfo)) b
-  (Hentry: getEntryBlock (PI_f pinfo) = Some b),
-  forall (pd : l) (pds : list l), 
-    (PI_preds pinfo) ! (getBlockLabel b) <> ret (pd :: pds).
-Proof.
-  intros.
-  unfold PI_preds.
-  intros. intro J.
-  assert (In pd (make_predecessors (PI_succs pinfo))!!!(getBlockLabel b)) as G.
-    unfold successors_list. unfold l in J. rewrite J. simpl. auto.
-  apply make_predecessors_correct' in G.
-  unfold PI_succs in G.
-  apply successors__blockInFdefB in G.
-  destruct G as [ps1 [cs1' [tmn1 [G1 G2]]]].
-  destruct (PI_f pinfo) as [fh bs].
-  simpl in G1.
-  destruct b.
-  eapply getEntryBlock_inv in G1; eauto.
-Qed.
-
-(* wf_phi_operands doesnt depend on i0 and t0, which should be removed. *)
-Lemma wf_phi_operands__intro : forall f b i0 t0 vls0,
-  (forall vid1 l1 (Hin: In (value_id vid1, l1) vls0), 
-     exists b1,
-      lookupBlockViaLabelFromFdef f l1 = Some b1 /\
-      ((exists vb,
-         lookupBlockViaIDFromFdef f vid1 = Some vb /\
-         (blockDominates f vb b1 \/ not (isReachableFromEntry f b))) \/
-      In vid1 (getArgsIDsOfFdef f))) ->
-  wf_phi_operands f b i0 t0 vls0.
-Proof.
-  induction vls0 as [|[[vid5|] l0]]; intros.
-    constructor.
-
-    assert (In (value_id vid5, l0) ((value_id vid5, l0) :: vls0)) as Hin.
-      xsolve_in_list.
-    apply H in Hin.
-    destruct Hin as [b1 [J1 J2]].
-    econstructor; eauto.
-      apply IHvls0.
-      intros.
-      apply H. simpl. auto.
-
-    constructor.
-      apply IHvls0.
-      intros.
-      apply H. simpl. auto.
-Qed.
-
-Lemma wf_phi_operands__elim' : forall f b i0 t0 vls0 vid1 l1
-  (Hwfop: wf_phi_operands f b i0 t0 vls0)
-  (Hin: In (value_id vid1, l1) vls0),
-  exists b1,
-    lookupBlockViaLabelFromFdef f l1 = Some b1 /\
-    ((exists vb,
-       lookupBlockViaIDFromFdef f vid1 = Some vb /\
-       (blockDominates f vb b1 \/ not (isReachableFromEntry f b))) \/
-    In vid1 (getArgsIDsOfFdef f)).
-Proof.
-  induction 1; intros.
-    tauto.
-
-    destruct_in Hin.
-      inv Hin. eauto.
-
-    destruct_in Hin.
-      congruence.
-Qed.
-
-(* from dtree_props.v *)
-Lemma In_bound_fdef__blockInFdefB: forall f l3,
-  In l3 (bound_fdef f) ->
-  exists ps, exists cs, exists tmn,
-    blockInFdefB (block_intro l3 ps cs tmn) f = true.
-Admitted. (* infra *)
-
-Lemma PI_newids_are_in_PI_rd: forall pinfo l1 (Huniq: uniqFdef (PI_f pinfo)),
-  WF_PhiInfo pinfo ->
-  (PI_newids pinfo) ! l1 <> merror ->
-  In l1 (PI_rd pinfo).
-Proof.
-  intros.
-Admitted.
-
-Lemma PI_rd__lookupBlockViaLabelFromFdef: forall pinfo (Hwfpi: WF_PhiInfo pinfo) l0,
-  In l0 (PI_rd pinfo) ->
-  exists b1 : block,
-    lookupBlockViaLabelFromFdef (PI_f pinfo) l0 = ret b1 /\
-    isReachableFromEntry (PI_f pinfo) b1.
-Admitted.
-
-Lemma blockDominates_refl: forall f b, blockDominates f b b.
-Proof.
-  unfold blockDominates.
-  destruct b. destruct (dom_analyze f) !! l5. auto.
-Qed.
-
-Lemma WF_PhiInfo_br_preds_succs: forall pinfo l0 l3 (Hwfpi : WF_PhiInfo pinfo)
-  prds (Hin : In l3 prds) (Heq' : (PI_preds pinfo) ! l0 = ret prds),
-  exists succs, (PI_succs pinfo) ! l3 = ret succs /\ In l0 succs.
-Proof.
-  unfold PI_preds. unfold PI_succs.
-  intros.
-  destruct Hwfpi as [J1 J2].
-  assert (In l3 ((make_predecessors (successors (PI_f pinfo)))!!!l0)) as Hin'.
-    unfold successors_list.
-    unfold ls, l in *.
-    rewrite Heq'. auto.
-  apply make_predecessors_correct' in Hin'.
-  unfold successors_list in Hin'.
-  remember (@ATree.get (list atom) l3 (successors (PI_f pinfo))) as R.
-  destruct R; tinv Hin'. eauto.
-Qed.
-
-Lemma InPhiNodes_lookupTypViaIDFromPhiNodes' : forall ps p,
-  NoDup (getPhiNodesIDs ps) ->
-  In p ps ->
-  lookupTypViaIDFromPhiNodes ps (getPhiNodeID p) = Some (getPhiNodeTyp p).
-Proof.
-  induction ps; intros.
-    inversion H0.
-
-    simpl in *.
-    inv H. unfold lookupTypViaIDFromPhiNodes, lookupTypViaIDFromPhiNode.
-    destruct H0 as [H0 | H0]; subst.
-      destruct (@eq_dec id 
-        (@EqDec_eq_of_EqDec id EqDec_atom) (getPhiNodeID p) (getPhiNodeID p)); 
-        subst; auto.
-        congruence.
-
-      destruct (@eq_dec id 
-        (@EqDec_eq_of_EqDec id EqDec_atom) (getPhiNodeID p) (getPhiNodeID a)); 
-        subst; auto.
-
-        contradict H3; auto.
-        rewrite <- e. solve_in_list.
-Qed.
-
-Lemma uniqF__lookupPhiNodeTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f p,
-  uniqFdef f ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
-  In p ps1 ->
-  lookupTypViaIDFromFdef f (getPhiNodeID p) = Some (getPhiNodeTyp p).
-Proof.
-  intros.
-  destruct f as [f b].
-  destruct f as [fnattrs5 typ5 id5 args5 varg5]. inversion H.
-  split_NoDup.
-  simpl in *.
-  assert (In (getPhiNodeID p) (getBlocksLocs b)) as Hin.
-    eapply in_getBlockLocs__in_getBlocksLocs in H0; eauto.
-    simpl. xsolve_in_list.
-  destruct H as [J1 J2].
-  assert (~ In (getPhiNodeID p) (getArgsIDs args5)) as Hnotin.
-    eapply NoDup_disjoint; eauto.
-  apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
-  rewrite Hnotin.
-  eapply lookupTypViaIDFromBlock__inBlocks; eauto.
-  simpl.
-  apply NoDup__InBlocksB in H0; auto.
-  simpl in H0.
-  split_NoDup.
-  rewrite InPhiNodes_lookupTypViaIDFromPhiNodes'; auto.
 Qed.
 
 Lemma phinodes_placement_blk_tail_inv: forall pinfo b lid pid sid scs
@@ -679,22 +277,57 @@ Proof.
     exists nil. auto.
 Qed.
 
-Lemma phinodes_placement_blk_inv: forall pinfo b,
+Lemma phinodes_placement_blk_inv': forall pinfo b,
   exists l0, exists ps0, exists cs0, exists tmn0, 
     exists ps1, exists cs1, exists cs2,
     b = block_intro l0 ps0 cs0 tmn0 /\
     phinodes_placement_blk pinfo b = 
-      block_intro l0 (ps1++ps0) (cs1 ++ cs0 ++ cs2) tmn0.
+      block_intro l0 (ps1++ps0) (cs1 ++ cs0 ++ cs2) tmn0 /\
+    ((ps1 = nil /\ cs1 = nil) \/ 
+      exists lid, exists pid, exists sid,
+        ret (lid, pid, sid) = (PI_newids pinfo) ! (getBlockLabel b) /\
+      exists pds, 
+        ps1 = [gen_phinode pid (PI_typ pinfo) (PI_newids pinfo) pds] /\
+        cs1 = [insn_store sid (PI_typ pinfo) (value_id pid)
+                 (value_id (PI_id pinfo)) (PI_align pinfo)] /\
+        ret pds = (PI_preds pinfo) ! (getBlockLabel b) /\
+        pds <> nil) /\
+     (cs2 = nil \/
+      exists lid, exists pid, exists sid,
+        ret (lid, pid, sid) = (PI_newids pinfo) ! (getBlockLabel b) /\
+      exists scs,
+        cs2 = [insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo))
+                  (PI_align pinfo)] /\
+        ret scs = (PI_succs pinfo) ! (getBlockLabel b) /\
+        scs <> nil).
 Proof.
   intros. destruct b as [l0 ps0 cs0 tmn0]. simpl in *. 
   exists l0. exists ps0. exists cs0. exists tmn0.
-  destruct ((PI_newids pinfo) ! l0) as [[[]]|].
-    destruct ((PI_preds pinfo) ! l0) as [[]|]; try solve [
+
+Ltac phinodes_placement_blk_inv'_tac1 :=
+  right;
+  match goal with
+  | |- context [ret (_, _, _) = ret (?lid, ?pid, ?sid)] =>
+       exists lid; exists pid; exists sid
+  end;
+  split; auto;
+  match goal with
+  | |- context [Some _ = Some ([?a]++?A)] => 
+       exists ([a]++A); simpl;
+       repeat (split; try solve [auto | congruence])
+  end.
+
+Ltac phinodes_placement_blk_inv'_tac2 :=
+  simpl_env; repeat (split; auto); phinodes_placement_blk_inv'_tac1.
+
+  destruct ((PI_newids pinfo) ! l0) as [[[lid pid] sid]|].
+    destruct ((PI_preds pinfo) ! l0) as [[|pd pds]|]; try solve [
       exists nil; exists nil;
-      destruct ((PI_succs pinfo) ! l0) as [[]|]; try solve [
-        exists nil; auto |
+      destruct ((PI_succs pinfo) ! l0) as [[|sc scs]|]; try solve [
+        exists nil; tauto |
         match goal with
-        | |- context [ (_++[?c]) ] => exists [c]; simpl_env; auto
+        | |- context [ (_++[?c]) ] => 
+             exists [c]; phinodes_placement_blk_inv'_tac2
         end
       ] |
 
@@ -703,65 +336,77 @@ Proof.
            exists [p]; exists [c]
       end;
       destruct ((PI_succs pinfo) ! l0) as [[]|]; try solve [
-        exists nil; auto |
+        exists nil; phinodes_placement_blk_inv'_tac2 |
         match goal with
-        | |- context [ (_::_++[?c]) ] => exists [c]; simpl_env; auto
+        | |- context [ (_::_++[?c]) ] => 
+             exists [c]; phinodes_placement_blk_inv'_tac2
         end
       ]
     ].
 
-    exists nil. exists nil. exists nil. simpl_env. auto.
+    exists nil. exists nil. exists nil. simpl_env. tauto.
 Qed.
 
-Ltac solve_refl :=
-match goal with
-| |- ?c =cmd= ?c = true => apply cmdEqB_refl
-| |- ?p =phi= ?p = true => apply phinodeEqB_refl
-| |- moduleEqB ?m ?m = true => apply moduleEqB_refl
-end.
-
-Section PresWF.
-
-Variable (los:layouts) (nts:namedts) (Ps1 Ps2:products) (pinfo:PhiInfo)
-         (M M':module) (f':fdef).
-Hypothesis (Hwfpi: WF_PhiInfo pinfo)   
-           (HeqM: M = module_intro los nts (Ps1 ++ product_fdef (PI_f pinfo) :: Ps2))
-           (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
-           (HeqF': f' = phinodes_placement_f pinfo (PI_f pinfo))
-           (HwfF: wf_fdef [M] M (PI_f pinfo)) 
-           (HuniqF: uniqFdef (PI_f pinfo)).
-
-Lemma phinodes_placement_lookupTypViaIDFromFdef: forall id0 t
-  (Hlkty: lookupTypViaIDFromFdef (PI_f pinfo) id0 = Some t),
-  lookupTypViaIDFromFdef f' id0 = Some t.
-
-
-Admitted.
-
-Lemma phinodes_placement_wf_const : forall c t
-  (Hwfc: wf_const [M] (los,nts) c t),
-  wf_const [M'] (los,nts) c t.
-
-Admitted.
-
-Lemma phinodes_placement_wf_value : forall v t
-  (Hwfv: wf_value [M] M (PI_f pinfo) v t),
-  wf_value [M'] M' f' v t.
+Lemma phinodes_placement_blk_inv: forall pinfo b,
+  exists l0, exists ps0, exists cs0, exists tmn0, 
+    exists ps1, exists cs1, exists cs2,
+    b = block_intro l0 ps0 cs0 tmn0 /\
+    phinodes_placement_blk pinfo b = 
+      block_intro l0 (ps1++ps0) (cs1 ++ cs0 ++ cs2) tmn0.
 Proof.
   intros.
-  assert (J1:=phinodes_placement_wf_const).
-  assert (J2:=phinodes_placement_lookupTypViaIDFromFdef).
-  inv Hwfv; uniq_result;
-    constructor; eauto using wf_typ_independent.
+  assert (J:=phinodes_placement_blk_inv' pinfo b).
+  destruct J as [l0 [ps0 [cs0 [tmn0 [ps1 [cs1 [cs2 [EQ [J _]]]]]]]]]; subst.
+  eauto 9.
 Qed.
 
-Lemma phinodes_placement_insnInFdefBlockB: forall b instr,
-  insnInFdefBlockB instr (PI_f pinfo) b = true ->
-  insnInFdefBlockB instr (phinodes_placement_f pinfo (PI_f pinfo))
-    (phinodes_placement_blk pinfo b) = true.
-Admitted.
+Lemma inserted_phi_operands__elim_aux: forall pinfo v l1 pds acc
+  (Hin : In (v, l1)
+          (fold_left
+             (fun (acc : list (value * atom)) (p : atom) =>
+              (match (PI_newids pinfo) ! p with
+               | ret (lid0, _, _) => value_id lid0
+               | merror => value_const (const_undef (PI_typ pinfo))
+               end, p) :: acc) pds acc)),
+  In (v, l1) acc \/ (In l1 pds /\ 
+  match v with
+  | value_id vid1 => 
+      exists pid, exists sid, (PI_newids pinfo) ! l1 = Some (vid1, pid, sid)
+  | value_const vc => vc = const_undef (PI_typ pinfo)
+  end).
+Proof.
+  induction pds as [|a]; simpl; intros; auto.
+    apply IHpds in Hin.
+    destruct Hin as [Hin | [J1 J2]].
+      destruct_in Hin.
+        remember ((PI_newids pinfo) ! a) as R.
+        destruct R as [[[]]|]; inv Hin; right; split; eauto.
 
-Lemma phinodes_placement_insnDominates: forall b b' instr
+      right. split; auto.  
+Qed.
+
+Lemma inserted_phi_operands__elim: forall pinfo v l1 pds
+  (Hin : In (v, l1)
+          (fold_left
+             (fun (acc : list (value * atom)) (p : atom) =>
+              (match (PI_newids pinfo) ! p with
+               | ret (lid0, _, _) => value_id lid0
+               | merror => value_const (const_undef (PI_typ pinfo))
+               end, p) :: acc) pds nil)),
+  In l1 pds /\ 
+  match v with
+  | value_id vid1 => 
+      exists pid, exists sid, (PI_newids pinfo) ! l1 = Some (vid1, pid, sid)
+  | value_const vc => vc = const_undef (PI_typ pinfo)
+  end.
+Proof.
+  intros.
+  apply inserted_phi_operands__elim_aux in Hin.
+  destruct Hin as [Hin | Hin]; auto.
+    tauto.
+Qed.
+
+Lemma phinodes_placement_insnDominates: forall pinfo b b' instr
   (Hin: insnInFdefBlockB instr (PI_f pinfo) b = true)
   (Heqb': b' = phinodes_placement_blk pinfo b) id_
   (Hdom: insnDominates id_ instr b),
@@ -787,16 +432,133 @@ Proof.
       right. exists (ps1++ps1'). exists p1. exists ps2. simpl_env. auto.
 Qed.
 
-Lemma phinodes_placemen_getArgsIDsOfFdef:
-  getArgsIDsOfFdef (PI_f pinfo) =
-    getArgsIDsOfFdef (phinodes_placement_f pinfo (PI_f pinfo)).
-Admitted.
+Lemma phinodes_placement_getBlockIDs: forall pinfo id0 b
+  (Hin: In id0 (getBlockIDs b)),
+  In id0 (getBlockIDs (phinodes_placement_blk pinfo b)).
+Proof.
+  intros.
+  assert (J:=phinodes_placement_blk_inv pinfo b).
+  destruct J as [l0 [ps0 [cs0 [tmn0 [ps1 [cs1 [cs2 [EQ J]]]]]]]]; subst.
+  rewrite J. clear - Hin. simpl in *.
+  destruct_in Hin.
+    rewrite getPhiNodesIDs_app.
+    xsolve_in_list.
 
-Lemma phinodes_placement_lookupBlockViaIDFromFdef: forall id0 b,
-  lookupBlockViaIDFromFdef (PI_f pinfo) id0 = Some b ->
+    repeat (rewrite getCmdsIDs_app).
+    xsolve_in_list.
+Qed.
+
+Lemma phinodes_placement_lookupBlockViaIDFromFdef: forall pinfo id0 b
+  (HuniqF: uniqFdef (PI_f pinfo)) (Hwfpi: WF_PhiInfo pinfo)   
+  (Hlkup: lookupBlockViaIDFromFdef (PI_f pinfo) id0 = Some b),
   lookupBlockViaIDFromFdef (phinodes_placement_f pinfo (PI_f pinfo)) id0 
     = Some (phinodes_placement_blk pinfo b).
-Admitted.
+Proof.
+  intros.
+  assert (J:=Hlkup).
+  apply lookupBlockViaIDFromFdef__InGetBlockIDs in Hlkup.
+  apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
+    rewrite <- phinodes_placement_f_spec1.
+    apply phinodes_placement__uniqFdef; auto.
+
+    apply phinodes_placement_getBlockIDs; auto.
+
+    fold_PhiPlacement_tac.
+    apply TransCFG.pres_blockInFdefB; auto.
+      solve_blockInFdefB.
+Qed.
+
+Section PresWF.
+
+Variable (los:layouts) (nts:namedts) (Ps1 Ps2:products) (pinfo:PhiInfo)
+         (M M':module) (f':fdef).
+Hypothesis (Hwfpi: WF_PhiInfo pinfo)   
+           (HeqM: M = module_intro los nts (Ps1 ++ product_fdef (PI_f pinfo) :: Ps2))
+           (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
+           (HeqF': f' = phinodes_placement_f pinfo (PI_f pinfo))
+           (HwfF: wf_fdef [M] M (PI_f pinfo)) 
+           (HuniqF: uniqFdef (PI_f pinfo)).
+
+Lemma Heq_fheader: fheaderOfFdef (PI_f pinfo) = fheaderOfFdef f'.
+Proof.
+  subst.
+  rewrite <- phinodes_placement_f_spec1.
+  apply phinodes_placement_fheaderOfFdef.
+Qed.
+
+Lemma phinodes_placement_preserves_wf_typ: forall t,
+  wf_typ [M] (los,nts) t -> wf_typ [M'] (los,nts) t.
+Proof.
+  assert (J:=Heq_fheader).
+  eapply TopWFS.subst_fdef_preserves_single_wf_typ; eauto.
+Qed.
+
+Lemma wf_PI_typ': wf_typ [M'] (los, nts) (PI_typ pinfo).
+Proof.
+  assert (J:=phinodes_placement_preserves_wf_typ).
+  subst.
+  apply WF_PhiInfo_spec21 in HwfF; auto.
+Qed.
+
+Lemma phinodes_placement_insnInFdefBlockB: forall b instr
+  (Hin: insnInFdefBlockB instr (PI_f pinfo) b = true),
+  insnInFdefBlockB instr (phinodes_placement_f pinfo (PI_f pinfo))
+    (phinodes_placement_blk pinfo b) = true.
+Proof.
+  intros.
+  apply destruct_insnInFdefBlockB in Hin.
+  destruct Hin as [Hin1 Hin2].
+  apply insnInFdefBlockB_intro.
+    assert (J:=phinodes_placement_blk_inv pinfo b).
+    destruct J as [l0 [ps0 [cs0 [tmn0 [ps1 [cs1 [cs2 [EQ J]]]]]]]]; subst.
+    rewrite J. clear J.
+    destruct instr; simpl in *; auto.
+      apply In_InPhiNodesB. xsolve_in_list.
+      apply In_InCmdsB. xsolve_in_list.
+
+    fold_PhiPlacement_tac.
+    apply TransCFG.pres_blockInFdefB; auto.
+Qed.
+
+Lemma phinodes_placement_lookupTypViaIDFromFdef: forall id0 t
+  (Hlkty: lookupTypViaIDFromFdef (PI_f pinfo) id0 = Some t),
+  lookupTypViaIDFromFdef f' id0 = Some t.
+Proof.
+  intros.
+  assert (Huniq':uniqFdef f').
+    subst. 
+    rewrite <- phinodes_placement_f_spec1.
+    apply phinodes_placement__uniqFdef; auto.
+  apply lookupTypViaIDFromFdef_intro; auto.
+  subst.
+  apply lookupTypViaIDFromFdef_elim in Hlkty; auto.
+  destruct Hlkty as [[attr0 Hin] | [b [instr [Hin [J1 J2]]] ]].
+    left. fold_PhiPlacement_tac.
+    rewrite <- TransCFG.pres_getArgsOfFdef.
+    eauto.
+
+    apply phinodes_placement_insnInFdefBlockB in Hin. 
+    right.
+    exists (phinodes_placement_blk pinfo b). eauto.
+Qed.
+
+Lemma phinodes_placement_preserves_wf_const: forall c t,
+  wf_const [M] (los,nts) c t -> wf_const [M'] (los,nts) c t.
+Proof.
+  assert (J:=Heq_fheader).
+  eapply TopWFS.subst_fdef_preserves_single_wf_const; eauto.
+Qed.
+
+Lemma phinodes_placement_wf_value : forall v t
+  (Hwfv: wf_value [M] M (PI_f pinfo) v t),
+  wf_value [M'] M' f' v t.
+Proof.
+  intros.
+  assert (J1:=phinodes_placement_preserves_wf_const).
+  assert (J3:=phinodes_placement_preserves_wf_typ).
+  assert (J2:=phinodes_placement_lookupTypViaIDFromFdef).
+  inv Hwfv; uniq_result; constructor; eauto.
+Qed.
 
 Lemma phinodes_placement_wf_operand: forall b b'
   (Heqb': b' = phinodes_placement_blk pinfo b) instr id_
@@ -808,11 +570,13 @@ Proof.
   assert (J:=H). 
   apply phinodes_placement_insnInFdefBlockB in H.
   econstructor; eauto 1.  
-    rewrite <- phinodes_placemen_getArgsIDsOfFdef.
+    fold_PhiPlacement_tac.
+    rewrite <- TransCFG.pres_getArgsIDsOfFdef.
     destruct H3 as [[b0 [J1 H3]] | J3]; auto.
     left.
     exists (phinodes_placement_blk pinfo b0).
     split.
+      simpl.
       apply phinodes_placement_lookupBlockViaIDFromFdef; auto.
 
       fold_PhiPlacement_tac.
@@ -837,20 +601,6 @@ Proof.
     apply H2 in Hin. auto.
 Qed.
 
-Lemma phinodes_placement_getDefReturnType:
-  Function.getDefReturnType (phinodes_placement_f pinfo (PI_f pinfo)) =
-  Function.getDefReturnType (PI_f pinfo).
-Proof.
-  assert (fheaderOfFdef (PI_f pinfo) = 
-          fheaderOfFdef (phinodes_placement_f pinfo (PI_f pinfo))) as EQ.
-    rewrite <- phinodes_placement_f_spec1.
-    apply phinodes_placement_fheaderOfFdef.
-  unfold Function.getDefReturnType.
-  destruct (phinodes_placement_f pinfo (PI_f pinfo)) as [[]].
-  destruct (PI_f pinfo) as [[]].
-  inv EQ. auto.
-Qed.
-
 Lemma phinodes_placement_wf_trunc : forall b b' 
   (Heqb': b' = phinodes_placement_blk pinfo b) instr
   (HwfI : wf_trunc [M] M (PI_f pinfo) b instr),
@@ -859,7 +609,7 @@ Proof.
   intros.
   assert (J1:=@phinodes_placement_wf_insn_base b b' Heqb' instr).
   assert (J2:=phinodes_placement_wf_value).
-  assert (J3:=@wf_typ_independent [M] [M'] (los,nts)).
+  assert (J3:=@phinodes_placement_preserves_wf_typ).
   inv HwfI; uniq_result; try solve [
     econstructor; eauto 3
   ].
@@ -873,7 +623,7 @@ Proof.
   intros.
   assert (J1:=@phinodes_placement_wf_insn_base b b' Heqb' instr).
   assert (J2:=phinodes_placement_wf_value).
-  assert (J3:=@wf_typ_independent [M] [M'] (los,nts)).
+  assert (J3:=@phinodes_placement_preserves_wf_typ).
   inv HwfI; uniq_result; try solve [
     econstructor; eauto 3
   ].
@@ -887,7 +637,7 @@ Proof.
   intros.
   assert (J1:=@phinodes_placement_wf_insn_base b b' Heqb' instr).
   assert (J2:=phinodes_placement_wf_value).
-  assert (J3:=@wf_typ_independent [M] [M'] (los,nts)).
+  assert (J3:=@phinodes_placement_preserves_wf_typ).
   inv HwfI; uniq_result; try solve [
     econstructor; eauto 3
   ].
@@ -902,7 +652,8 @@ Proof.
   apply wf_phi_operands__intro.
   intros.
   eapply wf_phi_operands__elim' in Hwfps; eauto.
-  rewrite <- phinodes_placemen_getArgsIDsOfFdef.
+  fold_PhiPlacement_tac.
+  rewrite <- TransCFG.pres_getArgsIDsOfFdef.
   destruct Hwfps as [b1 [J1 Hwfps]].
   exists (phinodes_placement_blk pinfo b1).
   split.
@@ -913,6 +664,7 @@ Proof.
     left.
     exists (phinodes_placement_blk pinfo b0).
     split.
+      simpl.
       apply phinodes_placement_lookupBlockViaIDFromFdef; auto.
 
       fold_PhiPlacement_tac.
@@ -953,8 +705,8 @@ Proof.
   intros.
   assert (J1:=@phinodes_placement_wf_insn_base b b' Heqb' instr).
   assert (J2:=phinodes_placement_wf_value).
-  assert (J3:=@wf_typ_independent [M] [M'] (los,nts)).
-  assert (J4:=phinodes_placement_wf_const).
+  assert (J3:=@phinodes_placement_preserves_wf_typ).
+  assert (J4:=@phinodes_placement_preserves_wf_const).
   assert (J5:=@phinodes_placement_wf_trunc b b' Heqb' instr).
   assert (J6:=@phinodes_placement_wf_ext b b' Heqb' instr).
   assert (J7:=@phinodes_placement_wf_cast b b' Heqb' instr).
@@ -965,9 +717,9 @@ repeat match goal with
 | H1 : lookupBlockViaLabelFromFdef (PI_f pinfo) _ = ret _ |- _ =>
   apply (@TransCFG.pres_lookupBlockViaLabelFromFdef (PhiPlacement pinfo)) in H1
 | H1 : context [Function.getDefReturnType (PI_f pinfo)] |- _ =>
-  rewrite <- phinodes_placement_getDefReturnType in H1
+  rewrite <- (@TransCFG.pres_getDefReturnType (PhiPlacement pinfo)) in H1
 | |- context [Function.getDefReturnType (PI_f pinfo)] =>
-  rewrite <- phinodes_placement_getDefReturnType
+  rewrite <- (@TransCFG.pres_getDefReturnType (PhiPlacement pinfo))
 | H1 : insnInFdefBlockB _ (PI_f pinfo) _ = true |- _ =>
   apply phinodes_placement_insnInFdefBlockB in H1
 end.
@@ -976,6 +728,7 @@ end.
     phinodes_placement_wf_insn_tac;
     econstructor; eauto 3
   ].
+
 Qed.
 
 Lemma phinodes_placement_wf_cmds : forall b b' 
@@ -1025,8 +778,6 @@ Proof.
     apply TransCFG.pres_blockInFdefB; auto.
 Qed.
 
-Ltac solve_isNotPhiNode := unfold isPhiNode; simpl; congruence.
-
 Lemma phinodes_placement_blk_rev_eq: forall (pinfo : PhiInfo) (b : block)
   (Huniq : uniqFdef (PI_f pinfo))
   (Hin : blockInFdefB b (PI_f pinfo) = true) (be : block)
@@ -1064,7 +815,7 @@ Proof.
     left. assert (J:=Hwfpi).
     apply WF_PhiInfo__lookupBlockViaIDFromFdef in J; auto.
     destruct J as [be [Hentry Hlkup]]. 
-    apply phinodes_placement_lookupBlockViaIDFromFdef in Hlkup.
+    apply phinodes_placement_lookupBlockViaIDFromFdef in Hlkup; auto.
     exists (phinodes_placement_blk pinfo be).
     split; auto.
     destruct (isReachableFromEntry_dec
@@ -1102,37 +853,6 @@ Proof.
       rewrite <- phinodes_placement_blk__getBlockLabel in n.
       rewrite <- phinodes_placement_blk__getBlockLabel in n.
       eapply entry_blockStrictDominates_others; eauto.
-Qed.
-
-Lemma wf_PI_typ': wf_typ [M'] (los, nts) (PI_typ pinfo).
-Proof.
-  subst.
-  apply WF_PhiInfo_spec21 in HwfF; auto.
-  eapply wf_typ_independent; eauto.
-Qed.
-
-Lemma WF_PhiInfo_br_preds_succs': forall (pinfo : PhiInfo) 
-  (Hwfpi : WF_PhiInfo pinfo) (HuniqF : uniqFdef (PI_f pinfo)) (pds : list l)
-  (b : block) (HeqR3 : ret pds = (PI_preds pinfo) ! (getBlockLabel b))
-  (l0 : l) (Hin : In l0 pds) (b1 : block)
-  (Hlkup : lookupBlockViaLabelFromFdef (PI_f pinfo) l0 = ret b1),
-  l0 = getBlockLabel b1 /\
-  exists succs,
-    succs <> nil /\ ret succs = (PI_succs pinfo) ! (getBlockLabel b1).
-Proof.
-  intros.
-  symmetry in HeqR3.
-  eapply WF_PhiInfo_br_preds_succs in HeqR3; eauto.
-  destruct HeqR3 as [succs [J1 J2]].
-  assert (succs <> nil) as Hneq'.
-    destruct succs; tinv J2. congruence.
-  symmetry in J1.
-  assert (l0 = getBlockLabel b1) as EQ.
-    destruct b1.
-    apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
-    destruct Hlkup; subst. auto.
-  subst.
-  eauto.
 Qed.
 
 Lemma inserted_store__in__phinodes_placement_blk: forall b lid pid sid pds
@@ -1261,7 +981,7 @@ Proof.
     left. assert (J:=Hwfpi).
     apply WF_PhiInfo__lookupBlockViaIDFromFdef in J; auto.
     destruct J as [be [Hentry Hlkup]]. 
-    apply phinodes_placement_lookupBlockViaIDFromFdef in Hlkup.
+    apply phinodes_placement_lookupBlockViaIDFromFdef in Hlkup; auto.
     exists (phinodes_placement_blk pinfo be).
     split; auto.
     destruct (isReachableFromEntry_dec
@@ -1317,50 +1037,28 @@ Proof.
     apply TransCFG.pres_blockInFdefB; auto.
 Qed.
 
-Lemma inserted_phi_operands__elim_aux: forall v l1 pds acc
-  (Hin : In (v, l1)
-          (fold_left
-             (fun (acc : list (value * atom)) (p : atom) =>
-              (match (PI_newids pinfo) ! p with
-               | ret (lid0, _, _) => value_id lid0
-               | merror => value_const (const_undef (PI_typ pinfo))
-               end, p) :: acc) pds acc)),
-  In (v, l1) acc \/ (In l1 pds /\ 
-  match v with
-  | value_id vid1 => 
-      exists pid, exists sid, (PI_newids pinfo) ! l1 = Some (vid1, pid, sid)
-  | value_const vc => vc = const_undef (PI_typ pinfo)
-  end).
-Proof.
-  induction pds as [|a]; simpl; intros; auto.
-    apply IHpds in Hin.
-    destruct Hin as [Hin | [J1 J2]].
-      destruct_in Hin.
-        remember ((PI_newids pinfo) ! a) as R.
-        destruct R as [[[]]|]; inv Hin; right; split; eauto.
-
-      right. split; auto.  
-Qed.
-
-Lemma inserted_phi_operands__elim: forall v l1 pds
-  (Hin : In (v, l1)
-          (fold_left
-             (fun (acc : list (value * atom)) (p : atom) =>
-              (match (PI_newids pinfo) ! p with
-               | ret (lid0, _, _) => value_id lid0
-               | merror => value_const (const_undef (PI_typ pinfo))
-               end, p) :: acc) pds nil)),
-  In l1 pds /\ 
-  match v with
-  | value_id vid1 => 
-      exists pid, exists sid, (PI_newids pinfo) ! l1 = Some (vid1, pid, sid)
-  | value_const vc => vc = const_undef (PI_typ pinfo)
-  end.
+Lemma WF_PhiInfo_br_preds_succs': forall (pinfo : PhiInfo) 
+  (Hwfpi : WF_PhiInfo pinfo) (HuniqF : uniqFdef (PI_f pinfo)) (pds : list l)
+  (b : block) (HeqR3 : ret pds = (PI_preds pinfo) ! (getBlockLabel b))
+  (l0 : l) (Hin : In l0 pds) (b1 : block)
+  (Hlkup : lookupBlockViaLabelFromFdef (PI_f pinfo) l0 = ret b1),
+  l0 = getBlockLabel b1 /\
+  exists succs,
+    succs <> nil /\ ret succs = (PI_succs pinfo) ! (getBlockLabel b1).
 Proof.
   intros.
-  apply inserted_phi_operands__elim_aux in Hin.
-  destruct Hin as [Hin | Hin]; auto.
-    tauto.
+  symmetry in HeqR3.
+  eapply WF_PhiInfo_br_preds_succs in HeqR3; eauto.
+  destruct HeqR3 as [succs [J1 J2]].
+  assert (succs <> nil) as Hneq'.
+    destruct succs; tinv J2. congruence.
+  symmetry in J1.
+  assert (l0 = getBlockLabel b1) as EQ.
+    destruct b1.
+    apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
+    destruct Hlkup; subst. auto.
+  subst.
+  eauto.
 Qed.
 
 Lemma wf_inserted_phi: forall b lid pid sid pds
@@ -1379,12 +1077,10 @@ Proof.
       assert ((PI_newids pinfo) ! l1 <> merror) as G. congruence.
       apply PI_newids_are_in_PI_rd in G; auto.
       apply PI_rd__lookupBlockViaLabelFromFdef in G; auto.
-      destruct G as [b1 [Hlkup Hreach]].
+      destruct G as [b1 Hlkup].
       assert (Hlkup':=Hlkup).
       apply (@TransCFG.pres_lookupBlockViaLabelFromFdef (PhiPlacement pinfo)) 
         in Hlkup'.
-      rewrite (@TransCFG.pres_isReachableFromEntry (PhiPlacement pinfo)) 
-        in Hreach.
       fold_PhiPlacement_tac.
       exists (btrans (PhiPlacement pinfo) b1).
       split; auto.
@@ -1416,21 +1112,6 @@ Proof.
               2) br v l1 l2 should ensure l1 <> l2, or ignore the checking *)
 Qed.
 
-Lemma in_map_fst__in_map: forall value_ vls,
-  In value_ 
-    (List.map (fun pat_ : value * l => let (value_0, _) := pat_ in value_0) vls) 
-  ->
-  exists l0, In (value_, l0) vls.
-Proof.
-  induction vls as [|[]]; intros.
-    inv H.
-
-    simpl in H. simpl.
-    inv H; eauto.
-      apply IHvls in H0. 
-      destruct H0 as [l1 H0]. eauto.
-Qed.
-
 Lemma inserted_load__lookupTypViaIDFromFdef: forall (pds : list l) b
   (HeqR3 : ret pds = (PI_preds pinfo) ! (getBlockLabel b))
   (vid1 : id) (l0 : l) (Hin : In l0 pds) (pid' : id) (sid' : id)
@@ -1442,7 +1123,7 @@ Proof.
   assert ((PI_newids pinfo) ! l0 <> merror) as G. congruence.
   apply PI_newids_are_in_PI_rd in G; auto.
   apply PI_rd__lookupBlockViaLabelFromFdef in G; auto.
-  destruct G as [b1 [Hlkup Hreach]].
+  destruct G as [b1 Hlkup].
   
   eapply WF_PhiInfo_br_preds_succs' in HeqR3; eauto.
   destruct HeqR3 as [EQ [succs [Hneq' J1]]]; subst.
@@ -1648,10 +1329,18 @@ Proof.
         intros b Hin'. apply Hin. simpl; auto.
 Qed.
 
+Lemma phinodes_placement_preserves_wf_fheader: forall fh,
+  wf_fheader [M] (los,nts) fh -> wf_fheader [M'] (los,nts) fh.
+Proof.
+  assert (J:=Heq_fheader).
+  eapply TopWFS.subst_fdef_preserves_single_wf_fheader; eauto.
+Qed.
+
 Lemma phinodes_placement_wf_fdef: 
   wf_fdef [M'] M' (phinodes_placement_f pinfo (PI_f pinfo)).
 Proof.
   intros. assert (HwfF':=HwfF).
+  assert (G:=phinodes_placement_preserves_wf_fheader).
   inv_wf_fdef HwfF'.
   match goal with
   | Hentry : getEntryBlock _ = _,
@@ -1683,15 +1372,9 @@ Proof.
 
       unfold moduleInSystem. simpl. apply orb_true_intro. 
       left. apply moduleEqB_refl.
-       
-    match goal with
-    | H4: wf_fheader _ _ _ |- _ => clear - H4; inv H4
-    end.
-    econstructor; eauto.
-      intros t0 Hint0.
-      apply H0 in Hint0.
-      eapply wf_typ_independent; eauto.
-  
+
+    rewrite EQ3. auto.
+
     match goal with
     | H2: fdef_intro _ _ = PI_f _, H9: wf_blocks _ _ _ _ |- _ =>
       rewrite <- H2 in H9; auto
@@ -1729,6 +1412,128 @@ Proof.
     eapply phinodes_placement__uniqFdef in Hfind; eauto.
 Qed.
 
+Lemma inserted_store_is_promotable: forall id5 pinfo acc lid pid sid l0
+  (Hfresh: In id5 (getFdefLocs (PI_f pinfo)))
+  (Hnids: ret (lid, pid, sid) = (PI_newids pinfo) ! l0),
+  is_promotable_cmd id5 acc
+    (insn_store sid (PI_typ pinfo) (value_id pid)
+      (value_id (PI_id pinfo)) (PI_align pinfo)) = acc.
+Proof.
+  intros.
+  unfold is_promotable_cmd.
+  simpl.
+  destruct (id_dec pid id5); subst; simpl.
+    eapply PI_newids_arent_in_getFdefLocs in Hnids; eauto 3.
+      tauto.
+
+    destruct (id_dec (PI_id pinfo) id5); subst; simpl; auto.
+    unfold valueEqB.
+    destruct (value_dec (value_id pid) (value_id (PI_id pinfo))); 
+      simpl; congruence.
+Qed.
+
+Lemma inserted_phi_is_promotable: forall pinfo id5 l0 pds pid
+  (Hfresh: In id5 (getFdefLocs (PI_f pinfo)))
+  (HeqR3 : ret pds = (PI_preds pinfo) ! l0),
+  used_in_phi id5
+    (gen_phinode pid (PI_typ pinfo) (PI_newids pinfo) pds) = false.
+Proof.
+  intros. simpl.
+  apply used_in_list_value_l_false__intro.
+  intros.
+  apply inserted_phi_operands__elim in H.
+  destruct H as [_ H].
+  destruct v0; auto.
+  destruct H as [pid' [sid H]].
+  simpl.
+  destruct (id_dec id0 id5); subst; auto.
+  eapply PI_newids_arent_in_getFdefLocs in Hfresh; eauto 3.
+    tauto.
+Qed.
+
+Lemma phinodes_placement_is_promotable_fun: forall pinfo b acc id5
+  (Hfresh: In id5 (getFdefLocs (PI_f pinfo)))
+  (Hin: blockInFdefB b (PI_f pinfo) = true),
+  is_promotable_fun id5 acc b = 
+    is_promotable_fun id5 acc (phinodes_placement_blk pinfo b).
+Proof.
+  unfold is_promotable_fun. intros.
+  assert (J:=phinodes_placement_blk_inv' pinfo b).
+  destruct J as [l0 [ps0 [cs0 [tmn0 [ps1 [cs1 [cs2 [EQ [J1 [J2 J3]]]]]]]]]]; 
+    subst.
+  rewrite J1. 
+  destruct J2 as [[EQ1 EQ2]|[lid [pid [sid [J4 [pds [J5 [J6 [J7 J8]]]]]]]]]; 
+    subst; simpl_env.
+    destruct J3 as [EQ|[lid [pid [sid [J4 [scs [J5 [J6 J7]]]]]]]]; 
+      subst; simpl_env; auto.
+
+      destruct_if.
+      rewrite List.fold_left_app.
+      simpl. rewrite load_is_promotable; auto.
+
+    eapply inserted_phi_is_promotable with (pid:=pid) in J7; eauto 1.
+    simpl in J7. simpl. rewrite J7. 
+    rewrite orb_false_r. 
+    erewrite inserted_store_is_promotable; eauto 1.
+    destruct J3 as [EQ|[lid' [pid' [sid' [J4' [scs [J5' [J6' J7']]]]]]]]; 
+      subst; simpl_env; auto.
+
+      repeat rewrite List.fold_left_app.
+      simpl.
+      rewrite load_is_promotable; auto.
+Qed.
+
+Lemma phinodes_placement_is_promotable_funs: forall id5 pinfo bs init
+  (Hfresh: In id5 (getFdefLocs (PI_f pinfo)))
+  (Hin: forall b, In b bs -> blockInFdefB b (PI_f pinfo) = true),
+  fold_left (is_promotable_fun id5) bs init = 
+     fold_left (is_promotable_fun id5)
+       (List.map (phinodes_placement_blk pinfo) bs) init.
+Proof.
+  induction bs; auto.
+    simpl. intros. subst.
+    rewrite <- phinodes_placement_is_promotable_fun; auto.
+Qed.
+
+Lemma phinodes_placement_is_promotable: forall id5 pinfo
+  (Hfresh: In id5 (getFdefLocs (PI_f pinfo))),
+  is_promotable (PI_f pinfo) id5 = 
+  is_promotable (phinodes_placement_f pinfo (PI_f pinfo)) id5.
+Proof.
+  unfold is_promotable. 
+  intros.
+  remember (PI_f pinfo) as f.
+  destruct f as [fh bs].
+  rewrite phinodes_placement_f_spec2.
+  rewrite Heqf in Hfresh.
+  rewrite <- phinodes_placement_is_promotable_funs; auto.
+  rewrite <- Heqf. simpl. intros. apply In_InBlocksB; auto.
+Qed.
+
+Lemma phinodes_placement_find_promotable_alloca: forall pinfo dones cs
+  (Hin: forall c, In c cs -> exists b, cmdInFdefBlockB c (PI_f pinfo) b),
+  find_promotable_alloca (PI_f pinfo) cs dones = 
+    find_promotable_alloca (phinodes_placement_f pinfo (PI_f pinfo)) cs dones.
+Proof.
+  induction cs as [|[]]; simpl; intros; auto.
+    rewrite <- IHcs; auto.
+    rewrite <- phinodes_placement_is_promotable; auto.
+    match goal with
+    | Hin:context [insn_alloca ?id5 ?ty5 ?val5 ?al5 = _ \/ In _ ?cs] |- _ =>
+      assert (exists b, cmdInFdefBlockB 
+                (insn_alloca id5 ty5 val5 al5) (PI_f pinfo) b) as J;
+        try solve [apply Hin; auto];
+      destruct J as [[l0 ps0 cs0 tmn0] J]
+    end.
+    apply andb_true_iff in J.
+    destruct J as [J1 J2].
+    simpl in J1.
+    apply InCmdsB_in in J1.
+    apply in_split in J1.
+    destruct J1 as [l1 [l2 J1]]; subst.
+    eapply getCmdLoc_in_getFdefLocs in J2; eauto.
+Qed.
+
 Lemma phinodes_placement_wfPI: forall rd f Ps1 Ps2 los nts pid ty al
   num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = reachablity_analysis f)
   (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
@@ -1744,6 +1549,48 @@ Lemma phinodes_placement_wfPI: forall rd f Ps1 Ps2 los nts pid ty al
     PI_typ := ty;
     PI_num := num;
     PI_align := al |}.
-Admitted. (* WF prev *)
-
+Proof.
+  intros.
+  assert (Hwfpi:=Hfind).
+  eapply find_promotable_alloca__WF_PhiInfo in Hwfpi; eauto.
+  match goal with
+  | _: WF_PhiInfo ?pinfo0 |- _ => set pinfo0 as pinfo
+  end.  
+  assert (Some rd = 
+           reachablity_analysis (phinodes_placement_f pinfo (PI_f pinfo))) 
+    as Hreach'.
+    fold_PhiPlacement_tac. 
+    rewrite <- TransCFG.pres_reachablity_analysis; auto.
+  assert (getEntryBlock (phinodes_placement_f pinfo (PI_f pinfo)) =
+      Some (phinodes_placement_blk pinfo (block_intro l0 ps0 cs0 tmn0))) 
+    as Hentry'.
+    fold_PhiPlacement_tac.
+    erewrite TransCFG.pres_getEntryBlock; eauto.
+  assert (J:=phinodes_placement_blk_inv' pinfo (block_intro l0 ps0 cs0 tmn0)).
+  destruct J as [l1 [ps1 [cs1 [tmn1 [ps2 [cs3 [cs2 [EQ [J1 J2]]]]]]]]]; subst.
+  inv EQ.
+  assert (find_promotable_alloca 
+            (phinodes_placement_f pinfo (PI_f pinfo)) (cs3 ++ cs1 ++ cs2) dones = 
+               Some (pid, ty, num, al)) as R.
+    rewrite <- find_promotable_alloca_weaken_head.
+      rewrite <- find_promotable_alloca_weaken_tail.
+        rewrite <- phinodes_placement_find_promotable_alloca; auto.
+        intros. exists (block_intro l1 ps1 cs1 tmn1).
+        apply andb_true_intro.
+        simpl.
+        split. solve_in_list.
+               solve_blockInFdefB.
+        
+        destruct J2 as [_ J2].
+        destruct J2 as [J2 | [lid [pid' [sid [J3 [scs [J4 J5]]]]]]]; 
+          subst; simpl; constructor; simpl; auto.
+      destruct J2 as [J2 _].
+      destruct J2 as [[J21 J22] | [lid [pid' [sid [J3 [pds [J4 [J5 J6]]]]]]]]; 
+        subst; simpl; constructor; simpl; auto.
+   
+  rewrite J1 in Hentry'.
+  eapply find_promotable_alloca__WF_PhiInfo in R; eauto.
+  rewrite <- phinodes_placement_f_spec1 in R.
+  subst pinfo. simpl in *. unfold PI_preds, PI_succs in R. simpl in *. auto.
+Qed.
 

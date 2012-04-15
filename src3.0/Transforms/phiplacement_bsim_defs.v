@@ -2147,17 +2147,8 @@ Proof.
   destruct HeqR as [lid1 [pid1 [sid1 HeqR]]].
   rewrite HeqR in *.
   assert (forall pd pds, (PI_preds pinfo) ! l' <> Some (pd::pds)) as Hprds.
-    unfold PI_preds.
-    intros. intro J.
-    assert (In pd (make_predecessors (PI_succs pinfo))!!!l') as G.
-      unfold successors_list. unfold l in J. rewrite J. simpl. auto.
-    apply make_predecessors_correct' in G.
-    unfold PI_succs in G.
-    apply successors__blockInFdefB in G.
-    destruct G as [ps1 [cs1 [tmn1 [G1 G2]]]].
-    destruct (PI_f pinfo) as [fh bs].
-    simpl in G1.
-    eapply getEntryBlock_inv in G1; eauto.
+    intros.
+    eapply PI_preds_of_entry_cannot_be_nonempty in Hgetentry1; eauto.
 
   destruct ((PI_preds pinfo) ! l') as [[]|]; try congruence.
     inv H0.

@@ -173,25 +173,28 @@ let '(bs', _, newpids) :=
        end) (List.rev bs) (nil, ex_ids, nil)) in
 (fdef_intro fh bs', newpids).
 
-
-Definition is_promotable (f:fdef) (pid:id) : bool :=
-let '(fdef_intro _ bs) := f in
-fold_left
-  (fun acc b =>
-     let '(block_intro _ ps cs tmn) := b in
-     if (List.fold_left (fun re p => re || used_in_phi pid p) ps
-          (used_in_tmn pid tmn)) then false
-     else
-       fold_left
-         (fun acc0 c =>
+Definition is_promotable_cmd pid :=
+  (fun acc0 c =>
           if used_in_cmd pid c then
             match c with
             | insn_load _ _ _ _ => acc0
             | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && acc0
             | _ => false
             end
-          else acc0) cs acc
-  ) bs true.
+          else acc0).
+
+Definition is_promotable_fun pid :=
+  (fun acc b =>
+     let '(block_intro _ ps cs tmn) := b in
+     if (List.fold_left (fun re p => re || used_in_phi pid p) ps
+          (used_in_tmn pid tmn)) then false
+     else
+       fold_left (is_promotable_cmd pid) cs acc
+  ).
+
+Definition is_promotable (f:fdef) (pid:id) : bool :=
+let '(fdef_intro _ bs) := f in
+fold_left (is_promotable_fun pid) bs true.
 
 Fixpoint find_promotable_alloca (f:fdef) (cs:cmds) (dones:list id)
   : option (id * typ * value * align) :=
