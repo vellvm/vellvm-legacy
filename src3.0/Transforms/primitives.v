@@ -1020,3 +1020,11 @@ Hint Unfold conditional_used_in_value conditional_used_in_list_value
   conditional_used_in_params conditional_used_in_args.
 
 
+Lemma used_in_list_value_l_false__intro: forall id0 vls 
+  (H: forall v0 l0, In (v0, l0) vls -> used_in_value id0 v0 = false),
+  used_in_list_value_l id0 vls = false.
+Proof.
+  induction vls as [|[]]; simpl; intros; auto.
+    apply orb_false_intro; eauto.
+Qed.
+
