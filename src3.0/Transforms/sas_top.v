@@ -814,46 +814,6 @@ Proof.
     (@OpsemPP.preservation_plus DGVs), sop_goeswrong__plus.
 Qed.
 
-Lemma find_st_ld__sasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
-  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones) v0
-  (i1 : id) (Hld : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
-  (Hwfpi: WF_PhiInfo pinfo)
-  s m (HwfF: wf_fdef s m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo))
-  (HBinF : blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true),
-  exists sasinfo:SASInfo pinfo,
-    SAS_sid1 pinfo sasinfo = i0 /\
-    SAS_sid2 pinfo sasinfo = i1 /\
-    SAS_value1 pinfo sasinfo = v /\
-    SAS_value2 pinfo sasinfo = v0 /\
-    SAS_block pinfo sasinfo = (block_intro l0 ps0 cs0 tmn0).
-Proof.
-  intros.
-  assert (exists tail, exists sal1, exists sal2, 
-            sas i0 i1 sal1 sal2 v v0 tail (block_intro l0 ps0 cs0 tmn0) pinfo)
-    as Hsas. 
-    unfold sas.
-    apply find_init_stld_inl_spec in Hst.
-    destruct Hst as [cs1 [ty1 [al1 Hst]]]; subst.
-    apply find_next_stld_inr_spec in Hld.
-    destruct Hld as [cs2 [cs3 [ty2 [al2 [Hld J]]]]]; subst.
-    exists cs2. exists al1. exists al2.
-    split; auto.
-    split; auto.
-    exists cs1. exists cs3. 
-      assert (J':=HBinF).
-      eapply WF_PhiInfo_spec24 in J'; eauto.
-      match goal with
-      | H1 : context [?A ++ ?b :: ?C ++ ?d :: ?E] |- _ =>
-        rewrite_env ((A ++ b :: C) ++ d :: E) in H1;
-        eapply WF_PhiInfo_spec24 in H1; eauto
-      end.
-      subst. auto.
-  destruct Hsas as [tail [sal1 [sal2 Hsas]]].
-  exists (mkSASInfo pinfo i0 i1 sal1 sal2 v v0 tail 
-           (block_intro l0 ps0 cs0 tmn0) Hsas).
-  auto.
-Qed.
-
 Lemma sas_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo : PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
