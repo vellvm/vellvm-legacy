@@ -10,27 +10,6 @@ Require Import mem2reg.
 Require Import subst.
 Require Import laa.
 
-Lemma laa_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
-  (dones : list id) (pinfo: PhiInfo)
-  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
-  (bs2 : list block) (Ps1 : list product) (Ps2 : list product)
-  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo)
-  (Hst : ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
-  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
-  (HwfS :
-     wf_system 
-       [module_intro los nts
-         (Ps1 ++
-          product_fdef
-            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-          :: Ps2)])
-  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
-  WF_PhiInfo
-    (update_pinfo pinfo
-      (subst_fdef i1 v
-        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))).
-Admitted. (* pres wfPI*)
-
 Lemma find_st_ld__laainfo: forall l0 ps0 cs0 tmn0 v cs (pinfo:PhiInfo) dones
   (Hst : ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
@@ -71,6 +50,70 @@ Proof.
     auto.
 Qed.
 
+Lemma laa_wf_init: forall (los : layouts) (nts : namedts) (fh : fheader)
+  (dones : list id) (pinfo: PhiInfo)
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product)
+  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo)
+  (Hst : ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
+  (HwfS :
+     wf_system 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
+            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+          :: Ps2)])
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
+  wf_fdef  [module_intro los nts (Ps1 ++ product_fdef (PI_f pinfo) :: Ps2)]
+           (module_intro los nts (Ps1 ++ product_fdef (PI_f pinfo) :: Ps2))
+           (PI_f pinfo) /\
+  uniqFdef (PI_f pinfo) /\
+  v = [! pinfo !] /\
+  exists laainfo:LAAInfo pinfo,
+    LAA_lid pinfo laainfo = i1 /\
+    LAA_block pinfo laainfo = (block_intro l0 ps0 cs0 tmn0).
+Proof.
+  intros.
+  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true)
+    as HBinF.
+    rewrite Heq. simpl. apply InBlocksB_middle.
+  assert (wf_fdef [module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)]
+            (module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)) 
+            (PI_f pinfo) /\ uniqFdef (PI_f pinfo)) as J.
+    rewrite Heq in *. subst.
+    apply wf_single_system__wf_uniq_fdef; auto.
+  destruct J as [HwfF HuniqF].
+  eapply find_st_ld__laainfo in HBinF; eauto.
+Qed.
+
+Lemma laa_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
+  (dones : list id) (pinfo: PhiInfo)
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product)
+  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo)
+  (Hst : ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
+  (HwfS :
+     wf_system 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
+            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+          :: Ps2)])
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
+  WF_PhiInfo
+    (update_pinfo pinfo
+      (subst_fdef i1 v
+        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))).
+Proof.
+  intros.
+  eapply subst_wfPI; eauto 2.
+    eapply laa_wf_init in Hst; eauto 1.
+    destruct Hst as [HwfF [HuniqF [EQ [laainfo [J1 J2]]]]]; subst.
+    simpl. auto.
+Qed.
+
 Lemma laa_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
@@ -94,19 +137,15 @@ Lemma laa_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)].
 Proof.
   intros.
-  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true)
-    as HBinF.
-    rewrite Heq. simpl. apply InBlocksB_middle.
-  assert (wf_fdef [module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)]
-            (module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)) 
-            (PI_f pinfo) /\ uniqFdef (PI_f pinfo)) as J.
-    rewrite Heq in *. subst.
-    apply wf_single_system__wf_uniq_fdef; auto.
-  destruct J as [HwfF HuniqF].
-  eapply find_st_ld__laainfo in HBinF; eauto.
-  destruct HBinF as [EQ [laainfo [J1 J2]]]; subst.
+  eapply laa_wf_init in Hst; eauto 1.
+  destruct Hst as [HwfF [HuniqF [EQ [laainfo [J1 J2]]]]]; subst.
   apply subst_wfS; auto.
     simpl. auto.
+
+    assert (J:=HuniqF).
+    apply lookup_LAA_lid__load with (laainfo:=laainfo) in J; auto.
+    rewrite <- Heq.
+    solve_notin_getArgsIDs.
 
     rewrite <- Heq. clear - laainfo HuniqF HwfF Hwfpi.
     intros t0 Htyp.

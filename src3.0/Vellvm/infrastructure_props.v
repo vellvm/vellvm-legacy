@@ -3549,9 +3549,6 @@ Proof.
 Qed.
 
 (*
-Lemma getCmdID__getCmdLoc: forall c, getCmdID c = Some (getCmdLoc c).
-Proof. destruct c; auto. Admitted.
-
 Lemma in_getCmdsLocs__in_getCmdsIDs: forall c1 cs
   (J : In (getCmdLoc c1) (getCmdsLocs cs)) (Huniq: NoDup (getCmdsLocs cs))
   (J' : lookupCmdViaIDFromCmds cs (getCmdLoc c1) = Some c1),

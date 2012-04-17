@@ -2642,7 +2642,7 @@ Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (cs' : cmds)
   (tmn' : terminator)
   ps2
-  (Hreach : isReachableFromEntry f (block_intro l0 ps' cs' tmn'))
+  (Hreach : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
   (HbInF : blockInFdefB
             (block_intro l1 ps1 cs1 tmn1) f = true)
   (HwfB : wf_block s (module_intro los nts ps) f
@@ -3164,8 +3164,6 @@ Proof.
              inv HlkB. clear H9 H8.
              eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes
                with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l'); eauto.
-               eapply reachable_successors with (l0:=l1)(cs:=ps1)(ps:=cs1)
-                 (tmn:=insn_br id5 value5 l2 l'); simpl; eauto.
                simpl. auto.
                exists nil. auto.
 
@@ -3177,8 +3175,6 @@ Proof.
              inv HlkB. clear H9 H8.
              eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes
                with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l'); eauto.
-               eapply reachable_successors with (l0:=l1)(cs:=ps1)(ps:=cs1)
-                 (tmn:=insn_br id5 value5 l' l3); simpl; eauto.
                simpl. auto.
                exists nil. auto.
 
@@ -3224,8 +3220,6 @@ Proof.
            inv HlkB. clear H9 H8.
            eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes
              with (l0:=l2); eauto.
-             eapply reachable_successors with (l0:=l1)(cs:=ps1)(ps:=cs1++nil)
-               (tmn:=insn_br_uncond i0 l2); simpl; eauto.
              simpl. auto.
              exists nil. auto.
 

@@ -672,11 +672,11 @@ Proof.
   eapply wf_phi_operands__elim' in Hwfps; eauto.
   fold_PhiPlacement_tac.
   rewrite <- TransCFG.pres_getArgsIDsOfFdef.
-  rewrite <- TransCFG.pres_isReachableFromEntry.
   destruct Hwfps as [b1 [J1 Hwfps]].
   exists (phinodes_placement_blk pinfo b1).
+  fold_PhiPlacement_tac.
+  rewrite <- TransCFG.pres_isReachableFromEntry.
   split.
-    fold_PhiPlacement_tac.
     apply TransCFG.pres_lookupBlockViaLabelFromFdef; auto.
 
     destruct Hwfps as [[[b0 [J2 Hwfps]] | J3] | J3]; auto.

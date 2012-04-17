@@ -461,7 +461,7 @@ Lemma wf_phi_operands__elim' : forall f b i0 t0 vls0 vid1 l1
     (((exists vb,
         lookupBlockViaIDFromFdef f vid1 = Some vb /\
         blockDominates f vb b1) \/ 
-      not (isReachableFromEntry f b)) \/
+      not (isReachableFromEntry f b1)) \/
      In vid1 (getArgsIDsOfFdef f)).
 Proof.
   induction 1; intros.
@@ -482,7 +482,7 @@ Lemma wf_phi_operands__elim : forall f b i0 t0 vls0 vid1 l1 n,
     (((exists vb,
        lookupBlockViaIDFromFdef f vid1 = Some vb /\
        blockDominates f vb b1) \/ 
-      not (isReachableFromEntry f b)) \/
+      not (isReachableFromEntry f b1)) \/
      In vid1 (getArgsIDsOfFdef f)).
 Proof.
   induction vls0; intros.
@@ -3512,7 +3512,7 @@ Lemma incoming_value__in_scope: forall (f : fdef) (l0 : l)
   (HeqR : ret t = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1)
   (HuniqF : uniqFdef f) (ps' : phinodes) (cs' : cmds) (tmn' : terminator)
   (i0 : id) (l2 : list (value * l))
-  (Hreach : isReachableFromEntry f (block_intro l0 ps' cs' tmn'))
+  (Hreach : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
   (HbInF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true) t0
   (H7 : wf_phinode f (block_intro l0 ps' cs' tmn') (insn_phi i0 t0 l2))
   (vid : id)
@@ -3525,16 +3525,14 @@ Proof.
   eapply getValueViaLabelFromValuels__nth_list_value_l in Hnth; eauto.
   destruct Hnth as [n Hnth].
   eapply wf_phi_operands__elim in Hwfops; eauto.
-  destruct Hwfops as [b1 [Hlkb1 [[ [vb [Hlkvb Hdom]] | ? ] | HinArgs]]];
-    try congruence.
-  Case "isnt args".
-  assert (b1 = block_intro l1 ps1 cs1 tmn1)
-    as EQ.
+  destruct Hwfops as [b1 [Hlkb1 Hwfops]].
+  assert (b1 = block_intro l1 ps1 cs1 tmn1) as EQ.
     clear - Hlkb1 HbInF HuniqF.
     apply blockInFdefB_lookupBlockViaLabelFromFdef in HbInF; auto.
     rewrite HbInF in Hlkb1. inv Hlkb1; auto.
-
   subst.
+  destruct Hwfops as [[ [vb [Hlkvb Hdom]] | ? ] | HinArgs]; try congruence.
+  Case "isnt args".
   clear - Hdom HeqR J HbInF Hlkvb Hlkb1 HuniqF.
   rename Hdom into J3.
   unfold blockDominates in J3.
@@ -4400,7 +4398,7 @@ Lemma wf_phi_operands__intro : forall f b i0 t0 vls0,
       (((exists vb,
          lookupBlockViaIDFromFdef f vid1 = Some vb /\
          blockDominates f vb b1) \/ 
-        not (isReachableFromEntry f b)) \/
+        not (isReachableFromEntry f b1)) \/
       In vid1 (getArgsIDsOfFdef f))) ->
   wf_phi_operands f b i0 t0 vls0.
 Proof.
@@ -4420,5 +4418,96 @@ Proof.
       apply IHvls0.
       intros.
       apply H. simpl. auto.
+Qed.
+
+Lemma blockStrictDominates_isReachableFromEntry: forall f b1 b2 S M
+  (HuniqF: uniqFdef f) (HwfF: wf_fdef S M f) 
+  (Hreach: isReachableFromEntry f b1) (Hin: blockInFdefB b1 f = true)
+  (Hsdom: blockStrictDominates f b2 b1),
+  isReachableFromEntry f b2.
+Proof.
+  intros.
+  unfold isReachableFromEntry in *. destruct b1, b2.
+  eapply sdom_reachable; eauto.
+  simpl in Hsdom.
+  remember (Maps.AMap.get l5 (dom_analyze f)) as R.
+  destruct R.
+  eapply sdom_is_sound; eauto 1.
+  rewrite <- HeqR. auto.
+Qed.
+
+Lemma blockDominates_isReachableFromEntry: forall f b1 b2 S M
+  (HuniqF: uniqFdef f) (HwfF: wf_fdef S M f) 
+  (Hreach: isReachableFromEntry f b1) (Hin: blockInFdefB b1 f = true)
+  (Hdom: blockDominates f b2 b1),
+  isReachableFromEntry f b2.
+Proof.
+  intros.
+  unfold isReachableFromEntry in *. destruct b1, b2.
+  eapply dom_reachable; eauto.
+  simpl in Hdom.
+  remember (Maps.AMap.get l5 (dom_analyze f)) as R.
+  destruct R.
+  eapply dom_is_sound; eauto 1.
+  rewrite <- HeqR. simpl. destruct Hdom; auto.
+Qed.
+
+Lemma idDominates_blockStrictDominates__blockStrictDominates :
+forall S M f id1 id2 b1 b2 b (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
+  (HBinF: blockInFdefB b f = true),
+  idDominates f id1 id2 ->
+  lookupBlockViaIDFromFdef f id1 = ret b1 ->
+  lookupBlockViaIDFromFdef f id2 = ret b2 ->
+  blockStrictDominates f b2 b ->
+  blockStrictDominates f b1 b.
+Proof.
+  unfold idDominates, blockStrictDominates in *. intros.
+  remember (lookupBlockViaIDFromFdef f id2) as R1.
+  destruct R1; tinv H.
+  remember (inscope_of_id f b0 id2) as R2.
+  destruct R2; tinv H.
+  unfold inscope_of_id in *.
+  destruct b1 as [l1 p c t]. 
+  destruct b as [l2 p0 c0 t0]. destruct b0 as [l3 ? ? ?]. 
+  destruct b2 as [l4 p2 c2 t2].
+  remember (Maps.AMap.get l3 (dom_analyze f)) as R.
+  destruct R.
+  remember (Maps.AMap.get l2 (dom_analyze f)) as R.
+  destruct R. inv H1.
+  symmetry in HeqR2.
+  apply fold_left__spec in HeqR2.
+  destruct HeqR2 as [J1 [J2 J3]].
+  apply J3 in H. clear J3.
+  destruct H as [H | [b1 [l1' [J1' [J2' J3']]]]].
+    assert (block_intro l1 p c t = block_intro l4 p2 c2 t2) as J'.
+      clear - H H0 HeqR1 Huniq.
+      symmetry in HeqR1.
+      apply lookupBlockViaIDFromFdef__blockInFdefB in HeqR1.
+      eapply block_eq1 in H0; eauto.
+      simpl. 
+      assert (~ In id1 (getArgsIDsOfFdef f)) as Hnotin.
+        solve_notin_getArgsIDs.
+      apply init_scope_spec2 in H; auto.
+      apply cmds_dominates_cmd_spec'' in H; auto.
+    inv J'. auto.
+    assert (block_intro l1 p c t = b1) as EQ.
+      apply lookupBlockViaLabelFromFdef__blockInFdefB in J2'; auto.
+      eapply block_eq1 in H0; eauto.
+    subst.
+    apply lookupBlockViaLabelFromFdef_inv in J2'; auto.
+    destruct J2' as [Heq J2']; subst.
+    assert (blockStrictDominates f (block_intro l1 p c t)
+                                   (block_intro l4 p2 c2 t2)) as Hdom.
+      clear - J1' HeqR Huniq. simpl. rewrite <- HeqR.
+      apply ListSet.set_diff_elim1 in J1'; auto.
+    assert (blockStrictDominates f (block_intro l4 p2 c2 t2)
+                  (block_intro l2 p0 c0 t0)) as Hdom'.
+      clear - H2 HeqR0 Huniq. simpl. rewrite <- HeqR0. auto.
+    assert (blockStrictDominates f (block_intro l1 p c t)
+                  (block_intro l2 p0 c0 t0)) as Hdom''.
+      eapply blockStrictDominates_trans with (b2:=block_intro l4 p2 c2 t2);
+        eauto.
+        eapply lookupBlockViaIDFromFdef__blockInFdefB; eauto.
+    simpl in Hdom''. rewrite <- HeqR0 in Hdom''. auto.
 Qed.
 

@@ -1028,3 +1028,13 @@ Proof.
     apply orb_false_intro; eauto.
 Qed.
 
+Lemma valueEqB__used_in_value: forall pid v,
+  valueEqB v (value_id pid) = used_in_value pid v.
+Proof.
+  intros. unfold valueEqB. 
+  destruct (value_dec v (value_id pid)); subst; simpl.
+    destruct_dec.
+    destruct v; simpl; auto.
+      destruct_dec.
+Qed.
+

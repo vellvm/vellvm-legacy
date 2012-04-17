@@ -208,6 +208,17 @@ Proof.
       eapply IHcs in J3; eauto.
 Qed.
 
+Lemma is_promotable_cmd_spec: forall pid (a0 : bool) (b : cmd)
+  (H: is_promotable_cmd pid a0 b = true), a0 = true.
+Proof.
+  unfold is_promotable_cmd. intros.
+  destruct_if; auto.
+  destruct b; try congruence.
+  apply andb_true_iff in H1. 
+  destruct H1 as [J1 J2]. subst.
+  rewrite J1. auto.    
+Qed.
+
 Lemma is_promotable_fun_spec: forall pid (a0: bool) (b: block)
   (H1: is_promotable_fun pid a0 b = true), a0 = true.
 Proof.

@@ -2,81 +2,6 @@ Require Import vellvm.
 Require Import primitives.
 Require Import top_wfS.
 
-Lemma blockStrictDominates_isReachableFromEntry: forall f b1 b2 S M
-  (HuniqF: uniqFdef f) (HwfF: wf_fdef S M f) 
-  (Hreach: isReachableFromEntry f b1) (Hin: blockInFdefB b1 f = true)
-  (Hsdom: blockStrictDominates f b2 b1),
-  isReachableFromEntry f b2.
-Proof.
-  intros.
-  unfold isReachableFromEntry in *. destruct b1, b2.
-  eapply sdom_reachable; eauto.
-  simpl in Hsdom.
-  remember (Maps.AMap.get l5 (dom_analyze f)) as R.
-  destruct R.
-  eapply sdom_is_sound; eauto 1.
-  rewrite <- HeqR. auto.
-Qed.
-
-Lemma idDominates_blockStrictDominates__blockStrictDominates :
-forall S M f id1 id2 b1 b2 b (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
-  (HBinF: blockInFdefB b f = true),
-  idDominates f id1 id2 ->
-  lookupBlockViaIDFromFdef f id1 = ret b1 ->
-  lookupBlockViaIDFromFdef f id2 = ret b2 ->
-  blockStrictDominates f b2 b ->
-  blockStrictDominates f b1 b.
-Proof.
-  unfold idDominates, blockStrictDominates in *. intros.
-  remember (lookupBlockViaIDFromFdef f id2) as R1.
-  destruct R1; tinv H.
-  remember (inscope_of_id f b0 id2) as R2.
-  destruct R2; tinv H.
-  unfold inscope_of_id in *.
-  destruct b1 as [l1 p c t]. 
-  destruct b as [l2 p0 c0 t0]. destruct b0 as [l3 ? ? ?]. 
-  destruct b2 as [l4 p2 c2 t2].
-  remember (Maps.AMap.get l3 (dom_analyze f)) as R.
-  destruct R.
-  remember (Maps.AMap.get l2 (dom_analyze f)) as R.
-  destruct R. inv H1.
-  symmetry in HeqR2.
-  apply fold_left__spec in HeqR2.
-  destruct HeqR2 as [J1 [J2 J3]].
-  apply J3 in H. clear J3.
-  destruct H as [H | [b1 [l1' [J1' [J2' J3']]]]].
-    assert (block_intro l1 p c t = block_intro l4 p2 c2 t2) as J'.
-      clear - H H0 HeqR1 Huniq.
-      symmetry in HeqR1.
-      apply lookupBlockViaIDFromFdef__blockInFdefB in HeqR1.
-      eapply block_eq1 in H0; eauto.
-      simpl. 
-      assert (~ In id1 (getArgsIDsOfFdef f)) as Hnotin.
-        solve_notin_getArgsIDs.
-      apply init_scope_spec2 in H; auto.
-      apply cmds_dominates_cmd_spec'' in H; auto.
-    inv J'. auto.
-    assert (block_intro l1 p c t = b1) as EQ.
-      apply lookupBlockViaLabelFromFdef__blockInFdefB in J2'; auto.
-      eapply block_eq1 in H0; eauto.
-    subst.
-    apply lookupBlockViaLabelFromFdef_inv in J2'; auto.
-    destruct J2' as [Heq J2']; subst.
-    assert (blockStrictDominates f (block_intro l1 p c t)
-                                   (block_intro l4 p2 c2 t2)) as Hdom.
-      clear - J1' HeqR Huniq. simpl. rewrite <- HeqR.
-      apply ListSet.set_diff_elim1 in J1'; auto.
-    assert (blockStrictDominates f (block_intro l4 p2 c2 t2)
-                  (block_intro l2 p0 c0 t0)) as Hdom'.
-      clear - H2 HeqR0 Huniq. simpl. rewrite <- HeqR0. auto.
-    assert (blockStrictDominates f (block_intro l1 p c t)
-                  (block_intro l2 p0 c0 t0)) as Hdom''.
-      eapply blockStrictDominates_trans with (b2:=block_intro l4 p2 c2 t2);
-        eauto.
-        eapply lookupBlockViaIDFromFdef__blockInFdefB; eauto.
-    simpl in Hdom''. rewrite <- HeqR0 in Hdom''. auto.
-Qed.
-
 Lemma subst_block__getBlockLabel: forall i0 v0 b,
   getBlockLabel b = getBlockLabel (subst_block i0 v0 b).
 Proof.
@@ -1276,7 +1201,8 @@ Variable (los:layouts) (nts:namedts) (Ps1 Ps2:products)
 Hypothesis (Hdom: id_in_reachable_block f id2 -> idDominates f id1 id2)
            (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
            (HwfF: wf_fdef [M] M f) 
-           (HuniqF: uniqFdef f).
+           (HuniqF: uniqFdef f)
+           (Hnotin2: ~ In id2 (getArgsIDsOfFdef f)).
 
 Lemma isubst_wf_operand : forall instr b i0
   (Huniq : NoDup (getBlockLocs b))
@@ -1295,8 +1221,6 @@ Proof.
   destruct (id_dec i0 id2); subst.
     eapply wf_operand_intro; try solve
       [eauto with ssa_subst | autounfold; eauto with ssa_subst].
-    assert (~ In id2 (getArgsIDsOfFdef f)) as Hnotin2.
-      admit.
     autounfold.
     fold_subst_tac.
     rewrite <- TransCFG.pres_isReachableFromEntry.
@@ -1391,7 +1315,7 @@ Qed.
 
 Hint Constructors wf_phi_operands.
 
-Lemma isubst_wf_phi_operands : forall b id' ty vls
+Lemma isubst_wf_phi_operands : forall b ty id' vls
   (Hwf_pnops: wf_phi_operands f b id' ty vls),
   wf_phi_operands (isubst_fdef id2 id1 f) (isubst_block id2 id1 b) id' ty
     (subst_list_value_l id2 (value_id id1) vls).
@@ -1402,74 +1326,55 @@ Proof.
     eapply (@TransCFG.pres_lookupBlockViaLabelFromFdef 
              (Subst id2 (value_id id1))) in H; eauto.
     destruct (id_dec vid1 id2); subst.
-      assert (~ In id2 (getArgsIDsOfFdef f)) as Hnotin2.
-        admit.
       eapply wf_phi_operands_cons_vid; eauto.
       autounfold.
       fold_subst_tac.
       rewrite <- TransCFG.pres_isReachableFromEntry.
       rewrite <- TransCFG.pres_getArgsIDsOfFdef.
       destruct (In_dec id_dec id1 (getArgsIDsOfFdef f)) as [Hin1 | Hnotin1]; auto.
-      destruct (isReachableFromEntry_dec f b) as [Hreach | Hnreach]; auto.
-(*
-      
-      left. left.
+      left.
+      destruct (isReachableFromEntry_dec f b1) as [Hreach | Hnreach]; auto.
+      left.
       match goal with
       | H0: (_ \/ _) \/ _ |- _ => 
-        destruct H0 as [[[b' [Hlkup H0]] | H0] | H0]; try congruence
+        destruct H0 as [[[vb [Hlkup H0]] | H0] | H0]; try congruence
       end.
-
-admit.
-(*
-      assert (blockInFdefB b f = true) as HBinF.
-        apply destruct_insnInFdefBlockB in H. tauto.
-*)
+      assert (blockInFdefB b1 f = true) as HBinF.
+        solve_blockInFdefB.
       assert (id_in_reachable_block f id2) as Hireach.
         intros b2 Hlkup'.
         uniq_result.
-        eapply blockStrictDominates_isReachableFromEntry; eauto 1.
-  
-
-
-      destruct H0 as [[H0 | H0] | H0]; auto.
-
-
-      assert (J:=Hdom).
+        eapply blockDominates_isReachableFromEntry; eauto 1.
+      apply Hdom in Hireach.  
+      assert (J:=Hireach).
       apply idDominates__lookupBlockViaIDFromFdef in J; auto.
       destruct J as [vb1 J].
-      eapply wf_phi_operands_cons_vid; eauto.
-        eapply subst_lookupBlockViaIDFromFdef in J; eauto.
-      
-        fold_subst_tac. eauto.
+      exists (btrans (Subst id2 (value_id id1)) vb1).
+      split.
+        simpl. apply subst_lookupBlockViaIDFromFdef; auto.
 
-        fold_subst_tac.
-        destruct H1 as [H1 | H1]; eauto.
-          rewrite <- TransWF.pres_blockDominates; auto.
-            left.
-            apply blockDominates_trans with (b2:=vb);
+        rewrite <- TransCFG.pres_blockDominates; auto.
+        eapply blockDominates_trans with (b2:=vb);
               eauto using lookupBlockViaIDFromFdef__blockInFdefB,
                           lookupBlockViaLabelFromFdef__blockInFdefB.
-            eapply idDominates__blockDominates; eauto.
+          eapply idDominates__blockDominates; eauto.
 
       eapply wf_phi_operands_cons_vid; eauto.
-        eapply subst_lookupBlockViaIDFromFdef in H; eauto.
-
-        autounfold. fold_subst_tac.
-        destruct H1 as [H1 | H1]; auto.
-          rewrite <- TransWF.pres_blockDominates; auto.
-
-
-    assert (H':=H).
-    eapply (@TransCFG.pres_lookupBlockViaLabelFromFdef 
-             (Subst id2 (value_id id1))) in H; eauto.
-    erewrite (@TransCFG.pres_isReachableFromEntry 
-               (Subst id2 (value_id id1))) in H0; eauto.
-    simpl in H0.
-
-    erewrite (@TransCFG.pres_getArgsIDsOfFdef
-               (Subst id2 (value_id id1))) in H0; eauto.
-*)
-Admitted.
+      autounfold.
+      fold_subst_tac.
+      rewrite <- TransCFG.pres_isReachableFromEntry.
+      rewrite <- TransCFG.pres_getArgsIDsOfFdef.
+      match goal with
+      | H4: (_ \/ _) \/ _ |- _ => 
+        destruct H4 as [[[b' [Hlkup H4]] | H4] | H4]; auto
+      end.
+      left. left.
+      exists (btrans (Subst id2 (value_id id1)) b').
+      rewrite <- TransCFG.pres_blockDominates.
+      simpl.
+      split; auto.
+        apply subst_lookupBlockViaIDFromFdef; auto.
+Qed.
 
 End ISubstOps.
 
@@ -1827,6 +1732,7 @@ End Subst.
 Lemma subst_wfS: forall (los : layouts) (nts : namedts) (f:fdef)
   (Ps1 : list product) (Ps2 : list product) (id0 : id) (v0 : value) 
   (Hdom: valueDominates f v0 (value_id id0))
+  (Hnotin2: ~ In id0 (getArgsIDsOfFdef f))
   (Hwfv: forall t0, lookupTypViaIDFromFdef f id0 = Some t0 ->
          wf_value [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
                   (module_intro los nts (Ps1 ++ product_fdef f :: Ps2)) 
@@ -1838,20 +1744,248 @@ Lemma subst_wfS: forall (los : layouts) (nts : namedts) (f:fdef)
       (Ps1 ++ product_fdef (subst_fdef id0 v0 f) :: Ps2)].
 Proof.
   intros.
+  assert (HuniqF: uniqFdef f).
+    apply wf_single_system__wf_uniq_fdef in HwfS.
+    destruct HwfS; auto.
   eapply TopWFS.trans_wfS with (f:=f) in HwfS; intros;
     eauto using subst_fheader.
-
     eapply subst_wf_fdef in HwfF; eauto.
-      apply wf_single_system__wf_uniq_fdef in HwfS.
-      destruct HwfS; auto.
-
       destruct v0 as [vid0|c0].
-        admit.
+        eapply isubst_wf_insn_base; eauto.
         apply csubst_wf_insn_base; auto.
       destruct v0 as [vid0|c0].
-        admit.
+        eapply isubst_wf_phi_operands; eauto.
         apply csubst_wf_phi_operands; auto.
-     
     eapply subst_uniqFdef; eauto.
 Qed.
-c
+
+Require Import palloca_props.
+Require Import mem2reg.
+
+Section SubstUsed.
+
+Variable (id0:id) (v0:value) (pid:id).
+Hypothesis (Hnused : used_in_value pid v0 = false).
+
+Lemma subst_used_in_value: forall v5,
+  used_in_value pid v5 = false ->
+  used_in_value pid (v5 {[v0 // id0]}) = false.
+Proof.
+  destruct v5; simpl; auto.
+  destruct_if.
+Qed.
+
+Hint Resolve subst_used_in_value: substused.
+
+Lemma subst_used_in_tmn: forall tmn,
+  used_in_tmn pid tmn = false ->
+  used_in_tmn pid (subst_tmn id0 v0 tmn) = false.
+Proof.
+  destruct tmn; simpl; auto with substused.
+Qed.
+
+Lemma subst_used_in_list_value_l: forall l0
+  (H: used_in_list_value_l pid l0 = false),
+  used_in_list_value_l pid (subst_list_value_l id0 v0 l0) = false.
+Proof.
+  induction l0 as [|[]]; simpl; intros; auto.
+    apply orb_false_iff in H.
+    apply orb_false_iff.
+    destruct H as [H1 H2].
+    auto using subst_used_in_value.
+Qed.
+
+Lemma subst_used_in_phi: forall p 
+  (H: used_in_phi pid p = false),
+  used_in_phi pid (subst_phi id0 v0 p) = false.
+Proof.
+  destruct p. simpl. apply subst_used_in_list_value_l.
+Qed.
+
+Lemma subst_used_in_phis: forall ps init
+  (H: fold_left (fun (re : bool) (p : phinode) => re || used_in_phi pid p)
+        ps init = false),
+  fold_left (fun (re : bool) (p : phinode) => re || used_in_phi pid p)
+     (List.map (subst_phi id0 v0) ps) init = false.
+Proof.
+  induction ps; simpl; intros; auto.
+    apply fold_left_or_false in H.
+      destruct H as [H1 H2].
+      apply orb_false_iff in H2.
+      destruct H2; subst. 
+      rewrite subst_used_in_phi; auto.
+      
+      apply used_in_phi_fun_spec.
+Qed.
+
+Lemma subst_used_in_list_value: forall l0
+  (H: used_in_list_value pid l0 = false),
+  used_in_list_value pid (subst_list_value id0 v0 l0) = false.
+Proof.
+  induction l0 as [|[]]; simpl; intros; auto.
+    apply orb_false_iff in H.
+    apply orb_false_iff.
+    destruct H as [H1 H2].
+    auto using subst_used_in_value.
+Qed.
+
+Lemma subst_used_in_params: forall ps init
+  (H : fold_left
+    (fun (acc : bool) (p : typ * attributes * value) =>
+     let '(_, v) := p in used_in_value pid v || acc) ps init = false),
+  fold_left
+    (fun (acc : bool) (p : typ * attributes * value) =>
+     let '(_, v) := p in used_in_value pid v || acc)
+    (List.map
+       (fun p : typ * attributes * value =>
+        let '(t, v) := p in (t, v {[v0 // id0]})) ps) init = false.
+Proof.
+  induction ps as [|[[]]]; simpl; intros; auto.
+    apply fold_left_or_false in H.
+      destruct H as [H1 H2].
+      apply orb_false_iff in H2.
+      destruct H2; subst. 
+      rewrite subst_used_in_value; auto.
+      
+      intros a0 [[b1 b2] b3] H4.
+      apply orb_false_iff in H4. tauto.
+Qed.
+
+Lemma subst_used_in_cmd: forall c,
+  used_in_cmd pid c = false ->
+  used_in_cmd pid (subst_cmd id0 v0 c) = false.
+Proof.
+  destruct c; simpl; intros; try solve [
+    auto with substused |
+    match goal with
+    | H: _ || _ || _ = false |- _ =>
+       apply orb_false_iff in H; destruct H as [H1 H2];
+       apply orb_false_iff in H1; destruct H1;
+       repeat (apply orb_false_iff; split; auto with substused)
+    | H: _ || _ = false |- _ =>
+       apply orb_false_iff in H; destruct H;
+       apply orb_false_iff; 
+         auto using subst_used_in_list_value, subst_used_in_params with substused
+    end
+   ].
+Qed.
+
+Lemma subst_is_promotable_cmd: forall c acc
+  (H: is_promotable_cmd pid acc c = true),
+  is_promotable_cmd pid acc (subst_cmd id0 v0 c) = true.
+Proof.
+  unfold is_promotable_cmd.
+  intros.
+  destruct_if.
+    destruct c; try congruence; subst; simpl.
+      destruct_if.
+   
+      apply andb_true_iff in H1.
+      destruct H1 as [EQ1 EQ2]; subst.
+      rewrite EQ1. simpl.
+      unfold negb in *.
+      destruct_if. 
+      rewrite valueEqB__used_in_value in HeqR0.
+      rewrite valueEqB__used_in_value.
+      rewrite subst_used_in_value; auto.
+      destruct_if.
+    
+   rewrite subst_used_in_cmd; auto.
+Qed.
+
+Lemma subst_is_promotable_cmds: forall cs acc
+  (H: fold_left (is_promotable_cmd pid) cs acc = true),
+  fold_left (is_promotable_cmd pid) (List.map (subst_cmd id0 v0) cs) acc =
+    true.
+Proof.
+  induction cs; simpl; intros; auto.
+    apply fold_left_and_true in H.
+      destruct H as [H1 H2].
+      rewrite subst_is_promotable_cmd; auto.
+      
+      apply is_promotable_cmd_spec.
+Qed.
+
+Lemma subst_is_promotable_fun: forall b acc,
+  is_promotable_fun pid acc b = true ->
+  is_promotable_fun pid acc (subst_block id0 v0 b) = true.
+Proof.
+  destruct b; simpl.
+  intros.
+  match goal with
+  | H: context [if ?lk then _ else _] |- _ =>
+    remember lk as R; destruct R; tinv H
+  end.
+  symmetry in HeqR.
+  assert (forall (a : bool) c, a || c = false -> a = false) as G.
+    intros a c Hin. apply orb_false_iff in Hin. tauto.
+  apply fold_left_or_false in HeqR; eauto 2.
+  destruct HeqR as [J1 J2].
+  apply subst_used_in_tmn in J2.
+  apply subst_used_in_phis in J1.
+  rewrite J2. rewrite J1.
+  apply subst_is_promotable_cmds; auto.
+Qed.
+
+Lemma subst_is_promotable_funs: forall bs init
+  (H : fold_left (is_promotable_fun pid) bs init = true),
+  fold_left (is_promotable_fun pid) (List.map (subst_block id0 v0) bs) init =
+    true.
+Proof.
+  induction bs; simpl; intros; auto.
+    apply fold_left_and_true in H.
+      destruct H as [H1 H2].
+      rewrite subst_is_promotable_fun; auto.
+      
+      apply is_promotable_fun_spec.
+Qed.
+
+Lemma subst_is_promotable: forall f
+  (Hnused : used_in_value pid v0 = false)
+  (H: is_promotable f pid = true),
+  is_promotable (subst_fdef id0 v0 f) pid = true.
+Proof.
+  unfold is_promotable.
+  destruct f as [fh bs]. simpl. intros.
+  apply subst_is_promotable_funs; auto.
+Qed.
+
+End SubstUsed.
+
+Lemma subst_alloca_in_entry: forall pid pty pnum pal id0 v0 cs
+  (H : In (insn_alloca pid pty pnum pal) cs),
+  In (insn_alloca pid pty pnum pal) (List.map (subst_cmd id0 v0) cs).
+Proof.
+  induction cs; simpl; intros; auto.
+    destruct H; subst; auto.
+      simpl. left.
+      admit. (* PI_num cannot be lid *)
+Qed.
+
+Lemma subst_wfPI: forall (los : layouts) (nts : namedts)
+  (dones : list id) (pinfo: PhiInfo)
+  (Ps1 : list product) (Ps2 : list product)
+  id0 (v0 : value) (Hwfpi: WF_PhiInfo pinfo) f
+  (HwfS:  wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (Heq: PI_f pinfo = f) (Hnused: used_in_value (PI_id pinfo) v0 = false),
+  WF_PhiInfo (update_pinfo pinfo (subst_fdef id0 v0 f)).
+Proof.
+  intros. subst.
+  destruct Hwfpi.
+  destruct pinfo. 
+  split; simpl in *.
+    unfold promotable_alloca in *.
+    inv_mbind. 
+    fold_subst_tac.
+    erewrite TransCFG.pres_getEntryBlock; eauto.
+    destruct b as [l0 ps0 cs0 tmn0]. 
+    destruct H.
+    simpl.
+    split.
+      apply subst_alloca_in_entry; auto.
+
+      unfold is_true.
+      apply subst_is_promotable; auto.
+
+    rewrite <- subst_reachablity_analysis; auto.
+Qed.

@@ -2850,7 +2850,7 @@ Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     lookupBlockViaLabelFromFdef f l1 = Some b1 ->
     (((exists vb, lookupBlockViaIDFromFdef f vid1 = Some vb /\ 
        blockDominates f vb b1) \/ 
-      not (isReachableFromEntry f b)) \/ 
+      not (isReachableFromEntry f b1)) \/ 
      In vid1 (getArgsIDsOfFdef f)) ->
     wf_phi_operands f b id0 t0 vls ->
     wf_phi_operands f b id0 t0 ((value_id vid1, l1) :: vls)
