@@ -807,9 +807,9 @@ Proof.
   apply blockInSystemModuleFdef_intro; auto.
 Qed.*)
 
-Lemma productInSystemModuleB_inv : forall F Ps nts los S,
-  productInSystemModuleB (product_fdef F) S (module_intro los nts Ps) ->
-  InProductsB (product_fdef F) Ps /\
+Lemma productInSystemModuleB_inv : forall P Ps nts los S,
+  productInSystemModuleB P S (module_intro los nts Ps) ->
+  InProductsB P Ps /\
   moduleInSystem (module_intro los nts Ps) S.
 Proof.
   intros.
@@ -819,11 +819,10 @@ Proof.
   split; auto.
 Qed.
 
-
-Lemma productInSystemModuleB_intro : forall F Ps nts los S,
-  InProductsB (product_fdef F) Ps ->
+Lemma productInSystemModuleB_intro : forall P Ps nts los S,
+  InProductsB P Ps ->
   moduleInSystem (module_intro los nts Ps) S ->
-  productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
+  productInSystemModuleB P S (module_intro los nts Ps).
 Proof.
   intros.
   unfold productInSystemModuleB.
@@ -2065,10 +2064,10 @@ Proof.
       apply blockEqB_inv in H0. subst. auto.
 Qed.
 
-Lemma InCmds_lookupTypViaIDFromPhiNodes : forall cs id1 c t1,
+Lemma InCmds_lookupTypViaIDFromCmds : forall cs id1 c t1,
   NoDup (getCmdsLocs cs) ->
   In c cs ->
-  getCmdID c = Some id1 ->
+  getCmdLoc c = id1 ->
   getCmdTyp c = Some t1 ->
   lookupTypViaIDFromCmds cs id1 = Some t1.
 Proof.
@@ -2079,26 +2078,39 @@ Proof.
     inv H. unfold lookupTypViaIDFromCmd.
     destruct H0 as [H0 | H0]; subst.
       rewrite H2.
-      apply getCmdLoc_getCmdID in H1.
-      rewrite H1.
-      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 id1); subst;
+      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) 
+                  (getCmdLoc c) (getCmdLoc c)); subst;
         auto.
         contradict n; auto.
 
       remember (getCmdTyp a) as R.
       destruct R; eauto.
-      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 (getCmdLoc a));
+      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) 
+                  (getCmdLoc c) (getCmdLoc a));
         subst; eauto.
 
-        apply getCmdID_in_getCmdsLocs with (i0:=getCmdLoc a) in H0; auto.
+        apply getCmdLoc_in_getCmdsLocs in H0; auto.
+        rewrite e in H0.
         contradict H0; auto.
 Qed.
 
-Lemma uniqF__lookupTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f c i0 t0,
+Lemma InCmds_lookupTypViaIDFromPhiNodes : forall cs id1 c t1,
+  NoDup (getCmdsLocs cs) ->
+  In c cs ->
+  getCmdID c = Some id1 ->
+  getCmdTyp c = Some t1 ->
+  lookupTypViaIDFromCmds cs id1 = Some t1.
+Proof.
+  intros.
+  eapply InCmds_lookupTypViaIDFromCmds; eauto.
+  apply getCmdLoc_getCmdID in H1; auto.
+Qed.
+
+Lemma uniqF__lookupCmdTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f c i0 t0,
   uniqFdef f ->
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
   In c cs1 ->
-  getCmdID c = Some i0 ->
+  getCmdLoc c = i0 ->
   getCmdTyp c = Some t0 ->
   lookupTypViaIDFromFdef f i0 = Some t0.
 Proof.
@@ -2109,7 +2121,8 @@ Proof.
   destruct H5.
   simpl in *.
   assert (In i0 (getCmdsLocs cs1)) as HInCs.
-    eapply getCmdID_in_getCmdsLocs in H1; eauto.
+    subst.
+    eapply getCmdLoc_in_getCmdsLocs in H1; eauto.
   assert (In i0 (getBlocksLocs b)) as Hin.
     eapply in_getBlockLocs__in_getBlocksLocs in H0; eauto.
     simpl. apply in_or_app. right. apply in_or_app; auto.
@@ -2130,7 +2143,20 @@ Proof.
   apply NotInPhiNodesIDs__lookupTypViaIDFromPhiNodes in HnotinPs.
   rewrite HnotinPs.
   apply NoDup_inv in H0. destruct H0 as [_ H0].
-  erewrite InCmds_lookupTypViaIDFromPhiNodes; eauto.
+  erewrite InCmds_lookupTypViaIDFromCmds; eauto.
+Qed.
+
+Lemma uniqF__lookupTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f c i0 t0,
+  uniqFdef f ->
+  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
+  In c cs1 ->
+  getCmdID c = Some i0 ->
+  getCmdTyp c = Some t0 ->
+  lookupTypViaIDFromFdef f i0 = Some t0.
+Proof.
+  intros.
+  eapply uniqF__lookupCmdTypViaIDFromFdef; eauto.
+  apply getCmdLoc_getCmdID in H2; auto.
 Qed.
 
 Lemma uniqFdef__uniqBlockLocs : forall F b1,
@@ -3724,8 +3750,98 @@ Proof.
     solve_NoDup.
 Qed.
 
+Ltac destruct_in H :=
+match type of H with
+| In _ [_] => simpl in H; destruct H as [H | H]; subst; try tauto
+| In _ (_::_) => simpl in H; destruct H as [H | H]; subst; try tauto
+| In _ (_++_) => apply in_app_or in H; destruct H as [H | H]
+end.
+
+Ltac solve_refl :=
+match goal with
+| |- ?c =cmd= ?c = true => apply cmdEqB_refl
+| |- ?p =phi= ?p = true => apply phinodeEqB_refl
+| |- moduleEqB ?m ?m = true => apply moduleEqB_refl
+| |- ?t =tmn= ?t = true => apply terminatorEqB_refl
+| |- ?b =b= ?b = true => apply blockEqB_refl
+| |- productEqB ?p ?p = true => apply productEqB_refl
+end.
+
+Lemma In_InProductsB: forall p ps, In p ps -> InProductsB p ps = true.
+Proof.
+  induction ps; intros.
+    tauto.
+
+    simpl. apply orb_true_intro.
+    destruct_in H.
+      left. solve_refl.
+Qed.
+
+Lemma InProductsB_In: forall p ps, InProductsB p ps = true -> In p ps.
+Proof.
+  induction ps; simpl; intros.
+    congruence.
+
+    apply orb_true_elim in H.
+    destruct H as [H | H]; auto.
+      apply productEqB_inv in H. auto.
+Qed.
+
+Lemma In_InModulesB: forall m ms, In m ms -> InModulesB m ms = true.
+Proof.
+  induction ms; intros.
+    tauto.
+
+    simpl. apply orb_true_intro.
+    destruct_in H.
+      left. solve_refl.
+Qed.
+
+Lemma InModulesB_In: forall m ms, InModulesB m ms = true -> In m ms.
+Proof.
+  induction ms; simpl; intros.
+    congruence.
+
+    apply orb_true_elim in H.
+    destruct H as [H | H]; auto.
+      apply moduleEqB_inv in H. auto.
+Qed.
+
+Lemma moduleInSystem_middle: forall Ms2 M Ms1,
+  moduleInSystem M (Ms1 ++ M :: Ms2).
+Proof.
+  intros. apply In_InModulesB. apply in_middle.
+Qed.
+
+Lemma InProductsB_middle: forall Ps2 P Ps1,
+  InProductsB P (Ps1 ++ P :: Ps2) = true.
+Proof.
+  induction Ps1; simpl.
+    rewrite productEqB_refl. auto.
+    rewrite IHPs1. apply orb_true_intro; auto.
+Qed.  
+
+Lemma In_InBlocksB: forall b bs, In b bs -> InBlocksB b bs = true.
+Proof.
+  induction bs; intros.
+    tauto.
+
+    simpl.
+    apply orb_true_intro.
+    destruct_in H; auto.
+      left. solve_refl.
+Qed.
+
 Ltac solve_in_list :=
+unfold is_true in *;
 repeat match goal with
+| H1: In ?b ?bs |- InBlocksB ?b ?bs = true => apply In_InBlocksB
+| H1: In ?p ?ps |- InProductsB ?p ?ps = true => apply In_InProductsB
+| H1: InProductsB ?p ?ps = true |- In ?p ?ps => apply InProductsB_In
+| H1: In ?m ?ms |- InModulesB ?m ?ms = true => apply In_InModulesB
+| H1: InModulesB ?m ?ms = true |- In ?m ?ms => apply InModulesB_In
+| |- moduleInSystem ?M (_++?M::_) => apply moduleInSystem_middle
+| |- InProductsB ?p (_++?p::_) => apply InProductsB_middle
 | H1: ~ In ?id0 (?A ++ ?C) |- ~ In ?id0 ?A => intro Q; apply H1
 | H1: ~ In ?id0 (?A ++ ?C) |- ~ In ?id0 ?C => intro Q; apply H1
 | H1: In ?id0 ?B |- In ?id0 (?A ++ ?B ++ ?C) =>
@@ -5519,14 +5635,6 @@ Proof.
       right. apply IHbs in HBinF. auto.
 Qed.
 
-Lemma InProductsB_middle: forall Ps2 P Ps1,
-  InProductsB P (Ps1 ++ P :: Ps2) = true.
-Proof.
-  induction Ps1; simpl.
-    rewrite productEqB_refl. auto.
-    rewrite IHPs1. apply orb_true_intro; auto.
-Qed.  
-
 Lemma In_getArgsIDs_spec: forall t a i0 args5
   (Hin: In (t, a, i0) args5), In i0 (getArgsIDs args5).
 Proof.
@@ -5573,23 +5681,6 @@ Ltac inv_mbind_app :=
        end = _ |- _ => remember e as R; destruct R
   end.
 
-Ltac solve_refl :=
-match goal with
-| |- ?c =cmd= ?c = true => apply cmdEqB_refl
-| |- ?p =phi= ?p = true => apply phinodeEqB_refl
-| |- moduleEqB ?m ?m = true => apply moduleEqB_refl
-| |- ?t =tmn= ?t = true => apply terminatorEqB_refl
-| |- ?b =b= ?b = true => apply blockEqB_refl
-| |- productEqB ?p ?p = true => apply productEqB_refl
-end.
-
-Ltac destruct_in H :=
-match type of H with
-| In _ [_] => simpl in H; destruct H as [H | H]; subst; try tauto
-| In _ (_::_) => simpl in H; destruct H as [H | H]; subst; try tauto
-| In _ (_++_) => apply in_app_or in H; destruct H as [H | H]
-end.
-
 Ltac xsolve_in_list :=
 match goal with
 | |- In ?a (_++_) =>
@@ -5613,17 +5704,6 @@ Lemma uniqF__uniqBlocksLocs : forall fh lb,
   uniqFdef (fdef_intro fh lb) -> NoDup (getBlocksLocs lb).
 Proof.
   intros. destruct fh. inversion H. split_NoDup; auto.
-Qed.
-
-Lemma In_InBlocksB: forall b bs, In b bs -> InBlocksB b bs = true.
-Proof.
-  induction bs; intros.
-    tauto.
-
-    simpl.
-    apply orb_true_intro.
-    destruct_in H; auto.
-      left. solve_refl.
 Qed.
 
 Lemma InPhiNodes_lookupTypViaIDFromPhiNodes' : forall ps p,
@@ -5870,76 +5950,6 @@ Proof.
   destruct_if. congruence.
 Qed.
 
-Lemma InCmds_lookupTypViaIDFromCmds : forall cs id1 c t1,
-  NoDup (getCmdsLocs cs) ->
-  In c cs ->
-  getCmdLoc c = id1 ->
-  getCmdTyp c = Some t1 ->
-  lookupTypViaIDFromCmds cs id1 = Some t1.
-Proof.
-  induction cs; intros.
-    inversion H0.
-
-    simpl in *.
-    inv H. unfold lookupTypViaIDFromCmd.
-    destruct H0 as [H0 | H0]; subst.
-      rewrite H2.
-      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) 
-                  (getCmdLoc c) (getCmdLoc c)); subst;
-        auto.
-        contradict n; auto.
-
-      remember (getCmdTyp a) as R.
-      destruct R; eauto.
-      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) 
-                  (getCmdLoc c) (getCmdLoc a));
-        subst; eauto.
-
-        apply getCmdLoc_in_getCmdsLocs in H0; auto.
-        rewrite e in H0.
-        contradict H0; auto.
-Qed.
-
-Lemma uniqF__lookupCmdTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f c i0 t0,
-  uniqFdef f ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
-  In c cs1 ->
-  getCmdLoc c = i0 ->
-  getCmdTyp c = Some t0 ->
-  lookupTypViaIDFromFdef f i0 = Some t0.
-Proof.
-  intros.
-  destruct f as [f b].
-  destruct f as [fnattrs5 typ5 id5 args5 varg5]. inversion H.
-  apply NoDup_inv in H5.
-  destruct H5.
-  simpl in *.
-  assert (In i0 (getCmdsLocs cs1)) as HInCs.
-    subst.
-    eapply getCmdLoc_in_getCmdsLocs in H1; eauto.
-  assert (In i0 (getBlocksLocs b)) as Hin.
-    eapply in_getBlockLocs__in_getBlocksLocs in H0; eauto.
-    simpl. apply in_or_app. right. apply in_or_app; auto.
-  destruct H as [J1 J2].
-  assert (~ In i0 (getArgsIDs args5)) as Hnotin.
-    eapply NoDup_disjoint; eauto.
-  apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
-  rewrite Hnotin.
-  eapply lookupTypViaIDFromBlock__inBlocks; eauto.
-  simpl.
-  apply NoDup__InBlocksB in H0; auto.
-  simpl in H0.
-  rewrite_env ((getPhiNodesIDs ps1 ++ getCmdsLocs cs1) ++ [getTerminatorID tmn1])
-    in H0.
-  apply NoDup_inv in H0. destruct H0 as [H0 _].
-  assert (~ In i0 (getPhiNodesIDs ps1)) as HnotinPs.
-    eapply NoDup_disjoint; eauto.
-  apply NotInPhiNodesIDs__lookupTypViaIDFromPhiNodes in HnotinPs.
-  rewrite HnotinPs.
-  apply NoDup_inv in H0. destruct H0 as [_ H0].
-  erewrite InCmds_lookupTypViaIDFromCmds; eauto.
-Qed.
-
 Lemma lookupTypViaIDFromFdef_intro : forall f id0 t
   (Huniq: uniqFdef f)
   (Hin:
@@ -5989,75 +5999,4 @@ Proof.
       apply IHvls in H0. 
       destruct H0 as [l1 H0]. eauto.
 Qed.
-
-Lemma In_InProductsB: forall p ps, In p ps -> InProductsB p ps = true.
-Proof.
-  induction ps; intros.
-    tauto.
-
-    simpl. apply orb_true_intro.
-    destruct_in H.
-      left. solve_refl.
-Qed.
-
-Lemma InProductsB_In: forall p ps, InProductsB p ps = true -> In p ps.
-Proof.
-  induction ps; simpl; intros.
-    congruence.
-
-    apply orb_true_elim in H.
-    destruct H as [H | H]; auto.
-      apply productEqB_inv in H. auto.
-Qed.
-
-Lemma In_InModulesB: forall m ms, In m ms -> InModulesB m ms = true.
-Proof.
-  induction ms; intros.
-    tauto.
-
-    simpl. apply orb_true_intro.
-    destruct_in H.
-      left. solve_refl.
-Qed.
-
-Lemma InModulesB_In: forall m ms, InModulesB m ms = true -> In m ms.
-Proof.
-  induction ms; simpl; intros.
-    congruence.
-
-    apply orb_true_elim in H.
-    destruct H as [H | H]; auto.
-      apply moduleEqB_inv in H. auto.
-Qed.
-
-Lemma moduleInSystem_middle: forall Ms2 M Ms1,
-  moduleInSystem M (Ms1 ++ M :: Ms2).
-Proof.
-  intros. apply In_InModulesB. solve_in_list.
-Qed.
-
-Lemma productInSystemModuleB_inv' : forall P Ps nts los S,
-  productInSystemModuleB P S (module_intro los nts Ps) ->
-  InProductsB P Ps /\
-  moduleInSystem (module_intro los nts Ps) S.
-Proof.
-  intros.
-  unfold productInSystemModuleB in *.
-  unfold productInModuleB in *.
-  apply andb_true_iff in H. destruct H.
-  split; auto.
-Qed.
-
-Lemma productInSystemModuleB_intro' : forall P Ps nts los S,
-  InProductsB P Ps ->
-  moduleInSystem (module_intro los nts Ps) S ->
-  productInSystemModuleB P S (module_intro los nts Ps).
-Proof.
-  intros.
-  unfold productInSystemModuleB.
-  unfold productInModuleB.
-  eapply andb_true_iff.
-  split; auto.
-Qed.
-
 

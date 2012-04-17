@@ -453,19 +453,41 @@ Proof.
       eapply IHid_list; eauto. intros p Hp. apply Hwfops. eauto.
 Qed.
 
+Lemma wf_phi_operands__elim' : forall f b i0 t0 vls0 vid1 l1
+  (Hwfop: wf_phi_operands f b i0 t0 vls0)
+  (Hin: In (value_id vid1, l1) vls0),
+  exists b1,
+    lookupBlockViaLabelFromFdef f l1 = Some b1 /\
+    (((exists vb,
+        lookupBlockViaIDFromFdef f vid1 = Some vb /\
+        blockDominates f vb b1) \/ 
+      not (isReachableFromEntry f b)) \/
+     In vid1 (getArgsIDsOfFdef f)).
+Proof.
+  induction 1; intros.
+    tauto.
+
+    destruct_in Hin.
+      inv Hin. eauto.
+
+    destruct_in Hin.
+      congruence.
+Qed.
+
 Lemma wf_phi_operands__elim : forall f b i0 t0 vls0 vid1 l1 n,
   wf_phi_operands f b i0 t0 vls0 ->
   nth_error vls0 n = Some (value_id vid1, l1) ->
   exists b1,
     lookupBlockViaLabelFromFdef f l1 = Some b1 /\
-    ((exists vb,
+    (((exists vb,
        lookupBlockViaIDFromFdef f vid1 = Some vb /\
-       (blockDominates f vb b1 \/ not (isReachableFromEntry f b))) \/
-    In vid1 (getArgsIDsOfFdef f)).
+       blockDominates f vb b1) \/ 
+      not (isReachableFromEntry f b)) \/
+     In vid1 (getArgsIDsOfFdef f)).
 Proof.
   induction vls0; intros.
     destruct n; inversion H0.
-    destruct t0; inv H; destruct n; inv H0; eauto.
+    inv H; destruct n; inv H0; eauto.
 Qed.
 
 Lemma wf_value_list__getValueViaLabelFromValuels__wf_value : forall
@@ -637,6 +659,19 @@ Proof.
     inv H6; auto
   end.
 Qed.
+
+Lemma wf_fdef__wf_phinodes': forall s m F l' ps' cs' tmn' l2,
+  wf_fdef s m F ->
+  ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l2 ->
+  uniqFdef F ->
+  wf_phinodes s m F (block_intro l' ps' cs' tmn') ps'.
+Proof.
+  intros.
+  symmetry in H0.
+  apply lookupBlockViaLabelFromFdef_inv in H0; auto.
+  destruct H0 as [_ Hlkup].
+  eapply wf_fdef__wf_phinodes in Hlkup; eauto.
+ Qed.
 
 Lemma wf_typ_list__in_args__wf_typ : forall s td typ_attributes_id_list
   (H18: wf_typ_list
@@ -2981,13 +3016,13 @@ Proof.
   destruct Hnth as [n Hnth].
   apply (wf_operand_list__wf_operand _ F b1 (insn_cmd c1)) in Hnth.
   inv Hnth.
-  match goal with
-  | H10: (exists _:_, _) \/ In _ (getArgsIDsOfFdef _) |- _ =>
-     destruct H10 as [[block' [Hlk H10]] | H10]
-  end.
-  Case "i0 isnt args".
   assert (isReachableFromEntry F b1) as Hreachb1.
     apply Hreach'' in H. auto.
+  match goal with
+  | H10: (_ \/ _ ) \/ In _ (getArgsIDsOfFdef _) |- _ =>
+     destruct H10 as [[[block' [Hlk H10]] | H10] | H10]; try congruence
+  end.
+  Case "i0 isnt args".
   assert (block_intro l' ps' cs' tmn' = block') as EQ.
     eapply lookupBlockViaIDFromFdef__lookupBlockViaLabelFromFdef__eq;
       eauto.
@@ -3090,8 +3125,8 @@ Proof.
   intros.
   inv H2.
   match goal with
-  | H10: (exists _:_, _) \/ In _ (getArgsIDsOfFdef _) |- _ =>
-     destruct H10 as [[block' [Hlk H10]] | H10]
+  | H10: (_ \/ _ ) \/ In _ (getArgsIDsOfFdef _) |- _ =>
+     destruct H10 as [[[block' [Hlk H10]] | H10] | H10]; try congruence
   end.
   Case "id1 isnt args".
   unfold inscope_of_tmn in Hinscope.
@@ -3102,8 +3137,8 @@ Proof.
   symmetry in Hinscope.
   apply fold_left__spec in Hinscope.
   match goal with
-  | H6: _ \/ _ \/ _ |- _ =>
-    destruct H6 as [J' | [J' | J']]; try solve [contradict J'; auto]
+  | H6: _ \/ _ |- _ =>
+    destruct H6 as [J' | J']
   end.
     SCase "insnDom".
     destruct Hinscope as [Hinscope _].
@@ -3130,8 +3165,8 @@ Proof.
   intros.
   inv H2.
   match goal with
-  | H10: (exists _:_, _) \/ In _ (getArgsIDsOfFdef _) |- _ =>
-     destruct H10 as [[block' [Hlk H10]] | H10]
+  | H10: (_ \/ _ ) \/ In _ (getArgsIDsOfFdef _) |- _ =>
+     destruct H10 as [[[block' [Hlk H10]] | H10] | H10]; try congruence
   end.
   Case "id1 isnt args".
   unfold inscope_of_cmd, inscope_of_id in Hinscope.
@@ -3147,8 +3182,8 @@ Proof.
     solve_in_list.
   apply fold_left__spec in Hinscope.
   match goal with
-  | H6: _ \/ _ \/ _ |- _ =>
-    destruct H6 as [J' | [J' | J']]; try solve [contradict J'; auto]
+  | H6: _ \/ _ |- _ =>
+    destruct H6 as [J' | J']
   end.
     SCase "insnDom".
     destruct Hinscope as [Hinscope _].
@@ -3202,16 +3237,16 @@ Proof.
   eapply wf_operand_list__wf_operand in Hnth; eauto.
   inv Hnth.
   match goal with
-  | H10: (exists _:_, _) \/ In _ (getArgsIDsOfFdef _) |- _ =>
-     destruct H10 as [[block' [Hlk H10]] | H10]
+  | H10: (_ \/ _) \/ In _ (getArgsIDsOfFdef _) |- _ =>
+     destruct H10 as [[[block' [Hlk H10]] | ? ]| H10]; try congruence
   end.
   Case "id1 isnt args".
   assert (b1 = block') as EQ.
     eapply insnInFdefBlockB__lookupBlockViaIDFromFdef__eq; eauto.
   subst.
   match goal with
-  | H7: _ \/ _ \/ _ |- _ =>
-    destruct H7 as [H7 | [H7 | H7]]; auto; contradict H7
+  | H7: _ \/ _ |- _ =>
+    destruct H7 as [H7 | H7]; contradict H7
   end.
     SCase "insnDom".
        assert (H':=H).
@@ -3392,8 +3427,8 @@ Proof.
   eapply wf_operand_list__wf_operand in Hnth; eauto.
   inv Hnth.
   match goal with
-  | H10: (exists _:_, _) \/ In _ (getArgsIDsOfFdef _) |- _ =>
-     destruct H10 as [[block' [Hlk H10]] | H10]
+  | H10: (_ \/ _ ) \/ In _ (getArgsIDsOfFdef _) |- _ =>
+     destruct H10 as [[[block' [Hlk H10]] | ?] | H10]; try congruence
   end.
   Case "id1 isnt args".
   destruct b1 as [l0 p c0 t].
@@ -3415,8 +3450,8 @@ Proof.
       left. apply getCmdLoc_in_getCmdsLocs; eauto.
   subst.
   match goal with
-  | H7: _ \/ _ \/ _ |- _ =>
-    destruct H7 as [H7 | [H7 | H7]]; auto
+  | H7: _ \/ _ |- _ =>
+    destruct H7 as [H7 | H7]; auto
   end.
   SCase "1".
     assert (block_intro l1 p0 c2 t0 = block_intro l0 p c0 t) as EQ.
@@ -3490,7 +3525,8 @@ Proof.
   eapply getValueViaLabelFromValuels__nth_list_value_l in Hnth; eauto.
   destruct Hnth as [n Hnth].
   eapply wf_phi_operands__elim in Hwfops; eauto.
-  destruct Hwfops as [b1 [Hlkb1 [[vb [Hlkvb Hdom]] | HinArgs]]].
+  destruct Hwfops as [b1 [Hlkb1 [[ [vb [Hlkvb Hdom]] | ? ] | HinArgs]]];
+    try congruence.
   Case "isnt args".
   assert (b1 = block_intro l1 ps1 cs1 tmn1)
     as EQ.
@@ -3499,9 +3535,8 @@ Proof.
     rewrite HbInF in Hlkb1. inv Hlkb1; auto.
 
   subst.
-  clear - Hdom HeqR J Hreach HbInF Hlkvb Hlkb1 HuniqF.
-  destruct Hdom as [J3 | J3]; try solve [contradict Hreach; auto].
-  clear Hreach.
+  clear - Hdom HeqR J HbInF Hlkvb Hlkb1 HuniqF.
+  rename Hdom into J3.
   unfold blockDominates in J3.
   destruct vb.
   unfold inscope_of_tmn in HeqR.
@@ -4029,8 +4064,8 @@ Proof.
   eapply wf_operand_list__wf_operand in Hnth; eauto.
   inv Hnth.
   match goal with
-  | H10: (exists _:_, _) \/ In _ (getArgsIDsOfFdef _) |- _ =>
-     destruct H10 as [[block' [Hlk H10]] | H10]
+  | H10: (_ \/ _) \/ In _ (getArgsIDsOfFdef _) |- _ =>
+     destruct H10 as [[[block' [Hlk H10]] | ?] | H10]; try congruence
   end.
   Case "id1 isnt args".
   assert (In (getCmdLoc c)
@@ -4043,8 +4078,8 @@ Proof.
     simpl in HBinF1.
     eapply NoDup_disjoint in HBinF1; eauto.
   match goal with
-  | H7: _ \/ _ \/ _ |- _ =>
-    destruct H7 as [H7 | [H7 | H7]]; auto
+  | H7: _ \/ _ |- _ =>
+    destruct H7 as [H7 | H7]; auto
   end.
   SCase "1".
     assert (NoDup (getBlockLocs
@@ -4099,19 +4134,6 @@ Proof.
   intros.
   destruct H; auto.
 Qed.
-
-Lemma wf_fdef__wf_phinodes': forall s m F l' ps' cs' tmn' l2,
-  wf_fdef s m F ->
-  ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l2 ->
-  uniqFdef F ->
-  wf_phinodes s m F (block_intro l' ps' cs' tmn') ps'.
-Proof.
-  intros.
-  symmetry in H0.
-  apply lookupBlockViaLabelFromFdef_inv in H0; auto.
-  destruct H0 as [_ Hlkup].
-  eapply wf_fdef__wf_phinodes in Hlkup; eauto.
- Qed.
 
 Ltac get_wf_value_for_simop :=
   match goal with
@@ -4292,24 +4314,6 @@ Proof.
     inv H.
 Qed.
 
-Lemma entry_blockStrictDominates_others: forall s m f (HwfF : wf_fdef s m f)
-  (b be : block) (Hentry : getEntryBlock f = ret be)
-  (n : getBlockLabel be <> getBlockLabel b)
-  (Hreach : isReachableFromEntry f b),
-  blockStrictDominates f be b.
-Proof.
-  unfold blockStrictDominates.
-  intros.
-  destruct be as [l1 ? ? ?].
-  destruct b as [l2 ? ? ?].
-  simpl in n.
-  assert (getEntryLabel f = Some l1) as Gentry.
-    destruct f as [? blocks5].
-    destruct blocks5; inv Hentry. auto.
-  eapply dom_analysis__entry_doms_others1 with (b:=l2) in Gentry; eauto.
-    admit. (* typings should ensure dom_analysis always succeeds. *)
-Qed.
-
 Lemma wf_cmds_intro: forall s m f b cs,
   (forall c, In c cs -> wf_insn s m f b (insn_cmd c)) ->
   wf_cmds s m f b cs.
@@ -4393,9 +4397,10 @@ Lemma wf_phi_operands__intro : forall f b i0 t0 vls0,
   (forall vid1 l1 (Hin: In (value_id vid1, l1) vls0), 
      exists b1,
       lookupBlockViaLabelFromFdef f l1 = Some b1 /\
-      ((exists vb,
+      (((exists vb,
          lookupBlockViaIDFromFdef f vid1 = Some vb /\
-         (blockDominates f vb b1 \/ not (isReachableFromEntry f b))) \/
+         blockDominates f vb b1) \/ 
+        not (isReachableFromEntry f b)) \/
       In vid1 (getArgsIDsOfFdef f))) ->
   wf_phi_operands f b i0 t0 vls0.
 Proof.
@@ -4415,25 +4420,5 @@ Proof.
       apply IHvls0.
       intros.
       apply H. simpl. auto.
-Qed.
-
-Lemma wf_phi_operands__elim' : forall f b i0 t0 vls0 vid1 l1
-  (Hwfop: wf_phi_operands f b i0 t0 vls0)
-  (Hin: In (value_id vid1, l1) vls0),
-  exists b1,
-    lookupBlockViaLabelFromFdef f l1 = Some b1 /\
-    ((exists vb,
-       lookupBlockViaIDFromFdef f vid1 = Some vb /\
-       (blockDominates f vb b1 \/ not (isReachableFromEntry f b))) \/
-    In vid1 (getArgsIDsOfFdef f)).
-Proof.
-  induction 1; intros.
-    tauto.
-
-    destruct_in Hin.
-      inv Hin. eauto.
-
-    destruct_in Hin.
-      congruence.
 Qed.
 

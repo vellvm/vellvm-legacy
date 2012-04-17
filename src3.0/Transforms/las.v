@@ -125,7 +125,8 @@ Qed.
 Lemma LAS_value_is_substing: forall S m pinfo lasinfo
   (Huniq : uniqFdef (PI_f pinfo)) (HwfF : wf_fdef S m (PI_f pinfo)),
   substing_value (PI_f pinfo) (LAS_value pinfo lasinfo).
-Proof.
+Proof. unfold substing_value. auto. Qed.
+(*
   intros.
   assert (G:=Huniq).
   apply lookup_LAS_sid__store with (lasinfo:=lasinfo) in G.
@@ -152,25 +153,52 @@ Proof.
   | H10: _ \/ _ |- _ => destruct H10 as [[block' [H10 G]] | H10]; eauto
   end.
 Qed.
+*)
 
 Lemma LAS_value__exists: forall pinfo lasinfo s m 
   (HwfF: wf_fdef s m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo)),
   match LAS_value pinfo lasinfo with
   | value_id vid =>
       In vid (getArgsIDsOfFdef (PI_f pinfo)) \/
-      exists instr, 
+      (isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo) ->
+       exists instr, 
         lookupInsnViaIDFromFdef (PI_f pinfo) vid = ret instr /\
-        getInsnID instr = Some vid
+        getInsnID instr = Some vid)
   | _ => True
   end.
 Proof.
   intros.
-  apply LAS_value_is_substing with (lasinfo:=lasinfo) in HwfF; auto.
-  unfold substing_value in HwfF.
-  destruct (LAS_value pinfo lasinfo); auto.
-  destruct HwfF as [J | [b J]]; auto.
-  right.
-    eapply lookupBlockViaIDFromFdef__lookupInsnViaIDFromFdef; eauto.
+  destruct_lasinfo.
+  eapply wf_fdef__wf_cmd in LAS_BInF0; eauto using in_middle.
+  inv LAS_BInF0. 
+  match goal with
+  | H11: wf_insn_base _ _ _ |- _ => inv H11
+  end.
+  destruct (LAS_value0) as [vid|]; auto.
+  find_wf_operand_list.
+  match goal with
+  | H5: getInsnOperands (insn_cmd ?c) = _, H6: wf_operand_list _,
+    H: insnInFdefBlockB _ _ ?b = true |- _ =>
+    apply wf_operand_list__elim with (f1:=PI_f pinfo)(b1:=b)
+      (insn1:=insn_cmd c) (id1:=vid)
+      in H6; try solve [
+        auto |
+        apply make_list_fdef_block_insn_id_spec; try solve 
+          [match goal with
+           | EQ: ?A = ?B |- In _ ?B => rewrite <- EQ; simpl; auto
+           end]
+        ];
+    inv H6
+  end.
+  match goal with
+  | H10: ( _ \/ _ ) \/ _ |- _ => 
+    destruct H10 as [[[block' [H10 G]] | H10] | H10]; try solve 
+      [eauto |
+       right; intro;
+       eapply lookupBlockViaIDFromFdef__lookupInsnViaIDFromFdef; eauto |
+       right; intro; simpl in H10; congruence
+      ]
+  end.
 Qed.
 
 Lemma LAS_value_PI_id__dominate__LAS_sid: forall S m pinfo lasinfo
@@ -779,7 +807,7 @@ Proof.
   assert (Hsval:=@LAS_value__exists pinfo lasinfo _ _ HwfF Huniq).
   destruct (LAS_value pinfo lasinfo); auto.
   simpl in Hdom. symmetry in HeqR.
-  destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst.
+  destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst; auto.
     eapply in_getArgsIDsOfFdef__inscope_of_tmn; eauto.
 
     assert (idDominates (PI_f pinfo) id5 (LAS_lid pinfo lasinfo)) as Hidom.
@@ -868,7 +896,7 @@ Proof.
   assert (Hsval:=@LAS_value__exists pinfo lasinfo _ _ HwfF Huniq).
   destruct (LAS_value pinfo lasinfo); auto.
   simpl in Hdom. symmetry in HeqR.
-  destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst.
+  destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst; auto.
     eapply in_getArgsIDsOfFdef__inscope_of_cmd; eauto.
 
     assert (idDominates (PI_f pinfo) id5 (LAS_lid pinfo lasinfo)) as Hidom.

@@ -94,19 +94,42 @@ Lemma las_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)].
 Proof.
   intros.
+  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true)
+    as HBinF.
+    rewrite Heq. simpl. apply InBlocksB_middle.
+  assert (wf_fdef [module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)]
+            (module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)) 
+            (PI_f pinfo) /\ uniqFdef (PI_f pinfo)) as J.
+    rewrite Heq in *.
+    apply wf_single_system__wf_uniq_fdef; auto.
+  destruct J as [HwfF HuniqF].
+  eapply find_st_ld__lasinfo in HBinF; eauto.
+  destruct HBinF as [lasinfo [J1 [J2 [J3 J4]]]]; subst.
   apply subst_wfS; auto.
-    assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true)
-      as HBinF.
-      rewrite Heq. simpl. apply InBlocksB_middle.
-    assert (wf_fdef [module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)]
-              (module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)) 
-              (PI_f pinfo) /\ uniqFdef (PI_f pinfo)) as J.
-      rewrite Heq in *.
-      apply wf_single_system__wf_uniq_fdef; auto.
-    destruct J as [HwfF HuniqF].
-    eapply find_st_ld__lasinfo in HBinF; eauto.
-    destruct HBinF as [lasinfo [J1 [J2 [J3 J4]]]]; subst.
     rewrite <- Heq.
     eapply LAS_value__dominates__LAS_lid; eauto.
+
+    rewrite <- Heq. clear - lasinfo HuniqF HwfF.
+    intros t0 Htyp.
+    assert (lookupTypViaIDFromFdef (PI_f pinfo)
+             (LAS_lid pinfo lasinfo) = ret (PI_typ pinfo)) as Htyp'.
+      apply lookupTypViaIDFromFdef_intro; auto.
+      right.
+      exists (LAS_block pinfo lasinfo).
+      exists (insn_cmd
+               (insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
+                 (value_id (PI_id pinfo)) (LAS_lalign pinfo lasinfo))).
+      simpl. 
+      split; auto.
+        clear - lasinfo.
+        destruct_lasinfo. 
+        apply andb_true_iff.
+        split; auto.
+          solve_in_list.
+    uniq_result.
+    clear - lasinfo HwfF.
+    destruct_lasinfo. 
+    eapply wf_fdef__wf_cmd in LAS_BInF0; eauto using in_middle.
+    inv LAS_BInF0. auto.
 Qed.
 

@@ -152,13 +152,16 @@ match v with
     end
 end.
 
-Definition substing_value (f:fdef) (v:value) : Prop :=
+
+Definition substing_value (f:fdef) (v:value) : Prop := True.
+(*
 match v with
 | value_const _ => True
 | value_id vid =>
     In vid (getArgsIDsOfFdef f) \/
-    exists b, lookupBlockViaIDFromFdef f vid = Some b
+    exists b, lookupBlockViaIDFromFdef f vid = Some b)
 end.
+*)
 
 Definition substable_values TD gl (f:fdef) (v1 v2:value) : Prop :=
 substable_value f v1 /\ substing_value f v2 /\ valueDominates f v2 v1 /\

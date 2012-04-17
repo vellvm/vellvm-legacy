@@ -2237,14 +2237,13 @@ Lemma domination__block_in_scope: forall (l' : l) (ps' : phinodes) (cs' : cmds)
   (H5 : lookupBlockViaIDFromFdef F i0 = ret block_intro l' ps' cs' tmn')
   (H7 : insnDominates i0 (insn_cmd c1) (block_intro l0 p c t0) \/
         blockStrictDominates F (block_intro l' ps' cs' tmn')
-          (block_intro l0 p c t0) \/
-        ~ isReachableFromEntry F (block_intro l0 p c t0))
+          (block_intro l0 p c t0))
   (Hneq : l0 <> l')
   (HbInF0 : blockInFdefB (block_intro l0 p c t0) F = true),
   In l' (DomDS.L.bs_contents (bound_fdef F) (dom_analyze F) !! l0).
 Proof.
   intros.
-  destruct H7 as [H7 | [H7 | H7]]; try congruence.
+  destruct H7 as [H7 | H7]; try congruence.
     apply insnDominates_spec3 with (F:=F) in H7; auto.
     rewrite H7 in H5. inv H5. congruence.
   
@@ -2849,8 +2848,9 @@ Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
 | wf_phi_operands_nil : wf_phi_operands f b id0 t0 nil
 | wf_phi_operands_cons_vid : forall vid1 l1 vls b1,
     lookupBlockViaLabelFromFdef f l1 = Some b1 ->
-    ((exists vb, lookupBlockViaIDFromFdef f vid1 = Some vb /\ 
-       (blockDominates f vb b1 \/ not (isReachableFromEntry f b))) \/ 
+    (((exists vb, lookupBlockViaIDFromFdef f vid1 = Some vb /\ 
+       blockDominates f vb b1) \/ 
+      not (isReachableFromEntry f b)) \/ 
      In vid1 (getArgsIDsOfFdef f)) ->
     wf_phi_operands f b id0 t0 vls ->
     wf_phi_operands f b id0 t0 ((value_id vid1, l1) :: vls)

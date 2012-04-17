@@ -11,6 +11,24 @@ Require Import palloca_props.
 Require Import phiplacement_bsim_defs.
 Require Import top_wfS.
 
+Lemma entry_blockStrictDominates_others: forall s m f (HwfF : wf_fdef s m f)
+  (b be : block) (Hentry : getEntryBlock f = ret be)
+  (n : getBlockLabel be <> getBlockLabel b)
+  (Hreach : isReachableFromEntry f b),
+  blockStrictDominates f be b.
+Proof.
+  unfold blockStrictDominates.
+  intros.
+  destruct be as [l1 ? ? ?].
+  destruct b as [l2 ? ? ?].
+  simpl in n.
+  assert (getEntryLabel f = Some l1) as Gentry.
+    destruct f as [? blocks5].
+    destruct blocks5; inv Hentry. auto.
+  eapply dom_analysis__entry_doms_others1 with (b:=l2) in Gentry; eauto.
+    admit. (* typings should ensure dom_analysis always succeeds. *)
+Qed.
+
 (*********************************************************)
 (*
    preserving reachablity and succ does not require WF_PhiInfo 
@@ -572,8 +590,9 @@ Proof.
   econstructor; eauto 1.  
     fold_PhiPlacement_tac.
     rewrite <- TransCFG.pres_getArgsIDsOfFdef.
-    destruct H3 as [[b0 [J1 H3]] | J3]; auto.
-    left.
+    rewrite <- TransCFG.pres_isReachableFromEntry.
+    destruct H3 as [[[b0 [J1 H3]] | H3]| J3]; auto.
+    left. left.
     exists (phinodes_placement_blk pinfo b0).
     split.
       simpl.
@@ -581,8 +600,7 @@ Proof.
 
       fold_PhiPlacement_tac.
       rewrite <- TransCFG.pres_blockStrictDominates; auto.
-      rewrite <- TransCFG.pres_isReachableFromEntry; auto.
-      destruct H3 as [H3 | [H3 | H3]]; auto.
+      destruct H3 as [H3 | H3]; auto.
       left.
       eapply phinodes_placement_insnDominates; eauto.
 Qed.
@@ -654,14 +672,15 @@ Proof.
   eapply wf_phi_operands__elim' in Hwfps; eauto.
   fold_PhiPlacement_tac.
   rewrite <- TransCFG.pres_getArgsIDsOfFdef.
+  rewrite <- TransCFG.pres_isReachableFromEntry.
   destruct Hwfps as [b1 [J1 Hwfps]].
   exists (phinodes_placement_blk pinfo b1).
   split.
     fold_PhiPlacement_tac.
     apply TransCFG.pres_lookupBlockViaLabelFromFdef; auto.
 
-    destruct Hwfps as [[b0 [J2 Hwfps]] | J3]; auto.
-    left.
+    destruct Hwfps as [[[b0 [J2 Hwfps]] | J3] | J3]; auto.
+    left. left.
     exists (phinodes_placement_blk pinfo b0).
     split.
       simpl.
@@ -669,7 +688,6 @@ Proof.
 
       fold_PhiPlacement_tac.
       rewrite <- TransCFG.pres_blockDominates; auto.
-      rewrite <- TransCFG.pres_isReachableFromEntry; auto.
 Qed.
 
 Lemma phinodes_placement_check_list_value_l : forall b b' 
@@ -812,15 +830,18 @@ Proof.
     eapply inserted_load__in__phinodes_placement_blk; eauto.
     solve_isNotPhiNode.
 
-    left. assert (J:=Hwfpi).
+    left. 
+    destruct (isReachableFromEntry_dec
+                (phinodes_placement_f pinfo (PI_f pinfo))
+                (phinodes_placement_blk pinfo b)); auto.
+    left.
+    assert (J:=Hwfpi).
     apply WF_PhiInfo__lookupBlockViaIDFromFdef in J; auto.
     destruct J as [be [Hentry Hlkup]]. 
     apply phinodes_placement_lookupBlockViaIDFromFdef in Hlkup; auto.
     exists (phinodes_placement_blk pinfo be).
     split; auto.
-    destruct (isReachableFromEntry_dec
-                (phinodes_placement_f pinfo (PI_f pinfo))
-                (phinodes_placement_blk pinfo b)); auto.
+
     destruct (eq_atom_dec (getBlockLabel (phinodes_placement_blk pinfo be))
                           (getBlockLabel (phinodes_placement_blk pinfo b))).
     Case "be = b".
@@ -844,7 +865,7 @@ Proof.
       end.
 
     Case "be <> b".
-      right. left.
+      right.
       fold_PhiPlacement_tac.
       erewrite <- TransCFG.pres_blockStrictDominates; eauto.
       assert (isReachableFromEntry (PI_f pinfo) b) as Hreach.
@@ -943,13 +964,14 @@ Proof.
     solve_isNotPhiNode.
 
     left. 
+    destruct (isReachableFromEntry_dec
+                  (phinodes_placement_f pinfo (PI_f pinfo))
+                  (phinodes_placement_blk pinfo b)); auto.
+    left.
     exists (phinodes_placement_blk pinfo b).
     split.
       eapply insert_phi__lookupBlockViaIDFromFdef; eauto.
    
-      destruct (isReachableFromEntry_dec
-                  (phinodes_placement_f pinfo (PI_f pinfo))
-                  (phinodes_placement_blk pinfo b)); auto.
       left.
       eapply phinodes_placement_blk_head_inv in HeqR1; eauto 1.
       destruct HeqR1 as [l1 [ps1 [cs4 [tmn1 [cs5 [EQ1 EQ2]]]]]].
@@ -978,15 +1000,17 @@ Proof.
     eapply inserted_store__in__phinodes_placement_blk; eauto.
     solve_isNotPhiNode.
 
-    left. assert (J:=Hwfpi).
+    left. 
+    destruct (isReachableFromEntry_dec
+                (phinodes_placement_f pinfo (PI_f pinfo))
+                (phinodes_placement_blk pinfo b)); auto.
+    left.
+    assert (J:=Hwfpi).
     apply WF_PhiInfo__lookupBlockViaIDFromFdef in J; auto.
     destruct J as [be [Hentry Hlkup]]. 
     apply phinodes_placement_lookupBlockViaIDFromFdef in Hlkup; auto.
     exists (phinodes_placement_blk pinfo be).
     split; auto.
-    destruct (isReachableFromEntry_dec
-                (phinodes_placement_f pinfo (PI_f pinfo))
-                (phinodes_placement_blk pinfo b)); auto.
     destruct (eq_atom_dec (getBlockLabel (phinodes_placement_blk pinfo be))
                           (getBlockLabel (phinodes_placement_blk pinfo b))).
     Case "be = b".
@@ -1005,7 +1029,7 @@ Proof.
       destruct pds; congruence.
 
     Case "be <> b".
-      right. left.
+      right. 
       fold_PhiPlacement_tac.
       erewrite <- TransCFG.pres_blockStrictDominates; eauto.
       assert (isReachableFromEntry (PI_f pinfo) b) as Hreach.
@@ -1084,7 +1108,7 @@ Proof.
       fold_PhiPlacement_tac.
       exists (btrans (PhiPlacement pinfo) b1).
       split; auto.
-      left.
+      left. left.
       exists (btrans (PhiPlacement pinfo) b1).
       split.
         apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
@@ -1104,7 +1128,6 @@ Proof.
           apply TransCFG.pres_blockInFdefB; auto.
           solve_blockInFdefB.
 
-        left.
         apply blockDominates_refl.
                
     unfold check_list_value_l.

@@ -349,7 +349,7 @@ formula :: 'formula_' ::=
   | typ_eq_list_typ namedts typ </ typj // j /> :: :: typ_eq_list_typ
       {{ coq typ_eq_list_typ [[namedts]] [[typ]] [[ </ typj // j /> ]] = true }}
   | check_operand fdef block insn id' ::   :: checkoperand
-      {{ coq ((exists block', lookupBlockViaIDFromFdef [[fdef]] [[id']] = Some block' /\ (insnDominates [[id']] [[insn]] [[block]] \/ blockStrictDominates [[fdef]] block' [[block]] \/ (not (isReachableFromEntry [[fdef]] [[block]])))) \/ In [[id']] (getArgsIDsOfFdef [[fdef]])) }}
+      {{ coq (((exists block', lookupBlockViaIDFromFdef [[fdef]] [[id']] = Some block' /\ (insnDominates [[id']] [[insn]] [[block]] \/ blockStrictDominates [[fdef]] block' [[block]])) \/ not (isReachableFromEntry [[fdef]] [[block]])) \/ In [[id']] (getArgsIDsOfFdef [[fdef]])) }}
 
 parsing
 formula_true left formula_not

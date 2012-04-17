@@ -2,6 +2,81 @@ Require Import vellvm.
 Require Import primitives.
 Require Import top_wfS.
 
+Lemma blockStrictDominates_isReachableFromEntry: forall f b1 b2 S M
+  (HuniqF: uniqFdef f) (HwfF: wf_fdef S M f) 
+  (Hreach: isReachableFromEntry f b1) (Hin: blockInFdefB b1 f = true)
+  (Hsdom: blockStrictDominates f b2 b1),
+  isReachableFromEntry f b2.
+Proof.
+  intros.
+  unfold isReachableFromEntry in *. destruct b1, b2.
+  eapply sdom_reachable; eauto.
+  simpl in Hsdom.
+  remember (Maps.AMap.get l5 (dom_analyze f)) as R.
+  destruct R.
+  eapply sdom_is_sound; eauto 1.
+  rewrite <- HeqR. auto.
+Qed.
+
+Lemma idDominates_blockStrictDominates__blockStrictDominates :
+forall S M f id1 id2 b1 b2 b (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
+  (HBinF: blockInFdefB b f = true),
+  idDominates f id1 id2 ->
+  lookupBlockViaIDFromFdef f id1 = ret b1 ->
+  lookupBlockViaIDFromFdef f id2 = ret b2 ->
+  blockStrictDominates f b2 b ->
+  blockStrictDominates f b1 b.
+Proof.
+  unfold idDominates, blockStrictDominates in *. intros.
+  remember (lookupBlockViaIDFromFdef f id2) as R1.
+  destruct R1; tinv H.
+  remember (inscope_of_id f b0 id2) as R2.
+  destruct R2; tinv H.
+  unfold inscope_of_id in *.
+  destruct b1 as [l1 p c t]. 
+  destruct b as [l2 p0 c0 t0]. destruct b0 as [l3 ? ? ?]. 
+  destruct b2 as [l4 p2 c2 t2].
+  remember (Maps.AMap.get l3 (dom_analyze f)) as R.
+  destruct R.
+  remember (Maps.AMap.get l2 (dom_analyze f)) as R.
+  destruct R. inv H1.
+  symmetry in HeqR2.
+  apply fold_left__spec in HeqR2.
+  destruct HeqR2 as [J1 [J2 J3]].
+  apply J3 in H. clear J3.
+  destruct H as [H | [b1 [l1' [J1' [J2' J3']]]]].
+    assert (block_intro l1 p c t = block_intro l4 p2 c2 t2) as J'.
+      clear - H H0 HeqR1 Huniq.
+      symmetry in HeqR1.
+      apply lookupBlockViaIDFromFdef__blockInFdefB in HeqR1.
+      eapply block_eq1 in H0; eauto.
+      simpl. 
+      assert (~ In id1 (getArgsIDsOfFdef f)) as Hnotin.
+        solve_notin_getArgsIDs.
+      apply init_scope_spec2 in H; auto.
+      apply cmds_dominates_cmd_spec'' in H; auto.
+    inv J'. auto.
+    assert (block_intro l1 p c t = b1) as EQ.
+      apply lookupBlockViaLabelFromFdef__blockInFdefB in J2'; auto.
+      eapply block_eq1 in H0; eauto.
+    subst.
+    apply lookupBlockViaLabelFromFdef_inv in J2'; auto.
+    destruct J2' as [Heq J2']; subst.
+    assert (blockStrictDominates f (block_intro l1 p c t)
+                                   (block_intro l4 p2 c2 t2)) as Hdom.
+      clear - J1' HeqR Huniq. simpl. rewrite <- HeqR.
+      apply ListSet.set_diff_elim1 in J1'; auto.
+    assert (blockStrictDominates f (block_intro l4 p2 c2 t2)
+                  (block_intro l2 p0 c0 t0)) as Hdom'.
+      clear - H2 HeqR0 Huniq. simpl. rewrite <- HeqR0. auto.
+    assert (blockStrictDominates f (block_intro l1 p c t)
+                  (block_intro l2 p0 c0 t0)) as Hdom''.
+      eapply blockStrictDominates_trans with (b2:=block_intro l4 p2 c2 t2);
+        eauto.
+        eapply lookupBlockViaIDFromFdef__blockInFdefB; eauto.
+    simpl in Hdom''. rewrite <- HeqR0 in Hdom''. auto.
+Qed.
+
 Lemma subst_block__getBlockLabel: forall i0 v0 b,
   getBlockLabel b = getBlockLabel (subst_block i0 v0 b).
 Proof.
@@ -445,6 +520,12 @@ Proof.
     fill_ctxhole. auto.
 Qed.
 
+Lemma subst_fheader: forall f,
+  fheaderOfFdef f = fheaderOfFdef (subst_fdef id0 v0 f).
+Proof.
+  destruct f; auto.
+Qed.
+
 End SubstBasic.
 
 Hint Resolve subst_insnInFdefBlockB subst_lookupBlockViaIDFromFdef
@@ -459,23 +540,20 @@ Hypothesis (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
            (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
            (HeqF': f' = subst_fdef id0 v0 f).
 
-Lemma Heq_fheader: fheaderOfFdef f = fheaderOfFdef f'.
-Proof.
-  subst f'. destruct f; auto.
-Qed.
-
 Lemma subst_wf_typ: forall t,
   wf_typ [M] (los,nts) t -> wf_typ [M'] (los,nts) t.
 Proof.
-  assert (J:=Heq_fheader).
-  eapply TopWFS.subst_fdef_preserves_single_wf_typ; eauto.
+  subst.
+  eapply TopWFS.subst_fdef_preserves_single_wf_typ; 
+    eauto using subst_fheader.
 Qed.
 
 Lemma subst_wf_const: forall c t,
   wf_const [M] (los,nts) c t -> wf_const [M'] (los,nts) c t.
 Proof.
-  assert (J:=Heq_fheader).
-  eapply TopWFS.subst_fdef_preserves_single_wf_const; eauto.
+  subst.
+  eapply TopWFS.subst_fdef_preserves_single_wf_const;
+    eauto using subst_fheader.
 Qed.
 
 Lemma subst_blockInSystemModuleFdefB: forall b b'
@@ -501,15 +579,27 @@ Qed.
 Lemma subst_preserves_wf_fheader: forall fh,
   wf_fheader [M] (los,nts) fh -> wf_fheader [M'] (los,nts) fh.
 Proof.
-  assert (J:=Heq_fheader).
-  eapply TopWFS.subst_fdef_preserves_single_wf_fheader; eauto.
+  subst.
+  eapply TopWFS.subst_fdef_preserves_single_wf_fheader; 
+    eauto using subst_fheader.
+Qed.
+
+Lemma subst_wf_original_value : forall v t (Hwfv: wf_value [M] M f v t),
+  wf_value [M'] M' f' v t.
+Proof.
+  intros.
+  assert (J1:=subst_wf_const).
+  assert (J3:=subst_wf_typ).
+  subst. 
+  inv Hwfv; uniq_result; try constructor; eauto.
+    rewrite <- subst_lookupTypViaIDFromFdef; auto.
 Qed.
 
 End SubstBasicSys.
 
-Hint Resolve Heq_fheader subst_wf_typ subst_wf_const: ssa_subst.
+Hint Resolve subst_fheader subst_wf_typ subst_wf_const: ssa_subst.
 
-Section CSubstBasic.
+Section CSubst.
 
 Variable (id0:id) (c0:const).
 
@@ -819,8 +909,9 @@ Proof.
     autounfold.
     fold_subst_tac.
     rewrite <- TransCFG.pres_getArgsIDsOfFdef; auto.
-    destruct H4 as [[b' [J1 J2]] | H4]; auto.
-    left.
+    rewrite <- TransCFG.pres_isReachableFromEntry; auto.
+    destruct H4 as [[[b' [J1 J2]] | H4] | H4]; auto.
+    left. left.
     exists (subst_block id0 (value_const c0) b').
     simpl.
     split.
@@ -828,8 +919,7 @@ Proof.
 
       rewrite <- subst_insnDominates; eauto using insnInFdefBlockB__insnInBlockB.
       fold_subst_tac.
-      rewrite <- TransCFG.pres_blockStrictDominates.
-      rewrite <- TransCFG.pres_isReachableFromEntry; auto.
+      rewrite <- TransCFG.pres_blockStrictDominates. auto.
 Qed.
 
 Hint Resolve csubst_wf_operand: ssa_subst.
@@ -887,64 +977,550 @@ Proof.
       autounfold.
       fold_subst_tac.
       rewrite <- TransCFG.pres_getArgsIDsOfFdef; auto.
-      destruct H0 as [[vb [J1 J2]]| H0]; auto.
-      left.
+      rewrite <- TransCFG.pres_isReachableFromEntry; auto.
+      destruct H0 as [[[vb [J1 J2]] | H0] | H0]; auto.
+      left. left.
       exists (csubst_block id0 c0 vb).
       autounfold.
       fold_subst_tac.
       rewrite <- TransCFG.pres_blockDominates; auto.
-      rewrite <- TransCFG.pres_isReachableFromEntry; auto.
       simpl.
       eapply subst_lookupBlockViaIDFromFdef in J1; eauto.
 Qed.
 
-Hint Resolve csubst_wf_phi_operands: ssa_subst.
+End CSubst.
 
-Lemma csubst_wf_phinode : forall f b PN (HwfPN: wf_phinode f b PN),
-  wf_phinode (csubst_fdef id0 c0 f) (csubst_block id0 c0 b)
-    (csubst_phi id0 c0 PN).
+Section ISubst.
+
+Variable (id1:id) (id2:id) (f:fdef).
+
+Definition subst_id (id1 id2 : id) (id0:id) : id :=
+if id_dec id0 id1 then id2 else id0.
+
+Fixpoint subst_list_id (id1 id2 : id) (l0:list id) : list id :=
+match l0 with
+| nil => nil
+| id0 :: tl =>
+    (subst_id id1 id2 id0) :: (subst_list_id id1 id2 tl)
+end.
+
+Lemma isubst_values2ids : forall l0 id_list0,
+  values2ids (list_prj1 value l l0) = id_list0 ->
+  values2ids
+    (list_prj1 value l
+       (subst_list_value_l id2 (value_id id1) l0)) =
+    subst_list_id id2 id1 id_list0.
+Proof.
+  induction l0 as [|[]]; simpl; intros; subst; auto.
+    destruct v as [vid|c]; simpl in *; unfold subst_id; auto.
+      rewrite <- IHl0; auto.
+      destruct_if.
+Qed.
+
+Hint Resolve isubst_values2ids : ssa_subst.
+
+Lemma isubst_getPhiNodeOperands : forall p id_list0,
+  getPhiNodeOperands p = id_list0 ->
+  getPhiNodeOperands (subst_phi id2 (value_id id1) p) =
+    subst_list_id id2 id1 id_list0.
+Proof.
+  destruct p; simpl; intros; auto with ssa_subst.
+Qed.
+
+Lemma subst_list_id_app: forall id' id'' ids2 ids1,
+  subst_list_id id' id'' ids1 ++ subst_list_id id' id'' ids2 =
+    subst_list_id id' id'' (ids1 ++ ids2).
+Proof.
+  induction ids1; simpl; auto.
+    rewrite IHids1; auto.
+Qed.
+
+Lemma isubst_getValueIDs : forall v id_list0
+  (H : getValueIDs v = id_list0),
+  getValueIDs (v {[value_id id1 // id2]}) = subst_list_id id2 id1 id_list0.
+Proof.
+  intros.
+  destruct v as [|vod]; subst; simpl in *; unfold subst_id; auto.
+    destruct_if; subst; simpl; auto.
+Qed.
+
+Lemma isubst_getValueIDs2 : forall v v0 id_list0
+  (H : getValueIDs v ++ getValueIDs v0 = id_list0),
+  getValueIDs (v {[value_id id1 // id2]}) ++
+  getValueIDs (v0 {[value_id id1 // id2]}) = subst_list_id id2 id1 id_list0.
+Proof.
+  intros.
+  subst.
+  rewrite <- subst_list_id_app.
+  repeat erewrite isubst_getValueIDs; eauto.
+Qed.
+
+Hint Resolve isubst_getValueIDs2
+             isubst_getValueIDs: ssa_subst.
+
+Lemma isubst_values2ids' : forall l0,
+  values2ids (List.map snd (subst_list_value id2 (value_id id1) l0)) =
+    subst_list_id id2 id1 (values2ids (List.map snd l0)).
+Proof.
+  induction l0 as [|[]]; simpl; auto.
+    destruct v as [vid|]; subst; simpl; auto.
+    unfold subst_id. rewrite IHl0. 
+    destruct_if. 
+Qed.
+
+Lemma isubst_getParamsOperand: forall params5,
+  getParamsOperand
+     (List.map
+        (fun p : typ * attributes * value =>
+         let '(t, v) := p in (t, v {[value_id id1 // id2]})) params5) =
+    subst_list_id id2 id1 (getParamsOperand params5).
+Proof.
+  unfold getParamsOperand. 
+  induction params5 as [|[[]]]; simpl; auto.
+  match goal with
+  | _:context [split ?e] |- _ => 
+      remember (split e) as R; destruct R
+  end.
+  match goal with
+  | |- context [split ?e] => 
+      remember (split e) as R; destruct R
+  end.
+  simpl. 
+  destruct v; simpl; auto.
+    unfold subst_id.
+    destruct_if; congruence.
+Qed.
+
+Lemma isubst_getCmdOperands : forall c id_list0,
+ getCmdOperands c = id_list0 ->
+ getCmdOperands (subst_cmd id2 (value_id id1) c) = 
+   subst_list_id id2 id1 id_list0.
+Proof.
+  destruct c; simpl; intros; auto with ssa_subst.
+    subst.
+    rewrite <- subst_list_id_app.
+    erewrite isubst_getValueIDs; eauto.
+    rewrite isubst_values2ids'; auto.
+
+    subst.
+    repeat rewrite <- subst_list_id_app.
+    repeat erewrite isubst_getValueIDs; eauto.
+
+    subst.
+    repeat rewrite <- subst_list_id_app.
+    erewrite isubst_getValueIDs; eauto.
+    rewrite isubst_getParamsOperand; auto.
+Qed.
+
+Lemma isubst_getTerminatorOperands : forall t id_list0,
+  getTerminatorOperands t = id_list0 ->
+  getTerminatorOperands (subst_tmn id2 (value_id id1) t) =
+    subst_list_id id2 id1 id_list0.
+Proof.
+  destruct t; simpl; intros; 
+    try solve [simpl; auto with ssa_subst | subst; auto].
+Qed.
+
+Hint Resolve isubst_getCmdOperands isubst_getPhiNodeOperands
+  isubst_getTerminatorOperands: ssa_subst.
+
+Lemma isubst_getInsnOperands : forall instr id_list0,
+  getInsnOperands instr = id_list0 ->
+  getInsnOperands (isubst_insn id2 id1 instr) = subst_list_id id2 id1 id_list0.
+Proof.
+  destruct instr; simpl; intros; auto with ssa_subst.
+Qed.
+
+Hint Resolve isubst_getInsnOperands: ssa_subst.
+
+Lemma isubst_In_values2ids : forall i0 l0
+  (H2 : ListSet.set_In i0
+    (values2ids (list_prj1 value l l0))),
+  ListSet.set_In (subst_id id2 id1 i0)
+    (values2ids
+      (list_prj1 value l
+        (subst_list_value_l id2 (value_id id1) l0))).
+Proof.
+  induction l0 as [|[v]]; simpl; intros; auto.
+    destruct v as [vid|]; simpl in *; auto.
+    unfold subst_id in *.
+    destruct H2 as [H2 | H2]; subst.
+      destruct_if; try congruence; simpl; auto.
+      destruct_if; destruct_if; subst; simpl; auto.
+Qed.
+
+Hint Resolve isubst_In_values2ids : ssa_subst.
+
+Lemma isubst_In_getPhiNodeOperands : forall i0 p
+  (H2 : ListSet.set_In i0 (getPhiNodeOperands p)),
+  ListSet.set_In (subst_id id2 id1 i0)
+    (getPhiNodeOperands (subst_phi id2 (value_id id1) p)).
+Proof.
+  destruct p; simpl; intros; auto with ssa_subst.
+Qed.
+
+Lemma isubst_In_getValueIDs : forall v i3
+  (H2 : ListSet.set_In i3 (getValueIDs v)),
+  ListSet.set_In (subst_id id2 id1 i3) (getValueIDs (v {[value_id id1 // id2]})).
+Proof.
+  intros.
+  destruct v as [vid|]; simpl in *; unfold subst_id; auto.
+    destruct H2 as [H2 | H2]; subst.
+      destruct_if; simpl; auto.
+      tauto.
+Qed.
+
+Lemma isubst_In_getValueIDs2 : forall v v0 i3
+  (H2 : ListSet.set_In i3 (getValueIDs v ++ getValueIDs v0)),
+  ListSet.set_In (subst_id id2 id1 i3)
+    (getValueIDs (v {[value_id id1 // id2]}) ++
+     getValueIDs (v0 {[value_id id1 // id2]})).
+Proof.
+  intros.
+  unfold ListSet.set_In in *.
+  destruct_in H2;
+    apply isubst_In_getValueIDs in H2; auto; xsolve_in_list.
+Qed.
+
+Hint Resolve isubst_In_getValueIDs isubst_In_getValueIDs2: ssa_subst.
+
+Lemma isubst_In_values2ids' : forall i0 l0
+  (H2 : ListSet.set_In i0
+    (values2ids (List.map snd l0))),
+  ListSet.set_In (subst_id id2 id1 i0)
+    (values2ids
+      (List.map snd (subst_list_value id2 (value_id id1) l0))).
+Proof.
+  induction l0 as [|[]]; simpl; intros; auto.
+    destruct v as [vid|]; subst; simpl; auto.
+    unfold ListSet.set_In in *. unfold subst_id in *.
+    destruct_in H2.
+      destruct_if; simpl; auto.
+      destruct_if; destruct_if; simpl; auto.
+Qed.
+
+Lemma isubst_In_getParamsOperand: forall i0 params5
+  (H2 : ListSet.set_In i0 (getParamsOperand params5)),
+  ListSet.set_In (subst_id id2 id1 i0)
+    (getParamsOperand
+      (List.map
+        (fun p : typ * attributes * value =>
+         let '(t, v) := p in (t, v {[value_id id1 // id2]})) params5)).
+Proof.
+  unfold getParamsOperand. 
+  induction params5 as [|[[]]]; simpl; intros; auto.
+  match goal with
+  | _:context [split ?e] |- _ => 
+      remember (split e) as R; destruct R
+  end.
+  match goal with
+  | |- context [split ?e] => 
+      remember (split e) as R; destruct R
+  end.
+  simpl. 
+  destruct v; simpl; auto.
+    simpl in H2. unfold subst_id in *.
+    destruct H2 as [H2 | H2]; subst.
+      destruct_if; simpl; auto.
+      destruct_if; destruct_if; simpl; auto.
+Qed.
+
+Lemma isubst_In_getCmdOperands : forall c i3
+  (H2 : ListSet.set_In i3 (getCmdOperands c)),
+  ListSet.set_In (subst_id id2 id1 i3)
+    (getCmdOperands (subst_cmd id2 (value_id id1) c)).
+Proof.
+  destruct c; simpl; intros; auto with ssa_subst.
+    unfold ListSet.set_In in *.
+    destruct_in H2.
+      apply isubst_In_getValueIDs in H2; auto. xsolve_in_list.
+      apply isubst_In_values2ids' in H2; auto. xsolve_in_list.
+
+    unfold ListSet.set_In in *.
+    destruct_in H2.
+      apply isubst_In_getValueIDs in H2; auto; xsolve_in_list.
+    destruct_in H2;
+      apply isubst_In_getValueIDs in H2; auto; xsolve_in_list.
+
+    unfold ListSet.set_In in *.
+    destruct_in H2.
+      apply isubst_In_getValueIDs in H2; auto. xsolve_in_list.
+      apply isubst_In_getParamsOperand in H2; auto. xsolve_in_list.
+Qed.
+
+Lemma isubst_In_getTerminatorOperands : forall t i3
+  (H2 : ListSet.set_In i3 (getTerminatorOperands t)),
+  ListSet.set_In (subst_id id2 id1 i3)
+    (getTerminatorOperands(subst_tmn id2 (value_id id1) t)).
+Proof.
+  destruct t; simpl; intros; auto with ssa_subst.
+Qed.
+
+Hint Resolve isubst_In_getCmdOperands isubst_In_getPhiNodeOperands
+  isubst_In_getTerminatorOperands: ssa_subst.
+
+Lemma isubst_In_getInsnOperands : forall i0 instr
+  (H2 : ListSet.set_In i0 (getInsnOperands instr)),
+  ListSet.set_In (subst_id id2 id1 i0)
+     (getInsnOperands (isubst_insn id2 id1 instr)).
+Proof.
+  destruct instr; simpl; auto with ssa_subst.
+Qed.
+
+End ISubst.
+
+Section ISubstOps.
+
+Variable (los:layouts) (nts:namedts) (Ps1 Ps2:products)
+         (M:module) (f:fdef) (id1 id2:id).
+Hypothesis (Hdom: id_in_reachable_block f id2 -> idDominates f id1 id2)
+           (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
+           (HwfF: wf_fdef [M] M f) 
+           (HuniqF: uniqFdef f).
+
+Lemma isubst_wf_operand : forall instr b i0
+  (Huniq : NoDup (getBlockLocs b))
+  (H1 : wf_operand f b instr i0),
+   wf_operand (isubst_fdef id2 id1 f) (isubst_block id2 id1 b)
+     (isubst_insn id2 id1 instr) (subst_id id2 id1 i0).
+Proof.
+  intros.
+  inv H1.
+  match goal with
+  | H2: ListSet.set_In _ _, H3: notT (isPhiNode _) |- _ =>
+    apply isubst_In_getInsnOperands with (id1:=id1)(id2:=id2) in H2;
+    rewrite subst_isPhiNode with (id0:=id2)(v0:=value_id id1) in H3
+  end.
+  unfold subst_id in *.
+  destruct (id_dec i0 id2); subst.
+    eapply wf_operand_intro; try solve
+      [eauto with ssa_subst | autounfold; eauto with ssa_subst].
+    assert (~ In id2 (getArgsIDsOfFdef f)) as Hnotin2.
+      admit.
+    autounfold.
+    fold_subst_tac.
+    rewrite <- TransCFG.pres_isReachableFromEntry.
+    rewrite <- TransCFG.pres_getArgsIDsOfFdef.
+    destruct (In_dec id_dec id1 (getArgsIDsOfFdef f)) as [Hin1 | Hnotin1]; auto.
+    destruct (isReachableFromEntry_dec f b) as [Hreach | Hnreach]; auto.
+    left. left.
+    match goal with
+    | H4: (_ \/ _) \/ _ |- _ => 
+      destruct H4 as [[[b' [Hlkup H4]] | H4] | H4]; try congruence
+    end.
+    assert (blockInFdefB b f = true) as HBinF.
+      apply destruct_insnInFdefBlockB in H. tauto.
+    assert (id_in_reachable_block f id2) as Hireach.
+      intros b2 Hlkup'.
+      uniq_result.
+      destruct H4 as [H4 | H4].
+        eapply insnDominates_spec3 in H4; eauto 1.
+        uniq_result. auto.
+
+        eapply blockStrictDominates_isReachableFromEntry; eauto.
+    apply Hdom in Hireach. 
+    assert (J:=Hireach).
+    apply idDominates__lookupBlockViaIDFromFdef in J; auto.
+    destruct J as [b1 J].
+    exists (btrans (Subst id2 (value_id id1)) b1).
+    split.
+      simpl. apply subst_lookupBlockViaIDFromFdef; auto.
+     
+      rewrite <- TransCFG.pres_blockStrictDominates.
+      simpl.
+      rewrite <- subst_insnDominates; eauto
+         using insnInFdefBlockB__insnInBlockB.
+      match goal with
+      | H4 : _ \/ _ |- _ => 
+         destruct H4 as [H4 | H4]; 
+           eauto using idDominates_insnDominates__insnOrBlockStrictDominates,
+                       idDominates_blockStrictDominates__blockStrictDominates
+      end.
+
+    eapply wf_operand_intro; try solve
+      [eauto with ssa_subst | autounfold; eauto with ssa_subst].
+      autounfold.
+      fold_subst_tac.
+      rewrite <- TransCFG.pres_isReachableFromEntry.
+      rewrite <- TransCFG.pres_getArgsIDsOfFdef.
+      match goal with
+      | H4: (_ \/ _) \/ _ |- _ => 
+        destruct H4 as [[[b' [Hlkup H4]] | H4] | H4]; auto
+      end.
+      left. left.
+      exists (btrans (Subst id2 (value_id id1)) b').
+      rewrite <- TransCFG.pres_blockStrictDominates.
+      simpl.
+      rewrite <- subst_insnDominates; eauto using insnInFdefBlockB__insnInBlockB.
+      split; auto.
+        apply subst_lookupBlockViaIDFromFdef; auto.
+Qed.
+
+Hint Resolve isubst_wf_operand: ssa_subst.
+
+Lemma isubst_wf_operand_list : forall instr b 
+  (Huniq : NoDup (getBlockLocs b)) id_list0
+  (H2 : forall id_ : id,
+          In id_ (List.map (fun id_0 : id => id_0) id_list0) ->
+          wf_operand f b instr id_),
+  forall id_ : id,
+    In id_ (List.map (fun id_0 : id => id_0) 
+              (subst_list_id id2 id1 id_list0)) ->
+    wf_operand (isubst_fdef id2 id1 f) (isubst_block id2 id1 b)
+      (isubst_insn id2 id1 instr) id_.
+Proof.
+  induction id_list0 as [|a]; simpl; intros; auto.
+    tauto.
+    destruct H as [H | H]; subst; auto with ssa_subst.
+Qed.
+
+Hint Resolve isubst_getInsnOperands isubst_wf_operand_list: ssa_subst.
+
+Lemma isubst_wf_insn_base : forall b instr
+  (Huniq : NoDup (getBlockLocs b))
+  (HwfI: wf_insn_base f b instr),
+  wf_insn_base (isubst_fdef id2 id1 f) (isubst_block id2 id1 b)
+    (isubst_insn id2 id1 instr).
+Proof.
+  intros.
+  inv HwfI.
+  eapply subst_insnInFdefBlockB in H; eauto.
+  eapply isubst_getInsnOperands in H1; eauto.
+  eapply wf_insn_base_intro; eauto with ssa_subst.
+Qed.
+
+Hint Constructors wf_phi_operands.
+
+Lemma isubst_wf_phi_operands : forall b id' ty vls
+  (Hwf_pnops: wf_phi_operands f b id' ty vls),
+  wf_phi_operands (isubst_fdef id2 id1 f) (isubst_block id2 id1 b) id' ty
+    (subst_list_value_l id2 (value_id id1) vls).
+Proof.
+  intros.
+  induction Hwf_pnops; simpl; auto.
+    assert (H':=H).
+    eapply (@TransCFG.pres_lookupBlockViaLabelFromFdef 
+             (Subst id2 (value_id id1))) in H; eauto.
+    destruct (id_dec vid1 id2); subst.
+      assert (~ In id2 (getArgsIDsOfFdef f)) as Hnotin2.
+        admit.
+      eapply wf_phi_operands_cons_vid; eauto.
+      autounfold.
+      fold_subst_tac.
+      rewrite <- TransCFG.pres_isReachableFromEntry.
+      rewrite <- TransCFG.pres_getArgsIDsOfFdef.
+      destruct (In_dec id_dec id1 (getArgsIDsOfFdef f)) as [Hin1 | Hnotin1]; auto.
+      destruct (isReachableFromEntry_dec f b) as [Hreach | Hnreach]; auto.
+(*
+      
+      left. left.
+      match goal with
+      | H0: (_ \/ _) \/ _ |- _ => 
+        destruct H0 as [[[b' [Hlkup H0]] | H0] | H0]; try congruence
+      end.
+
+admit.
+(*
+      assert (blockInFdefB b f = true) as HBinF.
+        apply destruct_insnInFdefBlockB in H. tauto.
+*)
+      assert (id_in_reachable_block f id2) as Hireach.
+        intros b2 Hlkup'.
+        uniq_result.
+        eapply blockStrictDominates_isReachableFromEntry; eauto 1.
+  
+
+
+      destruct H0 as [[H0 | H0] | H0]; auto.
+
+
+      assert (J:=Hdom).
+      apply idDominates__lookupBlockViaIDFromFdef in J; auto.
+      destruct J as [vb1 J].
+      eapply wf_phi_operands_cons_vid; eauto.
+        eapply subst_lookupBlockViaIDFromFdef in J; eauto.
+      
+        fold_subst_tac. eauto.
+
+        fold_subst_tac.
+        destruct H1 as [H1 | H1]; eauto.
+          rewrite <- TransWF.pres_blockDominates; auto.
+            left.
+            apply blockDominates_trans with (b2:=vb);
+              eauto using lookupBlockViaIDFromFdef__blockInFdefB,
+                          lookupBlockViaLabelFromFdef__blockInFdefB.
+            eapply idDominates__blockDominates; eauto.
+
+      eapply wf_phi_operands_cons_vid; eauto.
+        eapply subst_lookupBlockViaIDFromFdef in H; eauto.
+
+        autounfold. fold_subst_tac.
+        destruct H1 as [H1 | H1]; auto.
+          rewrite <- TransWF.pres_blockDominates; auto.
+
+
+    assert (H':=H).
+    eapply (@TransCFG.pres_lookupBlockViaLabelFromFdef 
+             (Subst id2 (value_id id1))) in H; eauto.
+    erewrite (@TransCFG.pres_isReachableFromEntry 
+               (Subst id2 (value_id id1))) in H0; eauto.
+    simpl in H0.
+
+    erewrite (@TransCFG.pres_getArgsIDsOfFdef
+               (Subst id2 (value_id id1))) in H0; eauto.
+*)
+Admitted.
+
+End ISubstOps.
+
+Section Subst.
+
+Variable (los:layouts) (nts:namedts) (Ps1 Ps2:products)
+         (M M':module) (f f':fdef) (id0:id) (v0:value).
+Hypothesis (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
+           (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
+           (HeqF': f' = subst_fdef id0 v0 f)
+           (HwfF: wf_fdef [M] M f) 
+           (Hwfcst0: forall t0, lookupTypViaIDFromFdef f id0 = Some t0 ->
+                                wf_value [M] M f v0 t0)
+           (HuniqF: uniqFdef f).
+
+Hypothesis subst_wf_insn_base : forall b instr
+  (Huniq : NoDup (getBlockLocs b))
+  (HwfI: wf_insn_base f b instr),
+  wf_insn_base f' (subst_block id0 v0 b) (subst_insn id0 v0 instr).
+
+Hypothesis subst_wf_phi_operands: forall b ty id' vls
+  (Hwf_pnops: wf_phi_operands f b id' ty vls),
+  wf_phi_operands (subst_fdef id0 v0 f) (subst_block id0 v0 b) id' ty
+    (subst_list_value_l id0 v0 vls).
+
+Lemma subst_wf_value : forall v t (Hwfv: wf_value [M] M f v t),
+  wf_value [M'] M' f' (subst_value id0 v0 v) t.
+Proof.
+  intros.
+  assert (J1:=subst_wf_const).
+  assert (J2:=subst_wf_original_value).
+  assert (J3:=subst_wf_typ).
+  subst. 
+  inv Hwfv; uniq_result; try constructor; eauto.
+    simpl. 
+    destruct_if; eauto 3.
+      constructor; eauto 2.
+        rewrite <- subst_lookupTypViaIDFromFdef; auto.
+Qed.
+
+Lemma subst_wf_phinode : forall b PN (HwfPN: wf_phinode f b PN),
+  wf_phinode (subst_fdef id0 v0 f) (subst_block id0 v0 b)
+    (subst_phi id0 v0 PN).
 Proof.
   intros. destruct PN as [id' vls].
   unfold wf_phinode in *. simpl.
   destruct HwfPN as [Hwf_pnops Hcl].
   split; auto with ssa_subst.
-    apply subst_check_list_value_l; auto.
 Qed.
 
-End CSubstBasic.
-
-Hint Resolve csubst_wf_insn_base csubst_wf_phinode: ssa_subst.
-Hint Unfold csubst_fdef csubst_block csubst_insn csubst_value: ssa_subst.
-
-Section CSubst.
-
-Variable (los:layouts) (nts:namedts) (Ps1 Ps2:products)
-         (M M':module) (f f':fdef) (id0:id) (c0:const).
-Hypothesis (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
-           (HeqM': M' = module_intro los nts (Ps1 ++ product_fdef f' :: Ps2))
-           (HeqF': f' = csubst_fdef id0 c0 f)
-           (HwfF: wf_fdef [M] M f) 
-           (Hwfcst0: forall t0, lookupTypViaIDFromFdef f id0 = Some t0 ->
-                                wf_const [M'] (los,nts) c0 t0)
-           (HuniqF: uniqFdef f).
-
-Lemma csubst_wf_value : forall v t (Hwfv: wf_value [M] M f v t),
-  wf_value [M'] M' f' (csubst_value id0 c0 v) t.
-Proof.
-  intros.
-  assert (J1:=subst_wf_const).
-  assert (J3:=subst_wf_typ).
-  subst. 
-  unfold csubst_value, csubst_fdef.
-  inv Hwfv; uniq_result; try constructor; eauto.
-    simpl. 
-    destruct_if. 
-      constructor; eauto 2.
-      constructor; eauto 2.
-        rewrite <- subst_lookupTypViaIDFromFdef; auto.
-Qed.
-
-Lemma csubst_wf_sz_value_list : forall
+Lemma subst_wf_sz_value_list : forall
   sz_value_list t
   (H :forall value_ : value,
        In value_
@@ -956,18 +1532,16 @@ Lemma csubst_wf_sz_value_list : forall
     (Hin: In value_
       (List.map
          (fun pat_ : sz * value => let (_, value_0) := pat_ in value_0)
-      (subst_list_value id0 (value_const c0) sz_value_list))),
+      (subst_list_value id0 v0 sz_value_list))),
   wf_value [M'] M' f' value_ t.
 Proof.
-  assert (J:=csubst_wf_value).
+  assert (J:=subst_wf_value).
   induction sz_value_list as [|[]]; simpl; intros.
     tauto.
-
     destruct Hin as [Hin | Hin]; subst; auto.
-      apply J; auto.
 Qed.
 
-Lemma csubst_wf_list_value_l : forall
+Lemma subst_wf_list_value_l : forall
   value_l_list t
   (H :forall value_ : value,
        In value_
@@ -979,18 +1553,16 @@ Lemma csubst_wf_list_value_l : forall
     (Hin: In value_
       (List.map 
         (fun pat_ : value * l => let (value_0, _) := pat_ in value_0)
-        (subst_list_value_l id0 (value_const c0) value_l_list))),
+        (subst_list_value_l id0 v0 value_l_list))),
   wf_value [M'] M' f' value_ t.
 Proof.
-  assert (J:=csubst_wf_value).
+  assert (J:=subst_wf_value).
   induction value_l_list as [|[]]; simpl; intros.
     tauto.
-
     destruct Hin as [Hin | Hin]; subst; auto.
-      apply J; auto.
 Qed.
  
-Lemma csubst_wf_params : forall
+Lemma subst_wf_params : forall
   (typ'_attributes'_value''_list : list (typ * attributes * value))
   (H4 : forall (value_'' : value) (typ_' : typ),
        In (value_'', typ_')
@@ -1007,120 +1579,116 @@ Lemma csubst_wf_params : forall
          let (p, value_''0) :=
              let (p, value_''0) := x in
              let (typ_'0, attributes_') := p in
-             (typ_'0, attributes_', value_''0 {[value_const c0 // id0]}) in
+             (typ_'0, attributes_', value_''0 {[v0 // id0]}) in
          let (typ_'0, _) := p in (value_''0, typ_'0))
         typ'_attributes'_value''_list)),
    wf_value [M'] M' f' value_'' typ_'.
 Proof.
-  assert (J:=csubst_wf_value).
+  assert (J:=subst_wf_value).
   induction typ'_attributes'_value''_list as [|[[]]]; simpl; intros.
     tauto.
-
     destruct Hin as [Hin | Hin]; subst; auto.
-      uniq_result.
-      apply J; auto.
+      uniq_result. auto.
 Qed.
 
-Ltac csubst_wf_cmd_tac :=
-autounfold with ssa_subst in *;
+Ltac subst_wf_cmd_tac :=
 match goal with
-| H2: wf_insn_base _ _ _ |- wf_insn_base _ _ _ => 
-   eapply csubst_wf_insn_base in H2; eauto
+| H2: wf_insn_base _ _ _ |- wf_insn_base _ _ _ =>
+   eapply subst_wf_insn_base in H2; eauto
 | H2: wf_typ _ _ _ |- wf_typ _ _ _ => 
-   unfold csubst_fdef; eapply subst_wf_typ; eauto
+   eapply subst_wf_typ; eauto
 | _ => auto
 end.
 
-Lemma csubst_wf_trunc : forall b b' 
+Lemma subst_wf_trunc : forall b b' 
   (Huniq: NoDup (getBlockLocs b))
-  (Heqb': b' = csubst_block id0 c0 b) instr
+  (Heqb': b' = subst_block id0 v0 b) instr
   (HwfI : wf_trunc [M] M f b instr),
-  wf_trunc [M'] M' f' b' (csubst_insn id0 c0 instr).
+  wf_trunc [M'] M' f' b' (subst_insn id0 v0 instr).
 Proof.
   intros.
-  assert (J2:=csubst_wf_value).
+  assert (J2:=subst_wf_value).
   inv HwfI; uniq_result; try solve [
-    econstructor; try solve [csubst_wf_cmd_tac]
+    econstructor; try solve [subst_wf_cmd_tac]
   ].
 Qed.
 
-Lemma csubst_wf_ext : forall b b' 
+Lemma subst_wf_ext : forall b b' 
   (Huniq: NoDup (getBlockLocs b))
-  (Heqb': b' = csubst_block id0 c0 b) instr
+  (Heqb': b' = subst_block id0 v0 b) instr
   (HwfI : wf_ext [M] M f b instr),
-  wf_ext [M'] M' f' b' (csubst_insn id0 c0 instr).
+  wf_ext [M'] M' f' b' (subst_insn id0 v0 instr).
 Proof.
   intros.
-  assert (J2:=csubst_wf_value).
+  assert (J2:=subst_wf_value).
   inv HwfI; uniq_result; try solve [
-    econstructor; try solve [csubst_wf_cmd_tac]
+    econstructor; try solve [subst_wf_cmd_tac]
   ].
 Qed.
 
-Lemma csubst_wf_cast : forall b b' 
+Lemma subst_wf_cast : forall b b' 
   (Huniq: NoDup (getBlockLocs b))
-  (Heqb': b' = csubst_block id0 c0 b) instr
+  (Heqb': b' = subst_block id0 v0 b) instr
   (HwfI : wf_cast [M] M f b instr),
-  wf_cast [M'] M' f' b' (csubst_insn id0 c0 instr).
+  wf_cast [M'] M' f' b' (subst_insn id0 v0 instr).
 Proof.
   intros.
-  assert (J2:=csubst_wf_value).
+  assert (J2:=subst_wf_value).
   inv HwfI; uniq_result; try solve [
-    econstructor; try solve [csubst_wf_cmd_tac]
+    econstructor; try solve [subst_wf_cmd_tac]
   ].
 Qed.
 
-Lemma csubst_wf_insn : forall b instr (HwfI: wf_insn [M] M f b instr)
-  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = csubst_block id0 c0 b),
-  wf_insn [M'] M' (csubst_fdef id0 c0 f) b'
-    (csubst_insn id0 c0 instr).
+Lemma subst_wf_insn : forall b instr (HwfI: wf_insn [M] M f b instr)
+  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = subst_block id0 v0 b),
+  wf_insn [M'] M' (subst_fdef id0 v0 f) b'
+    (subst_insn id0 v0 instr).
 Proof.
   intros.
-  assert (J:=csubst_wf_params).
-  assert (J0:=csubst_wf_list_value_l).
-  assert (J1:=csubst_wf_sz_value_list).
-  assert (J2:=csubst_wf_value).
-  assert (J5:=@csubst_wf_trunc b b' Huniq Heqb' instr).
-  assert (J6:=@csubst_wf_ext b b' Huniq Heqb' instr).
-  assert (J7:=@csubst_wf_cast b b' Huniq Heqb' instr).
+  assert (J:=subst_wf_params).
+  assert (J0:=subst_wf_list_value_l).
+  assert (J1:=subst_wf_sz_value_list).
+  assert (J2:=subst_wf_value).
+  assert (J5:=@subst_wf_trunc b b' Huniq Heqb' instr).
+  assert (J6:=@subst_wf_ext b b' Huniq Heqb' instr).
+  assert (J7:=@subst_wf_cast b b' Huniq Heqb' instr).
   assert (J8:=subst_wf_const los nts Ps1 Ps2 M M' f f' id0 
-                (value_const c0) HeqM HeqM' HeqF').
+                v0 HeqM HeqM' HeqF').
 
-Ltac csubst_wf_insn_pre_tac :=
+Ltac subst_wf_insn_pre_tac :=
 repeat match goal with
 | H1 : context [Function.getDefReturnType f] |- _ =>
   rewrite <- 
-    (@TransCFG.pres_getDefReturnType (Subst id0 (value_const c0))) in H1
+    (@TransCFG.pres_getDefReturnType (Subst id0 v0)) in H1
 | |- context [Function.getDefReturnType f] =>
   rewrite <- 
-    (@TransCFG.pres_getDefReturnType (Subst id0 (value_const c0))); auto
+    (@TransCFG.pres_getDefReturnType (Subst id0 v0)); auto
 | H1 : lookupBlockViaLabelFromFdef f _ = ret _ |- _ =>
   apply (@TransCFG.pres_lookupBlockViaLabelFromFdef 
-           (Subst id0 (value_const c0))) in H1
+           (Subst id0 v0)) in H1
 end.
 
-Ltac csubst_wf_insn_post_tac :=
-autounfold with ssa_subst in *;
+Ltac subst_wf_insn_post_tac :=
 match goal with
 | H1 : insnInFdefBlockB _ _ _ = true |- insnInFdefBlockB _ _ _ = true =>
   eapply subst_insnInFdefBlockB in H1; eauto
 | H2: wf_insn_base _ _ _ |- wf_insn_base _ _ _ => 
-  eapply csubst_wf_insn_base in H2; eauto
+  eapply subst_wf_insn_base in H2; eauto
 | H2: wf_typ _ _ _ |- wf_typ _ _ _ => 
   eapply subst_wf_typ in H2; eauto
 | H2: wf_phinode _ _ _ |- wf_phinode _ _ _ => 
-   eapply csubst_wf_phinode in H2; eauto
+   eapply subst_wf_phinode in H2; eauto
 | _ => eauto with ssa_subst
 end.
 
   inv HwfI; uniq_result; try solve [
-    csubst_wf_insn_pre_tac;
+    subst_wf_insn_pre_tac;
     econstructor; 
-    csubst_wf_insn_post_tac
+    subst_wf_insn_post_tac
   ].
 
-    csubst_wf_insn_pre_tac.
-    econstructor; csubst_wf_insn_post_tac.
+    subst_wf_insn_pre_tac.
+    econstructor; subst_wf_insn_post_tac.
       match goal with
       | H1: FunctionType.getNumParams _ = _ |- _ =>
         rewrite H1; clear; f_equal;
@@ -1132,7 +1700,7 @@ end.
           (fun pat_ : typ * attributes * value =>
            let (p, value_'') := pat_ in
            let (typ_', attributes_') := p in 
-           (typ_', attributes_', value_''{[value_const c0 // id0]}))
+           (typ_', attributes_', value_''{[v0 // id0]}))
           typ'_attributes'_value''_list).
       clear.
       repeat rewrite map_map.
@@ -1143,64 +1711,64 @@ end.
       intros. eauto.
 Qed.
 
-Hint Resolve csubst_wf_insn : ssa_subst.
+Hint Resolve subst_wf_insn : ssa_subst.
 
 Hint Constructors wf_phinodes.
 
-Ltac csubst_wf_insn_tac :=
+Ltac subst_wf_insn_tac :=
 match goal with
 | H2: wf_insn _ _ _ _ _ |- wf_insn _ _ _ _ _ => 
-   eapply csubst_wf_insn in H2; subst; eauto
+   eapply subst_wf_insn in H2; subst; eauto
 | _ => auto
 end.
 
-Lemma csubst_wf_phinodes : forall b PNs (HwfPNs: wf_phinodes [M] M f b PNs)
-  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = csubst_block id0 c0 b),
-  wf_phinodes [M'] M' f' (csubst_block id0 c0 b)
-    (List.map (csubst_phi id0 c0) PNs).
+Lemma subst_wf_phinodes : forall b PNs (HwfPNs: wf_phinodes [M] M f b PNs)
+  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = subst_block id0 v0 b),
+  wf_phinodes [M'] M' f' (subst_block id0 v0 b)
+    (List.map (subst_phi id0 v0) PNs).
 Proof.
   intros.
   induction PNs; simpl; auto.
     inversion HwfPNs.
     econstructor; eauto 2.
-      csubst_wf_insn_tac.
+      subst_wf_insn_tac.
 Qed.
 
 Hint Constructors wf_cmds.
 
-Lemma csubst_wf_cmds : forall b Cs (HwfCs: wf_cmds [M] M f b Cs)
-  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = csubst_block id0 c0 b),
-  wf_cmds [M'] M' f' b' (List.map (csubst_cmd id0 c0) Cs).
+Lemma subst_wf_cmds : forall b Cs (HwfCs: wf_cmds [M] M f b Cs)
+  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = subst_block id0 v0 b),
+  wf_cmds [M'] M' f' b' (List.map (subst_cmd id0 v0) Cs).
 Proof.
   intros.
   induction Cs; simpl; auto.
     inversion HwfCs.
     econstructor; eauto 2.
-      csubst_wf_insn_tac.
+      subst_wf_insn_tac.
 Qed.
 
-Lemma csubst_wf_block : forall b (HwfB : wf_block [M] M f b)
-  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = csubst_block id0 c0 b),
+Lemma subst_wf_block : forall b (HwfB : wf_block [M] M f b)
+  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = subst_block id0 v0 b),
   wf_block [M'] M' f' b'.
 Proof.
   intros.
   inv_wf_block HwfB. subst b.
   eapply subst_blockInSystemModuleFdefB in HBinSMF; eauto.
-  eapply csubst_wf_cmds in Hwfcs; eauto.
-  eapply csubst_wf_phinodes in Hwfps; eauto.
-  eapply csubst_wf_insn in Hwfi; eauto.
+  eapply subst_wf_cmds in Hwfcs; eauto.
+  eapply subst_wf_phinodes in Hwfps; eauto.
+  eapply subst_wf_insn in Hwfi; eauto.
   subst.
   apply wf_block_intro; eauto.
 Qed.
 
-Hint Resolve csubst_wf_block : ssa_subst.
+Hint Resolve subst_wf_block : ssa_subst.
 
 Hint Constructors wf_blocks.
 
-Lemma csubst_wf_blocks : forall bs 
+Lemma subst_wf_blocks : forall bs 
   (Hin: forall b, In b bs -> blockInFdefB b f = true)
   (HwfBs : wf_blocks [M] M f bs) (Huniq : NoDup (getBlocksLocs bs)),
-  wf_blocks [M'] M' f' (List.map (csubst_block id0 c0) bs).
+  wf_blocks [M'] M' f' (List.map (subst_block id0 v0) bs).
 Proof.
   intros. 
   induction bs; simpl.
@@ -1209,14 +1777,14 @@ Proof.
     simpl in Huniq.
     split_NoDup. inversion HwfBs.
     constructor; auto.
-      eapply csubst_wf_block; eauto 1.
+      eapply subst_wf_block; eauto 1.
       apply IHbs; auto.
         intros b Hin'. apply Hin. simpl; auto.
 Qed.
 
-Hint Resolve csubst_wf_blocks : ssa_subst.
+Hint Resolve subst_wf_blocks : ssa_subst.
 
-Lemma csubst_wf_fdef: 
+Lemma subst_wf_fdef: 
   wf_fdef [M'] M' f'.
 Proof.
   intros. assert (HwfF':=HwfF).
@@ -1227,9 +1795,9 @@ Proof.
     HuniqF : uniqFdef _,
     Hnpred : hasNonePredecessor _ _ = _,
     HwfBs : wf_blocks _ _ _ _ |- _ =>
-     eapply (@TransCFG.pres_getEntryBlock (Subst id0 (value_const c0))) 
+     eapply (@TransCFG.pres_getEntryBlock (Subst id0 v0)) 
        in Hentry; eauto;
-     eapply (@TransCFG.pres_hasNonePredecessor (Subst id0 (value_const c0))) 
+     eapply (@TransCFG.pres_hasNonePredecessor (Subst id0 v0)) 
        in Hnpred; eauto
   end.
   rewrite EQ2 in Hwfb.
@@ -1237,7 +1805,7 @@ Proof.
   | H2: fdef_intro _ _ = _,
     H9: wf_blocks _ _ _ _ |- _ =>
     rewrite H2 in H9;
-    eapply csubst_wf_blocks in H9; try solve [
+    eapply subst_wf_blocks in H9; try solve [
       eauto |
       rewrite <- H2 in HuniqF; eapply uniqF__uniqBlocksLocs; eauto |
       rewrite <- H2; simpl; intros; apply In_InBlocksB; auto
@@ -1245,7 +1813,6 @@ Proof.
   end.
 
   subst. uniq_result.
-  autounfold with ssa_subst in *.
   eapply wf_fdef_intro; eauto 2.
     clear. 
     apply productInSystemModuleB_intro.
@@ -1255,15 +1822,36 @@ Proof.
       left. apply moduleEqB_refl.
 Qed.
 
-End CSubst.
+End Subst.
 
 Lemma subst_wfS: forall (los : layouts) (nts : namedts) (f:fdef)
-  (Ps1 : list product) (Ps2 : list product) (i1 : id) (v : value) 
-  (Hdom: valueDominates f v (value_id i1))
+  (Ps1 : list product) (Ps2 : list product) (id0 : id) (v0 : value) 
+  (Hdom: valueDominates f v0 (value_id id0))
+  (Hwfv: forall t0, lookupTypViaIDFromFdef f id0 = Some t0 ->
+         wf_value [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
+                  (module_intro los nts (Ps1 ++ product_fdef f :: Ps2)) 
+                  f v0 t0)
   (HwfS :
      wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
   wf_system 
     [module_intro los nts
-      (Ps1 ++ product_fdef (subst_fdef i1 v f) :: Ps2)].
+      (Ps1 ++ product_fdef (subst_fdef id0 v0 f) :: Ps2)].
 Proof.
-Admitted.  (* WF prev *)
+  intros.
+  eapply TopWFS.trans_wfS with (f:=f) in HwfS; intros;
+    eauto using subst_fheader.
+
+    eapply subst_wf_fdef in HwfF; eauto.
+      apply wf_single_system__wf_uniq_fdef in HwfS.
+      destruct HwfS; auto.
+
+      destruct v0 as [vid0|c0].
+        admit.
+        apply csubst_wf_insn_base; auto.
+      destruct v0 as [vid0|c0].
+        admit.
+        apply csubst_wf_phi_operands; auto.
+     
+    eapply subst_uniqFdef; eauto.
+Qed.
+c

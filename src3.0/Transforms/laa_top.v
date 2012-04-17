@@ -698,9 +698,9 @@ Proof.
   intros.
   split.
     simpl. rewrite lookup_LAA_lid__load; simpl; auto.
-  split. simpl. auto.
-  split; auto.
-    apply LAA_value__dominates__LAA_lid.
+  split. unfold substing_value. auto.
+  split; auto. 
+   apply LAA_value__dominates__LAA_lid.
 Qed.
 
 Lemma laa_sim: forall (los : layouts) (nts : namedts) (fh : fheader)

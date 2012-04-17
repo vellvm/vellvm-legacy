@@ -471,7 +471,7 @@ Proof.
       intros.
       eapply wf_prods_elim with (prod:=prod) in H1; eauto.
       eapply J; eauto 1.
-      apply productInSystemModuleB_intro'; auto.
+      apply productInSystemModuleB_intro; auto.
         apply In_InProductsB. auto.
 Qed.
 
@@ -498,7 +498,7 @@ Proof.
           (Ms1 ++
             module_intro los nts (Ps1 ++ product_fdef f' :: Ps2) :: Ms2)
           (module_intro los nts (Ps1 ++ product_fdef f' :: Ps2)) = true).
-        apply productInSystemModuleB_intro'.
+        apply productInSystemModuleB_intro.
           apply In_InProductsB. auto.
           apply moduleInSystem_middle.
       destruct_in Hin.
@@ -593,9 +593,9 @@ End SubstFdefSingleWF.
 
 Section TopWFS.
 
-Variable (f f':fdef).
+Variable (f f':fdef) (los:layouts) (nts:namedts)(Ps1 Ps2:products).
 
-Hypothesis trans_wf_fdef: forall los nts Ps1 Ps2
+Hypothesis trans_wf_fdef: forall 
   (HwfF: wf_fdef [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
            (module_intro los nts (Ps1 ++ product_fdef f :: Ps2)) f),
   wf_fdef [module_intro los nts (Ps1 ++ product_fdef f' :: Ps2)]
@@ -605,7 +605,7 @@ Hypothesis trans_uniqFdef: forall (Huniq: uniqFdef f), uniqFdef f'.
 
 Hypothesis trans_fheaderOfFdef: fheaderOfFdef f = fheaderOfFdef f'.
 
-Lemma trans_wfS: forall Ps1 Ps2 los nts  
+Lemma trans_wfS: forall
   (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
   wf_system [module_intro los nts (Ps1 ++ product_fdef f' :: Ps2)].
 Proof.
