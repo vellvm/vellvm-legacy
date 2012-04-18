@@ -9,6 +9,7 @@ Require Import palloca_props.
 Require Import mem2reg.
 Require Import subst.
 Require Import laa.
+Require Import die_wfS.
 
 Lemma find_st_ld__laainfo: forall l0 ps0 cs0 tmn0 v cs (pinfo:PhiInfo) dones
   (Hst : ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
@@ -85,6 +86,37 @@ Proof.
     apply wf_single_system__wf_uniq_fdef; auto.
   destruct J as [HwfF HuniqF].
   eapply find_st_ld__laainfo in HBinF; eauto.
+Qed.
+
+Lemma laa_diinfo: forall (los : layouts) (nts : namedts) (fh : fheader)
+  (dones : list id) (pinfo: PhiInfo)
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product)
+  (v : value) (cs : cmds)
+  (Hst : ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
+     wf_system
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
+            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+          :: Ps2)]),
+  exists diinfo:die.DIInfo, 
+    die.DI_f diinfo = subst_fdef i1 v (PI_f pinfo) /\ die.DI_id diinfo = i1.
+Proof.    
+  intros.
+  eapply laa_wf_init in HwfS; eauto 1.
+  destruct HwfS as [HwfF [HuniqF [EQ [laainfo [J1 J2]]]]]; subst.
+  assert (J:=HuniqF).
+  apply lookup_LAA_lid__load with (laainfo:=laainfo) in J; auto.
+  apply subst_fdef__diinfo.
+    intros.
+    uniq_result. simpl. auto.
+
+    intros. simpl. tauto.
 Qed.
 
 Lemma laa_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)

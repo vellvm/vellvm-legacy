@@ -6,24 +6,35 @@ Require Import Lattice.
 Require Import Iteration.
 Require Import primitives.
 Require Import palloca_props.
+Require Import subst.
 Require Import die.
 Require Import filter.
 
-Lemma subst_fdef__diinfo: forall f id0 v0,
+Lemma subst_fdef__diinfo: forall f id0 v0
+  (Hpure: forall (instr : insn)
+            (Hlkup: lookupInsnViaIDFromFdef f id0 = ret instr),
+            pure_cmd instr)
+  (Hnoself: forall (Hreach: id_in_reachable_block f id0 \/ 
+                            In id0 (getArgsIDsOfFdef f)),
+            ~ In id0 (infrastructure.LLVMinfra.getValueIDs v0)),
   exists diinfo:DIInfo, DI_f diinfo = subst_fdef id0 v0 f /\ DI_id diinfo = id0.
-(* 
-   To prove this, we need
-   1) id0 is pure: 
-      this is true, because we run die after laa/las where id0 defines a load
-   2) v0 doesnt use id0, See subst_unused_in_fdef in Vminus/motion.v
-      this is true, because v0 must dominate id0
-
-   This lemma is used in las/laa_die_wfPI in mem2reg_correct.v, where we have
-      (Hst : ret inl (i0, v0, cs) = find_init_stld cs0 (PI_id pinfo) dones)
-      (id0 : id) (Hld : ret inl id0 = find_next_stld cs (PI_id pinfo))
-   from which, we can get lasinfo and laainfo to establish the above properties. 
-*)
-Admitted. (* diinfo *)
+Proof.
+  intros.
+  assert (Hruse: runused_in_fdef id0 (subst_fdef id0 v0 f)).
+    intros Hin.
+    apply subst_unused_in_fdef.
+    apply Hnoself.
+    eapply subst_id_in_reachable_block; eauto.
+  assert (Hpure': forall (instr : insn)
+            (Hlk: lookupInsnViaIDFromFdef (subst_fdef id0 v0 f) id0 = ret instr),
+            pure_cmd instr).
+    intros. apply subst_lookupInsnViaIDFromFdef_rev in Hlk.
+    destruct Hlk as [instr1 [Hlk EQ]]; subst.
+    apply Hpure in Hlk.
+    destruct instr1 as [|[]|]; auto.
+  exists (mkDIInfo (subst_fdef id0 v0 f) id0 Hpure' Hruse).
+  simpl. auto.
+Qed.
 
 Lemma die_wfS: forall id0 f diinfo los nts Ps1 Ps2
   (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
@@ -36,6 +47,7 @@ Proof.
   eapply filter_wfS; eauto.
     destruct diinfo. simpl in *. subst.
     apply fdef_doesnt_use_dead_insn; auto.
+      admit. (* reach *)
 Qed.
 
 Lemma die_wfPI: forall id0 f diinfo los nts Ps1 Ps2 pinfo

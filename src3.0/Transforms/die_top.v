@@ -123,11 +123,23 @@ Ltac s_isFinialState__die_State_simulation cfg1 cfg2 FS1 FS2 Hstsim Hfinal :=
     inv Hfinal
   ].
 
+Ltac find_uniq_wf_fdef F :=
+match goal with
+| H1: InProductsB (product_fdef F) ?Ps = true,
+  H2: moduleInSystemB (module_intro ?los ?nts ?Ps) ?S = true,
+  H3: wf_system ?S |- _ =>
+  let HwfF:=fresh "HwfF" in
+  let HuniqF:=fresh "HuniqF" in
+  assert (HwfF: wf_fdef S (module_intro los nts Ps) F) by 
+    eauto 2 using wf_system__wf_fdef;
+  assert (HuniqF: uniqFdef F) by eauto 2 using wf_system__uniqFdef
+end.
+
 Lemma s_isFinialState__die_State_simulation_l2r:
   forall diinfo cfg1 FS1 cfg2 FS2 r1
   (Hwfcfg2: OpsemPP.wf_Config cfg2) (Hwfpp2: OpsemPP.wf_State cfg2 FS2) 
   (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfpp1: OpsemPP.wf_State cfg1 FS1) 
-  (Hnuse: used_in_fdef (DI_id diinfo) (DI_f diinfo) = false)
+  (Hnuse: runused_in_fdef (DI_id diinfo) (DI_f diinfo))
   (Hstsim : State_simulation diinfo cfg1 FS1 cfg2 FS2)
   (Hfinal: Opsem.s_isFinialState cfg1 FS1 = ret r1),
   exists r2, Opsem.s_isFinialState cfg2 FS2 = ret r2 /\ result_match r1 r2.
@@ -145,6 +157,7 @@ Proof.
           [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [_ _]]]]] _]].
       erewrite <- simulation__getOperandValue; eauto.
       eauto 3 using result_match_relf.
+        find_uniq_wf_fdef CurFunction.
         value_doesnt_use_did_tac.
 
     destruct ES1, ES2; try solve [eauto 3 using result_match_relf | inv Hstsim'].
@@ -154,7 +167,7 @@ Lemma s_isFinialState__die_State_simulation_l2r':
   forall diinfo cfg1 FS1 cfg2 FS2 
   (Hwfcfg2: OpsemPP.wf_Config cfg2) (Hwfpp2: OpsemPP.wf_State cfg2 FS2) 
   (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfpp1: OpsemPP.wf_State cfg1 FS1) 
-  (Hnuse: used_in_fdef (DI_id diinfo) (DI_f diinfo) = false)
+  (Hnuse: runused_in_fdef (DI_id diinfo) (DI_f diinfo))
   (Hstsim : State_simulation diinfo cfg1 FS1 cfg2 FS2)
   (Hfinal: Opsem.s_isFinialState cfg1 FS1 <> None),
   Opsem.s_isFinialState cfg2 FS2 <> None.
@@ -172,7 +185,7 @@ Lemma s_isFinialState__die_State_simulation_None_r2l:
   forall diinfo cfg1 FS1 cfg2 FS2
   (Hwfcfg2: OpsemPP.wf_Config cfg2) (Hwfpp2: OpsemPP.wf_State cfg2 FS2) 
   (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfpp1: OpsemPP.wf_State cfg1 FS1) 
-  (Hnuse: used_in_fdef (DI_id diinfo) (DI_f diinfo) = false)
+  (Hnuse: runused_in_fdef (DI_id diinfo) (DI_f diinfo))
   (Hstsim : State_simulation diinfo cfg1 FS1 cfg2 FS2)
   (Hfinal: Opsem.s_isFinialState cfg2 FS2 = None),
   Opsem.s_isFinialState cfg1 FS1 = None.
@@ -187,7 +200,7 @@ Qed.
 
 Lemma s_isFinialState__die_State_simulation_r2l':
   forall dinfo cfg1 FS1 cfg2 FS2 r2  
-  (Hnuse: used_in_fdef (DI_id dinfo) (DI_f dinfo) = false)
+  (Hnuse: runused_in_fdef (DI_id dinfo) (DI_f dinfo))
   (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfpp1: OpsemPP.wf_State cfg1 FS1) 
   (Hstsim : State_simulation dinfo cfg1 FS1 cfg2 FS2)
   (Hnrem: ~removable_State dinfo FS1) 
@@ -207,6 +220,7 @@ Proof.
           [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [_ _]]]]] _]].
         erewrite simulation__getOperandValue; eauto.
         eauto 3 using result_match_relf.
+          find_uniq_wf_fdef CurFunction.
           value_doesnt_use_did_tac.
 
       destruct ES1, ES2;try solve [eauto 3 using result_match_relf|inv Hstsim'].
@@ -266,7 +280,7 @@ Proof.
 Qed.
 
 Lemma die_is_bsim_removable_steps : forall dinfo Cfg1 St1 Cfg2 St2
-  (Hnuse: used_in_fdef (DI_id dinfo) (DI_f dinfo) = false)
+  (Hnuse: runused_in_fdef (DI_id dinfo) (DI_f dinfo))
   (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hsim: State_simulation dinfo Cfg1 St1 Cfg2 St2)
   (Hok: ~ sop_goeswrong Cfg1 St1),
@@ -303,7 +317,7 @@ Proof.
 Qed.
 
 Lemma die_is_bsim_unremovable_step : forall dinfo Cfg1 IS1 Cfg2 IS2
-  (Hnuse: used_in_fdef (DI_id dinfo) (DI_f dinfo) = false)
+  (Hnuse: runused_in_fdef (DI_id dinfo) (DI_f dinfo))
   (Hok : ~ sop_goeswrong Cfg1 IS1)
   (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 IS1)
   (Hnrm: ~ removable_State dinfo IS1)
@@ -339,7 +353,7 @@ Proof.
 Qed.
 
 Lemma die_is_bsim : forall dinfo Cfg1 St1 Cfg2 St2
-  (Hnuse: used_in_fdef (DI_id dinfo) (DI_f dinfo) = false)
+  (Hnuse: runused_in_fdef (DI_id dinfo) (DI_f dinfo))
   (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hsim: State_simulation dinfo Cfg1 St1 Cfg2 St2)
   (Hok: ~ sop_goeswrong Cfg1 St1)
@@ -364,7 +378,7 @@ Qed.
 
 Lemma s_isFinialState__die_State_simulation_r2l:
   forall diinfo cfg1 FS1 cfg2 FS2 r2
-  (Hnuse: used_in_fdef (DI_id diinfo) (DI_f diinfo) = false)
+  (Hnuse: runused_in_fdef (DI_id diinfo) (DI_f diinfo))
   (Hwfcfg: OpsemPP.wf_Config cfg1) (Hwfpp: OpsemPP.wf_State cfg1 FS1)
   (Hstsim : State_simulation diinfo cfg1 FS1 cfg2 FS2)
   (Hok: ~ sop_goeswrong cfg1 FS1)
@@ -458,11 +472,12 @@ match goal with
     destruct G as [gvs G]; symmetry in H2;
     assert (gvs = gn) as EQ; try solve [
       destruct H4 as [l1 [ps1 [cs11 H4]]]; subst;
-      destruct Hwfpp1 as [_ [[_ [HbInF1 [HfInPs1 _]]] _]];
+      destruct Hwfcfg1 as [_ [_ [Hwfs1 HmInS1]]];
+      destruct Hwfpp1 as [_ [[Hreach1 [HbInF1 [HfInPs1 _]]] _]];
       match goal with
       | H1 : Opsem.getOperandValue _ v' ?Locals0 _ = ret _ |- _ =>
         erewrite simulation__getOperandValue in H1; try solve [
-          eauto 2 | value_doesnt_use_did_tac
+          eauto 2 | find_uniq_wf_fdef f; value_doesnt_use_did_tac
         ];
         uniq_result; auto
       end
@@ -501,7 +516,7 @@ Qed.
 Lemma undefined_state__die_State_simulation_r2l': forall dinfo cfg1 St1 cfg2
   St2 (Hstsim : State_simulation dinfo cfg1 St1 cfg2 St2) maxb
   (Hwfgl: genericvalues_inject.wf_globals maxb (OpsemAux.Globals cfg1))  
-  (Hnuse: used_in_fdef (DI_id dinfo) (DI_f dinfo) = false)
+  (Hnuse: runused_in_fdef (DI_id dinfo) (DI_f dinfo))
   (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfpp1: OpsemPP.wf_State cfg1 St1) 
   (Hnrem: ~removable_State dinfo St1) 
   (Hundef: OpsemPP.undefined_state cfg2 St2),
@@ -642,7 +657,9 @@ Proof.
           destruct H4 as [l5 [ps1 [cs11 H4]]]; subst;
           destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
           destruct Hwfpp1 as [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [Hinscope1 _]]]]] _]];
-          eapply conditional_used_in_fdef__used_in_params; destruct dinfo; eauto 1.
+          find_uniq_wf_fdef CurFunction0;
+          eapply conditional_runused_in_fdef__used_in_params; destruct dinfo; eauto 1.
+
       subst.
       repeat fill_ctxhole.
       erewrite TopSim.lookupFdefViaPtr__simulation_None_l2r; eauto.
@@ -666,7 +683,7 @@ Qed.
 
 Lemma undefined_state__die_State_simulation_r2l: forall dinfo cfg1 St1 cfg2 maxb
   (Hwfgl: genericvalues_inject.wf_globals maxb (OpsemAux.Globals cfg1))  
-  (Hnuse: used_in_fdef (DI_id dinfo) (DI_f dinfo) = false)
+  (Hnuse: runused_in_fdef (DI_id dinfo) (DI_f dinfo))
   (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfpp1: OpsemPP.wf_State cfg1 St1) 
   St2 (Hstsim : State_simulation dinfo cfg1 St1 cfg2 St2)
   (Hundef: OpsemPP.undefined_state cfg2 St2)
@@ -690,7 +707,7 @@ Lemma sop_star__die_State_simulation: forall diinfo cfg1 IS1 cfg2 IS2 tr FS2
   (Hwfpp1: OpsemPP.wf_State cfg1 IS1) (Hwfcfg1: OpsemPP.wf_Config cfg1)
   (Hwfpp2: OpsemPP.wf_State cfg2 IS2) (Hwfcfg2: OpsemPP.wf_Config cfg2) maxb
   (Hwfg: genericvalues_inject.wf_globals maxb (OpsemAux.Globals cfg1))
-  (Hless: 0 <= maxb) (Hnuse: used_in_fdef (DI_id diinfo) (DI_f diinfo) = false)
+  (Hless: 0 <= maxb) (Hnuse: runused_in_fdef (DI_id diinfo) (DI_f diinfo))
   (Hstsim : State_simulation diinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr) (Hok: ~ sop_goeswrong cfg1 IS1),
   exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\
@@ -743,7 +760,7 @@ Lemma sop_plus__die_State_simulation: forall dinfo cfg1 IS1 cfg2 IS2 tr
   (Hwfpp1: OpsemPP.wf_State cfg1 IS1) (Hwfcfg1: OpsemPP.wf_Config cfg1)
   (Hwfpp2: OpsemPP.wf_State cfg2 IS2) (Hwfcfg2: OpsemPP.wf_Config cfg2)
   (Hwfg: genericvalues_inject.wf_globals maxb (OpsemAux.Globals cfg1))
-  (Hless: 0 <= maxb) (Hnuse: used_in_fdef (DI_id dinfo) (DI_f dinfo) = false)
+  (Hless: 0 <= maxb) (Hnuse: runused_in_fdef (DI_id dinfo) (DI_f dinfo))
   (Hstsim : State_simulation dinfo cfg1 IS1 cfg2 IS2)
   (Hopplus : Opsem.sop_plus cfg2 IS2 FS2 tr) (Hok: ~ sop_goeswrong cfg1 IS1),
   exists FS1, Opsem.sop_plus cfg1 IS1 FS1 tr /\
@@ -766,7 +783,7 @@ Lemma sop_div__die_State_simulation: forall dinfo cfg1 IS1 cfg2 IS2 tr maxb
   (Hwfpp1: OpsemPP.wf_State cfg1 IS1) (Hwfcfg1: OpsemPP.wf_Config cfg1)
   (Hwfpp2: OpsemPP.wf_State cfg2 IS2) (Hwfcfg2: OpsemPP.wf_Config cfg2)
   (Hwfg: genericvalues_inject.wf_globals maxb (OpsemAux.Globals cfg1))
-  (Hless: 0 <= maxb) (Hnuse: used_in_fdef (DI_id dinfo) (DI_f dinfo) = false)
+  (Hless: 0 <= maxb) (Hnuse: runused_in_fdef (DI_id dinfo) (DI_f dinfo))
   (Hstsim : State_simulation dinfo cfg1 IS1 cfg2 IS2)
   (Hdiv : Opsem.sop_diverges cfg2 IS2 tr) (Hok: ~ sop_goeswrong cfg1 IS1),
   Opsem.sop_diverges cfg1 IS1 tr.
@@ -793,7 +810,7 @@ Lemma die_sim: forall id0 f dinfo los nts Ps1 Ps2 main VarArgs
     main VarArgs.
 Proof.
   intros. subst.
-  assert (Hnuse: used_in_fdef (DI_id dinfo) (DI_f dinfo) = false).  
+  assert (Hnuse: runused_in_fdef (DI_id dinfo) (DI_f dinfo)).  
     destruct dinfo. auto.
   assert (Huniq:=HwfS). apply wf_system__uniqSystem in Huniq; auto.
   assert (system_simulation dinfo

@@ -1263,3 +1263,432 @@ Proof.
     apply used_in_insn__getTerminatorOperands; auto.
 Qed.
 
+(*********************************************************)
+(*           used w.r.t reachability                     *)
+
+Lemma used_in_value_inv: forall id0 v (Hused: used_in_value id0 v = true), 
+  v = value_id id0.
+Proof.
+  intros.
+  destruct v as [vid|]; inv Hused.
+  destruct_dec.
+Qed.
+
+Section IdInReachableBlock.
+
+Variable (S:system) (M:module) (F1:fdef) (id0:id).
+Hypothesis (Huniq: uniqFdef F1) (HwfF: wf_fdef S M F1).
+
+(* subst.v should use this lemma in isubst_wf_operand *)
+Lemma insnOrBlockStrictDominates__id_in_reachable_block: forall b b0
+  (Hreach : isReachableFromEntry F1 b) instr
+  (HBinF: blockInFdefB b F1 = true) 
+  (Hlk: lookupBlockViaIDFromFdef F1 id0 = Some b0)
+  (J2 : insnDominates id0 instr b \/ blockStrictDominates F1 b0 b),
+  id_in_reachable_block F1 id0.
+Proof.
+  intros. 
+  intros b' Hlkup. uniq_result.
+  destruct J2 as [H4 | H4].
+    eapply insnDominates_spec3 in H4; eauto 1.
+    uniq_result. auto.
+
+    eapply blockStrictDominates_isReachableFromEntry; eauto.
+Qed.
+
+Lemma reachable_used_in_operand__id_in_reachable_block: forall b instr 
+  (HBinF: blockInFdefB b F1 = true) 
+  (Hreach : isReachableFromEntry F1 b) (Hop: wf_operand F1 b instr id0),
+  id_in_reachable_block F1 id0 \/ In id0 (getArgsIDsOfFdef F1).
+Proof.
+  intros.
+  inv Hop.
+  match goal with
+  | H3: (_ \/ _) \/ _ |- _ => 
+    destruct H3 as [[[b0 [J1 J2]] | H3] | H3]; try solve [auto | congruence]
+  end.
+    left. eapply insnOrBlockStrictDominates__id_in_reachable_block; eauto.
+Qed.
+
+Lemma reachable_used_in_insn__id_in_reachable_block: forall b instr 
+  (Hreach : isReachableFromEntry F1 b) (HBinF : blockInFdefB b F1 = true)
+  v (HinOps : valueInInsnOperands v instr)
+  (Hused: used_in_value id0 v = true)
+  (Hwfc : wf_insn_base F1 b instr),
+  id_in_reachable_block F1 id0 \/ In id0 (getArgsIDsOfFdef F1).
+Proof.
+  intros.
+  inv Hwfc.
+  apply used_in_value_inv in Hused. subst.
+  apply valueInInsnOperands__InOps in HinOps.
+  eapply reachable_used_in_operand__id_in_reachable_block; eauto 1.
+  rewrite map_id in H2.
+  eapply H2; eauto.
+Qed.
+
+Lemma reachable_used_in_cmd_value__id_in_reachable_block : forall l3 ps1 cs c v 
+  tmn1 (Hreach: isReachableFromEntry F1 (block_intro l3 ps1 cs tmn1))
+  (HBinF: blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true )
+  (HinOps: valueInCmdOperands v c) (HinCs: In c cs)
+  (Hused: used_in_value id0 v = true),
+  id_in_reachable_block F1 id0 \/ In id0 (getArgsIDsOfFdef F1).
+Proof.
+  intros.
+  assert (Hwfc:=HBinF).
+  eapply wf_fdef__wf_cmd in Hwfc; eauto 1.
+  apply wf_insn__wf_insn_base in Hwfc; try solve [auto | solve_isNotPhiNode].
+  eapply reachable_used_in_insn__id_in_reachable_block; eauto; simpl; auto.
+Qed.
+
+Lemma reachable_used_in_tmn_value__id_in_reachable_block : forall l3 ps1 cs v 
+  tmn1 (Hreach: isReachableFromEntry F1 (block_intro l3 ps1 cs tmn1))
+  (HBinF: blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true )
+  (HinOps: valueInTmnOperands v tmn1) 
+  (Hused: used_in_value id0 v = true),
+  id_in_reachable_block F1 id0 \/ In id0 (getArgsIDsOfFdef F1).
+Proof.
+  intros.
+  assert (Hwfc:=HBinF).
+  eapply wf_fdef__wf_tmn in Hwfc; eauto 1.
+  apply wf_insn__wf_insn_base in Hwfc; try solve [auto | solve_isNotPhiNode].
+  eapply reachable_used_in_insn__id_in_reachable_block; eauto; simpl; auto.
+Qed.
+
+Lemma reachable_used_in_incoming_value__id_in_reachable_block: forall b pn b0
+  (Hreach: isReachableFromEntry F1 b0) (HBinF: blockInFdefB b0 F1 = true)
+  (Hwfpn: wf_phinode F1 b pn) v
+  (Hget: getValueViaBlockFromPHINode pn b0 = Some v)
+  (Hused: used_in_value id0 v = true),
+  id_in_reachable_block F1 id0 \/ In id0 (getArgsIDsOfFdef F1).
+Proof.
+  intros. destruct pn.
+  destruct Hwfpn as [Hwfpi _].
+  destruct b0.
+  simpl in Hget.
+  apply used_in_value_inv in Hused. subst.
+  apply getValueViaLabelFromValuels__nth_list_value_l in Hget.
+  destruct Hget as [n Hget].
+  eapply wf_phi_operands__elim in Hget; eauto.
+  destruct Hget as [b1 [Hlk [Hget | Hget]]]; auto.
+  left.
+  assert (Hlkup:=HBinF).
+  apply blockInFdefB_lookupBlockViaLabelFromFdef in Hlkup; auto.
+  uniq_result. 
+  destruct Hget as [[b' [J1 J2]] | Hget]; try congruence.
+    intros b'' Hlkup''. uniq_result. 
+    eapply blockDominates_isReachableFromEntry; eauto.
+Qed.
+
+Lemma reachable_used_in_incoming_values__id_in_reachable_block: forall l3 ps1 cs 
+  tmn1 pn b0
+  (Hreach: isReachableFromEntry F1 b0) (HBinF0: blockInFdefB b0 F1 = true)
+  (HBinF: blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true ) v
+  (Hget: getValueViaBlockFromPHINode pn b0 = Some v) (Hin: In pn ps1)
+  (Hused: used_in_value id0 v = true),
+  id_in_reachable_block F1 id0 \/ In id0 (getArgsIDsOfFdef F1).
+Proof.
+  intros.
+  eapply wf_fdef__wf_phinodes in HBinF; eauto.
+  eapply wf_phinodes__wf_phinode in HBinF; eauto.
+  inv HBinF.
+  eapply reachable_used_in_incoming_value__id_in_reachable_block; eauto.
+Qed.
+
+End IdInReachableBlock.
+
+Ltac destruct_bgoal := 
+match goal with
+| |- ?e = false =>
+     remember e as R; destruct R; auto
+end.
+
+Section ReachableUnUse.
+
+Definition runused_in_fdef (id0:id) (F1:fdef) : Prop :=
+  id_in_reachable_block F1 id0 \/ In id0 (getArgsIDsOfFdef F1) -> 
+  used_in_fdef id0 F1 = false.
+
+Definition runused_in_phi F1 (id0:id) (pn:phinode) : Prop :=
+  id_in_reachable_block F1 id0 \/ In id0 (getArgsIDsOfFdef F1) -> 
+  used_in_phi id0 pn = false.
+
+Variable (S:system) (M:module) (F1:fdef) (id0:id).
+Hypothesis (Huniq: uniqFdef F1) (HwfF: wf_fdef S M F1).
+
+Lemma runused_in_fdef__used_in_cmd_value : forall l3 ps1 cs c v tmn1
+  (Hreach: isReachableFromEntry F1 (block_intro l3 ps1 cs tmn1))
+  (Hruse: runused_in_fdef id0 F1)
+  (HbInF: blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true)
+  (HinOps: valueInCmdOperands v c) (HinCs: In c cs),
+  used_in_value id0 v = false.
+Proof.
+  intros.
+  destruct_bgoal.
+  eapply reachable_used_in_cmd_value__id_in_reachable_block in Hreach; eauto 1.
+  apply Hruse in Hreach.
+  eapply used_in_fdef__used_in_cmd_value in Hreach; eauto.
+Qed.
+
+Lemma runused_in_fdef__used_in_tmn_value : forall l3 ps1 cs v tmn1 
+  (Hreach: isReachableFromEntry F1 (block_intro l3 ps1 cs tmn1))
+  (Hruse: runused_in_fdef id0 F1)
+  (HbInF: blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true)
+  (HinOpse: valueInTmnOperands v tmn1),
+  used_in_value id0 v = false.
+Proof.
+  intros.
+  destruct_bgoal.
+  eapply reachable_used_in_tmn_value__id_in_reachable_block in Hreach; eauto 1.
+  apply Hruse in Hreach.
+  eapply used_in_fdef__used_in_tmn_value in Hreach; eauto.
+Qed.
+
+Lemma runused_in_fdef__used_in_getValueViaBlockFromPHINode : forall pn b0
+  l3 ps1 cs tmn1
+  (Hreach: isReachableFromEntry F1 b0) (HBinF0: blockInFdefB b0 F1 = true)
+  (HBinF: blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true ) v
+  (Hget: getValueViaBlockFromPHINode pn b0 = Some v) 
+  (Hin: In pn ps1)
+  (Hruse : runused_in_fdef id0 F1),
+  used_in_value id0 v = false.
+Proof.
+  intros.
+  destruct_bgoal.
+  eapply reachable_used_in_incoming_values__id_in_reachable_block in Hreach; 
+    eauto 1.
+  apply Hruse in Hreach.
+  destruct b0, pn. simpl in *.
+    eapply used_in_fdef__used_in_block in Hreach; eauto 1.
+    binvf Hreach as J3 J4. binvf J3 as J1 J2. 
+    eapply fold_left_or_false_elim in J1; eauto 1.
+    eapply used_in_getValueViaLabelFromValuels in J1; eauto.
+Qed.
+
+End ReachableUnUse.
+
+Lemma used_in_list_value__valuesInListValue: forall (id5 : id) l0
+  (Huse: used_in_list_value id5 l0 = true), valueInListValue (value_id id5) l0.
+Proof.
+  unfold valueInListValue.
+  induction l0 as [|[]]; simpl; intros.
+    congruence.
+
+    destruct v; simpl; auto. 
+    binvt Huse as J1 J2; auto.
+      simpl in J1. destruct_dec.
+Qed.
+
+Lemma used_in_value__valueInParams: forall id0 lp
+  (HeqR : true =
+         fold_left
+           (fun (acc : bool) (p : typ * attributes * value) =>
+            let '(_, v) := p in used_in_value id0 v || acc) lp false),
+  valueInParams (value_id id0) lp.
+Proof.
+  unfold valueInParams.
+  induction lp as [|[[]v]]; simpl; intros.
+    congruence.
+
+    destruct_let. 
+    simpl. symmetry in HeqR.
+    remember (used_in_value id0 v|| false) as R.
+    destruct R.
+      symmetry in HeqR0.
+      apply orb_true_iff in HeqR0.
+      destruct HeqR0 as [HeqR0 | HeqR0]; try congruence.
+        apply used_in_value_inv in HeqR0. auto.
+        right. eauto.   
+Qed.
+
+Section ConditionalReachableUnUse.
+
+Variable (S:system) (M:module) (F F0:fdef) (id0:id).
+Hypothesis (Huniq: uniqFdef F) (HwfF: wf_fdef S M F).
+
+Lemma conditional_runused_in_fdef__used_in_tmn_value: forall (l3 : l)
+  (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator)
+  (Hreach: isReachableFromEntry F (block_intro l3 ps1 cs tmn1))
+  (Hruse: runused_in_fdef id0 F0),
+  blockInFdefB (block_intro l3 ps1 cs tmn1) F = true ->
+  valueInTmnOperands v tmn1 ->
+  conditional_used_in_value F0 F id0 v.
+Proof.
+  intros.
+  unfold conditional_used_in_value.
+  destruct (fdef_dec F0 F); subst; auto.
+    right. eapply runused_in_fdef__used_in_tmn_value; eauto; simpl; auto.
+Qed.
+
+Lemma conditional_runused_in_fdef__used_in_cmd_value: forall (l3 : l) c
+  (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator)
+  (Hreach: isReachableFromEntry F (block_intro l3 ps1 cs tmn1)),
+  runused_in_fdef id0 F0 ->
+  blockInFdefB (block_intro l3 ps1 cs tmn1) F = true ->
+  In c cs ->
+  valueInCmdOperands v c ->
+  conditional_used_in_value F0 F id0 v.
+Proof.
+  intros.
+  unfold conditional_used_in_value.
+  destruct (fdef_dec F0 F); subst; auto.
+    right. eapply runused_in_fdef__used_in_cmd_value; eauto; simpl; auto.
+Qed.
+
+Lemma conditional_runused_in_fdef__used_in_getValueViaBlockFromPHINode : forall pn b0
+  l3 ps1 cs tmn1
+  (Hreach: isReachableFromEntry F b0) (HBinF0: blockInFdefB b0 F = true)
+  (HBinF: blockInFdefB (block_intro l3 ps1 cs tmn1) F = true ) v
+  (Hget: getValueViaBlockFromPHINode pn b0 = Some v) 
+  (Hin: In pn ps1)
+  (Hruse : runused_in_fdef id0 F0),
+  conditional_used_in_value F0 F id0 v.
+Proof.
+  intros.
+  unfold conditional_used_in_value.
+  destruct (fdef_dec F0 F); subst; auto.
+    right. 
+    eapply runused_in_fdef__used_in_getValueViaBlockFromPHINode; eauto; simpl; auto.
+Qed.
+
+Lemma conditional_runused_in_fdef__used_in_list_value: forall (l3 : l)
+  (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator)
+  cs11 inbounds0 t v idxs cs t' id1
+  (Hreach: isReachableFromEntry F 
+    (block_intro l3 ps1 (cs11 ++ insn_gep id1 inbounds0 t v idxs t':: cs) tmn1)),
+  runused_in_fdef id0 F0 ->
+  blockInFdefB
+    (block_intro l3 ps1 (cs11 ++ insn_gep id1 inbounds0 t v idxs t':: cs) tmn1) F
+      = true ->
+  conditional_used_in_list_value F0 F id0 idxs.
+Proof.
+  intros.
+  unfold conditional_used_in_list_value.
+  destruct (fdef_dec F0 F); subst; auto.
+    right.
+    destruct_bgoal.
+    eapply runused_in_fdef__used_in_cmd_value with (v:=value_id id0) in H0; 
+      eauto 2 using in_middle.
+      simpl in H0. destruct_dec.
+ 
+      right. apply used_in_list_value__valuesInListValue; auto.
+Qed.
+
+Lemma conditional_runused_in_fdef__used_in_params: forall (l3 : l)
+  (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator)
+  cs11 rid noret0 ca rt1 va1 fv lp cs
+  (Hreach: isReachableFromEntry F 
+    (block_intro l3 ps1 (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1)),
+  runused_in_fdef id0 F0 ->
+  blockInFdefB
+    (block_intro l3 ps1 (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1) F
+      = true ->
+  conditional_used_in_params F0 F id0 lp.
+Proof.
+  intros.
+  unfold conditional_used_in_params.
+  destruct (fdef_dec F0 F); subst; auto.
+    right.
+    destruct_bgoal.
+    eapply runused_in_fdef__used_in_cmd_value with (v:=value_id id0) in H0; 
+      eauto 2 using in_middle.
+      simpl in H0. destruct_dec.
+ 
+      right. apply used_in_value__valueInParams; auto.
+Qed.
+
+End ConditionalReachableUnUse.
+
+Section SubstUnused.
+
+Variable (id1:id) (v1:value).
+Hypothesis (Hnotin: ~ In id1 (getValueIDs v1)).
+
+Lemma notin_unused_in_value:
+  used_in_value id1 v1 = false.
+Proof.
+  destruct v1; simpl in *; intros; auto.
+    destruct_dec; subst; simpl; auto.
+      contradict Hnotin; auto.
+Qed.
+
+Lemma subst_unused_in_value: forall v,
+  used_in_value id1 (v {[v1 // id1]}) = false.
+Proof.
+  destruct v; simpl; intros; auto.
+    destruct_dec.
+      rewrite notin_unused_in_value; auto.
+      simpl. destruct_dec.
+Qed.
+
+Lemma subst_unused_in_vls: forall vls,
+  used_in_list_value_l id1 (subst_list_value_l id1 v1 vls) = false.
+Proof.
+  induction vls as [|[v]]; simpl; intros; auto.
+    apply orb_false_iff.
+    split; auto using subst_unused_in_value.
+Qed.
+
+Lemma subst_unused_in_phinodes: forall ps,
+  fold_left (fun (re : bool) (p0 : phinode) => re || used_in_phi id1 p0)
+     (List.map (subst_phi id1 v1) ps) false = false.
+Proof.
+  induction ps as [|[]]; simpl; intros; auto.
+    rewrite subst_unused_in_vls; auto.
+Qed.
+
+Lemma subst_unused_in_vs: forall vs,
+  used_in_list_value id1 (subst_list_value id1 v1 vs) = false.
+Proof.
+  induction vs as [|[v]]; simpl; intros; auto.
+    apply orb_false_iff.
+    split; auto using subst_unused_in_value.
+Qed.
+
+Lemma subst_unused_in_cmd: forall c,
+  used_in_cmd id1 (subst_cmd id1 v1 c) = false.
+Proof.
+  destruct c; simpl; try solve [
+    auto using subst_unused_in_value |
+    repeat (apply orb_false_iff;
+              split; auto using subst_unused_in_value, subst_unused_in_vs)
+  ].
+
+    apply orb_false_iff.
+    split; auto using subst_unused_in_value.
+      induction params5 as [|[[]]]; simpl; auto.
+        rewrite subst_unused_in_value; auto.
+Qed.
+
+Lemma subst_unused_in_cmds: forall cs,
+  fold_left (fun (re : bool) (c0 : cmd) => re || used_in_cmd id1 c0)
+     (List.map (subst_cmd id1 v1) cs) false = false.
+Proof.
+  induction cs; simpl; intros; auto.
+    rewrite subst_unused_in_cmd; auto.
+Qed.
+
+Lemma subst_unused_in_tmn: forall t,
+  used_in_tmn id1 (subst_tmn id1 v1 t) = false.
+Proof.
+  destruct t; simpl; auto using subst_unused_in_value.
+Qed.
+
+Lemma subst_unused_in_block: forall b,
+  used_in_block id1 (subst_block id1 v1 b) = false.
+Proof.
+  destruct b. simpl. 
+  rewrite subst_unused_in_phinodes; auto.
+  rewrite subst_unused_in_cmds; auto.
+  rewrite subst_unused_in_tmn; auto.
+Qed.
+
+Lemma subst_unused_in_fdef: forall f,
+  used_in_fdef id1 (subst_fdef id1 v1 f) = false.
+Proof.
+  destruct f as [fh bs]. simpl.
+  intros.
+  induction bs; simpl; auto.
+    rewrite subst_unused_in_block; auto.
+Qed.
+
+End SubstUnused.

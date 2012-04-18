@@ -91,9 +91,9 @@ Proof.
     as J.
     simpl. auto.
   rewrite J.
-  destruct (@subst_fdef__diinfo
-    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) i1 v) as
-    [diinfo [J1 J2]].
+  assert (Hdiinfo:=HwfS).
+  eapply las_diinfo in Hdiinfo; eauto.
+  destruct Hdiinfo as [diinfo [J1 J2]]. rewrite Heq in J1.
   change
     (update_pinfo pinfo
       (remove_fdef i1
@@ -148,9 +148,9 @@ Proof.
     as J.
     simpl. auto.
   rewrite J.
-  destruct (@subst_fdef__diinfo
-    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) i1 v) as
-    [diinfo [J1 J2]].
+  assert (Hdiinfo:=HwfS).
+  eapply las_diinfo in Hdiinfo; eauto.
+  destruct Hdiinfo as [diinfo [J1 J2]]. rewrite Heq in J1.
   apply program_sim_wfS_trans with (P2:=
       [module_intro los nts
           (Ps1 ++
@@ -204,9 +204,9 @@ Proof.
     as J.
     simpl. auto.
   rewrite J.
-  destruct (@subst_fdef__diinfo
-    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) i1 v) as
-    [diinfo [J1 J2]].
+  assert (Hdiinfo:=HwfS).
+  eapply laa_diinfo in Hdiinfo; eauto.
+  destruct Hdiinfo as [diinfo [J1 J2]]. rewrite Heq in J1.
   change
     (update_pinfo pinfo
       (remove_fdef i1
@@ -262,9 +262,9 @@ Proof.
     as J.
     simpl. auto.
   rewrite J.
-  destruct (@subst_fdef__diinfo
-    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) i1 v) as
-    [diinfo [J1 J2]].
+  assert (Hdiinfo:=HwfS).
+  eapply laa_diinfo in Hdiinfo; eauto.
+  destruct Hdiinfo as [diinfo [J1 J2]]. rewrite Heq in J1.
   apply program_sim_wfS_trans with (P2:=
       [module_intro los nts
           (Ps1 ++

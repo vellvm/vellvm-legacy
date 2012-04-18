@@ -1989,3 +1989,157 @@ Proof.
 
     rewrite <- subst_reachablity_analysis; auto.
 Qed.
+
+
+Section SubstOther.
+
+Variable (id0:id) (v0:value).
+
+Lemma subst_lookupBlockViaIDFromBlocks_rev : forall id5 bs b2
+  (Hlkup: lookupBlockViaIDFromBlocks (List.map (subst_block id0 v0) bs) id5 =
+            ret b2),
+  exists b1, 
+    lookupBlockViaIDFromBlocks bs id5 = ret b1 /\ subst_block id0 v0 b1 = b2.
+Proof.
+  induction bs as [|[l1 ps1 cs1 tmn1]]; simpl; intros.
+    congruence.
+
+    rewrite subst_getPhiNodesIDs in Hlkup.
+    rewrite subst_getCmdsIDs in Hlkup.
+    destruct_if; eauto.
+Qed.
+
+Lemma subst_lookupBlockViaIDFromFdef_rev : forall f id5 b2,
+  lookupBlockViaIDFromFdef (subst_fdef id0 v0 f) id5 = ret b2 ->
+  exists b1,
+    lookupBlockViaIDFromFdef f id5 = ret b1 /\ subst_block id0 v0 b1 = b2.
+Proof.
+  destruct f. simpl; intros. 
+  apply subst_lookupBlockViaIDFromBlocks_rev; auto.
+Qed.
+
+Lemma subst_id_in_reachable_block: forall f id1
+  (Hin : id_in_reachable_block (subst_fdef id0 v0 f) id1 \/
+        In id1 (getArgsIDsOfFdef (subst_fdef id0 v0 f))),
+  id_in_reachable_block f id1 \/ In id1 (getArgsIDsOfFdef f).
+Proof.
+  intros.
+  rewrite (@TransCFG.pres_getArgsIDsOfFdef (Subst id0 v0)); auto.
+  destruct Hin as [Hin | Hin]; auto.
+    left.
+    intros b Hlkup.
+    eapply subst_lookupBlockViaIDFromFdef in Hlkup; eauto.
+    apply Hin in Hlkup.
+    rewrite (@TransCFG.pres_isReachableFromEntry (Subst id0 v0)); auto.
+Qed.
+
+Lemma subst_cmd__getCmdLoc: forall c, 
+  getCmdLoc c = getCmdLoc (subst_cmd id0 v0 c).
+Proof. destruct c; simpl; auto. Qed.
+
+Lemma subst_lookupCmdViaIDFromCmds_none_rev: forall cs id1
+  (Hlk: lookupCmdViaIDFromCmds (List.map (subst_cmd id0 v0) cs) id1 = None),
+  lookupCmdViaIDFromCmds cs id1 = None.
+Proof.
+  induction cs; simpl; intros; auto.
+    rewrite <- subst_cmd__getCmdLoc in Hlk.
+    destruct_if. rewrite H0. auto.
+Qed.
+
+Lemma subst_lookupPhiNodeViaIDFromPhiNodes_none_rev: forall ps id1
+  (Hlk: lookupPhiNodeViaIDFromPhiNodes 
+           (List.map (subst_phi id0 v0) ps) id1 = None),
+  lookupPhiNodeViaIDFromPhiNodes  ps id1 = None.
+Proof.
+  induction ps as [|[]]; simpl; intros; auto.
+    destruct_if. rewrite H0. auto.
+Qed.
+
+Lemma subst_tmn__getTerminatorID: forall t, 
+  getTerminatorID t = getTerminatorID (subst_tmn id0 v0 t).
+Proof. destruct t; simpl; auto. Qed.
+
+Lemma subst_lookupInsnViaIDFromBlock_none_rev: forall b id1
+  (Hlk: lookupInsnViaIDFromBlock (subst_block id0 v0 b) id1 = None),
+  lookupInsnViaIDFromBlock b id1 = None.
+Proof.
+  destruct b. simpl. intros.
+  inv_mbind_app; try congruence.
+  inv_mbind_app; try congruence.
+  rewrite subst_lookupPhiNodeViaIDFromPhiNodes_none_rev; auto.
+  rewrite subst_lookupCmdViaIDFromCmds_none_rev; auto.
+  rewrite subst_tmn__getTerminatorID.
+  destruct_if; auto.
+Qed.
+
+Lemma subst_lookupCmdViaIDFromCmds_some_rev: forall cs id1 c2
+  (Hlk: lookupCmdViaIDFromCmds (List.map (subst_cmd id0 v0) cs) id1 = Some c2),
+  exists c1,
+    lookupCmdViaIDFromCmds cs id1 = Some c1 /\ subst_cmd id0 v0 c1 = c2.
+Proof.
+  induction cs; simpl; intros.
+    congruence.
+
+    rewrite <- subst_cmd__getCmdLoc in Hlk.
+    destruct_if; eauto.
+Qed.
+
+Lemma subst_lookupPhiNodeViaIDFromPhiNodes_some_rev: forall ps id1 p2
+  (Hlk: lookupPhiNodeViaIDFromPhiNodes 
+           (List.map (subst_phi id0 v0) ps) id1 = Some p2),
+  exists p1, 
+    lookupPhiNodeViaIDFromPhiNodes ps id1 = Some p1 /\ subst_phi id0 v0 p1 = p2.
+Proof.
+  induction ps as [|[]]; simpl; intros.
+    congruence.
+    destruct_if; eauto.
+Qed.
+
+Lemma subst_lookupInsnViaIDFromBlock_some_rev: forall b id1 instr2
+  (Hlk: lookupInsnViaIDFromBlock (subst_block id0 v0 b) id1 = ret instr2),
+  exists instr1, 
+    lookupInsnViaIDFromBlock b id1 = ret instr1 /\ 
+    subst_insn id0 v0 instr1 = instr2.
+Proof.
+  destruct b. simpl. intros.
+  inv_mbind_app.
+    uniq_result. symmetry_ctx.
+    apply subst_lookupPhiNodeViaIDFromPhiNodes_some_rev in HeqR.
+    destruct HeqR as [p1 [Hlk EQ]]; subst.
+    fill_ctxhole. eauto.
+
+    rewrite subst_lookupPhiNodeViaIDFromPhiNodes_none_rev; auto.
+    inv_mbind_app.
+      uniq_result. symmetry_ctx.
+      apply subst_lookupCmdViaIDFromCmds_some_rev in HeqR0.
+      destruct HeqR0 as [c1 [Hlk' EQ]]; subst.
+      fill_ctxhole. eauto.
+
+      rewrite subst_lookupCmdViaIDFromCmds_none_rev; auto.
+      rewrite subst_tmn__getTerminatorID.
+      destruct_if; eauto.
+Qed.
+
+Lemma subst_lookupInsnViaIDFromFdef_rev: forall f id1 instr2
+  (Hlk: lookupInsnViaIDFromFdef (subst_fdef id0 v0 f) id1 = ret instr2),
+  exists instr1, 
+    lookupInsnViaIDFromFdef f id1 = ret instr1 /\ 
+    subst_insn id0 v0 instr1 = instr2.
+Proof.
+  destruct f as [? bs].
+  induction bs; simpl; intros.
+    congruence.
+
+    inv_mbind_app.
+      inv Hlk.
+      symmetry_ctx.
+      apply subst_lookupInsnViaIDFromBlock_some_rev in HeqR.
+      destruct HeqR as [instr1 [J1 J2]]. fill_ctxhole. eauto.
+
+      rewrite subst_lookupInsnViaIDFromBlock_none_rev; auto.
+      apply IHbs; simpl; auto.
+Qed.
+
+End SubstOther.
+
+

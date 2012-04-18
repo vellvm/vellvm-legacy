@@ -9,6 +9,7 @@ Require Import palloca_props.
 Require Import mem2reg.
 Require Import subst.
 Require Import las.
+Require Import die_wfS.
 
 Lemma find_st_ld__lasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
@@ -87,6 +88,56 @@ Proof.
   eapply find_st_ld__lasinfo in HBinF; eauto 2.
   destruct HBinF as [lasinfo [J1 [J2 [J3 J4]]]]; subst.
   eauto 7.
+Qed.
+
+Lemma las_diinfo: forall (los : layouts) (nts : namedts) (fh : fheader)
+  (dones : list id) (pinfo: PhiInfo)
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
+  (v : value) (cs : cmds)
+  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
+     wf_system
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
+            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+          :: Ps2)]),
+  exists diinfo:die.DIInfo, 
+    die.DI_f diinfo = subst_fdef i1 v (PI_f pinfo) /\ die.DI_id diinfo = i1.
+Proof.    
+(* 
+   To prove this, we need
+   1) id0 is pure: 
+      this is true, because we run die after laa/las where id0 defines a load
+   2) v0 doesnt use id0, See subst_unused_in_fdef in Vminus/motion.v
+      this is true, because v0 must dominate id0
+*)
+  intros.
+  eapply las_wf_init in HwfS; eauto 1.
+  destruct HwfS as [HwfF [HuniqF [lasinfo [J1 [J2 [J3 J4]]]]]]; subst.
+  assert (J:=HuniqF).
+  apply lookup_LAS_lid__load with (lasinfo:=lasinfo) in J; auto.
+  apply subst_fdef__diinfo.
+    intros.
+    uniq_result. simpl. auto.
+
+    intros.
+    destruct Hreach as [Hreach | Hreach].
+      intro Hin. 
+      assert (Hvdom:=HwfF).
+      apply LAS_value__dominates__LAS_lid with (lasinfo:=lasinfo) in Hvdom; auto.
+      destruct (LAS_value pinfo lasinfo) as [vid|]; simpl in Hin; try tauto.
+      destruct Hin as [Hin | Hin]; subst; try tauto.
+      assert (Hidom:=Hreach).
+      apply Hvdom in Hidom.
+      eapply idDominates_acyclic; eauto.
+
+      contradict Hreach.
+      solve_notin_getArgsIDs.
 Qed.
 
 Lemma las_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)

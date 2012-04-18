@@ -77,6 +77,7 @@ repeat match goal with
 | H: phinodeEqB _ _ = true |- _ => apply phinodeEqB_inv in H; inv H
 | H: _ =cmd= _ = true |- _ => apply cmdEqB_inv in H; inv H
 | H: _ =tmn= _ = true |- _ => apply terminatorEqB_inv in H; inv H
+| H: _ =b= _ = true |- _ => apply blockEqB_inv in H; inv H
 | H: left ?e = false |- _ => inv H
 end.
 
@@ -168,3 +169,12 @@ match goal with
 | _ => solve_in_list
 end.
 
+(* go to *)
+Lemma InBlocksB__In: forall b bs, InBlocksB b bs = true -> In b bs.
+Proof.
+  induction bs; simpl; intros.
+    congruence.
+
+    binvt H as H1 H2; auto.
+      apply blockEqB_inv in H1. auto.
+Qed.

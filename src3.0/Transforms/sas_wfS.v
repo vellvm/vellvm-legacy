@@ -94,7 +94,14 @@ Qed.
 Lemma PI_f_doesnt_use_SAS_sid1: forall S M pinfo sasinfo
   (HwfF: wf_fdef S M (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo)),
   used_in_fdef (SAS_sid1 pinfo sasinfo) (PI_f pinfo) = false.
-Admitted. (* wf *)
+Proof.
+  intros.
+  apply fdef_doesnt_use_store in HwfF; auto.
+  unfold fdef_doesnt_use_removed in HwfF.
+  apply lookup_SAS_lid1__cmd with (sasinfo:=sasinfo) in Huniq.
+  apply lookupInsnViaIDFromFdef__insnInFdefBlockB in Huniq.
+  apply HwfF in Huniq; auto.
+Qed.
 
 Lemma sas_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo : PhiInfo)
