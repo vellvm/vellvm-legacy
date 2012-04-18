@@ -2939,6 +2939,35 @@ Proof.
     rewrite J; auto.
 Qed.
 
+Lemma filter_ext: forall (A:Type) (f g:A->bool)
+  (Heq: forall a, f a = g a) (l0:list A), List.filter f l0 = List.filter g l0.
+Proof.
+  induction l0; intros; simpl; auto.
+    rewrite Heq. rewrite IHl0. auto.
+Qed.
+
+Lemma filter_true: forall (A:Type) (f:A->bool)
+  (Heq: forall a, f a = true) (l0:list A), l0 = List.filter f l0.
+Proof.
+  induction l0; intros; simpl; auto.
+    rewrite Heq. congruence.
+Qed.
+
+Lemma fold_left_or_false_elim : forall B (f: B -> bool)
+  l0 init (H:fold_left (fun a b => a || f b) l0 init = false),
+  forall x (Hin: In x l0), f x = false.
+Proof.
+  induction l0; simpl; intros. 
+    tauto.
+
+    apply fold_left_or_false in H.
+      destruct H as [H1 H2].
+      binvf H2 as H3 H4. 
+      destruct Hin as [Hin | Hin]; subst; eauto.
+      
+      intros. binvf H0 as H3 H4. auto.
+Qed.
+
 Lemma not_id_dec__neq : forall id5 id0,
   @eq _ (@proj_sumbool _ _ (id_dec id5 id0)) false ->
   id5 <> id0.
@@ -2948,43 +2977,7 @@ Proof.
     simpl in *. congruence.
 Qed.
 
-Inductive sublist A : list A -> list A -> Prop :=
-| sublist_nil : forall l, sublist A nil l
-| sublist_cons : forall a l1 l2, sublist A l1 l2 -> sublist A (a::l1) (a::l2)
-| sublist_sub : forall a l1 l2, sublist A l1 l2 -> sublist A l1 (a::l2)
-.
-
-Lemma in_sublist : forall A l1 l2 a,
-  sublist A l1 l2 -> In a l1 -> In a l2.
-Proof.
-  induction 1; intros; simpl; auto.
-    inv H.
-    inv H0; auto.
-Qed.
-
-Hint Constructors NoDup sublist.
-
-Lemma sublist_NoDup : forall A l1 l2,
-  sublist A l1 l2 -> NoDup l2 -> NoDup l1.
-Proof.
-  induction 1; intros; auto.
-    inv H0. apply NoDup_cons; eauto using in_sublist.
-    inv H0. auto.
-Qed.
-
-Lemma sublist_refl : forall A l2, sublist A l2 l2.
-Proof. induction l2; simpl; auto. Qed.
-
-Lemma sublist_weaken : forall A l1 l2 l3,
-  sublist A l1 l2 ->
-  sublist A l1 (l3++l2).
-Proof. induction l3; simpl; auto. Qed.
-
-Lemma sublist_app : forall A l1 l2 l1' l2',
-  sublist A l1 l2 ->
-  sublist A l1' l2' ->
-  sublist A (l1++l1') (l2++l2').
-Proof. induction 1; intros; simpl; auto using sublist_refl, sublist_weaken. Qed.
+Hint Constructors NoDup.
 
 Lemma NoDup_split': forall A (l1 l2:list A),
   NoDup (l1++l2) ->
@@ -3832,11 +3825,11 @@ Qed.
 Ltac solve_in_list :=
 unfold is_true in *;
 repeat match goal with
-| H1: In ?b ?bs |- InBlocksB ?b ?bs = true => apply In_InBlocksB
-| H1: In ?p ?ps |- InProductsB ?p ?ps = true => apply In_InProductsB
-| H1: InProductsB ?p ?ps = true |- In ?p ?ps => apply InProductsB_In
-| H1: In ?m ?ms |- InModulesB ?m ?ms = true => apply In_InModulesB
-| H1: InModulesB ?m ?ms = true |- In ?m ?ms => apply InModulesB_In
+| H1: In ?b ?bs |- InBlocksB ?b ?bs = true => apply In_InBlocksB; auto
+| H1: In ?p ?ps |- InProductsB ?p ?ps = true => apply In_InProductsB; auto
+| H1: InProductsB ?p ?ps = true |- In ?p ?ps => apply InProductsB_In; auto
+| H1: In ?m ?ms |- InModulesB ?m ?ms = true => apply In_InModulesB; auto
+| H1: InModulesB ?m ?ms = true |- In ?m ?ms => apply InModulesB_In; auto
 | |- moduleInSystem ?M (_++?M::_) => apply moduleInSystem_middle
 | |- InProductsB ?p (_++?p::_) => apply InProductsB_middle
 | H1: ~ In ?id0 (?A ++ ?C) |- ~ In ?id0 ?A => intro Q; apply H1
@@ -3990,6 +3983,12 @@ repeat match goal with
   apply In_InCmdsB; rewrite_env (A++c::nil)
 | |- InCmdsB ?c (?A ++ [?c] ++ ?B ) = true =>
   apply In_InCmdsB; rewrite_env (A++c::B)
+| |- InPhiNodesB ?a (?a::_) = true => simpl; apply orb_true_iff; left; solve_refl
+| |- InCmdsB ?a (?a::_) = true => simpl; apply orb_true_iff; left; solve_refl
+| Heq : nil = _ ++ _ :: _ |- _ =>
+    symmetry in Heq; contradict Heq; apply app_cons_not_nil; auto
+| Heq : _ ++ _ :: _ = nil |- _ =>
+    contradict Heq; apply app_cons_not_nil; auto
 end.
 
 Lemma lookupBlockViaIDFromBlocks__in_getBlocksLocs: forall b1 id1 bs,
@@ -4920,6 +4919,47 @@ Proof.
       exists (S n1). exists l2. simpl. auto.
 Qed.
 
+Lemma valueInValues__InOps' : forall vid l0
+  (H: In (value_id vid) (list_prj1 value l l0)),
+  In vid (values2ids (list_prj1 value l l0)).
+Proof.
+  induction l0 as [|[v]]; intros; simpl in *;  auto.
+    destruct H as [H | H]; simpl in *; subst; simpl; auto.
+    destruct v; simpl; eauto.
+Qed.
+
+Lemma valueInInsnOperands__InOps : forall vid instr,
+  valueInInsnOperands (value_id vid) instr ->
+  In vid (getInsnOperands instr).
+Proof.
+  intros.
+  destruct instr as [[]|c|tmn]; simpl in *.
+    apply valueInValues__InOps'; auto.
+    apply valueInCmdOperands__InOps; auto.
+    apply valueInTmnOperands__InOps; auto.
+Qed.
+
+Lemma InOps__valueInListValue': forall v0 (l0 : list (sz * value))
+  (Hin0 : In v0
+           (List.map
+              (fun pat_ : sz * value => let (_, value_) := pat_ in value_)
+              l0)),
+  valueInListValue v0 l0.
+Proof.
+  unfold valueInListValue.
+  induction l0 as [|[v]]; simpl in *; intros; auto.
+Qed.      
+
+Lemma InOps__in_list_prj1: forall v0 l0
+  (Hin0 : In v0
+           (List.map
+              (fun pat_ : value * l => let (value_, _) := pat_ in value_)
+              l0)),
+  In v0 (list_prj1 value l l0).
+Proof.
+  induction l0 as [|[]]; simpl; intros; tauto.
+Qed.
+
 Lemma app_list_value_l_cons: forall (vls1 vls2 : list (value * l)) v0 l0,
   app vls1 ((v0, l0) :: vls2) =
   app
@@ -5652,12 +5692,6 @@ match goal with
   apply blockInFdefB_lookupBlockViaLabelFromFdef; auto
 end.
 
-Ltac destruct_dec :=
-match goal with
-| |- context [id_dec ?b ?a] =>
-  destruct (id_dec b a); subst; try congruence; auto
-end.
-
 Ltac simpl_locs_in_ctx :=
 match goal with
 | H: context [getCmdsLocs (_ ++ _)] |- _ => rewrite getCmdsLocs_app in H
@@ -5995,5 +6029,47 @@ Proof.
     inv H; eauto.
       apply IHvls in H0. 
       destruct H0 as [l1 H0]. eauto.
+Qed.
+
+Lemma getArgsOfFdef__getArgsIDsOfFdef: forall f t attr0 id5
+  (Hin: In (t, attr0, id5) (getArgsOfFdef f)), In id5 (getArgsIDsOfFdef f).
+Proof.
+  destruct f as [[? ? ? la ?] bs]. simpl.
+  induction la as [|[]]; simpl; intros; auto.
+    destruct Hin as [Hin | Hin]; eauto.
+      inv Hin. auto.
+Qed.
+
+Lemma InOps__valueInValues' : forall vid l0
+  (H: In vid (values2ids (list_prj1 value l l0))),
+  In (value_id vid) (list_prj1 value l l0).
+Proof.
+  induction l0 as [|[v]]; intros; simpl in *; auto.
+    destruct v; simpl; eauto.
+    destruct_in H; simpl in *; subst; simpl; auto.
+Qed.
+
+Lemma InOps__valueInInsnOperands : forall vid instr,
+  In vid (getInsnOperands instr) ->
+  valueInInsnOperands (value_id vid) instr.
+Proof.
+  intros.
+  destruct instr as [[]|c|tmn]; simpl in *.
+    apply InOps__valueInValues'; auto.
+    apply InOps__valueInCmdOperands; auto.
+    apply InOps__valueInTmnOperands; auto.
+Qed.
+
+Lemma fold_left_or_true_elim: forall B (f: B -> bool)
+  l0 (H:fold_left (fun a b => a || f b) l0 false = true),
+  exists x, In x l0 /\ f x = true.
+Proof.
+  induction l0; simpl; intros. 
+    congruence.
+
+    remember (f a) as R. 
+    destruct R.
+      eauto.
+      apply IHl0 in H. destruct H as [x [J1 J2]]. eauto.
 Qed.
 

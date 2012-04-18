@@ -1494,7 +1494,6 @@ SCase "sExCall".
   eapply TopSim.lookupExFdecViaPtr_inj__simulation in Hfptr_sim; eauto.
   uniq_result.
 
-  match goal with | H1 : fdec_intro _ _ = fdec_intro _ _ |- _ => inv H1 end.
   assert (List.Forall2 (fun gv1 => fun gv2 => gv_inject mi gv1 gv2) gvss gvss0)
     as Hparsim.
     assert (HBinF1':=HBinF1).

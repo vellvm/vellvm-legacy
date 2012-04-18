@@ -107,17 +107,6 @@ end.
 Definition value_doesnt_use_did dinfo F v :=
   conditional_used_in_value (DI_f dinfo) F (DI_id dinfo) v.
 
-(* go to *)
-Ltac destruct_dec :=
-match goal with
-| |- context [id_dec ?b ?a] =>
-  destruct (id_dec b a); subst; try congruence; auto
-| _: context [id_dec ?b ?a] |- _ =>
-  destruct (id_dec b a); subst; try congruence; auto
-| _ : context [productInModuleB_dec ?p1 ?p2] |- _ =>
-  destruct (productInModuleB_dec p1 p2); try congruence
-end.
-
 Lemma simulation__getOperandValue : forall dinfo lc lc2 los nts  
   gl F v (Hprop: value_doesnt_use_did dinfo F v)
   (Hrsim: reg_simulation dinfo F lc lc2),
@@ -133,7 +122,7 @@ Proof.
       destruct Hprop as [Hprop | Hprop]; try congruence.
       simpl in Hprop.
       destruct (id_dec (DI_id dinfo) id5); subst; auto.  
-      destruct_dec. inv Hprop.
+      destruct_dec. 
 Qed.
 
 Lemma dont_remove_phinodes: forall (dinfo : DIInfo) (ps1 : phinodes)

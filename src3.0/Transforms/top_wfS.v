@@ -1043,6 +1043,18 @@ Proof.
   rewrite ftrans_spec. simpl. auto.
 Qed.
 
+Lemma pres_check_list_value_l : forall f b vls
+  (Hcl: check_list_value_l f b vls),
+  check_list_value_l (pass.(ftrans) f) (pass.(btrans) b) vls.
+Proof.
+  unfold check_list_value_l. destruct f as [bs]. simpl. intros until vls.
+  rewrite ftrans_spec. simpl.
+  repeat rewrite <- pres_genBlockUseDef_blocks.
+  erewrite TransCFG.pres_predOfBlock. 
+  destruct (split vls).
+  subst. eauto.
+Qed.
+
 End TransCFG.
 
 End TransCFG.

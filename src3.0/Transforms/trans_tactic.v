@@ -68,8 +68,16 @@ repeat match goal with
   rewrite H1 in H2; inv H2
 | H1 : _ @ _ |- _ => inv H1
 | H : ?f _ = ?f _ |- _ => inv H
+| H : ?f _ _ = ?f _ _ |- _ => inv H
+| H : ?f _ _ _ = ?f _ _ _ |- _ => inv H
+| H : ?f _ _ _ _ = ?f _ _ _ _ |- _ => inv H
+| H : ?f _ _ _ _ _ = ?f _ _ _ _ _ |- _ => inv H
 | H : False |- _ => inv H
 | H: moduleEqB _ _ = true |- _ => apply moduleEqB_inv in H; inv H
+| H: phinodeEqB _ _ = true |- _ => apply phinodeEqB_inv in H; inv H
+| H: _ =cmd= _ = true |- _ => apply cmdEqB_inv in H; inv H
+| H: _ =tmn= _ = true |- _ => apply terminatorEqB_inv in H; inv H
+| H: left ?e = false |- _ => inv H
 end.
 
 Ltac unfold_blk2GV := unfold blk2GV, ptr2GV, val2GV.
@@ -96,15 +104,6 @@ repeat match goal with
 | H: ?A++[?a] = nil |- _ => 
        rewrite_env (A++[a]++nil) in H;
        contradict H; simpl; apply app_cons_not_nil
-end.
-
-(* go to *)
-Ltac destruct_dec :=
-match goal with
-| |- context [id_dec ?b ?a] =>
-  destruct (id_dec b a); subst; try congruence; auto
-| _ : context [productInModuleB_dec ?p1 ?p2] |- _ =>
-  destruct (productInModuleB_dec p1 p2); try congruence
 end.
 
 (* go to *)
@@ -147,5 +146,25 @@ match type of Hwfpp1 with
           simpl; auto
       ];
     destruct G as [gvs G]
+end.
+
+(* go to *)
+Ltac destruct_dec :=
+match goal with
+| |- context [id_dec ?b ?a] =>
+  destruct (id_dec b a); subst; try congruence; auto
+| H2: context [id_dec ?b ?a] |- _ =>
+  destruct (id_dec b a); subst; try solve [auto | congruence | inv H2]
+| _ : context [productInModuleB_dec ?p1 ?p2] |- _ =>
+  destruct (productInModuleB_dec p1 p2); try congruence
+end.
+
+Ltac solve_in_list' :=
+match goal with
+| Heq : nil = _ ++ _ :: _ |- _ =>
+    symmetry in Heq; contradict Heq; apply app_cons_not_nil; auto
+| Heq : _ ++ _ :: _ = nil |- _ =>
+    contradict Heq; apply app_cons_not_nil; auto
+| _ => solve_in_list
 end.
 

@@ -193,22 +193,6 @@ repeat match goal with
     with (btrans (PhiPlacement pinfo)); auto
 end.
 
-Ltac unfold_PhiPlacement_tac :=
-repeat match goal with
-| |- context [ftrans (PhiPlacement ?pinfo) ?f] =>
-  replace (ftrans (PhiPlacement pinfo) f)
-    with (phinodes_placement_f pinfo f); auto
-| |- context [btrans (PhiPlacement ?pinfo) ?b] =>
-  replace (btrans (PhiPlacement pinfo) b)
-    with (phinodes_placement_blk pinfo b); auto
-| |- context [ftrans (PhiPlacement ?pinfo)] =>
-  replace (ftrans (PhiPlacement pinfo))
-    with (phinodes_placement_f pinfo); auto
-| |- context [btrans (PhiPlacement ?pinfo)] =>
-  replace (btrans (PhiPlacement pinfo))
-    with (phinodes_placement_blk pinfo); auto
-end.
-
 (*********************************************************)
 (* wfness *)
 
@@ -690,18 +674,6 @@ Proof.
       rewrite <- TransCFG.pres_blockDominates; auto.
 Qed.
 
-Lemma phinodes_placement_check_list_value_l : forall b b' 
-  (Heqb': b' = phinodes_placement_blk pinfo b) vls0
-  (hwfps: check_list_value_l (PI_f pinfo) b vls0),
-  check_list_value_l f' b' vls0.
-Proof.
-  unfold check_list_value_l.
-  intros. destruct_let. subst.
-  fold_PhiPlacement_tac.
-  rewrite <- TransCFG.pres_genBlockUseDef_fdef; auto.
-  rewrite <- TransCFG.pres_predOfBlock; auto.
-Qed.
-
 Lemma phinodes_placement_wf_phinode : forall b b' 
   (Heqb': b' = phinodes_placement_blk pinfo b) pnode
   (HwfI : wf_phinode (PI_f pinfo) b pnode),
@@ -712,7 +684,9 @@ Proof.
   destruct pnode as [id0 t0 vls0].
   destruct HwfI as [J1 J2].
   eapply phinodes_placement_wf_phi_operands in J1; eauto.
-  eapply phinodes_placement_check_list_value_l in J2; eauto.
+  split; auto.
+    subst. fold_PhiPlacement_tac.
+    apply TransCFG.pres_check_list_value_l; auto.
 Qed.
 
 Lemma phinodes_placement_wf_insn : forall b b' 
@@ -1121,7 +1095,7 @@ Proof.
           symmetry in Hnids.
           eapply phinodes_placement_blk_tail_inv in Hnids; eauto.
           destruct Hnids as [l0 [ps0 [cs0 [tmn0 [ps2 [cs2 [J3 J4]]]]]]]; subst.
-          unfold_PhiPlacement_tac. rewrite J4.
+          simpl in *. rewrite J4.
           simpl. repeat rewrite getCmdsIDs_app. simpl. 
           xsolve_in_list.
 

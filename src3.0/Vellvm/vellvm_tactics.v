@@ -191,6 +191,8 @@ match goal with
 | H : _ = ?e |- context [ ?e ] => rewrite <- H
 | H : exists _:_, ?e = _ |- context [ ?e ] => destruct H as [? H]; rewrite H
 | H : exists _:_, _ = ?e |- context [ ?e ] => destruct H as [? H]; rewrite <- H
+| H: ?e = _ |- context [if ?e then _ else _] => rewrite H
+| H: _ = ?e |- context [if ?e then _ else _] => rewrite H
 end.
 
 Tactic Notation "eapply_clear" hyp(H1) "in" hyp(H2) :=

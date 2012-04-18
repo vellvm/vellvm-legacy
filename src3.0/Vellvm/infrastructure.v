@@ -1434,6 +1434,18 @@ match t with
 | _ => False
 end.
 
+Definition is_terminator (instr:insn) : bool :=
+match instr with
+| insn_terminator t => true
+| _ => false
+end.
+
+Definition isnt_alloca c :=
+match c with
+| insn_alloca _ _ _ _ => False
+| _ => True
+end.
+
 (*************************************************)
 (*         Uniq                                  *)
 

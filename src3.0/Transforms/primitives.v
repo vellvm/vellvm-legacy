@@ -1038,3 +1038,228 @@ Proof.
       destruct_dec.
 Qed.
 
+Lemma noused_values2ids : forall id' l0
+  (H2 : used_in_list_value_l id' l0 = false),
+  ~ In id' (values2ids (list_prj1 value l l0)).
+Proof.
+  intros.
+  induction l0 as [|[v]]; simpl; intros; auto.
+    destruct v; simpl in *; auto.
+    binvf H2 as H1 H2; subst; auto.
+    apply IHl0 in H2.
+    intro J.
+    destruct J as [J | J]; subst; auto.
+      apply not_id_dec__neq in H1; auto.
+Qed.
+
+Lemma noused_getPhiNodeOperands : forall id' p
+  (H2 :used_in_phi id' p = false),
+  ~ In id' (getPhiNodeOperands p).
+Proof.
+  destruct p; simpl; intros. auto using noused_values2ids.
+Qed.
+
+Lemma noused_getCmdOperands : forall id' c
+  (H2 : used_in_cmd id' c = false),
+  ~ In id' (getCmdOperands c).
+Proof.
+  intros.
+  intro J.
+  apply used_in_cmd__used_in_value with (v:=value_id id') in H2; auto.
+    simpl in H2. destruct_dec. 
+    apply InOps__valueInCmdOperands; auto.
+Qed.
+
+Lemma noused_getTerminatorOperands : forall id' t
+  (H2 : used_in_tmn id' t = false),
+  ~ In id' (getTerminatorOperands t).
+Proof.
+  intros.
+  intro J.
+  apply used_in_tmn__used_in_value with (v:=value_id id') in H2; auto.
+    simpl in H2. destruct_dec. 
+    apply InOps__valueInTmnOperands; auto.
+Qed.
+
+Lemma noused_getInsnOperands : forall id' instr
+  (H2 : used_in_insn id' instr = false),
+  ~ In id' (getInsnOperands instr).
+Proof.
+  destruct instr; simpl; auto 
+    using noused_getPhiNodeOperands,
+          noused_getCmdOperands, noused_getTerminatorOperands.
+Qed.
+
+Lemma used_in_phinodes_cons_inv : forall phinodes5 id0 phinode5,
+  fold_left (fun (re : bool) (p : phinode) => re || used_in_phi id0 p)
+    phinodes5 (used_in_phi id0 phinode5) = false ->
+  used_in_phi id0 phinode5 = false /\
+    fold_left (fun (re : bool) (p : phinode) => re || used_in_phi id0 p)
+      phinodes5 false = false.
+Proof.
+  intros.
+  destruct (used_in_phi id0 phinode5); auto.
+    apply fold_left_eq in H.
+      congruence.
+      intros. binvf H0 as J1 J2; auto.
+Qed.
+
+Lemma used_in_fdef_elim: forall id5 f (Huse: used_in_fdef id5 f = true),
+  exists instr, exists b,
+    insnInFdefBlockB instr f b = true /\ used_in_insn id5 instr.
+Proof.
+  destruct f as [fh bs]. simpl. intros.
+  apply fold_left_or_true_elim in Huse.
+  destruct Huse as [x [Hin Huse]].
+  destruct x as [l0 ps0 cs0 tmn0].
+  simpl in Huse.
+  binvt Huse as J1 J2.
+    binvt J1 as J3 J2.
+      apply fold_left_or_true_elim in J3.
+      destruct J3 as [x [J3 Huse]].
+      exists (insn_phinode x). exists (block_intro l0 ps0 cs0 tmn0).
+      split; auto.
+      simpl. 
+      bsplit; solve_in_list; auto.
+
+      apply fold_left_or_true_elim in J2.
+      destruct J2 as [x [J3 Huse]].
+      exists (insn_cmd x). exists (block_intro l0 ps0 cs0 tmn0).
+      split; auto.
+      simpl. 
+      bsplit; solve_in_list; auto.
+    exists (insn_terminator tmn0). exists (block_intro l0 ps0 cs0 tmn0).
+    split; auto.
+    simpl. 
+    bsplit. solve_refl. solve_in_list; auto.
+Qed.
+
+Lemma used_in_list_value_l__values2ids: forall (id5 : id) (l0 : list (value * l))
+  (Huse: used_in_list_value_l id5 l0),
+  In id5 (values2ids (list_prj1 value l l0)).
+Proof.
+  induction l0 as [|[v]]; simpl; intros.
+    congruence.
+
+    destruct v; auto. 
+    simpl.
+    binvt Huse as J1 J2; auto.
+      simpl in J1. destruct_dec.
+Qed.
+
+Lemma used_in_insn__getPhiNodeOperands: forall (id5 : id) (phinode5 : phinode)
+  (Huse : used_in_insn id5 (insn_phinode phinode5)),
+  In id5 (getPhiNodeOperands phinode5).
+Proof.
+  destruct phinode5. simpl. apply used_in_list_value_l__values2ids; auto.
+Qed.
+
+Lemma used_in_value__getValueIDs: forall (id5:id) (value1:value)
+  (Huse: used_in_value id5 value1),
+  In id5 (infrastructure.LLVMinfra.getValueIDs value1).
+Proof.
+  destruct value1; simpl; intros.
+    destruct_dec.
+    congruence.
+Qed.
+
+Lemma used_in_list_value__values2ids: forall (id5 : id) l0
+  (Huse: used_in_list_value id5 l0),
+  In id5 (values2ids (List.map snd l0)).
+Proof.
+  induction l0 as [|[]]; simpl; intros.
+    congruence.
+
+    destruct v; auto. 
+    simpl.
+    binvt Huse as J1 J2; auto.
+      simpl in J1. destruct_dec.
+Qed.
+
+Lemma used_in_params__getParamsOperand: forall (id5 : id) l0 init
+  (Huse : fold_left
+            (fun (acc : bool) (p : typ * attributes * value) =>
+             let '(_, v) := p in used_in_value id5 v || acc) l0 init =
+          true),
+  In id5 (getParamsOperand l0) \/ init = true.
+Proof.
+  unfold getParamsOperand.
+  induction l0 as [|[[] v]]; simpl; intros; auto.
+    destruct_let. simpl.
+    destruct v; auto.
+      simpl. 
+      apply IHl0 in Huse.
+      destruct Huse as [Huse | Huse]; auto.
+      binvt Huse as J1 J2; auto.
+      simpl in J1. destruct_dec.
+Qed.
+
+Lemma used_in_insn__getCmdOperands: forall (id5 : id) (cmd5 : cmd) 
+  (Huse : used_in_insn id5 (insn_cmd cmd5)),
+  In id5 (getCmdOperands cmd5).
+Proof.
+  destruct cmd5; simpl; try solve [
+    auto |
+    intro; apply used_in_value__getValueIDs in Huse; auto |
+    intro; 
+      match goal with
+      | |- In _ (_++_) =>
+       apply in_or_app;
+        binvt Huse as J1 Huse; try solve [
+          apply used_in_value__getValueIDs in J1; auto |
+          apply used_in_value__getValueIDs in Huse; auto |
+          apply used_in_list_value__values2ids in Huse; auto
+        ]
+      end
+  ].
+
+    intro.
+    apply in_or_app.
+    binvt Huse as Huse Huse.
+      binvt Huse as Huse Huse.
+        apply used_in_value__getValueIDs in Huse; auto.
+
+        right. apply in_or_app.
+        apply used_in_value__getValueIDs in Huse; auto.
+      right. apply in_or_app.
+      apply used_in_value__getValueIDs in Huse; auto.
+
+    intro.
+    apply in_or_app.
+    binvt Huse as Huse Huse.
+      apply used_in_value__getValueIDs in Huse; auto.
+
+      apply used_in_params__getParamsOperand in Huse.
+      destruct Huse; try congruence; auto.
+Qed.
+
+Lemma used_in_insn__getTerminatorOperands: forall (id5 : id) (tmn5 : terminator) 
+  (Huse : used_in_insn id5 (insn_terminator tmn5)),
+  In id5 (getTerminatorOperands tmn5).
+Proof.
+  destruct tmn5; simpl; intro; try solve [
+    auto |
+    congruence |
+    apply used_in_value__getValueIDs in Huse; auto |
+    match goal with
+    | |- In _ (_++_) =>
+       apply in_or_app;
+        binvt Huse as J1 Huse; try solve [
+          apply used_in_value__getValueIDs in J1; auto |
+          apply used_in_value__getValueIDs in Huse; auto
+        ]
+    end
+  ].
+Qed.
+
+Lemma used_in_insn__valueInInsnOperands: forall id5 instr
+  (Huse : used_in_insn id5 instr), valueInInsnOperands (value_id id5) instr.
+Proof.
+  intros.
+  apply InOps__valueInInsnOperands; auto.
+  destruct instr; simpl.
+    apply used_in_insn__getPhiNodeOperands; auto.
+    apply used_in_insn__getCmdOperands; auto.
+    apply used_in_insn__getTerminatorOperands; auto.
+Qed.
+

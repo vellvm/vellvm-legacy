@@ -2176,12 +2176,6 @@ Proof.
   destruct_if.
 Qed.
 
-Definition isnt_alloca c :=
-match c with
-| insn_alloca _ _ _ _ => False
-| _ => True
-end.
-
 Lemma find_promotable_alloca_weaken_head: forall f dones cs cs1
   (H: List.Forall isnt_alloca cs1),
   find_promotable_alloca f cs dones =
