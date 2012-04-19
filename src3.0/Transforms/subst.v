@@ -1952,14 +1952,21 @@ Qed.
 
 End SubstUsed.
 
+Definition subst_pinfo (id0:id) (v0:value) (pinfo:PhiInfo) :=
+  {| PI_f := subst_fdef id0 v0 (PI_f pinfo);
+     PI_rd := PI_rd pinfo;
+     PI_id := PI_id pinfo;
+     PI_typ := PI_typ pinfo;
+     PI_num := subst_value id0 v0 (PI_num pinfo);
+     PI_align := PI_align pinfo |}.
+
 Lemma subst_alloca_in_entry: forall pid pty pnum pal id0 v0 cs
   (H : In (insn_alloca pid pty pnum pal) cs),
-  In (insn_alloca pid pty pnum pal) (List.map (subst_cmd id0 v0) cs).
+  In (insn_alloca pid pty (subst_value id0 v0 pnum) pal) 
+     (List.map (subst_cmd id0 v0) cs).
 Proof.
   induction cs; simpl; intros; auto.
     destruct H; subst; auto.
-      simpl. left.
-      admit. (* PI_num cannot be lid *)
 Qed.
 
 Lemma subst_wfPI: forall (los : layouts) (nts : namedts)
@@ -1967,8 +1974,9 @@ Lemma subst_wfPI: forall (los : layouts) (nts : namedts)
   (Ps1 : list product) (Ps2 : list product)
   id0 (v0 : value) (Hwfpi: WF_PhiInfo pinfo) f
   (HwfS:  wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
-  (Heq: PI_f pinfo = f) (Hnused: used_in_value (PI_id pinfo) v0 = false),
-  WF_PhiInfo (update_pinfo pinfo (subst_fdef id0 v0 f)).
+  (Heq: PI_f pinfo = f) 
+  (Hnused: used_in_value (PI_id pinfo) v0 = false),
+  WF_PhiInfo (subst_pinfo id0 v0 pinfo).
 Proof.
   intros. subst.
   destruct Hwfpi.
@@ -1989,7 +1997,6 @@ Proof.
 
     rewrite <- subst_reachablity_analysis; auto.
 Qed.
-
 
 Section SubstOther.
 

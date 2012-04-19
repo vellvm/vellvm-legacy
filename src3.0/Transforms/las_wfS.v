@@ -155,10 +155,7 @@ Lemma las_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)])
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
-  WF_PhiInfo
-    (update_pinfo pinfo
-      (subst_fdef i1 v
-        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))).
+  WF_PhiInfo (subst_pinfo i1 v pinfo).
 Proof.
   intros.
   eapply subst_wfPI; eauto 2.

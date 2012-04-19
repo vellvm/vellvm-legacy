@@ -58,6 +58,10 @@ Proof.
   eapply program_sim_trans; eauto.
 Qed.
 
+Lemma subst_fdef_PI_f__PI_f_subst_pinfo: forall i1 v pinfo,
+  subst_fdef i1 v (PI_f pinfo) = PI_f (subst_pinfo i1 v pinfo).
+Proof. destruct pinfo; auto. Qed.
+
 Lemma las_die_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
@@ -74,7 +78,7 @@ Lemma las_die_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
           product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
-  WF_PhiInfo (update_pinfo pinfo
+  WF_PhiInfo (update_pinfo (subst_pinfo i1 v pinfo)
          (fdef_intro fh
            (List.map (remove_block i1)
              (List.map (subst_block i1 v)
@@ -94,21 +98,10 @@ Proof.
   assert (Hdiinfo:=HwfS).
   eapply las_diinfo in Hdiinfo; eauto.
   destruct Hdiinfo as [diinfo [J1 J2]]. rewrite Heq in J1.
-  change
-    (update_pinfo pinfo
-      (remove_fdef i1
-        (subst_fdef i1 v
-          (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))) with
-    (update_pinfo
-      (update_pinfo pinfo
-        (subst_fdef i1 v
-          (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))
-      (remove_fdef i1
-        (subst_fdef i1 v
-          (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))).
   eapply die_wfPI; eauto.
     eapply las_wfPI; eauto.
     eapply las_wfS; eauto.
+    rewrite <- Heq. apply subst_fdef_PI_f__PI_f_subst_pinfo.
 Qed.
 
 Lemma las_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
@@ -187,7 +180,7 @@ Lemma laa_die_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
           product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
-  WF_PhiInfo (update_pinfo pinfo
+  WF_PhiInfo (update_pinfo (subst_pinfo i1 v pinfo)
     (fdef_intro fh
       (List.map (remove_block i1)
         (List.map (subst_block i1 v)
@@ -207,21 +200,10 @@ Proof.
   assert (Hdiinfo:=HwfS).
   eapply laa_diinfo in Hdiinfo; eauto.
   destruct Hdiinfo as [diinfo [J1 J2]]. rewrite Heq in J1.
-  change
-    (update_pinfo pinfo
-      (remove_fdef i1
-        (subst_fdef i1 v
-          (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))) with
-    (update_pinfo
-      (update_pinfo pinfo
-        (subst_fdef i1 v
-          (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))
-      (remove_fdef i1
-        (subst_fdef i1 v
-          (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))).
   eapply die_wfPI; eauto.
     eapply laa_wfPI; eauto.
     eapply laa_wfS; eauto.
+    rewrite <- Heq. apply subst_fdef_PI_f__PI_f_subst_pinfo.
 Qed.
 
 Lemma laa_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
@@ -324,6 +306,26 @@ Proof.
       split; auto.
 Qed.
 
+Definition keep_pinfo (f:fdef) (pinfo1 pinfo2: PhiInfo) :=
+PI_f pinfo2 = f /\
+PI_id pinfo1 = PI_id pinfo2 /\
+PI_typ pinfo1 = PI_typ pinfo2 /\
+PI_align pinfo1 = PI_align pinfo2.
+
+Hint Unfold keep_pinfo.
+
+Ltac instantiate_pinfo :=
+match goal with
+| HwfS : WF_PhiInfo (update_pinfo ?f ?pi) |- _ => 
+  exists (update_pinfo f pi); split; auto
+| HwfS : WF_PhiInfo ?pi, Heq: (PI_f ?pi) = ?f |- 
+  exists _ : _, WF_PhiInfo _ /\ keep_pinfo ?f ?pi _ =>
+  rewrite <- Heq; exists pi; split; auto
+| HwfS : WF_PhiInfo ?pi |- 
+  exists _ : _, WF_PhiInfo _ /\ keep_pinfo (PI_f ?pi) ?pi _ =>
+  exists pi; split; auto
+end.
+
 Lemma elim_stld_cmds_wfPI: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
   bs1 l0 ps0 cs0 tmn0 bs2 Ps1 Ps2
   (Hpass : (f0, true, dones0) =
@@ -339,23 +341,23 @@ Lemma elim_stld_cmds_wfPI: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
           product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
-  WF_PhiInfo (update_pinfo pinfo f0).
+  exists pinfo', WF_PhiInfo pinfo' /\ keep_pinfo f0 pinfo pinfo'.
 Proof.
   intros.
   unfold elim_stld_cmds in Hpass.
   remember (find_init_stld cs0 (PI_id pinfo) dones) as R1.
   destruct R1 as [[[[]]|[]]|]; tinv Hpass.
     remember (find_next_stld c (PI_id pinfo)) as R2.
-    destruct R2 as [[|[]]|]; inv Hpass.
-      eapply las_die_wfPI; eauto.
-      eapply sas_wfPI; eauto.
-      rewrite <- Heq. rewrite update_pinfo_eq; auto.
+    destruct R2 as [[|[]]|]; inv Hpass; eauto.
+      eapply las_die_wfPI in HwfS; eauto. instantiate_pinfo.
+      eapply sas_wfPI in HwfS; eauto. instantiate_pinfo.
+      instantiate_pinfo.
 
     remember (find_next_stld c (PI_id pinfo)) as R2.
     destruct R2 as [[|[]]|]; inv Hpass.
-      eapply laa_die_wfPI; eauto.
-      rewrite <- Heq. rewrite update_pinfo_eq; auto.
-      rewrite <- Heq. rewrite update_pinfo_eq; auto.
+      eapply laa_die_wfPI in HwfS; eauto. instantiate_pinfo.
+      instantiate_pinfo.
+      instantiate_pinfo.
 Qed.
 
 Lemma elim_stld_cmds_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
@@ -434,11 +436,10 @@ Lemma elim_stld_blocks_wfPI_aux: forall los nts fh dones (pinfo:PhiInfo) f0
          (Ps1 ++
           product_fdef
             (fdef_intro fh (bs1 ++ bs2)) :: Ps2)]),
-  WF_PhiInfo (update_pinfo pinfo f0).
+  exists pinfo', WF_PhiInfo pinfo' /\ keep_pinfo f0 pinfo pinfo'.
 Proof.
   induction bs2; simpl; intros.
-    inv Hpass.
-    rewrite <- Heq. rewrite update_pinfo_eq; auto.
+    inv Hpass. instantiate_pinfo.
 
     destruct a as [l0 ps0 cs0 tmn0].
     remember
@@ -505,7 +506,7 @@ Lemma elim_stld_blocks_wfPI: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
      wf_system
        [module_intro los nts
          (Ps1 ++ product_fdef (fdef_intro fh bs) :: Ps2)]),
-  WF_PhiInfo (update_pinfo pinfo f0).
+  exists pinfo', WF_PhiInfo pinfo' /\ keep_pinfo f0 pinfo pinfo'.
 Proof.
   intros.
   rewrite_env (nil ++ bs) in HwfS.
@@ -562,6 +563,76 @@ Proof.
     destruct flag0; auto.
 Qed.
 
+Lemma keep_pinfo_trans: forall f f' p1 p2 p3
+  (H1: keep_pinfo f p1 p2) (H2: keep_pinfo f' p2 p3),
+  keep_pinfo f' p1 p3.
+Proof.
+  intros.
+  destruct H1 as [A [B [C D]]].
+  destruct H2 as [A' [B' [C' D']]].
+  repeat split; try solve [auto | etransitivity; eauto].
+Qed.
+
+Lemma change_keep_pinfo: forall f pinfo1 pinfo2
+  (H1: PI_id pinfo1 = PI_id pinfo2)
+  (H2: PI_typ pinfo1 = PI_typ pinfo2)
+  (H3: PI_align pinfo1 = PI_align pinfo2),
+  (exists pinfo' : PhiInfo, WF_PhiInfo pinfo' /\ keep_pinfo f pinfo1 pinfo') -> 
+  exists pinfo' : PhiInfo, WF_PhiInfo pinfo' /\ keep_pinfo f pinfo2 pinfo'.
+Proof.
+  intros.
+  destruct H as [A [B C]].
+  exists A. split; auto.
+  unfold keep_pinfo in *.
+  rewrite <- H1. rewrite <- H2. rewrite <- H3. auto.
+Qed.
+
+Lemma update_pinfo_refl: forall f0 pinfo pinfo' 
+  (Hkp: keep_pinfo f0 pinfo pinfo'), (update_pinfo pinfo' f0) = pinfo'.
+Proof.
+  intros.
+  destruct Hkp as [EQ _]; subst. destruct pinfo'. auto.
+Qed.
+
+Ltac solve_keep_pinfo :=
+match goal with
+| Hkeep : keep_pinfo _ ?pinfo ?pinfo' |- PI_id ?pinfo' = PI_id ?pinfo =>
+  destruct Hkeep as [? [? ?]]; auto
+| Hkeep : keep_pinfo ?f ?pinfo ?pinfo' |- PI_f ?pinfo' = ?f =>
+  destruct Hkeep as [? ?]; auto
+| Hkeep : keep_pinfo ?f1 ?pinfo ?pinfo',
+  HeqR : exists _:_,
+            WF_PhiInfo _ /\ keep_pinfo ?f0 ?pinfo' _ |-
+  exists _:_, WF_PhiInfo _ /\ keep_pinfo ?f0 ?pinfo _ =>
+  let A:=fresh "A" in
+  destruct HeqR as [A [? ?]];
+  exists A; split; auto; apply keep_pinfo_trans with (f:=f1)(p2:=pinfo'); auto
+| G: exists _:_, WF_PhiInfo _ /\ keep_pinfo ?f (update_pinfo ?pi _) _ |-
+  exists _:_, WF_PhiInfo _ /\ keep_pinfo ?f ?pi _ =>
+  let A:=fresh "A" in
+  destruct G as [A [? ?]]; exists A; split; auto
+| pinfo := {|
+           PI_f := _;
+           PI_rd := _;
+           PI_id := ?pid;
+           PI_typ := _;
+           PI_num := _;
+           PI_align := _ |} : PhiInfo, 
+  Hkeep : keep_pinfo _ ?pinfo ?pinfo' |- PI_id ?pinfo' = ?pid =>
+  destruct Hkeep as [_ [? ?]]; auto
+| pinfo := {|
+           PI_f := _;
+           PI_rd := _;
+           PI_id := ?pid;
+           PI_typ := _;
+           PI_num := _;
+           PI_align := _ |} : PhiInfo, 
+  Hkeep : keep_pinfo _ ?pinfo ?pinfo' |- ?pid = PI_id ?pinfo' =>
+  destruct Hkeep as [_ [? ?]]; auto
+| H: ?f _ _ = ?e |- ?f _ _ = ?e => rewrite H; f_equal; solve_keep_pinfo
+| H: ?e = ?f _ _ |- ?f _ _ = ?e => rewrite H; f_equal; solve_keep_pinfo
+end.
+
 Lemma elim_stld_sim_wfS_wfPI: forall f1 dones1 f2 dones2 Ps1 Ps2 los nts main
   VarArgs pid (pinfo:PhiInfo)
   (Hpass: SafePrimIter.iterate _ (elim_stld_step pid)
@@ -573,7 +644,7 @@ Lemma elim_stld_sim_wfS_wfPI: forall f1 dones1 f2 dones2 Ps1 Ps2 los nts main
   (HwfS : wf_system S2) (Hok: defined_program S2 main VarArgs),
   (program_sim S1 S2 main VarArgs /\ wf_system S1 /\
     defined_program S1 main VarArgs) /\
-  WF_PhiInfo (update_pinfo pinfo f2).
+  exists pinfo', WF_PhiInfo pinfo' /\ keep_pinfo f2 pinfo pinfo'.
 Proof.
   intros. subst.
   set (P:=fun (re:(fdef * list id)) =>
@@ -586,11 +657,11 @@ Proof.
            defined_program 
             [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
             main VarArgs) /\
-          WF_PhiInfo (update_pinfo pinfo f)
+          exists pinfo', WF_PhiInfo pinfo' /\ keep_pinfo f pinfo pinfo'
        ).
   assert (P (PI_f pinfo, dones1)) as HPf1.
     unfold P.
-    split; auto using program_sim_refl.
+    split; auto using program_sim_refl. instantiate_pinfo.
   apply SafePrimIter.iterate_prop with (P:=P) in Hpass; auto.
     unfold elim_stld_step.
     intros a HPa.
@@ -602,16 +673,16 @@ Proof.
     assert (P (f0, dones0)) as HPf0.
       unfold P.
       symmetry in HeqR.
-      destruct HPa as [[Hsima [HwfSa Hoka]] HwfPIa].
-      change (PI_id pinfo) with (PI_id (update_pinfo pinfo (fdef_intro fh bs)))
-        in HeqR.
+      destruct HPa as 
+        [[Hsima [HwfSa Hoka]] [pinfo' [HwfPIa Hkeep]]].
+      replace (PI_id pinfo) with (PI_id pinfo') in HeqR; try solve_keep_pinfo.
       split.
         apply program_sim_wfS_trans with (P2:=
                 [module_intro los nts
                  (Ps1 ++ product_fdef (fdef_intro fh bs) :: Ps2)]); auto.
           intros.
-          eapply elim_stld_blocks_sim_wfS in HeqR; eauto.
-        eapply elim_stld_blocks_wfPI in HeqR; eauto.
+          eapply elim_stld_blocks_sim_wfS in HeqR; eauto; try solve_keep_pinfo.
+        eapply elim_stld_blocks_wfPI in HeqR; eauto; try solve_keep_pinfo.
 
     destruct flag0; auto.
 Qed.
@@ -714,29 +785,29 @@ Proof.
 
             apply phinodes_placement_successors.
 
-    assert (WF_PhiInfo (update_pinfo pinfo f0)) as HwfPIf0.
-      change (update_pinfo pinfo f0) with
-             (update_pinfo
+    assert (exists pinfo', WF_PhiInfo pinfo' /\ keep_pinfo f0 pinfo pinfo') 
+      as HwfPIf0.
+     apply change_keep_pinfo with (pinfo1:=
                (update_pinfo pinfo
                  (phinodes_placement rd pid ty al (successors f)
-                   (make_predecessors (successors f)) f)) f0).
+                   (make_predecessors (successors f)) f))); auto.
      destruct HPa as [HPa1 [HPa2 HPa3]].
      eapply elim_stld_sim_wfS_wfPI; eauto.
        rewrite EQ1. auto.
        eapply phinodes_placement_wfPI; eauto.
-         rewrite EQ1. simpl.
-         eapply phinodes_placement_wfS; eauto.
+       rewrite EQ1. simpl. eapply phinodes_placement_wfS; eauto.
        eapply program_sim__preserves__defined_program; eauto.
          rewrite EQ1. simpl.
          eapply phinodes_placement_sim; eauto.
 
+    destruct HwfPIf0 as [pinfo' [HwfPIf0 Hkeep]].
     assert (P (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0,
               nil) /\
-            WF_PhiInfo (update_pinfo pinfo
+            WF_PhiInfo (update_pinfo pinfo'
               (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)))
       as HPf.
       remember (load_in_fdef pid f0) as R.
-      destruct R; auto.
+      destruct R; try solve [erewrite update_pinfo_refl; eauto 2].
       destruct HPf0 as [HPf0 HPf0'].
       split.
       Case "1".
@@ -746,11 +817,11 @@ Proof.
                   [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)]); auto.
             intros.
             split.
-              eapply dse_sim with (pinfo:=mkPhiInfo f0 rd pid ty num al); eauto.
+              eapply dse_sim with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
             split.
-              eapply dse_wfS with (pinfo:=mkPhiInfo f0 rd pid ty num al); eauto.
+              eapply dse_wfS with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
               eapply program_sim__preserves__defined_program; eauto.
-                eapply dse_sim with (pinfo:=mkPhiInfo f0 rd pid ty num al); eauto.
+                eapply dse_sim with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
         SCase "1.2".
           destruct HPf0' as [J1 J2].
           split.
@@ -761,16 +832,7 @@ Proof.
 
       Case "2".
         destruct HPf0 as [HPf00 [HPf01 HPf02]].
-        change (update_pinfo pinfo (elim_dead_st_fdef pid f0)) with
-                 (update_pinfo
-                   (update_pinfo
-                     (update_pinfo pinfo
-                       (phinodes_placement rd pid ty al (successors f)
-                         (make_predecessors (successors f)) f))
-                   f0)
-                   (elim_dead_st_fdef pid f0)
-                 ).
-        eapply dse_wfPI; eauto.
+        eapply dse_wfPI; eauto; solve_keep_pinfo.
 
     destruct HPf as [HPf HwfPI0].
     remember (used_in_fdef pid
@@ -778,6 +840,7 @@ Proof.
     destruct R; auto.
     destruct HPf as [HPf HPf'].
     split.
+    Case "1".
       apply program_sim_wfS_trans with (P2:=
                  [module_intro los nts
                    (Ps1 ++ product_fdef
@@ -786,20 +849,21 @@ Proof.
         intros.
         split.
           eapply dae_sim with
-            (pinfo:=mkPhiInfo
-              (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)
-              rd pid ty num al); eauto.
+            (pinfo:=update_pinfo pinfo'
+              (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)); eauto 1;
+            simpl; solve_keep_pinfo.
         split.
           eapply dae_wfS with
-            (pinfo:=mkPhiInfo
-              (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)
-              rd pid ty num al); eauto.
+            (pinfo:=update_pinfo pinfo'
+              (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)); eauto 1;
+            simpl; solve_keep_pinfo.
           eapply program_sim__preserves__defined_program; eauto.
             eapply dae_sim with
-              (pinfo:=mkPhiInfo
-                (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)
-                rd pid ty num al); eauto.
+              (pinfo:=update_pinfo pinfo'
+                (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)); eauto 1;
+            simpl; solve_keep_pinfo.
 
+    Case "2".
       destruct HPf' as [Hreach' Hsucc'].
       split.
         transitivity
