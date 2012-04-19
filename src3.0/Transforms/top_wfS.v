@@ -22,6 +22,12 @@ Section Uniqness.
 Variable (f f':fdef).
 Hypothesis (Heq_fheader: fheaderOfFdef f = fheaderOfFdef f').
 
+Lemma fheaderOfFdef__getFdefTyp: getFdefTyp f = getFdefTyp f'.
+Proof.
+  destruct f as [[]], f' as [[]].
+  simpl in *. f_equal; congruence.
+Qed.
+
 Lemma subst_fdef_preserves_uniqProducts: forall Ps2 (Huniqf': uniqFdef f') Ps1 
   (HuniqPs: uniqProducts (Ps1 ++ product_fdef f :: Ps2)),
   uniqProducts (Ps1 ++ product_fdef f' :: Ps2).
@@ -125,7 +131,8 @@ Lemma eqsig_lookupTypViaGIDFromProduct: forall id5 P1 P2
   lookupTypViaGIDFromProduct P1 id5 = lookupTypViaGIDFromProduct P2 id5.
 Proof.
   intros.
-  destruct P1, P2; inv Heq; auto.
+  destruct P1, P2; inv Heq; simpl; auto.
+    erewrite fheaderOfFdef__getFdefTyp; eauto.
 Qed.
 
 Lemma eqsig_lookupTypViaGIDFromProducts: forall id5 Ps1 Ps2
@@ -631,10 +638,10 @@ Lemma pres_lookupTypViaGIDFromSystem: forall id5 t5
   lookupTypViaGIDFromSystem [M'] id5 = Some t5.
 Proof.
   subst. simpl. intros.
-  clear - Hlkup.
+  clear - Hlkup Heq_fheader.
   inv_mbind. 
   induction Ps1; simpl in *.
-    rewrite <- HeqR. auto.
+    erewrite fheaderOfFdef__getFdefTyp; eauto.
 
     symmetry_ctx.
     inv_mbind_app; auto.
