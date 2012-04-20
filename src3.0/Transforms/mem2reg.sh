@@ -102,6 +102,7 @@ Compiling ()
   echo -e "LLVM ld"; time llvm-ld -native -lm $LD_FLAG $2"o.bc" -o $2"b.exe"
 
   echo -e "LLVM M2R"; time opt -f $M2R_OPT_FLAG $1 -o $2"d.bc"
+  llvm-dis -f $2"d.bc" -o $2"d.ll" 
   echo -e "  LLVM ld"; time llvm-ld -native -lm $LD_FLAG $2"d.bc" -o $2"d.exe"
 }
 

@@ -35,8 +35,10 @@ Record DIInfo := mkDIInfo {
   DI_pure : forall instr,
                lookupInsnViaIDFromFdef DI_f DI_id = Some instr ->
                pure_cmd instr;
-  DI_unused : runused_in_fdef DI_id DI_f
+  DI_unused : used_in_fdef DI_id DI_f = false
 }.
+
+Hint Unfold runused_in_fdef.
 
 Definition fdef_simulation (diinfo: DIInfo) f1 f2 : Prop :=
 RemoveSim.fdef_simulation (DI_f diinfo) (DI_id diinfo) f1 f2.
@@ -805,7 +807,8 @@ SCase "sCall".
     destruct Hfsim1 as [Hfhsim1 Hbssim1].
     inv Hfhsim1.
     eapply reg_simulation__initLocals; eauto 2;
-      eapply conditional_runused_in_fdef__used_in_params; destruct diinfo; eauto 1.
+      eapply conditional_runused_in_fdef__used_in_params; 
+        destruct diinfo; eauto 1; simpl; auto.
 
   SSCase "sExCall".
 
@@ -853,7 +856,8 @@ SCase "sExCall".
     inv_mfalse; symmetry_ctx.
     erewrite reg_simulation__params2GVs in H2; eauto.
       uniq_result. auto.
-      eapply conditional_runused_in_fdef__used_in_params; destruct diinfo; eauto 1.
+      eapply conditional_runused_in_fdef__used_in_params; 
+        destruct diinfo; eauto 1; simpl; auto.
   subst.
   uniq_result.
   repeat_solve.

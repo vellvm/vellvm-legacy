@@ -66,7 +66,7 @@ Lemma las_die_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
-  (v : value) (cs : cmds)
+  (v : value) (cs : cmds) (Hreach:  In l0 (PI_rd pinfo))
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
@@ -108,7 +108,7 @@ Lemma las_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
-  (v : value) (cs : cmds)
+  (v : value) (cs : cmds) (Hreach:  In l0 (PI_rd pinfo))
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
@@ -308,6 +308,7 @@ Qed.
 
 Definition keep_pinfo (f:fdef) (pinfo1 pinfo2: PhiInfo) :=
 PI_f pinfo2 = f /\
+PI_rd pinfo1 = PI_rd pinfo2 /\
 PI_id pinfo1 = PI_id pinfo2 /\
 PI_typ pinfo1 = PI_typ pinfo2 /\
 PI_align pinfo1 = PI_align pinfo2.
@@ -317,17 +318,17 @@ Hint Unfold keep_pinfo.
 Ltac instantiate_pinfo :=
 match goal with
 | HwfS : WF_PhiInfo (update_pinfo ?f ?pi) |- _ => 
-  exists (update_pinfo f pi); split; auto
+  exists (update_pinfo f pi); repeat (split; auto)
 | HwfS : WF_PhiInfo ?pi, Heq: (PI_f ?pi) = ?f |- 
   exists _ : _, WF_PhiInfo _ /\ keep_pinfo ?f ?pi _ =>
-  rewrite <- Heq; exists pi; split; auto
+  rewrite <- Heq; exists pi; repeat (split; auto)
 | HwfS : WF_PhiInfo ?pi |- 
   exists _ : _, WF_PhiInfo _ /\ keep_pinfo (PI_f ?pi) ?pi _ =>
-  exists pi; split; auto
+  exists pi; repeat (split; auto)
 end.
 
 Lemma elim_stld_cmds_wfPI: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
-  bs1 l0 ps0 cs0 tmn0 bs2 Ps1 Ps2
+  bs1 l0 ps0 cs0 tmn0 bs2 Ps1 Ps2 (Hreach:  In l0 (PI_rd pinfo))
   (Hpass : (f0, true, dones0) =
            elim_stld_cmds
              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) cs0
@@ -361,7 +362,7 @@ Proof.
 Qed.
 
 Lemma elim_stld_cmds_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
-  main VarArgs bs1 l0 ps0 cs0 tmn0 bs2 Ps1 Ps2
+  main VarArgs bs1 l0 ps0 cs0 tmn0 bs2 Ps1 Ps2 (Hreach:  In l0 (PI_rd pinfo))
   (Hpass : (f0, true, dones0) =
            elim_stld_cmds
              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) cs0
@@ -400,9 +401,18 @@ Proof.
       split; auto using program_sim_refl.
 Qed.
 
+Ltac elim_stld_blocks_tac :=
+repeat match goal with
+| H1: context [?A ++ block_intro ?l0 ?ps0 ?cs0 ?tmn0 :: ?C] |- _ => 
+      rewrite_env ((A++[block_intro l0 ps0 cs0 tmn0])++C) in H1
+| |- context [?A ++ block_intro ?l0 ?ps0 ?cs0 ?tmn0 :: ?C] => 
+      rewrite_env ((A++[block_intro l0 ps0 cs0 tmn0])++C)
+| H1:forall _:_, _ -> _ |- _ => progress (eapply H1; eauto)
+end.
+
 Lemma elim_stld_blocks_reachablity_successors_aux: forall f0 dones0 dones id0
-  flag fh bs2 bs1
-  (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 id0 dones =
+  flag fh rd bs2 bs1
+  (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 rd id0 dones =
     (f0, flag, dones0)),
   reachablity_analysis (fdef_intro fh (bs1++bs2)) =
     reachablity_analysis f0 /\
@@ -412,22 +422,26 @@ Proof.
     inv Hpass. auto.
 
     destruct a as [l0 ps0 cs0 tmn0].
-    remember
-      (elim_stld_cmds
-        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-          cs0 id0 dones) as R.
-    destruct R as [[f' []] dones']; inv Hpass; auto.
-      eapply elim_stld_cmds_reachablity_successors; eauto.
+    destruct (in_dec id_dec l0 rd).
+    Case "reachable".
+      remember
+        (elim_stld_cmds
+          (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+            cs0 id0 dones) as R.
+      destruct R as [[f' []] dones']; inv Hpass; auto.
+        eapply elim_stld_cmds_reachablity_successors; eauto.
 
-      apply elim_stld_cmds_unchanged in HeqR. subst.
-      rewrite_env ((bs1 ++ [block_intro l0 ps0 cs0 tmn0]) ++ bs2) in H0.
-      apply IHbs2 in H0; simpl_env in *; auto.
+        apply elim_stld_cmds_unchanged in HeqR. subst.
+        elim_stld_blocks_tac.
+
+    Case "unreachable". 
+      elim_stld_blocks_tac.
 Qed.
 
 Lemma elim_stld_blocks_wfPI_aux: forall los nts fh dones (pinfo:PhiInfo) f0
   dones0 Ps1 Ps2 flag bs2 bs1
-  (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 (PI_id pinfo) dones =
-    (f0, flag, dones0))
+  (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 (PI_rd pinfo) 
+    (PI_id pinfo) dones = (f0, flag, dones0))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ bs2))
   (Hwfpi: WF_PhiInfo pinfo)
   (HwfS :
@@ -442,22 +456,25 @@ Proof.
     inv Hpass. instantiate_pinfo.
 
     destruct a as [l0 ps0 cs0 tmn0].
-    remember
-      (elim_stld_cmds
-        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-          cs0 (PI_id pinfo) dones) as R.
-    destruct R as [[f' []] dones']; inv Hpass; auto.
-      eapply elim_stld_cmds_wfPI; eauto.
+    destruct (in_dec id_dec l0 (PI_rd pinfo)).
+    Case "reachable".
+      remember
+        (elim_stld_cmds
+          (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+            cs0 (PI_id pinfo) dones) as R.
+      destruct R as [[f' []] dones']; inv Hpass; auto.
+        eapply elim_stld_cmds_wfPI; eauto.
 
-      apply elim_stld_cmds_unchanged in HeqR. subst.
-      rewrite_env ((bs1 ++ [block_intro l0 ps0 cs0 tmn0]) ++ bs2) in H0.
-      apply IHbs2 in H0; simpl_env in *; auto.
+        apply elim_stld_cmds_unchanged in HeqR; subst.
+        elim_stld_blocks_tac.
+    Case "unreachable". 
+      elim_stld_blocks_tac.
 Qed.
 
 Lemma elim_stld_blocks_sim_wfS_aux: forall los nts fh dones (pinfo:PhiInfo) f0
   dones0 main VarArgs Ps1 Ps2 flag bs2 bs1
-  (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 (PI_id pinfo) dones =
-    (f0, flag, dones0))
+  (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 (PI_rd pinfo)
+    (PI_id pinfo) dones = (f0, flag, dones0))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ bs2))
   (Hwfpi: WF_PhiInfo pinfo) S1 S2
   (Heq1: S1 = [module_intro los nts (Ps1 ++  product_fdef f0 :: Ps2)])
@@ -471,21 +488,24 @@ Proof.
     inv Hpass; split; auto using program_sim_refl.
 
     destruct a as [l0 ps0 cs0 tmn0].
-    remember
-      (elim_stld_cmds
-        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-          cs0 (PI_id pinfo) dones) as R.
-    destruct R as [[f' []] dones']; inv Hpass; auto.
-      eapply elim_stld_cmds_sim_wfS; eauto.
+    destruct (in_dec id_dec l0 (PI_rd pinfo)).
+    Case "reachable".
+      remember
+        (elim_stld_cmds
+          (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+            cs0 (PI_id pinfo) dones) as R.
+      destruct R as [[f' []] dones']; inv Hpass; auto.
+        eapply elim_stld_cmds_sim_wfS; eauto.
 
-      apply elim_stld_cmds_unchanged in HeqR. subst.
-      rewrite_env ((bs1 ++ [block_intro l0 ps0 cs0 tmn0]) ++ bs2) in H0.
-      eapply IHbs2 in H0; simpl_env in *; eauto.
+        apply elim_stld_cmds_unchanged in HeqR. subst.
+        elim_stld_blocks_tac.
+    Case "unreachable". 
+      elim_stld_blocks_tac.
 Qed.
 
 Lemma elim_stld_blocks_reachablity_successors: forall f0 dones0 dones id0
-  flag fh bs
-  (Hpass:elim_stld_blocks (fdef_intro fh bs) bs id0 dones =
+  flag fh bs rd
+  (Hpass:elim_stld_blocks (fdef_intro fh bs) bs rd id0 dones =
     (f0, flag, dones0)),
   reachablity_analysis (fdef_intro fh bs) =
     reachablity_analysis f0 /\
@@ -498,8 +518,8 @@ Qed.
 
 Lemma elim_stld_blocks_wfPI: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
   Ps1 Ps2 flag bs
-  (Hpass:elim_stld_blocks (fdef_intro fh bs) bs (PI_id pinfo) dones
-           = (f0, flag, dones0))
+  (Hpass:elim_stld_blocks (fdef_intro fh bs) bs (PI_rd pinfo) (PI_id pinfo) 
+           dones = (f0, flag, dones0))
   (Heq: PI_f pinfo = fdef_intro fh bs)
   (Hwfpi: WF_PhiInfo pinfo)
   (HwfS :
@@ -515,7 +535,7 @@ Qed.
 
 Lemma elim_stld_blocks_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
   main VarArgs Ps1 Ps2 flag bs
-  (Hpass:elim_stld_blocks (fdef_intro fh bs) bs (PI_id pinfo) dones
+  (Hpass:elim_stld_blocks (fdef_intro fh bs) bs (PI_rd pinfo) (PI_id pinfo) dones
            = (f0, flag, dones0))
   (Heq: PI_f pinfo = fdef_intro fh bs)
   (Hwfpi: WF_PhiInfo pinfo) S1 S2
@@ -530,8 +550,8 @@ Proof.
   eapply elim_stld_blocks_sim_wfS_aux; eauto.
 Qed.
 
-Lemma elim_stld_sim_reachablity_successors: forall f1 dones1 f2 dones2 pid
-  (Hpass: SafePrimIter.iterate _ (elim_stld_step pid) (f1, dones1) =
+Lemma elim_stld_sim_reachablity_successors: forall f1 dones1 f2 dones2 rd pid
+  (Hpass: SafePrimIter.iterate _ (elim_stld_step rd pid) (f1, dones1) =
     (f2, dones2)),
   reachablity_analysis f2 = reachablity_analysis f1 /\
   successors f2 = successors f1.
@@ -549,7 +569,7 @@ Proof.
     destruct a as [f dones].
     unfold elim_stld_fdef.
     destruct f as [fh bs].
-    remember (elim_stld_blocks (fdef_intro fh bs) bs pid dones) as R.
+    remember (elim_stld_blocks (fdef_intro fh bs) bs rd pid dones) as R.
     destruct R as [[f0 flag0] dones0]; auto.
     assert (P (f0, dones0)) as HPf0.
       unfold P.
@@ -568,15 +588,16 @@ Lemma keep_pinfo_trans: forall f f' p1 p2 p3
   keep_pinfo f' p1 p3.
 Proof.
   intros.
-  destruct H1 as [A [B [C D]]].
-  destruct H2 as [A' [B' [C' D']]].
+  destruct H1 as [A [B [C [D E]]]].
+  destruct H2 as [A' [B' [C' [D' E']]]].
   repeat split; try solve [auto | etransitivity; eauto].
 Qed.
 
 Lemma change_keep_pinfo: forall f pinfo1 pinfo2
   (H1: PI_id pinfo1 = PI_id pinfo2)
   (H2: PI_typ pinfo1 = PI_typ pinfo2)
-  (H3: PI_align pinfo1 = PI_align pinfo2),
+  (H3: PI_align pinfo1 = PI_align pinfo2)
+  (H4: PI_rd pinfo1 = PI_rd pinfo2),
   (exists pinfo' : PhiInfo, WF_PhiInfo pinfo' /\ keep_pinfo f pinfo1 pinfo') -> 
   exists pinfo' : PhiInfo, WF_PhiInfo pinfo' /\ keep_pinfo f pinfo2 pinfo'.
 Proof.
@@ -584,7 +605,7 @@ Proof.
   destruct H as [A [B C]].
   exists A. split; auto.
   unfold keep_pinfo in *.
-  rewrite <- H1. rewrite <- H2. rewrite <- H3. auto.
+  rewrite <- H1. rewrite <- H2. rewrite <- H3. rewrite <- H4. auto.
 Qed.
 
 Lemma update_pinfo_refl: forall f0 pinfo pinfo' 
@@ -597,7 +618,9 @@ Qed.
 Ltac solve_keep_pinfo :=
 match goal with
 | Hkeep : keep_pinfo _ ?pinfo ?pinfo' |- PI_id ?pinfo' = PI_id ?pinfo =>
-  destruct Hkeep as [? [? ?]]; auto
+  destruct Hkeep as [? [? [? ?]]]; auto
+| Hkeep : keep_pinfo _ ?pinfo ?pinfo' |- PI_rd ?pinfo' = PI_rd ?pinfo =>
+  destruct Hkeep as [? [? [? ?]]]; auto
 | Hkeep : keep_pinfo ?f ?pinfo ?pinfo' |- PI_f ?pinfo' = ?f =>
   destruct Hkeep as [? ?]; auto
 | Hkeep : keep_pinfo ?f1 ?pinfo ?pinfo',
@@ -619,7 +642,7 @@ match goal with
            PI_num := _;
            PI_align := _ |} : PhiInfo, 
   Hkeep : keep_pinfo _ ?pinfo ?pinfo' |- PI_id ?pinfo' = ?pid =>
-  destruct Hkeep as [_ [? ?]]; auto
+  destruct Hkeep as [? [? [? ?]]]; auto
 | pinfo := {|
            PI_f := _;
            PI_rd := _;
@@ -628,16 +651,16 @@ match goal with
            PI_num := _;
            PI_align := _ |} : PhiInfo, 
   Hkeep : keep_pinfo _ ?pinfo ?pinfo' |- ?pid = PI_id ?pinfo' =>
-  destruct Hkeep as [_ [? ?]]; auto
+  destruct Hkeep as [? [? [? ?]]]; auto
 | H: ?f _ _ = ?e |- ?f _ _ = ?e => rewrite H; f_equal; solve_keep_pinfo
 | H: ?e = ?f _ _ |- ?f _ _ = ?e => rewrite H; f_equal; solve_keep_pinfo
 end.
 
 Lemma elim_stld_sim_wfS_wfPI: forall f1 dones1 f2 dones2 Ps1 Ps2 los nts main
-  VarArgs pid (pinfo:PhiInfo)
-  (Hpass: SafePrimIter.iterate _ (elim_stld_step pid)
+  VarArgs pid rd (pinfo:PhiInfo)
+  (Hpass: SafePrimIter.iterate _ (elim_stld_step rd pid)
     (f1, dones1) = (f2, dones2))
-  (Heq1: PI_f pinfo = f1) (Heq2: PI_id pinfo = pid)
+  (Heq1: PI_f pinfo = f1) (Heq2: PI_id pinfo = pid) (Heq2: PI_rd pinfo = rd)
   (Hwfpi: WF_PhiInfo pinfo) S1 S2
   (Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
   (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
@@ -668,7 +691,8 @@ Proof.
     destruct a as [f dones].
     unfold elim_stld_fdef.
     destruct f as [fh bs].
-    remember (elim_stld_blocks (fdef_intro fh bs) bs (PI_id pinfo) dones) as R.
+    remember (elim_stld_blocks (fdef_intro fh bs) bs 
+               (PI_rd pinfo) (PI_id pinfo) dones) as R.
     destruct R as [[f0 flag0] dones0]; auto.
     assert (P (f0, dones0)) as HPf0.
       unfold P.
@@ -676,6 +700,7 @@ Proof.
       destruct HPa as 
         [[Hsima [HwfSa Hoka]] [pinfo' [HwfPIa Hkeep]]].
       replace (PI_id pinfo) with (PI_id pinfo') in HeqR; try solve_keep_pinfo.
+      replace (PI_rd pinfo) with (PI_rd pinfo') in HeqR; try solve_keep_pinfo.
       split.
         apply program_sim_wfS_trans with (P2:=
                 [module_intro los nts
@@ -736,7 +761,7 @@ Proof.
 
     rewrite does_stld_elim_is_true.
     remember (SafePrimIter.iterate (fdef * list id)
-               (elim_stld_step pid)
+               (elim_stld_step rd pid)
                (phinodes_placement rd pid ty al (successors f1)
                (make_predecessors (successors f1)) f, nil)) as R.
     destruct R as [f0 dones0].

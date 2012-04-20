@@ -94,7 +94,7 @@ Lemma las_diinfo: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
-  (v : value) (cs : cmds)
+  (v : value) (cs : cmds) (Hreach: In l0 (PI_rd pinfo))
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
@@ -126,18 +126,22 @@ Proof.
     uniq_result. simpl. auto.
 
     intros.
-    destruct Hreach as [Hreach | Hreach].
+    assert (id_in_reachable_block (PI_f pinfo) (LAS_lid pinfo lasinfo)) 
+      as Hreach'.
+      intros b0 Hlkup.
+      rewrite lookup_LAS_lid__LAS_block in Hlkup; auto.
+      inv Hlkup.
+      rewrite J4. simpl.
+      destruct Hwfpi.
+      eapply reachablity_analysis__reachable; eauto.
       intro Hin. 
       assert (Hvdom:=HwfF).
       apply LAS_value__dominates__LAS_lid with (lasinfo:=lasinfo) in Hvdom; auto.
       destruct (LAS_value pinfo lasinfo) as [vid|]; simpl in Hin; try tauto.
       destruct Hin as [Hin | Hin]; subst; try tauto.
-      assert (Hidom:=Hreach).
-      apply Hvdom in Hidom.
-      eapply idDominates_acyclic; eauto.
-
-      contradict Hreach.
-      solve_notin_getArgsIDs.
+    assert (Hidom:=Hreach').
+    apply Hvdom in Hidom.
+    eapply idDominates_acyclic; eauto.
 Qed.
 
 Lemma las_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)

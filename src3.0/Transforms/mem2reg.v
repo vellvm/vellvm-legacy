@@ -328,23 +328,26 @@ match find_init_stld cs pid dones with
     end
 end.
 
-Fixpoint elim_stld_blocks (f:fdef) (bs: blocks) (pid:id) (dones:list id)
-  : fdef * bool * list id :=
+Fixpoint elim_stld_blocks (f:fdef) (bs: blocks) (rd:list l) (pid:id) 
+  (dones:list id) : fdef * bool * list id :=
 match bs with
 | nil => (f, false, dones)
-| block_intro _ _ cs _::bs' =>
-    let '(f', changed, dones') := elim_stld_cmds f cs pid dones in
-    if changed then (f', true, dones') else elim_stld_blocks f' bs' pid dones
+| block_intro l0 _ cs _::bs' =>
+    if (in_dec id_dec l0 rd) then
+      let '(f', changed, dones') := elim_stld_cmds f cs pid dones in
+      if changed then (f', true, dones') 
+      else elim_stld_blocks f' bs' rd pid dones
+    else elim_stld_blocks f bs' rd pid dones
 end.
 
-Definition elim_stld_fdef (f:fdef) (pid:id) (dones:list id)
+Definition elim_stld_fdef (f:fdef) (rd:list l) (pid:id) (dones:list id)
   : fdef * bool * list id :=
-let '(fdef_intro fh bs) := f in elim_stld_blocks f bs pid dones.
+let '(fdef_intro fh bs) := f in elim_stld_blocks f bs rd pid dones.
 
-Definition elim_stld_step (pid:id) (st: fdef * list id)
+Definition elim_stld_step (rd:list l) (pid:id) (st: fdef * list id)
   : fdef * list id + fdef * list id :=
 let '(f, dones) := st in
-let '(f1, changed1, dones1) := elim_stld_fdef f pid dones in
+let '(f1, changed1, dones1) := elim_stld_fdef f rd pid dones in
 if changed1 then inr _ (f1, dones1) else inl _ (f1, dones1).
 
 Parameter does_stld_elim : unit -> bool.
@@ -377,7 +380,7 @@ match getEntryBlock f with
         let f1 := phinodes_placement rd pid ty al succs preds f in
         let '(f2, _) :=
           if does_stld_elim tt then
-            SafePrimIter.iterate _ (elim_stld_step pid) (f1, nil)
+            SafePrimIter.iterate _ (elim_stld_step rd pid) (f1, nil)
           else (f1, nil)
         in
         let f3 :=
@@ -553,4 +556,3 @@ module_intro los nts
              | product_fdef f => product_fdef (mem2reg_fdef f)
              | _ => p
              end) ps).
-

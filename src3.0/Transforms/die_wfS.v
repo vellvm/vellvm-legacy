@@ -14,17 +14,12 @@ Lemma subst_fdef__diinfo: forall f id0 v0
   (Hpure: forall (instr : insn)
             (Hlkup: lookupInsnViaIDFromFdef f id0 = ret instr),
             pure_cmd instr)
-  (Hnoself: forall (Hreach: id_in_reachable_block f id0 \/ 
-                            In id0 (getArgsIDsOfFdef f)),
-            ~ In id0 (infrastructure.LLVMinfra.getValueIDs v0)),
+  (Hnoself: ~ In id0 (infrastructure.LLVMinfra.getValueIDs v0)),
   exists diinfo:DIInfo, DI_f diinfo = subst_fdef id0 v0 f /\ DI_id diinfo = id0.
 Proof.
   intros.
-  assert (Hruse: runused_in_fdef id0 (subst_fdef id0 v0 f)).
-    intros Hin.
-    apply subst_unused_in_fdef.
-    apply Hnoself.
-    eapply subst_id_in_reachable_block; eauto.
+  assert (Huse: used_in_fdef id0 (subst_fdef id0 v0 f) =false).
+    apply subst_unused_in_fdef; auto.
   assert (Hpure': forall (instr : insn)
             (Hlk: lookupInsnViaIDFromFdef (subst_fdef id0 v0 f) id0 = ret instr),
             pure_cmd instr).
@@ -32,7 +27,7 @@ Proof.
     destruct Hlk as [instr1 [Hlk EQ]]; subst.
     apply Hpure in Hlk.
     destruct instr1 as [|[]|]; auto.
-  exists (mkDIInfo (subst_fdef id0 v0 f) id0 Hpure' Hruse).
+  exists (mkDIInfo (subst_fdef id0 v0 f) id0 Hpure' Huse).
   simpl. auto.
 Qed.
 
@@ -47,7 +42,6 @@ Proof.
   eapply filter_wfS; eauto.
     destruct diinfo. simpl in *. subst.
     apply fdef_doesnt_use_dead_insn; auto.
-      admit. (* reach *)
 Qed.
 
 Lemma die_wfPI: forall id0 f diinfo los nts Ps1 Ps2 pinfo
