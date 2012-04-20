@@ -610,10 +610,6 @@ Proof.
         destruct H; auto.
 Qed.
 
-Lemma reachablity_analysis__reachable: forall f rd a,
-  reachablity_analysis f = Some rd -> In a rd -> reachable f a.
-Admitted. (* need PrimIter.iterate_prop *)
-
 Lemma gt_sdom_prop_irrefl: forall S M f (HwfF : wf_fdef S M f) 
   (HuniqF: uniqFdef f) a (Hreach : reachable f a),
   gt_sdom (bound_fdef f) (dom_analyze f) a a = false.

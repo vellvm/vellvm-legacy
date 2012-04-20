@@ -1091,6 +1091,49 @@ Proof.
     eapply successor_in_arcs; eauto.
 Qed.
 
+Lemma reachablity_analysis__reachable: forall S M f rd a
+  (Huniq: uniqFdef f) (HwfF: wf_fdef S M f)
+  (Hrd: reachablity_analysis f = Some rd) (Hin: In a rd), reachable f a.
+Proof.
+  unfold reachablity_analysis, areachable_aux in *.
+  intros.
+  inv_mbind. destruct b as [le ? ? ?]. inv_mbind.
+  symmetry in HeqR0.
+  set (P:=fun (pc:atom)(r:ReachDS.L.t) => 
+          if r then reachable f pc else True).
+  assert (forall res : AMap.t ReachDS.L.t,
+       ReachDS.fixpoint (successors f) 
+         (fun (_ : atom) (r : ReachDS.L.t) => r) 
+         ((le, true) :: nil) = ret res ->
+       forall pc : atom, P pc res !! pc) as J.
+    apply ReachDS.fixpoint_inv; simpl; auto.
+      destruct x; auto.
+
+      unfold P. intros pc sc x y Hin' H1 H2.
+      destruct y; auto.
+      destruct x; simpl; auto.
+      apply successors__blockInFdefB in Hin'.
+      destruct Hin' as [ps0 [cs0 [tmn0 [HBinF Hin']]]].
+      eapply reachable_successors; eauto.
+
+      intros n v H.
+      destruct H as [H | H]; try tauto.
+      inv H. unfold P.
+      eapply reachable_entrypoint; eauto.
+
+      apply LBoolean.ge_lub.
+
+      unfold P.
+      intros n x y H1 H2.
+      destruct y; auto.
+      destruct H1; subst; try tauto.
+  apply J with (pc:=a) in HeqR0.
+  unfold P in HeqR0.
+  apply get_reachable_labels__spec'' in Hin.
+  unfold ReachDS.L.t in *.
+  rewrite Hin in HeqR0. auto.
+Qed.
+
 Module UnreachableDoms. Section UnreachableDoms.
 
 Variable S : system.

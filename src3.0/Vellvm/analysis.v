@@ -1094,6 +1094,39 @@ End EntryDomsOthers.
 
 End EntryDomsOthers.
 
+Lemma get_reachable_labels__spec_aux': forall a (t:AMap.t bool)
+  bnd acc (Hinbnd : In a (get_reachable_labels bnd t acc)),
+  (In a bnd /\ t !! a = true) \/ In a acc.
+Proof.
+  induction bnd; simpl; intros; try tauto.
+    destruct_if.
+      apply IHbnd in Hinbnd.
+      simpl in Hinbnd.
+      destruct Hinbnd as [[J1 J2]|[J |J]]; subst; try tauto.
+      rewrite <- HeqR. tauto.
+
+      apply IHbnd in Hinbnd.
+      tauto.
+Qed.
+
+Lemma get_reachable_labels__spec': forall a (t:AMap.t bool) bnd
+  (Hinbnd : In a (get_reachable_labels bnd t nil)),
+  In a bnd.
+Proof.
+  intros.
+  apply get_reachable_labels__spec_aux' in Hinbnd.
+  tauto.
+Qed.
+
+Lemma get_reachable_labels__spec'': forall a (t:AMap.t bool) bnd
+  (Hinbnd : In a (get_reachable_labels bnd t nil)),
+  t !! a = true.
+Proof.
+  intros.
+  apply get_reachable_labels__spec_aux' in Hinbnd.
+  tauto.
+Qed.
+
 (***************************)
 (* domination prop *)
 
@@ -2779,29 +2812,6 @@ Proof.
   unfold id_in_reachable_block.
   intros.
   contradict Hin. solve_notin_getArgsIDs.
-Qed.
-
-Lemma get_reachable_labels__spec_aux': forall a (t:AMap.t bool)
-  bnd acc (Hinbnd : In a (get_reachable_labels bnd t acc)),
-  In a bnd \/ In a acc.
-Proof.
-  induction bnd; simpl; intros; try tauto.
-    destruct_if.
-      apply IHbnd in Hinbnd.
-      simpl in Hinbnd.
-      tauto.
-
-      apply IHbnd in Hinbnd.
-      tauto.
-Qed.
-
-Lemma get_reachable_labels__spec': forall a (t:AMap.t bool) bnd
-  (Hinbnd : In a (get_reachable_labels bnd t nil)),
-  In a bnd.
-Proof.
-  intros.
-  apply get_reachable_labels__spec_aux' in Hinbnd.
-  tauto.
 Qed.
 
 Lemma reachablity_analysis__in_bound: forall f rd,
