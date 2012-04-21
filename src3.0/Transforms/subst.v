@@ -1960,6 +1960,10 @@ Definition subst_pinfo (id0:id) (v0:value) (pinfo:PhiInfo) :=
      PI_num := subst_value id0 v0 (PI_num pinfo);
      PI_align := PI_align pinfo |}.
 
+Lemma subst_fdef_PI_f__PI_f_subst_pinfo: forall i1 v pinfo,
+  subst_fdef i1 v (PI_f pinfo) = PI_f (subst_pinfo i1 v pinfo).
+Proof. destruct pinfo; auto. Qed.
+
 Lemma subst_alloca_in_entry: forall pid pty pnum pal id0 v0 cs
   (H : In (insn_alloca pid pty pnum pal) cs),
   In (insn_alloca pid pty (subst_value id0 v0 pnum) pal) 

@@ -517,17 +517,24 @@ match st with
 | _ => 0%nat
 end.
 
-Require Import mem2reg.
-
-Lemma elim_stld_cmds_unchanged: forall f' dones' f cs0 pid dones,
-  (f', false, dones') = elim_stld_cmds f cs0 pid dones ->
-  f' = f.
+Lemma program_sim_wfS_trans: forall (P1 P2 P3 : system) (main : id)
+  (VarArgs : list (GVsT DGVs)) (HwfS: wf_system P3) 
+  (Hok: defined_program P3 main VarArgs),
+  (wf_system P2 -> 
+   defined_program P2 main VarArgs ->
+   program_sim P1 P2 main VarArgs /\ wf_system P1 /\ 
+   defined_program P1 main VarArgs) ->
+  (wf_system P3 -> 
+   defined_program P3 main VarArgs ->
+   program_sim P2 P3 main VarArgs /\ wf_system P2 /\
+   defined_program P2 main VarArgs) ->
+  program_sim P1 P3 main VarArgs /\ wf_system P1 /\
+  defined_program P1 main VarArgs.
 Proof.
   intros.
-  unfold elim_stld_cmds in H.
-  destruct (find_init_stld cs0 pid dones) as [[[[]]|[]]|].
-    destruct (find_next_stld c pid) as [[|[]]|]; inv H.
-    destruct (find_next_stld c pid) as [[|[]]|]; inv H.
-    inv H; auto.
+  destruct H0 as [Hsim2 [Hwf2 Hok2]]; auto.
+  destruct H as [Hsim1 [Hwf1 Hok1]]; auto.
+  split; auto.
+  eapply program_sim_trans; eauto.
 Qed.
 

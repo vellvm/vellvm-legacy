@@ -6,6 +6,7 @@ Require Import Lattice.
 Require Import Iteration.
 Require Import primitives.
 Require Import dtree.
+Require Import iter_pass.
 
 Record vmap := mkVMap {
   alloca: value;
@@ -328,27 +329,13 @@ match find_init_stld cs pid dones with
     end
 end.
 
-Fixpoint elim_stld_blocks (f:fdef) (bs: blocks) (rd:list l) (pid:id) 
-  (dones:list id) : fdef * bool * list id :=
-match bs with
-| nil => (f, false, dones)
-| block_intro l0 _ cs _::bs' =>
-    if (in_dec id_dec l0 rd) then
-      let '(f', changed, dones') := elim_stld_cmds f cs pid dones in
-      if changed then (f', true, dones') 
-      else elim_stld_blocks f' bs' rd pid dones
-    else elim_stld_blocks f bs' rd pid dones
+Definition elim_stld_block (f:fdef) (b: block) (pid:id) (dones:list id) 
+  : fdef * bool * list id :=
+match b with
+| block_intro _ _ cs _=> elim_stld_cmds f cs pid dones 
 end.
 
-Definition elim_stld_fdef (f:fdef) (rd:list l) (pid:id) (dones:list id)
-  : fdef * bool * list id :=
-let '(fdef_intro fh bs) := f in elim_stld_blocks f bs rd pid dones.
-
-Definition elim_stld_step (rd:list l) (pid:id) (st: fdef * list id)
-  : fdef * list id + fdef * list id :=
-let '(f, dones) := st in
-let '(f1, changed1, dones1) := elim_stld_fdef f rd pid dones in
-if changed1 then inr _ (f1, dones1) else inl _ (f1, dones1).
+Definition ElimStld := mkIterPass (list id) id elim_stld_block nil.
 
 Parameter does_stld_elim : unit -> bool.
 
@@ -380,7 +367,7 @@ match getEntryBlock f with
         let f1 := phinodes_placement rd pid ty al succs preds f in
         let '(f2, _) :=
           if does_stld_elim tt then
-            SafePrimIter.iterate _ (elim_stld_step rd pid) (f1, nil)
+            IterationPass.iter ElimStld pid rd f1
           else (f1, nil)
         in
         let f3 :=
@@ -446,20 +433,13 @@ match ps with
     if changed then (f', true) else eliminate_phis f' ps'
 end.
 
-Fixpoint eliminate_blocks (f:fdef) (bs: blocks): fdef * bool :=
-match bs with
-| nil => (f, false)
-| block_intro _ ps _ _::bs' =>
-    let '(f', changed) := eliminate_phis f ps in
-    if changed then (f', true) else eliminate_blocks f' bs'
+Definition eliminate_block (f:fdef) (b: block) (ut:unit) (dones:list id) 
+  : fdef * bool * list id :=
+match b with
+| block_intro _ ps _ _=> (eliminate_phis f ps, dones)
 end.
 
-Definition eliminate_fdef (f:fdef) : fdef * bool :=
-let '(fdef_intro fh bs) := f in eliminate_blocks f bs.
-
-Definition eliminate_step (f: fdef) : fdef + fdef :=
-let '(f1, changed1) := eliminate_fdef f  in
-if changed1 then inr _ f1 else inl _ f1.
+Definition ElimPhi := mkIterPass (list id) unit eliminate_block nil.
 
 Parameter does_phi_elim : unit -> bool.
 Parameter does_macro_m2r : unit -> bool.
@@ -538,8 +518,8 @@ match getEntryBlock f, reachablity_analysis f with
         else (f, nil)
     in
     let f2 :=
-      if does_phi_elim tt then SafePrimIter.iterate _ eliminate_step f1
-      else f1 in
+      if does_phi_elim tt 
+      then fst (IterationPass.iter ElimPhi tt rd f1) else f1 in
     match fix_temporary_fdef f2 with
     | Some f' => f'
     | None => f
@@ -556,3 +536,4 @@ module_intro los nts
              | product_fdef f => product_fdef (mem2reg_fdef f)
              | _ => p
              end) ps).
+

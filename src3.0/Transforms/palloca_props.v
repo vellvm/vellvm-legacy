@@ -89,125 +89,6 @@ Proof.
   simpl in HeqR. auto.
 Qed.
 
-Lemma used_in_phi_fun_spec: forall pid (a0 : bool) (b : phinode),
-  a0 || used_in_phi pid b = false -> a0 = false.
-Proof.
-  intros. apply orb_false_iff in H. destruct H; auto.
-Qed.
-
-Lemma unused_in_phis__unused_in_phi: forall (pid id0 : id) (ps : phinodes)
-  (p0 : phinode) (J1 : ret p0 = lookupPhiNodeViaIDFromPhiNodes ps id0)
-  (J2 : fold_left (fun (re : bool) (p : phinode) => re || used_in_phi pid p)
-          ps false = false),
-  used_in_phi pid p0 = false.
-Proof.
-  induction ps; simpl; intros.
-    congruence.
-
-    assert (fold_left (fun (re : bool) (p : phinode) => re || used_in_phi pid p)
-              ps false = false /\ used_in_phi pid a = false) as J3.
-      apply fold_left_or_false; auto.
-        apply used_in_phi_fun_spec.
-
-    destruct J3 as [J3 J4].
-    destruct (getPhiNodeID a == id0); subst; eauto.
-      inv J1. auto.
-Qed.
-
-Lemma unused_in_value__neg_valueEqB: forall pid v,
-  used_in_value pid v = false ->
-  negb (valueEqB v (value_id pid)).
-Proof.
-  intros.
-  unfold valueEqB.
-  destruct v as [i0|c]; inv H; simpl.
-    destruct (value_dec (value_id i0) (value_id pid)); simpl.
-      inversion e. subst.
-      destruct (id_dec pid pid); subst; inv H1; try congruence.
-
-      reflexivity.
-
-    destruct (value_dec (value_const c) (value_id pid)); simpl.
-      congruence.
-      reflexivity.
-Qed.
-
-Lemma used_in_cmd_fun_spec:
-  forall pid acc0 c,
-  (if used_in_cmd pid c then
-    match c with
-    | insn_load _ _ _ _ => acc0
-    | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && acc0
-    | _ => false
-    end
-  else acc0) = true -> acc0 = true.
-Proof.
-  intros. clear - H.
-  destruct acc0; auto.
-  destruct (used_in_cmd pid c); auto.
-  destruct c; auto.
-  apply andb_true_iff in H. destruct H; auto.
-Qed.
-
-Lemma unused_in_cmds__unused_in_cmd: forall (pid id0 : id) (cs : cmds)
-  (c0 : cmd) (J1 : ret c0 = lookupCmdViaIDFromCmds cs id0)
-  (J2 : fold_left
-          (fun acc0 c =>
-           if used_in_cmd pid c then
-             match c with
-             | insn_load _ _ _ _ => acc0
-             | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && acc0
-             | _ => false
-             end
-           else acc0) cs true = true),
-  match c0 with
-  | insn_load _ _ _ _ => True
-  | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid))
-  | _ => used_in_cmd pid c0 = false
-  end.
-Proof.
-  induction cs; simpl; intros.
-    congruence.
-
-    assert (
-      fold_left
-        (fun acc0 c =>
-         if used_in_cmd pid c then
-           match c with
-           | insn_load _ _ _ _ => acc0
-           | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && acc0
-           | _ => false
-           end
-         else acc0) cs true = true /\
-      (if used_in_cmd pid a then
-         match a with
-         | insn_load _ _ _ _ => true
-         | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && true
-         | _ => false
-         end
-       else true) = true) as J3.
-      apply fold_left_and_true; auto.
-        apply used_in_cmd_fun_spec.
-
-    destruct J3 as [J3 J4]. clear J2.
-    destruct (eq_atom_dec id0 (getCmdLoc a)); subst.
-      inv J1. clear IHcs J3.
-      remember (used_in_cmd pid a) as R.
-      destruct R.
-        destruct a; auto.
-          apply andb_true_iff in J4.
-          destruct J4; auto.
-        destruct a; auto.
-          simpl in *.
-          symmetry in HeqR.
-          apply orb_false_iff in HeqR.
-           destruct HeqR.
-           apply unused_in_value__neg_valueEqB; auto.
-
-      clear J4.
-      eapply IHcs in J3; eauto.
-Qed.
-
 Lemma is_promotable_cmd_spec: forall pid (a0 : bool) (b : cmd)
   (H: is_promotable_cmd pid a0 b = true), a0 = true.
 Proof.
@@ -329,61 +210,6 @@ Proof.
     destruct H1 as [H1 | H1]; subst; auto.
 Qed.
 
-Lemma neg_valueEqB__unused_in_value: forall pid v,
-  negb (valueEqB v (value_id pid)) ->
-  used_in_value pid v = false.
-Proof.
-  intros.
-  unfold valueEqB in H.
-  destruct v as [i0|]; auto.
-  destruct (value_dec (value_id i0) (value_id pid)); simpl in *.
-    congruence.
-
-    destruct (id_dec i0 pid); subst; auto.
-      congruence.
-Qed.
-
-Lemma unused_in_list_value__unused_in_value: forall pid v0 l0,
-  used_in_list_value pid l0 = false ->
-  valueInListValue v0 l0 ->
-  used_in_value pid v0 = false.
-Proof.
-  induction l0; simpl; intros.
-    inv H0.
-
-    simpl_prod.
-    apply orb_false_iff in H.
-    destruct H as [J1 J2].
-    inv H0; auto.
-Qed.
-
-Lemma unused_in_params__used_in_value: forall pid v0 ps
-  (H1: fold_left
-         (fun (acc : bool) (p : typ * attributes * value) =>
-          let '(_, v) := p in used_in_value pid v || acc) ps false = false)
-  (H2 : valueInParams v0 ps),
-  used_in_value pid v0 = false.
-Proof.
-  induction ps as [|[]]; simpl; intros.
-    inv H2.
-
-    assert (forall (a : bool) (b : typ * attributes * value),
-      (let '(_, v1) := b in used_in_value pid v1 || a) = false -> a = false).
-      intros. destruct b.
-      apply orb_false_iff in H.
-      destruct H; auto.
-    apply fold_left_or_false in H1; auto.
-    destruct H1 as [J1 J2]. clear H.
-    apply orb_false_iff in J2.
-    destruct J2.
-    unfold valueInParams in *.
-    simpl in H2.
-    remember (split ps) as R.
-    destruct R.
-    simpl in H2.
-    destruct H2 as [H2 | H2]; subst; auto.
-Qed.
-
 Lemma WF_PhiInfo_spec4: forall pinfo,
   WF_PhiInfo pinfo ->
   forall instr id0 v0,
@@ -442,26 +268,6 @@ Proof.
       try solve [auto | match goal with
                         | H1: False |- _ => inv H1
                         end].
-Qed.
-
-Lemma unused_in_phis__unused_in_phi': forall (pid: id) (ps: phinodes)
-  (p0 : phinode) (J1 : InPhiNodesB p0 ps)
-  (J2 : fold_left (fun (re : bool) (p : phinode) => re || used_in_phi pid p)
-          ps false = false),
-  used_in_phi pid p0 = false.
-Proof.
-  induction ps; simpl; intros.
-    congruence.
-
-    assert (fold_left (fun (re : bool) (p : phinode) => re || used_in_phi pid p)
-              ps false = false /\ used_in_phi pid a = false) as J3.
-      apply fold_left_or_false; auto.
-        apply used_in_phi_fun_spec.
-
-    destruct J3 as [J3 J4].
-    apply orb_true_iff in J1.
-    destruct J1 as [J1 | J1]; auto.
-      apply phinodeEqB_inv in J1. subst. auto.
 Qed.
 
 Lemma unused_in_cmds__unused_in_cmd': forall (pid id0 : id) (cs : cmds)
@@ -3027,4 +2833,3 @@ repeat match goal with
 | H: Forall uniqEC (?EC::_) |- uniqEC ?EC => inv H; auto
 | H: Forall uniqEC (_::?EC::_) |- uniqEC ?EC => inv H; auto
 end.
-

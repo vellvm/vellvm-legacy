@@ -113,6 +113,8 @@
 ./Transforms/dtree_props.v
 ./Transforms/primitives.v
 ./Transforms/gvn.v
+./Transforms/iter_pass.v
+./Transforms/iter_pass_correct.v
 ./Transforms/mem2reg.v
 ./Transforms/promotable_props.v
 ./Transforms/top_sim.v
@@ -151,4 +153,5 @@
 ./Transforms/subst.v
 ./Transforms/alive_alloca.v
 ./Transforms/trans_tactic.v
+./Transforms/phielim_top.v
 ./Transforms/list_facts.v
