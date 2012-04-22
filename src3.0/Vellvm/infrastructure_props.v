@@ -3822,9 +3822,19 @@ Proof.
       left. solve_refl.
 Qed.
 
+Lemma InBlocksB__In: forall b bs, InBlocksB b bs = true -> In b bs.
+Proof.
+  induction bs; simpl; intros.
+    congruence.
+
+    binvt H as H1 H2; auto.
+      apply blockEqB_inv in H1. auto.
+Qed.
+
 Ltac solve_in_list :=
 unfold is_true in *;
 repeat match goal with
+| H1: InBlocksB ?b ?bs = true |- In ?b ?bs => apply InBlocksB_In; auto
 | H1: In ?b ?bs |- InBlocksB ?b ?bs = true => apply In_InBlocksB; auto
 | H1: In ?p ?ps |- InProductsB ?p ?ps = true => apply In_InProductsB; auto
 | H1: InProductsB ?p ?ps = true |- In ?p ?ps => apply InProductsB_In; auto
@@ -6072,4 +6082,24 @@ Proof.
       eauto.
       apply IHl0 in H. destruct H as [x [J1 J2]]. eauto.
 Qed.
+
+Ltac solve_block_eq :=
+match goal with
+| Hlkup: lookupBlockViaIDFromFdef ?F ?id = Some ?b |- 
+  _ = ?b =>
+    eapply block_eq2 with (id1:=id); try solve 
+      [eauto 1 | solve_blockInFdefB | simpl; xsolve_in_list | solve_in_list]
+| Hlkup: Some ?b = lookupBlockViaIDFromFdef ?F ?id |- 
+  _ = ?b =>
+    eapply block_eq2 with (id1:=id); try solve 
+      [eauto 1 | solve_blockInFdefB | simpl; xsolve_in_list | solve_in_list]
+| Hlkup: lookupBlockViaIDFromFdef ?F ?id = Some ?b |- 
+  ?b = _ =>
+    eapply block_eq2 with (id1:=id); try solve 
+      [eauto 1 | solve_blockInFdefB | simpl; xsolve_in_list | solve_in_list]
+| Hlkup: Some ?b = lookupBlockViaIDFromFdef ?F ?id |- 
+  ?b = _ =>
+    eapply block_eq2 with (id1:=id); try solve 
+      [eauto 1 | solve_blockInFdefB | simpl; xsolve_in_list | solve_in_list]
+end.
 

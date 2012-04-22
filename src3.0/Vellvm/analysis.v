@@ -1661,6 +1661,21 @@ Proof.
         destruct H; auto.
 Qed.
 
+Lemma init_scope_incl: forall F l1 ps1 cs1 tmn1 id1,
+  incl (init_scope F ps1 cs1 id1)
+       (getBlockIDs (block_intro l1 ps1 cs1 tmn1) ++ getArgsIDsOfFdef F).
+Proof.
+  unfold init_scope.
+  intros. intros x Hin.
+  destruct_if.
+    xsolve_in_list.
+
+    simpl.
+    destruct_in Hin; xsolve_in_list.
+      apply cmds_dominates_cmd_spec in Hin.
+      xsolve_in_list.
+Qed.
+
 Lemma cmds_dominates_cmd_spec' : forall ids1 id2 cs id0,
   In id2 (ids1 ++ cmds_dominates_cmd cs id0) ->
   In id2 (ids1 ++ getCmdsIDs cs).
@@ -2853,6 +2868,33 @@ Proof.
       apply orb_true_intro. auto.
 Qed.
 
+Lemma idDominates__inscope_of_cmd: forall l0 ps0 cs tmn0 F c2 id1
+  (HBinFB : blockInFdefB (block_intro l0 ps0 cs tmn0) F = true)
+  (Hin : In c2 cs) (HuniqF: uniqFdef F)
+  (Hdom: idDominates F id1 (getCmdLoc c2)) ids2
+  (Hinscope: Some ids2 = inscope_of_cmd F (block_intro l0 ps0 cs tmn0) c2),
+  In id1 ids2.
+Proof.
+  unfold idDominates, inscope_of_cmd.
+  intros.
+  inv_mbind. symmetry_ctx.
+  assert (block_intro l0 ps0 cs tmn0 = b) as EQ.
+    solve_block_eq.
+  subst. uniq_result. auto.
+Qed.
+
+Lemma in_getArgsIDsOfFdef__inscope_of_blocks_with_init: forall contents' F' 
+  ids2 init l1
+  (Hinscope : fold_left (inscope_of_block F' l1) contents'
+               (ret init) = ret ids2) id1
+  (Hinc: incl (getArgsIDsOfFdef F') init)
+  (Hin: In id1 (getArgsIDsOfFdef F')), In id1 ids2.
+Proof.
+  intros.
+  apply fold_left__spec in Hinscope.
+  destruct Hinscope as [Hinscope _]. auto.
+Qed.
+ 
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     list (value * l) -> Prop :=
 | wf_phi_operands_nil : wf_phi_operands f b id0 t0 nil

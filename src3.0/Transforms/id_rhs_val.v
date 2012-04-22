@@ -4,49 +4,11 @@ Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
-Require Import Maps.
 Require Import opsem_props.
 Require Import trans_tactic.
 Require Import palloca_props.
 Require Import program_sim.
-
-Definition DGVMap := @Opsem.GVsMap DGVs.
-
-Definition wf_defs (v1 v2:value) F TD gl (f:fdef) (lc:DGVMap) ids0: Prop :=
-F = f ->
-forall gvs1 gvs2,
-  value_in_scope v1 ids0 ->
-  value_in_scope v2 ids0 ->
-  Opsem.getOperandValue TD v1 lc gl = Some gvs1 ->
-  Opsem.getOperandValue TD v2 lc gl = Some gvs2 ->
-  gvs1 = gvs2.
-
-Definition inscope_of_ec (ec:@Opsem.ExecutionContext DGVs) : option ids :=
-let '(Opsem.mkEC f b cs tmn lc als) := ec in
-match cs with
-| nil => inscope_of_tmn f b tmn
-| c::_ => inscope_of_cmd f b c
-end.
-
-Definition wf_ExecutionContext v1 v2 F TD gl (ps:list product)
-  (ec:Opsem.ExecutionContext) : Prop :=
-match inscope_of_ec ec with
-| Some ids0 =>
-    wf_defs v1 v2 F TD gl (Opsem.CurFunction ec) (Opsem.Locals ec) ids0
-| _ => False
-end.
-
-Fixpoint wf_ECStack v1 v2 F TD gl (ps:list product) (ecs:Opsem.ECStack) : Prop :=
-match ecs with
-| nil => True
-| ec::ecs' =>
-    wf_ExecutionContext v1 v2 F TD gl ps ec /\ wf_ECStack v1 v2 F TD gl ps ecs'
-end.
-
-Definition wf_State v1 v2 F (cfg:OpsemAux.Config) (S:Opsem.State) : Prop :=
-let '(OpsemAux.mkCfg s td ps gl _ ) := cfg in
-let '(Opsem.mkState ecs _) := S in
-wf_ECStack v1 v2 F td gl ps ecs.
+Require Import subst_inv.
 
 Definition eval_rhs TD (M:mem) gl (lc:DGVMap) (c:cmd) gv : Prop :=
 match c with
@@ -152,16 +114,13 @@ match v with
     end
 end.
 
-
-Definition substing_value (f:fdef) (v:value) : Prop := True.
-(*
+Definition substing_value (f:fdef) (v:value) : Prop :=
 match v with
 | value_const _ => True
 | value_id vid =>
     In vid (getArgsIDsOfFdef f) \/
-    exists b, lookupBlockViaIDFromFdef f vid = Some b)
+    exists instr, lookupInsnViaIDFromFdef f vid = ret instr
 end.
-*)
 
 Definition substable_values TD gl (f:fdef) (v1 v2:value) : Prop :=
 substable_value f v1 /\ substing_value f v2 /\ valueDominates f v2 v1 /\
@@ -179,10 +138,58 @@ Proof.
     try solve [uniq_result; auto | tauto].
 Qed.
 
+Lemma valueDominates_value_in_scope__value_in_scope__cmd: forall 
+  v1 v2 S M (F' : fdef) (c : cmd) (ids1 : list atom) (Huniq : uniqFdef F')
+  (HwfF: wf_fdef S M F') td gl
+  (l1 : l) (ps1 : phinodes) (cs1 : cmds) (tmn1 : terminator)
+  (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) F' = true)
+  (H0 : In c cs1)
+  (Hreach : isReachableFromEntry F' (block_intro l1 ps1 cs1 tmn1))
+  (Hinscope : ret ids1 = inscope_of_cmd F' (block_intro l1 ps1 cs1 tmn1) c)
+  (Hvals : substable_values td gl F' v1 v2) ids2
+  (Heq : AtomSet.set_eq _ (getCmdLoc c::ids1) ids2)
+  (Hina : value_in_scope v1 ids2),
+  value_in_scope v2 ids2.
+Proof.
+  intros.
+  destruct Heq as [Hinc1 Hinc2].
+  destruct Hvals as [Hval1 [Hval2 [Hdom _]]].
+  destruct v2 as [vid2|]; auto.
+  destruct v1 as [vid1|]; tinv Hdom.
+  apply Hinc1.
+  simpl. right.
+  destruct (getCmdLoc c == vid1); subst.
+    eapply idDominates__inscope_of_cmd; eauto 1.
+    apply Hdom.
+    intros b Hlkup.
+    assert (block_intro l1 ps1 cs1 tmn1 = b) as EQ.
+      solve_block_eq.
+    subst. auto.
+  
+    assert (In vid1 ids1) as Hinscope'.
+      apply Hinc2 in Hina. 
+      destruct_in Hina; try congruence.
+    simpl in Hval1, Hval2. 
+    remember (lookupInsnViaIDFromFdef F' vid1) as R.
+    destruct R; tinv Hval1.
+  
+    assert (Hidreach:=Hinscope').
+    eapply inscope_of_cmd__id_in_reachable_block with (vid:=vid1) in Hidreach; 
+      eauto 1.
+    simpl.
+    apply Hdom in Hidreach; auto.
+    apply in_split in H0. destruct H0 as [cs3 [cs2 H0]]; subst.
+    destruct Hval2 as [Hval2 | [instr Hval2]].
+      eapply in_getArgsIDsOfFdef__inscope_of_cmd; eauto 1.
+      eapply idDominates_inscope_of_cmd__inscope_of_cmd 
+        with (c:=c)
+             (instr0:=i0)(id2:=vid1); eauto 2.
+Qed.
+
 Lemma wf_defs_updateAddAL: forall v1 v2 F td Mem gl F' lc' c ids1 ids2 g0
   s m (HwfF: wf_fdef s m F') (Huniq: uniqFdef F') l1 ps1 cs1 tmn1 
   (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) F' = true)
-  (H0 : In c cs1)
+  (H0 : In c cs1) (Hreach: isReachableFromEntry F' (block_intro l1 ps1 cs1 tmn1))
   (Hinscope: ret ids1 = inscope_of_cmd F' (block_intro l1 ps1 cs1 tmn1) c)
   (Hvals : substable_values td gl F v1 v2)
   (Hvinscope2 : vev_defs v1 v2 F td Mem gl F' lc' c ids1)
@@ -194,9 +201,11 @@ Lemma wf_defs_updateAddAL: forall v1 v2 F td Mem gl F' lc' c ids1 ids2 g0
 Proof.
 Local Opaque inscope_of_cmd.
   intros.
+  intros EQ gvsa gvsb Hina Hgeta Hgetb; subst.
+  assert (Hinb: value_in_scope v2 ids2).
+    eapply valueDominates_value_in_scope__value_in_scope__cmd; eauto.
   destruct Heq as [Hinc1 Hinc2].
   destruct Hvals as [Hval1 [Hval2 [Hdom _]]].
-  intros EQ gvsa gvsb Hina Hinb Hgeta Hgetb; subst.
   unfold vev_defs in Hvinscope2.
   unfold wf_defs in Hinscope2'.
   destruct v1 as [vid1 | vc1]; simpl in *.
@@ -241,11 +250,6 @@ Local Opaque inscope_of_cmd.
 
         SSSCase "vid2 <> c".
           rewrite <- lookupAL_updateAddAL_neq in Hgetb; auto.
-          rewrite Hgetb in Hvinscope2.
-          assert (In vid2 ids1) as Hin'.
-            apply Hinc2 in Hinb. simpl in Hinb.
-            destruct Hinb; subst; try congruence; auto.
-          eauto.
 
     SCase "v2 = vc2".
       rewrite Hgetb in Hvinscope2.
@@ -262,25 +266,11 @@ Local Opaque inscope_of_cmd.
           apply Hinc2 in Hina. simpl in Hina.
           destruct Hina; subst; try congruence; auto.
         eapply Hinscope2'; eauto.
-
   Case "v1 = vc1".
     destruct v2 as [vid2 | vc2]; simpl in *; eauto.
     SCase "v2 = vid1".
       tauto.
 Transparent inscope_of_cmd.
-Qed.
-
-Lemma wf_defs_eq : forall ids2 ids1 v1 v2 F td gl F' lc',
-  AtomSet.set_eq _ ids1 ids2 ->
-  wf_defs v1 v2 F td gl F' lc' ids1 ->
-  wf_defs v1 v2 F td gl F' lc' ids2.
-Proof.
-  intros.
-  intros EQ gv1 gv2 Hin1 Hin2 Hget1 Hget2; subst.
-  destruct H as [J1 J2].
-  eapply H0; eauto.
-    destruct v1; simpl in *; eauto.
-    destruct v2; simpl in *; eauto.
 Qed.
 
 Ltac destruct_ctx_return :=
@@ -342,6 +332,46 @@ Proof.
   rewrite J in Hvals. auto.
 Qed.
 
+Lemma valueDominates_value_in_scope__value_in_scope__at_beginning: forall 
+  v1 v2 S M (F' : fdef) (ids1 : list atom) (Huniq : uniqFdef F')
+  (HwfF: wf_fdef S M F') td gl
+  (l1 : l) (ps1 : phinodes) (cs1 : cmds) (tmn1 : terminator)
+  (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) F' = true)
+  (Hreach : isReachableFromEntry F' (block_intro l1 ps1 cs1 tmn1))  
+  (Hvals : substable_values td gl F' v1 v2) ids2
+  (contents' : ListSet.set atom)
+  (inbound' : incl contents' (bound_fdef F'))
+  (Heqdefs' : {|
+             DomDS.L.bs_contents := contents';
+             DomDS.L.bs_bound := inbound' |} = (dom_analyze F') !! l1)
+  (Hinscope : (fold_left (inscope_of_block F' l1) contents'
+    (ret (getPhiNodesIDs ps1 ++ getArgsIDsOfFdef F')) = ret ids2))
+  (Hina : value_in_scope v1 ids2),
+  value_in_scope v2 ids2.
+Proof.
+  intros.
+  destruct Hvals as [Hval1 [Hval2 [Hdom _]]].
+  destruct v2 as [vid2|]; auto.
+  destruct v1 as [vid1|]; tinv Hdom.
+  simpl in Hval1, Hval2. 
+  remember (lookupInsnViaIDFromFdef F' vid1) as R.
+  destruct R; tinv Hval1.
+  assert (Hidreach:=Hreach). 
+  eapply inscope_of_blocks_with_init__id_in_reachable_block with (vid:=vid1) 
+    in Hidreach; eauto 1.
+    simpl.
+    apply Hdom in Hidreach; auto.
+    destruct Hval2 as [Hval2 | [instr Hval2]].
+      eapply in_getArgsIDsOfFdef__inscope_of_blocks_with_init; eauto.
+      intros x Hin. xsolve_in_list.
+
+      eapply idDominates_inscope_of_cmd_at_beginning__inscope_of_cmd_at_beginning
+        with (instr0:=i0)(id2:=vid1); eauto 2.
+
+    intros id0 Hin0. simpl.
+    destruct_in Hin0; xsolve_in_list.
+Qed.
+
 Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl S M lc l' ps' cs' lc' F tmn' b
   (Hreach : isReachableFromEntry F b)
   (Hreach': isReachableFromEntry F (block_intro l' ps' cs' tmn'))
@@ -364,9 +394,13 @@ Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl S M lc l' ps' cs' lc' F tmn' b
   (Hinc : incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) t),
   wf_defs v1 v2 F0 TD gl F lc' ids0'.
 Proof.
-  intros. destruct Hvals as [Hval1 [Hval2 [Hdom _]]].
+  intros. 
+  intros EQ gvs1 gvs2 Hin1 Hget1 Hget2; subst.
+  assert (Hin2: value_in_scope v2 ids0').
+    eapply valueDominates_value_in_scope__value_in_scope__at_beginning; eauto 1.
+      solve_blockInFdefB.
+  destruct Hvals as [Hval1 [Hval2 [Hdom _]]].
   unfold Opsem.switchToNewBasicBlock in Hswitch. simpl in Hswitch.
-  intros EQ gvs1 gvs2 Hin1 Hin2 Hget1 Hget2; subst.
   remember (Opsem.getIncomingValuesForBlockFromPHINodes TD ps' b gl lc) as R1.
   destruct R1 as [rs|]; inv Hswitch.
   destruct v1 as [vid1 | vc1]; simpl in *.
@@ -739,7 +773,7 @@ Proof.
   intros. destruct Hvals as [Hval1 [Hval2 [Hdom Hcst]]].
   assert (incl nil (bound_blocks lb)) as J.
     intros x J. inv J.
-  intros EQ gvs1 gvs2 Hin1 Hin2 Hget1 Hget2; subst.
+  intros EQ gvs1 gvs2 Hin1 Hget1 Hget2; subst.
   destruct v1 as [vid1 | vc1].
     eapply substable_value_isnt_arg in Hval1; eauto.
     simpl in Hin1. congruence.
@@ -1039,7 +1073,7 @@ Proof.
   apply fold_left__bound_blocks with (fh:=fheader_intro fa rt fid la va)(l0:=l')
     (init:=getArgsIDs la) in J.
   destruct J as [r J]. unfold l in *. simpl in *. uniq_result.
-  intros EQ gvs1 gvs2 Hinscope1 Hinscope2 Hget1 Hget2.
+  intros EQ gvs1 gvs2 Hinscope1 Hget1 Hget2.
   destruct Hsubst as [Hval1 [Hval2 [Hdom Hcst]]].
   rewrite EQ in Hval2, Hval1.
   assert (uniqFdef (PI_f pinfo)) as Huniq'. 

@@ -4554,3 +4554,133 @@ Proof.
     simpl in Hdom''. rewrite <- HeqR0 in Hdom''. auto.
 Qed.
 
+Lemma lookupTypViaIDFromFdef_elim': forall (f : fdef) (vid : id) (t : typ)
+  (Hlk: lookupTypViaIDFromFdef f vid = ret t) (HuniqF: uniqFdef f),
+  In vid (getArgsIDsOfFdef f) \/
+  exists instr : insn,
+    lookupInsnViaIDFromFdef f vid = ret instr /\
+    getInsnTyp instr = ret t /\ getInsnLoc instr = vid.
+Proof.
+  intros. 
+  apply lookupTypViaIDFromFdef_elim in Hlk; auto.
+  destruct Hlk as [[att0 Hin] | [b [instr [J1 [J2 J3]]]]]; subst.
+    left. destruct f as [[]]. simpl in *.
+    eapply In_getArgsIDs_spec; eauto.
+
+    right. exists instr. split; auto.
+    eapply IngetInsnsLocs__lookupInsnViaIDFromFdef; eauto.
+Qed.
+
+Lemma inscope_of_blocks_with_init__id_in_reachable_block: forall s m F 
+  (HwfF: wf_fdef s m F) (Huniq: uniqFdef F) b
+  (Hreach : isReachableFromEntry F b)
+  (HBinF : blockInFdefB b F = true)
+  (contents' : ListSet.set atom)
+  (inbound' : incl contents' (bound_fdef F))
+  (Heqdefs' : {| DomDS.L.bs_contents := contents';
+                 DomDS.L.bs_bound := inbound' |} = 
+              (dom_analyze F) !! (getBlockLabel b)) ids2 init
+  (Hinscope : (fold_left (inscope_of_block F (getBlockLabel b)) contents'
+    (ret init) = ret ids2))
+  (Hinc: incl init (getBlockIDs b ++ getArgsIDsOfFdef F)) vid
+  (HIn: In vid ids2),
+  id_in_reachable_block F vid.
+Proof.
+  intros.
+  intros b' Hlkup'.
+  assert (Hinscope':=Hinscope).
+  apply fold_left__spec in Hinscope; auto.
+  destruct Hinscope as [_ [_ Hinscope]].
+  apply Hinscope in HIn.
+  destruct HIn as [Hin | [b1 [l1 [Hin [Hlk Hin']]]]].
+    apply Hinc in Hin.
+    destruct_in Hin.
+      assert (b = b') as EQ.
+        solve_block_eq.
+      subst. auto.
+
+      contradict Hin.
+      solve_notin_getArgsIDs.
+  
+    assert (b1 = b') as EQ.
+      solve_block_eq.
+    subst.
+    destruct b.
+    eapply sdom_is_sound with (l':=l1) in HBinF; eauto.
+      destruct b'.
+      apply lookupBlockViaLabelFromFdef_inv in Hlk; auto.
+      destruct Hlk; subst.
+      eapply sdom_reachable; eauto.
+
+      simpl in Heqdefs'.
+      rewrite <- Heqdefs'. simpl.
+      apply ListSet.set_diff_elim1 in Hin. auto.
+Qed.
+
+Lemma inscope_of_id__id_in_reachable_block: forall s m F (HwfF: wf_fdef s m F) 
+  (Huniq: uniqFdef F) l1 ps1 cs1 tmn1
+  (Hreach : isReachableFromEntry F (block_intro l1 ps1 cs1 tmn1))
+  (HBinF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true) c
+  (HcInCs : In c cs1) ids1
+  (Hinscope: 
+    ret ids1 = inscope_of_id F (block_intro l1 ps1 cs1 tmn1) (getCmdLoc c)) vid
+  (HIn: In vid ids1),
+  id_in_reachable_block F vid.
+Proof.
+  unfold inscope_of_id.
+  intros. 
+  remember ((dom_analyze F) !! l1) as R.
+  destruct R. 
+  eapply inscope_of_blocks_with_init__id_in_reachable_block in HBinF; 
+    eauto using init_scope_incl.
+Qed.
+
+Lemma inscope_of_cmd__id_in_reachable_block: forall s m F (HwfF: wf_fdef s m F) 
+  (Huniq: uniqFdef F) l1 ps1 cs1 tmn1
+  (Hreach : isReachableFromEntry F (block_intro l1 ps1 cs1 tmn1))
+  (HBinF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true) c
+  (HcInCs : In c cs1) ids1
+  (Hinscope: ret ids1 = inscope_of_cmd F (block_intro l1 ps1 cs1 tmn1) c) vid
+  (HIn: In vid ids1),
+  id_in_reachable_block F vid.
+Proof.
+  unfold inscope_of_cmd.
+  intros. 
+  eapply inscope_of_id__id_in_reachable_block; eauto.
+Qed.
+
+Lemma idDominates_inscope_of_cmd_at_beginning__inscope_of_cmd_at_beginning: 
+  forall (f : fdef) (t : list atom) (l1 : l) (ps1 : phinodes)
+  (cs1 cs : cmds) (s : system) (m : module) (tmn1 : terminator) (id1 : id) 
+  (instr1 : insn) (id2 : id)
+  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true) contents'
+  (inbound' : incl contents' (bound_fdef f))
+  (Heqdefs' : {| DomDS.L.bs_contents := contents';
+                 DomDS.L.bs_bound := inbound' |} = (dom_analyze f) !! l1)
+  (Hinscope : fold_left (inscope_of_block f l1) contents'
+               (ret (getPhiNodesIDs ps1 ++ getArgsIDsOfFdef f)) = 
+             ret t)
+  (HwfF: wf_fdef s m f) (HuniqF: uniqFdef f)
+  (Hreach: isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
+  (Hdom: idDominates f id1 id2)
+  (Hlkup: lookupInsnViaIDFromFdef f id1 = ret instr1) (instr0 : insn),
+  ret instr0 = lookupInsnViaIDFromFdef f id2 -> In id2 t -> In id1 t.
+Proof.
+  intros.
+  destruct cs1 as [|c cs1].
+    eapply idDominates_inscope_of_tmn__inscope_of_tmn; eauto.
+    simpl. rewrite <- Heqdefs'. auto.
+
+    rewrite_env (nil ++ c :: cs1) in HBinF.
+    eapply idDominates_inscope_of_cmd__inscope_of_cmd; eauto 1.
+    simpl. rewrite <- Heqdefs'. 
+    rewrite init_scope_spec1.
+      simpl. destruct_if; try congruence.
+
+      apply uniqFdef__uniqBlockLocs in HBinF; auto.
+      simpl in HBinF.
+      eapply NoDup_disjoint in HBinF; simpl; eauto.
+Qed.
+
+
+

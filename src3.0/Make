@@ -151,7 +151,11 @@
 ./Transforms/mem2reg_correct.v
 ./Transforms/program_sim.v
 ./Transforms/subst.v
+./Transforms/subst_inv.v
+./Transforms/subst_sim.v
 ./Transforms/alive_alloca.v
 ./Transforms/trans_tactic.v
+./Transforms/phielim_spec.v
+./Transforms/phisubst_inv.v
 ./Transforms/phielim_top.v
 ./Transforms/list_facts.v

@@ -31,6 +31,24 @@ Proof.
   simpl. auto.
 Qed.
 
+Lemma subst_fdef_dom__diinfo: forall S M f id0 v0
+  (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
+  (Hpure: forall (instr : insn)
+            (Hlkup: lookupInsnViaIDFromFdef f id0 = ret instr),
+            pure_cmd instr)
+  (Hreach: id_in_reachable_block f id0)
+  (Hvdom: valueDominates f v0 (value_id id0)),
+  exists diinfo:DIInfo, 
+    DI_f diinfo = subst_fdef id0 v0 f /\ DI_id diinfo = id0.
+Proof.
+  intros.
+  apply subst_fdef__diinfo; auto.
+    intro J.
+    destruct v0; simpl in *; try tauto.
+    destruct J as [J | J]; try tauto. subst.
+    eapply idDominates_acyclic; eauto.
+Qed.
+
 Lemma die_wfS: forall id0 f diinfo los nts Ps1 Ps2
   (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Heq1: f = DI_f diinfo) (Heq2: id0 = DI_id diinfo),

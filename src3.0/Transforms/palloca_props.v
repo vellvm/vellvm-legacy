@@ -1374,17 +1374,6 @@ Proof.
     simpl. auto.
 Qed.
 
-(* copied from SB *)
-Lemma cmds_at_block_tail_next : forall B c cs tmn2,
-  (exists l1, exists ps1, exists cs11, B =
-    block_intro l1 ps1 (cs11 ++ c :: cs) tmn2) ->
-  exists l1, exists ps1, exists cs11, B = block_intro l1 ps1 (cs11 ++ cs) tmn2.
-Proof.
-  intros.
-  destruct H as [l1 [ps1 [cs11 H]]]; subst.
-  exists l1. exists ps1. exists (cs11 ++ [c]). simpl_env. auto.
-Qed.
-
 Lemma phinodes_placement_blocks__disjoint_tmps: forall l0 i1 i2 i3 i0
   pid t al nids succs preds
   (Hdisj: forall l1 l2 a1 b1 c1 a2 b2 c2,

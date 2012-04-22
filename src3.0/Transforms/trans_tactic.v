@@ -169,12 +169,16 @@ match goal with
 | _ => solve_in_list
 end.
 
-(* go to *)
-Lemma InBlocksB__In: forall b bs, InBlocksB b bs = true -> In b bs.
+(* copied from SB *)
+Lemma cmds_at_block_tail_next : forall B c cs tmn2,
+  (exists l1, exists ps1, exists cs11, B =
+    block_intro l1 ps1 (cs11 ++ c :: cs) tmn2) ->
+  exists l1, exists ps1, exists cs11, B = block_intro l1 ps1 (cs11 ++ cs) tmn2.
 Proof.
-  induction bs; simpl; intros.
-    congruence.
-
-    binvt H as H1 H2; auto.
-      apply blockEqB_inv in H1. auto.
+  intros.
+  destruct H as [l1 [ps1 [cs11 H]]]; subst.
+  exists l1. exists ps1. exists (cs11 ++ [c]). simpl_env. auto.
 Qed.
+
+Ltac repeat_solve :=
+  repeat (split; eauto 2 using cmds_at_block_tail_next).
