@@ -74,6 +74,9 @@ repeat match goal with
 | H : ?f _ _ _ _ _ = ?f _ _ _ _ _ |- _ => inv H
 | H : False |- _ => inv H
 | H: moduleEqB _ _ = true |- _ => apply moduleEqB_inv in H; inv H
+| H: valueEqB _ _ = true |- _ => apply valueEqB_inv in H; inv H
+| H: true = valueEqB _ _ |- _ => 
+     symmetry in H; apply valueEqB_inv in H; inv H
 | H: phinodeEqB _ _ = true |- _ => apply phinodeEqB_inv in H; inv H
 | H: _ =cmd= _ = true |- _ => apply cmdEqB_inv in H; inv H
 | H: _ =tmn= _ = true |- _ => apply terminatorEqB_inv in H; inv H

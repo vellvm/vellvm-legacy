@@ -2,49 +2,7 @@ Require Import vellvm.
 Require Import primitives.
 Require Import mem2reg.
 Require Import trans_tactic.
-
-Lemma eliminate_phi_false_spec: forall f p f'
-  (Helim: (f', false) = eliminate_phi f p), f = f'.
-Admitted. (* spec *)
-
-Lemma lookupBlockViaLabelFromFdef_self: forall f bv (Huniq: uniqFdef f),
-  lookupBlockViaLabelFromFdef f (getBlockLabel bv) = ret bv.
-Admitted.
-
-Ltac solve_lookupBlockViaLabelFromFdef' :=
-match goal with
-| Huniq: uniqFdef ?f |- 
-  lookupBlockViaLabelFromFdef ?f (getBlockLabel ?b) = ret ?b =>
-    eapply lookupBlockViaLabelFromFdef_self; eauto
-| _ => solve_lookupBlockViaLabelFromFdef
-end.
-
 Require Import Dipaths.
-
-Lemma non_sdom__inv: forall f l1 l2 be (Hentry: getEntryBlock f = Some be)
-  (Hnsdom: ~ strict_domination f l1 l2),
-  l1 = l2 \/ 
-  exists vl, exists al, D_walk (vertexes_fdef f) (arcs_fdef f) 
-    (index l2) (index (getBlockLabel be)) vl al /\
-    ~ In (index l1) vl.
-Admitted.
-
-Lemma wf_phi_operands__successors: forall (S : system) (M : module) (f : fdef)
-  (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator) 
-  (Hwf : wf_fdef S M f) (Huniq : uniqFdef f) (value_l_list : list (value * l))
-  (id5 : id) (typ5 : typ)
-  (Hwfops : wf_phi_operands f (block_intro l0 ps0 cs0 tmn0) id5 typ5
-              value_l_list) l1
-  (Hscs: arcs_fdef f (A_ends (index l0) (index l1))),
-  exists vid1, In (value_id vid1, l1) value_l_list.
-Admitted.
-
-Require Import Kildall.
-
-Lemma blockInFdef__bound_fdef: forall f b,
-  blockInFdefB b f = true ->
-  In (getBlockLabel b) (bound_fdef f).
-Admitted.
 
 Lemma all_non_reachable__or__ex_reachable: forall f v (vls:list (value*l)),
   (forall l0, In (v,l0) vls -> ~ reachable f l0) \/
@@ -77,6 +35,24 @@ Proof.
         exists l0. simpl. auto.
 Qed.
 
+Lemma eliminate_phi_false_spec: forall f p f'
+  (Helim: (f', false) = eliminate_phi f p), f = f'.
+Proof.
+  destruct p as [pid pty pvls].
+  unfold eliminate_phi.
+  intros. 
+  remember (remove_redundancy nil (value_id pid :: List.map fst pvls)) 
+    as R.
+  destruct R as [|[] l0]; inv Helim; auto.
+    destruct l0 as [|[] l0]; inv H0; auto.
+      destruct l0 as [|]; inv H1; auto.
+      destruct_if; auto.
+
+      destruct l0 as [|]; inv H1; auto.
+      destruct_if; auto.
+    destruct l0 as [|? [|]]; inv H0; auto.
+Qed.
+
 Lemma eliminate_phis_false_spec: forall f' f ps0
   (Helim: (f', false) = eliminate_phis f ps0 ), f' = f.
 Proof.
@@ -89,6 +65,7 @@ Proof.
     apply eliminate_phi_false_spec in HeqR. subst. auto.
 Qed.
 
+(* b0 defines a phinode whose reachable incoming values are all defined in b0 *)
 Inductive selfrefl_phi (f:fdef) (b0:block): phinode -> Prop :=
 | selfrefl_phi_intro: forall pid ty vls
     (Hinc: insnInFdefBlockB (insn_phinode (insn_phi pid ty vls)) f b0 = true)
@@ -151,16 +128,11 @@ Proof.
                   domination f (getBlockLabel bv) vl) as Hvid_spec.
        intros. eapply wf_phi_operands__elim''; eauto.
 
-    (* entry cannot be l0's incoming block, 
-       otherwise l0 must sdom entry, or be entry. *)
-    assert (forall v vl, In (v,vl) vls -> vl <> getBlockLabel be)
-      as Hincoming_neq_entry.
-      admit.
-
-    (* l0 is reachable, so one of its pred must be reachable, say l1 *)
+   (* l0 is reachable, so one of its pred must be reachable, say l1 *)
     assert (exists v0, exists l0, In (v0, l0) vls /\ reachable f l0)
       as Hex_reach_pred.
-      admit.
+      eapply reachable_phinode__ex_reachable_incoming; eauto.
+
     destruct Hex_reach_pred as [v1 [l1 [Hinlist1 Hreach1]]].
     assert (Hinlist1':=Hinlist1).
     apply Hid in Hinlist1'.
@@ -171,12 +143,8 @@ Proof.
     uniq_result.
 
     (* Get the path from entry to l1, l0 must be on the path. *)
-    unfold domination in Hdom.
-    unfold reachable in Hreach1.
-    rewrite Hentry in Hdom. 
-    rewrite Hentry in Hreach1. 
-    destruct be as [le ? ? ?].
-    destruct Hreach1 as [vl [al Hwalk]].
+    unfold_reachable_tac.
+    unfold_domination_tac.
     apply DWalk_to_dpath in Hwalk.
     destruct Hwalk as [vl0 [al0 Hpath]].
     assert (Hwalk:=Hpath).
@@ -201,8 +169,8 @@ Proof.
        rename H4 into Harc; destruct y as [ly];
        assert (Hwalk2:=H); apply D_path_isa_walk in Hwalk2
     end.
-    eapply wf_phi_operands__successors in Harc; eauto 1.
-    destruct Harc as [vid2 Hinlist2].
+    eapply wf_phi_operands__successors in Hwflist; eauto 1.
+    destruct Hwflist as [v2 Hinlist2].
 
     assert (reachable f ly) as Hreachy.
       unfold reachable. fill_ctxhole. eauto.
@@ -221,8 +189,7 @@ Proof.
 
     (* In the path from entry to ly, l0 must be there, since l0 doms ly.
        But, a simple path cannot contain two l0. *)
-    unfold domination in Hdom2.
-    rewrite Hentry in Hdom2.
+    unfold_domination_tac.
     apply Hdom2 in Hwalk2.
     clear - Hwalk2 Hpath2' Hneq. simpl in *.
     apply DP_endx_ninV in Hpath2'; try congruence.
@@ -231,7 +198,10 @@ Proof.
       destruct Hwalk2; subst; auto.
 Qed.
 
-(* vid = phi [vid vid ... vid] *)
+(* 
+  all incoming variables equal to the variable defined by the phinode:
+    vid = phi [vid vid ... vid] 
+*)
 Inductive identity_phi: phinode -> Prop :=
 | identity_phi_intro: forall vid ty vls
     (Hid: forall v0 l0, In (v0, l0) vls -> v0 = value_id vid),
@@ -272,7 +242,10 @@ Proof.
     eauto using identity_phi__selfrefl_phi.
 Qed.
 
-(* vid = phi [vid v ... vid v] *)
+(* 
+  all incoming values equal to either v or the variable defined by the phinode:
+    vid = phi [vid v ... vid v] 
+*)
 Inductive assigned_phi (v:value): phinode -> Prop :=
 | assigned_phi_intro: forall vid ty vls
     (Hex: exists l0, In (v, l0) vls)
@@ -407,7 +380,7 @@ Proof.
 
                   eapply blockStrictDominates__non_empty_contents in Hentry_sdom; 
                     eauto.
-                solve_lookupBlockViaLabelFromFdef'.
+                solve_lookupBlockViaLabelFromFdef.
                 solve_in_list. auto.
             SSSSSCase "bv doesnt sdom blv".
               eapply non_sdom__inv in Hnsdom; eauto 1.
@@ -453,8 +426,8 @@ Proof.
                 match goal with
                 | H4: arcs_fdef _ _ |- _ => rename H4 into Harc
                 end.
-                eapply wf_phi_operands__successors in Harc; eauto 1.
-                destruct Harc as [vid1 Hinlist].
+                eapply wf_phi_operands__successors in Hwflist; eauto 1.
+                destruct Hwflist as [v1 Hinlist].
                 assert (Hvid_eq:=Hinlist).
                 inv Has.
                 apply Hassign in Hvid_eq.
@@ -500,14 +473,225 @@ Proof.
       contradict n. solve_in_list.
 Qed.
 
+Lemma valueInListValueB_spec: forall (v:value) (vs:list value),
+  valueInListValueB v vs = true <-> In v vs.
+Proof.
+  unfold valueInListValueB.
+  induction vs; simpl.
+    split; try solve [tauto | congruence].
+  
+    destruct IHvs as [J1 J2].
+    remember (valueEqB v a) as R.
+    split; intro J.
+      destruct R; auto.
+        symmetry in HeqR.
+        apply valueEqB_inv in HeqR. subst. auto.
+
+      destruct J.
+        subst v R.
+        rewrite valueEqB_refl.
+        apply fold_left_or_spec.
+          intros; subst; auto.
+
+        destruct R; auto.
+          apply fold_left_or_spec.
+            intros; subst; auto.
+Qed.
+
+Lemma remove_redundancy_aux: forall vs acc re
+  (Hred: re = remove_redundancy acc vs) 
+  (Hnodup: NoDup (values2ids acc)),
+  (forall v0, (In v0 vs \/ In v0 acc) <-> In v0 re) /\
+  NoDup (values2ids re).
+Proof.
+  intros.
+  generalize dependent acc.
+  generalize dependent re.
+  induction vs as [|v vs]; simpl; intros; subst.
+    tauto.
+
+    destruct_if.
+      assert (J:=Hnodup).
+      eapply IHvs in J; eauto.
+      simpl_env in J.
+      destruct J as [J1 J2].
+      symmetry in HeqR.
+      apply valueInListValueB_spec in HeqR.
+      split; auto.
+        intro v0.
+        split; intro J.
+          apply J1. 
+          destruct J as [J | J]; auto.
+          destruct J as [J | J]; subst; auto.
+
+          apply J1 in J. tauto.
+
+      assert (NoDup (values2ids (v::acc))) as Hnodup'.
+        simpl. 
+        destruct v as [vid|vc]; auto.
+        constructor; auto.
+          destruct (In_dec id_dec vid (values2ids acc)) as [Hin | Hnotin]; auto.
+            apply valueInValues__iff__InOps in Hin.
+            apply valueInListValueB_spec in Hin. congruence.
+
+      assert (J:=Hnodup').
+      eapply IHvs with (acc:=v::acc) in J; eauto.
+      simpl_env in J.
+      destruct J as [J1 J2].
+      simpl_env.
+      split; auto.
+        intro v0.
+        split; intro J.
+          apply J1. simpl. tauto.
+
+          apply J1 in J. simpl in J. tauto.
+Qed.
+
+Lemma remove_redundancy: forall vs vs'
+  (Hred: vs' = remove_redundancy nil vs),
+  (forall v0, In v0 vs <-> In v0 vs') /\
+  NoDup (values2ids vs').
+Proof.
+  intros.
+  apply remove_redundancy_aux in Hred; simpl; auto.
+  destruct Hred as [J1 J2].
+  split; auto.
+    intros v0.  
+    destruct (J1 v0) as [J3 J4].
+    split; auto.
+      intro J.
+      apply J4 in J. tauto.
+Qed.
+
 Lemma eliminate_phi_true_spec: forall S M f b f'
   (Hreach: isReachableFromEntry f b) p 
   (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
-  (HBinF: phinodeInFdefBlockB p f b = true)
+  (HPinF: phinodeInFdefBlockB p f b = true)
   (Helim: (f', true) = eliminate_phi f p),
   exists v, assigned_phi v p /\ 
     f' = remove_fdef (getPhiNodeID p) (subst_fdef (getPhiNodeID p) v f).
-Admitted. (* spec *)
+Proof.
+  destruct p as [pid pty pvls].
+  unfold eliminate_phi.
+  intros. 
+  bdestruct HPinF as HPinB HBinF.
+  destruct b as [l0 ps0 cs0 tmn0].
+  simpl in HPinB. apply InPhiNodesB_In in HPinB.
+  remember (mem2reg.remove_redundancy nil 
+             (value_id pid :: List.map fst pvls)) as vs.
+  apply remove_redundancy in Heqvs.
+  destruct Heqvs as [Hinc Hnodup].
+  rewrite <- fst_split__map_fst in Hinc.
+  destruct vs as [|v1 vs']; tinv Helim.
+  destruct v1 as [vid1 | vc1].
+  Case "1".
+    destruct vs' as [|v2].
+    SCase "1.1: pid = phi pid ... pid".
+      elimtype False.
+      eapply identity_phi_cannot_be_in_reachable_blocks; eauto 1.
+      constructor.
+        intros v1 l1 Hin.
+        apply in_split_l in Hin. simpl in Hin.
+        assert (pid = vid1) as EQ.
+          assert (In (value_id pid) (value_id vid1 :: nil)) as Hin1.
+            apply Hinc; simpl; auto.
+            destruct_in Hin1; try tauto. 
+          congruence.
+        subst.
+        assert (In v1 (value_id vid1 :: fst (split pvls))) as Hin'.
+          simpl. auto.
+        apply Hinc in Hin'.
+        destruct_in Hin'; try tauto. 
+       
+    SCase "1.2".
+      destruct vs' as [|]; tinv Helim.
+      SSCase "1.2.1: pid = phi v2 .. v2 . pid".
+        destruct_dec; inv Helim.
+          SSSCase "pid=vid1".
+          exists v2.
+          split; auto.
+            constructor.
+              apply split_l_in; auto.
+              assert (In v2 (value_id vid1 :: v2 :: nil)) as Hin.
+                simpl; auto.
+              apply Hinc in Hin.
+              destruct_in Hin.
+                simpl in Hnodup. inv Hnodup. simpl in H1. tauto.
+
+              intros v1 l1 Hin.  
+              apply in_split_l in Hin. simpl in Hin.
+              assert (In v1 (value_id vid1 :: fst (split pvls))) as Hin'.
+                simpl. auto.
+              apply Hinc in Hin'.
+              destruct_in Hin'; auto.
+              destruct Hin'; subst; tauto.
+
+          SSSCase "pid<>vid1".
+          exists (value_id vid1). 
+          split; auto.
+            constructor.
+              apply split_l_in; auto.
+              assert (In (value_id vid1) (value_id vid1 :: v2 :: nil)) as Hin.
+                simpl; auto.
+              apply Hinc in Hin.
+              destruct_in Hin. 
+                congruence.
+
+              assert (v2 = value_id pid) as EQ.         
+                assert (In (value_id pid) (value_id pid :: fst (split pvls))) 
+                  as Hin0.
+                  simpl; auto.
+                apply Hinc in Hin0.
+                destruct_in Hin0.
+                  congruence.
+              subst.
+              intros v1 l1 Hin.  
+              apply in_split_l in Hin. simpl in Hin.
+              assert (In v1 (value_id pid :: fst (split pvls))) as Hin'.
+                simpl. auto.
+              apply Hinc in Hin'.
+              destruct_in Hin'; auto.
+              destruct Hin'; subst; tauto.
+
+  Case "2".
+    destruct vs' as [|? vs']; tinv Helim.
+    SCase "2.1: pid = vc".
+      assert (In (value_id pid) (value_id pid :: fst (split pvls))) as Hin.
+        simpl; auto.
+      apply Hinc in Hin.
+      destruct_in Hin.
+        congruence.
+
+    SCase "2.2".
+      destruct vs' as [|? vs']; inv Helim.
+        SSCase "2.2.2: pid = phi pid c .. c . pid".
+        assert (v = value_id pid) as EQ.         
+          assert (In (value_id pid) (value_id pid :: fst (split pvls))) 
+            as Hin0.
+            simpl; auto.
+          apply Hinc in Hin0.
+          destruct_in Hin0.
+            congruence.
+        subst.
+        exists (value_const vc1).
+        split; auto.
+        constructor.
+          apply split_l_in; auto.
+          assert (In (value_const vc1) (value_const vc1 :: value_id pid :: nil))  
+            as Hin.
+            simpl; auto.
+          apply Hinc in Hin.
+          destruct_in Hin. 
+            congruence.
+
+          intros v1 l1 Hin.  
+          apply in_split_l in Hin. simpl in Hin.
+          assert (In v1 (value_id pid :: fst (split pvls))) as Hin'.
+            simpl. auto.
+          apply Hinc in Hin'.
+          destruct_in Hin'; auto.
+          destruct Hin'; subst; tauto.
+Qed.
 
 Lemma eliminate_phis_true_spec': forall f b f' S M 
   (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
@@ -555,4 +739,17 @@ Lemma assigned_phi__wf_value: forall S M p f l0 ps0 cs0 tmn0
   forall ty, 
     lookupTypViaIDFromFdef f (getPhiNodeID p) = Some ty ->
     wf_value S M f v ty.
-Admitted. (* spec *)
+Proof.
+  intros.
+  erewrite uniqF__lookupPhiNodeTypViaIDFromFdef in H; eauto.
+  inv H.
+  assert (Hwfp:=HBinF).
+  eapply wf_fdef__wf_phinodes in Hwfp; eauto.
+  eapply wf_phinodes__wf_phinode in Hwfp; eauto.
+  inv Hwfp.
+  inv Hassign.
+  destruct Hex as [lv Hinlist].
+  apply H0.
+  rewrite <- fst_split__map_fst. 
+  apply in_split_l in Hinlist; auto.
+Qed.

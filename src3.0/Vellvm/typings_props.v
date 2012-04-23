@@ -4737,3 +4737,114 @@ Proof.
 Qed.
 
 
+Lemma wf_phi_operands__successors: forall (S : system) (M : module) (f : fdef) b
+  (Huniq : uniqFdef f) (vls : list (value * l))
+  (id5 : id) (typ5 : typ) 
+  (Hwfops : check_list_value_l f b vls) l1
+  (Hscs: arcs_fdef f (A_ends (index (getBlockLabel b)) (index l1))),
+  exists v1, In (v1, l1) vls.
+Proof. 
+  simpl.
+  intros.
+  unfold check_list_value_l in Hwfops.
+  remember (split vls) as R.
+  destruct R as [? ls1].
+  destruct Hwfops as [_ [Hwfops _]].
+  apply successors_predOfBlock' in Hscs; auto.
+  apply Hwfops in Hscs.
+  apply split_r_in; auto.
+    unfold l in *.
+    rewrite <- HeqR. auto.
+Qed.
+
+Ltac unfold_reachable_tac :=
+match goal with
+| Hentry: getEntryBlock ?f = ret ?be, Hreach: reachable ?f _ |- _ =>
+  let vl := fresh "vl" in
+  let al := fresh "al" in
+  let Hwalk := fresh "Hwalk" in
+    unfold reachable in Hreach;
+    rewrite Hentry in Hreach;
+    match goal with 
+    | _: getEntryBlock ?f = ret (block_intro _ _ _ _) |- _ => idtac
+    | _ =>
+        let le := fresh "le" in
+        destruct be as [le ? ? ?]
+    end;
+    destruct Hreach as [vl [al Hwalk]]
+end.
+
+Ltac unfold_domination_tac :=
+match goal with
+| Hentry: getEntryBlock ?f = ret ?be, Hdom: domination ?f _ _ |- _ =>
+    unfold domination in Hdom;
+    rewrite Hentry in Hdom;
+    match goal with 
+    | _: getEntryBlock ?f = ret (block_intro _ _ _ _) |- _ => idtac
+    | _ =>
+        let le := fresh "le" in
+        destruct be as [le ? ? ?]
+    end
+end.
+
+Lemma reachable_phinode__ex_reachable_incoming: forall (S : system) (M : module)
+  (f : fdef) (Hwf : wf_fdef S M f) (Huniq : uniqFdef f) b
+  (Hreach : isReachableFromEntry f b) (pid : id) (ty : typ) 
+  (vls : list (value * l))
+  (Hwfops : check_list_value_l f b vls)
+  (be : block) (Hentry : getEntryBlock f = ret be)
+  (Hneq : getBlockLabel be <> getBlockLabel b),
+  exists v0 : value, exists l1 : l, In (v0, l1) vls /\ reachable f l1.
+Proof.
+  intros.
+  destruct b.
+  simpl in *.
+  unfold_reachable_tac.
+  simpl in Hneq.
+  inv Hwalk; try congruence.
+  destruct y as [ly].
+  eapply wf_phi_operands__successors in Hwfops; eauto.
+  destruct Hwfops as [v1 Hwfops].
+  exists v1. exists ly.
+  split; auto.
+    unfold reachable.
+    rewrite Hentry.
+    eauto.
+Qed.
+
+Lemma non_sdom__inv: forall f l1 l2 be (Hentry: getEntryBlock f = Some be)
+  (Hnsdom: ~ strict_domination f l1 l2),
+  l1 = l2 \/ 
+  exists vl, exists al, D_walk (vertexes_fdef f) (arcs_fdef f) 
+    (index l2) (index (getBlockLabel be)) vl al /\
+    ~ In (index l1) vl.
+Proof.
+  intros.
+  destruct (l_dec l1 l2); subst; auto.
+  right.
+  assert (
+   (exists p : (V_list * A_list),
+      D_walk (vertexes_fdef f) (arcs_fdef f) (index l2)
+        (index (getBlockLabel be)) (fst p) (snd p) /\ 
+        ~ In (index l1) (fst p)) ->
+   exists vl : V_list,
+     exists al : A_list,
+       D_walk (vertexes_fdef f) (arcs_fdef f) (index l2)
+         (index (getBlockLabel be)) vl al /\ ~ In (index l1) vl
+  ) as G.
+    intros [[vl al] J]. eauto.
+  apply G. clear G.
+  apply Classical_Pred_Type.not_all_not_ex.
+  intro J.
+  apply Hnsdom.
+  unfold strict_domination, domination.
+  fill_ctxhole.
+  split; auto.
+    destruct be.
+    intros vl al Hwalk.
+    left.
+    destruct (In_dec V_eq_dec (index l1) vl); auto.
+      assert (G:=J (vl,al)). clear J.
+      contradict G. auto.
+Qed.
+

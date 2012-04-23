@@ -406,7 +406,7 @@ end.
 Definition eliminate_phi (f:fdef) (pn:phinode): fdef * bool:=
 let '(insn_phi pid _ vls) := pn in 
 let ndpvs := 
-  remove_redundancy nil (value_id pid::list_prj1 _ _ vls) 
+  remove_redundancy nil (value_id pid::List.map fst vls) 
 in
 match ndpvs with
 | value_id id1 as v1::v2::nil =>

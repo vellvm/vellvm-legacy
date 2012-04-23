@@ -1849,15 +1849,33 @@ Proof.
   induction cs1; simpl; auto.
 Qed.
 
-Lemma valueInValues__InOps : forall vid (l0 : list (sz * value)),
-  In (value_id vid) (List.map snd l0) ->
-  In vid (values2ids (List.map snd l0)).
-Proof.
-  induction l0; intros; simpl in *;  auto.
-    destruct a.
-    destruct H as [H | H]; simpl in *; subst; simpl; auto.
+Ltac destruct_in H :=
+match type of H with
+| In _ [_] => simpl in H; destruct H as [H | H]; subst; try tauto
+| In _ (_::_) => simpl in H; destruct H as [H | H]; subst; try tauto
+| In _ (_++_) => apply in_app_or in H; destruct H as [H | H]
+end.
 
-    destruct v; simpl; eauto.
+Lemma valueInValues__iff__InOps : forall vid l0,
+  In (value_id vid) l0 <->
+  In vid (values2ids l0).
+Proof.
+  induction l0 as [|v]; intros; simpl in *.
+    tauto.
+
+    destruct IHl0 as [G1 G2].
+    split; intro H.
+      destruct H as [H | H]; simpl in *; subst; simpl; auto.
+      destruct v; simpl; eauto.
+
+      destruct v; simpl; eauto.
+      destruct_in H.
+Qed.
+
+Lemma valueInValues__InOps : forall vid l0,
+  In (value_id vid) l0 -> In vid (values2ids l0).
+Proof.
+  intros. eapply valueInValues__iff__InOps; eauto.
 Qed.
 
 Lemma valueInParams__InOps : forall vid p,
@@ -3739,13 +3757,6 @@ Proof.
     apply in_or_app. auto.
     solve_NoDup.
 Qed.
-
-Ltac destruct_in H :=
-match type of H with
-| In _ [_] => simpl in H; destruct H as [H | H]; subst; try tauto
-| In _ (_::_) => simpl in H; destruct H as [H | H]; subst; try tauto
-| In _ (_++_) => apply in_app_or in H; destruct H as [H | H]
-end.
 
 Ltac solve_refl :=
 match goal with
@@ -5690,8 +5701,25 @@ Proof.
       left. congruence.
 Qed.
 
+Lemma lookupBlockViaLabelFromFdef_self: forall f bv (Huniq: uniqFdef f)
+  (HBinF: blockInFdefB bv f = true),
+  lookupBlockViaLabelFromFdef f (getBlockLabel bv) = Some bv.
+Proof.
+  intros.
+  destruct bv.
+  apply blockInFdefB_lookupBlockViaLabelFromFdef in HBinF; auto.
+Qed.
+
 Ltac solve_lookupBlockViaLabelFromFdef :=
 match goal with
+| Huniq: uniqFdef ?f, HBinF: blockInFdefB ?b ?f = true |- 
+  lookupBlockViaLabelFromFdef ?f (getBlockLabel ?b) = Some ?b =>
+    eapply lookupBlockViaLabelFromFdef_self; eauto
+| Huniq: uniqFdef ?f, 
+  HBinF: lookupBlockViaIDFromFdef ?f _ = Some ?b |- 
+  lookupBlockViaLabelFromFdef ?f (getBlockLabel ?b) = Some ?b =>
+    apply lookupBlockViaIDFromFdef__blockInFdefB in HBinF;
+    eapply lookupBlockViaLabelFromFdef_self; eauto
 | H1: uniqFdef ?f,
   H2: blockInFdefB (block_intro ?l ?ps ?cs ?tmn) ?f = true |-
   lookupBlockViaLabelFromFdef ?f ?l = Some (block_intro ?l ?ps ?cs ?tmn) =>
@@ -6122,4 +6150,38 @@ match goal with
   apply insnInFdefBlockB__lookupBlockViaIDFromFdef in H; simpl; 
     try solve [auto | congruence]
 end.
+
+Lemma fst_split__map_fst: forall A B (l1:list (A*B)),
+  fst (split l1) = List.map fst l1.
+Proof.
+  induction l1 as [|[]]; simpl; auto.
+    destruct_let. simpl. rewrite <- IHl1. auto.
+Qed.
+
+Lemma snd_split__map_snd: forall A B (l1:list (A*B)),
+  snd (split l1) = List.map snd l1.
+Proof.
+  induction l1 as [|[]]; simpl; auto.
+    destruct_let. simpl. rewrite <- IHl1. auto.
+Qed.
+
+Lemma split_r_in : forall A B (l1:list (A*B))(b:B),
+  In b (snd (split l1)) -> exists a, In (a,b) l1.
+Proof.
+  induction l1 as [|[]]; simpl; intros; try tauto.
+    destruct_let. simpl in *.
+    destruct H as [H | H]; subst; eauto.
+      apply IHl1 in H. 
+      destruct H as [a0 H]. eauto.
+Qed.
+
+Lemma split_l_in : forall A B (l1:list (A*B))(a:A),
+  In a (fst (split l1)) -> exists b, In (a,b) l1.
+Proof.
+  induction l1 as [|[]]; simpl; intros; try tauto.
+    destruct_let. simpl in *.
+    destruct H as [H | H]; subst; eauto.
+      apply IHl1 in H. 
+      destruct H as [b0 H]. eauto.
+Qed.
 

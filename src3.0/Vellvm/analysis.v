@@ -2923,6 +2923,19 @@ Proof.
   intro EQ. subst. tauto.
 Qed.
 
+Lemma successors_predOfBlock': forall (f : fdef) b (Huniq : uniqFdef f) 
+  (l1 : atom)
+  (Hscs : In (getBlockLabel b) (Kildall.successors_list (successors f) l1)),
+  In l1 (predOfBlock b (genBlockUseDef_fdef f)).
+Proof.
+  intros.
+  destruct b as [l0 ps0 cs0 tmn0].
+  apply successors__blockInFdefB in Hscs.
+  destruct Hscs as [ps1 [cs1 [tmn1 [HBinF Hintmn]]]].
+  eapply successors_predOfBlock with (ps0:=ps0)(cs0:=cs0)(tmn0:=tmn0) 
+    in Hintmn; eauto.
+Qed.
+
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     list (value * l) -> Prop :=
 | wf_phi_operands_nil : wf_phi_operands f b id0 t0 nil
