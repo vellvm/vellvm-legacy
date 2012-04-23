@@ -2895,6 +2895,34 @@ Proof.
   destruct Hinscope as [Hinscope _]. auto.
 Qed.
  
+Lemma idDominates_dec: forall f id1 id2,
+  idDominates f id1 id2 \/ ~ idDominates f id1 id2.
+Proof.
+  unfold idDominates.
+  intros.
+  destruct (lookupBlockViaIDFromFdef f id2); auto.
+  destruct (inscope_of_id f b id2) as [l0|]; auto.
+  destruct (In_dec l_dec id1 l0); auto.
+Qed.
+
+Lemma blockStrictDominates__non_empty_contents: forall (f : fdef)
+  (b be : block) (Hentry_dom : blockStrictDominates f be b)
+  (bs_contents : ListSet.set atom)
+  (bs_bound : incl bs_contents (bound_fdef f))
+  (HeqR0 : {| DomDS.L.bs_contents := bs_contents;
+              DomDS.L.bs_bound := bs_bound |} = 
+            Maps.AMap.get (getBlockLabel b) (dom_analyze f)),
+  DomDS.L.bs_contents (bound_fdef f) 
+    (Maps.AMap.get (getBlockLabel b) (dom_analyze f)) <> nil.
+Proof.
+  intros.
+  unfold blockStrictDominates in Hentry_dom.
+  destruct be, b. simpl in *.
+  rewrite <- HeqR0 in Hentry_dom. 
+  rewrite <- HeqR0. simpl. 
+  intro EQ. subst. tauto.
+Qed.
+
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     list (value * l) -> Prop :=
 | wf_phi_operands_nil : wf_phi_operands f b id0 t0 nil

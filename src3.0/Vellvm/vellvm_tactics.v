@@ -144,6 +144,10 @@ Ltac zauto := auto with zarith.
 
 Ltac SSSSSCase name := Case_aux subsubsubsubsubcase name.
 Ltac SSSSSSCase name := Case_aux subsubsubsubsubsubcase name.
+Ltac SSSSSSSCase name := Case_aux subsubsubsubsubsubsubcase name.
+Ltac SSSSSSSSCase name := Case_aux subsubsubsubsubsubsubsubcase name.
+Ltac SSSSSSSSSCase name := Case_aux subsubsubsubsubsubsubsubsubcase name.
+Ltac SSSSSSSSSSCase name := Case_aux subsubsubsubsubsubsubsubsubsubcase name.
 
 Ltac tac0 := match goal with
   | |- exists _, _ => idtac

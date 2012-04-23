@@ -6103,3 +6103,23 @@ match goal with
       [eauto 1 | solve_blockInFdefB | simpl; xsolve_in_list | solve_in_list]
 end.
 
+Ltac lookupBlockViaLabelFromFdef_inv_tac :=
+match goal with
+| Huniq: uniqFdef ?f, 
+  Hlk: lookupBlockViaLabelFromFdef ?f _ = Some ?b |- _ =>
+  let EQ := fresh "EQ" in
+  let HBinF := fresh "HBinF" in
+  destruct b;
+  apply lookupBlockViaLabelFromFdef_inv in Hlk; auto;
+  destruct Hlk as [EQ HBinF]; subst
+end.
+
+Ltac solve_lookupBlockViaIDFromFdef :=
+match goal with
+| Huniq: uniqFdef ?f, 
+  H: insnInFdefBlockB _ ?f ?b = true |- 
+  lookupBlockViaIDFromFdef ?f _ = Some ?b =>
+  apply insnInFdefBlockB__lookupBlockViaIDFromFdef in H; simpl; 
+    try solve [auto | congruence]
+end.
+

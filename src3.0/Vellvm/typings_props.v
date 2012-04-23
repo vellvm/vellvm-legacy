@@ -382,20 +382,15 @@ Proof.
   inv H; eauto using wf_typ__feasible_typ.
 Qed.
 
-Lemma entryBlock_has_no_phinodes : forall s f l1 ps1 cs1 tmn1 los nts ps,
-  InProductsB (product_fdef f) ps = true ->
-  moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system s ->
-  getEntryBlock f = Some (block_intro l1 ps1 cs1 tmn1) ->
+Lemma wf_fdef_entryBlock_has_no_phinodes : forall s m f l1 ps1 cs1 tmn1
+  (Hwff: wf_fdef s m f)
+  (Hentry: getEntryBlock f = Some (block_intro l1 ps1 cs1 tmn1)),
   ps1 = nil.
 Proof.
-  intros s f l1 ps1 cs1 tmn1 los nts ps HFinP HMinS Hwfs Hentry.
-  assert (wf_fdef s (module_intro los nts ps) f) as Hwff.
-    eapply wf_system__wf_fdef; eauto.
-  assert (wf_block s (module_intro los nts ps) f
-    (block_intro l1 ps1 cs1 tmn1)) as Hwfb.
+  intros s m f l1 ps1 cs1 tmn1 Hwff Hentry.
+  assert (wf_block s m f (block_intro l1 ps1 cs1 tmn1)) as Hwfb.
     apply entryBlockInFdef in Hentry.
-    eapply wf_system__blockInFdefB__wf_block; eauto.
+    eapply wf_fdef__blockInFdefB__wf_block; eauto.
   inv Hwfb.
   match goal with
   | H8: wf_cmds _ _ _ _ _, H9: wf_insn _ _ _ _ _ |- _ => clear H8 H9
@@ -435,6 +430,19 @@ Proof.
             (genBlockUseDef_blocks blocks5 nil)); inversion H18
   end.
   simpl in J1. contradict J1. omega.
+Qed.
+
+Lemma entryBlock_has_no_phinodes : forall s f l1 ps1 cs1 tmn1 los nts ps,
+  InProductsB (product_fdef f) ps = true ->
+  moduleInSystemB (module_intro los nts ps) s = true ->
+  wf_system s ->
+  getEntryBlock f = Some (block_intro l1 ps1 cs1 tmn1) ->
+  ps1 = nil.
+Proof.
+  intros s f l1 ps1 cs1 tmn1 los nts ps HFinP HMinS Hwfs Hentry.
+  assert (wf_fdef s (module_intro los nts ps) f) as Hwff.
+    eapply wf_system__wf_fdef; eauto.
+  eapply wf_fdef_entryBlock_has_no_phinodes; eauto.
 Qed.
 
 Lemma wf_operand_list__wf_operand : forall id_list fdef5 block5 insn5 id_ n,
@@ -4682,5 +4690,50 @@ Proof.
       eapply NoDup_disjoint in HBinF; simpl; eauto.
 Qed.
 
+
+Lemma blockDominates__domination: forall (S : system) (M : module) (f : fdef)
+  (Hwf : wf_fdef S M f) (Huniq : uniqFdef f) (b1 b2:block)
+  (HBinF : blockInFdefB b2 f) (Hdom : blockDominates f b1 b2),
+  domination f (getBlockLabel b1) (getBlockLabel b2).
+Proof.
+  intros.
+  destruct b1, b2.
+  unfold blockDominates in Hdom.
+  remember (Maps.AMap.get l0 (dom_analyze f)) as R.
+  destruct R.
+  eapply dom_is_sound with (l':=l5) in HBinF; simpl; eauto.
+    simpl. rewrite <- HeqR.
+    destruct Hdom; auto.
+Qed.
+
+Lemma wf_phi_operands__elim'': forall (S : system) (M : module) (f : fdef)
+  (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator) 
+  (Hwf : wf_fdef S M f) (Huniq : uniqFdef f) (value_l_list : list (value * l))
+  (id5 : id) (typ5 : typ)
+  (Hwfops : wf_phi_operands f (block_intro l0 ps0 cs0 tmn0) id5 typ5
+              value_l_list) vid
+  (Hnotinfh : ~ In vid (getArgsIDsOfFdef f)) (l1 : l)
+  (Hinlist: In (value_id vid, l1) value_l_list) (Hreach: reachable f l1),
+  exists bv, exists bvl,
+    lookupBlockViaLabelFromFdef f l1 = ret bvl /\
+    lookupBlockViaIDFromFdef f vid = ret bv /\
+    domination f (getBlockLabel bv) l1.
+Proof.
+  intros.
+  eapply wf_phi_operands__elim' in Hinlist; eauto.
+  destruct Hinlist 
+    as [blv' [Hlkupblv [[[bv' [Hlkbv Hdom]]|Hnreachblv]|?]]]; 
+    try solve [contradict Hnotinfh; auto].
+  Case "bv' doms blk'".
+    exists bv'. exists blv'.
+    split; auto.
+    split; auto.
+      lookupBlockViaLabelFromFdef_inv_tac.
+      eapply blockDominates__domination in Hdom; eauto 1.
+
+  Case "blk' is unreachable".
+    lookupBlockViaLabelFromFdef_inv_tac.
+    simpl in *. congruence.
+Qed.
 
 

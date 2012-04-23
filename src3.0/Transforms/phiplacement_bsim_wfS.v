@@ -10,24 +10,7 @@ Require Import opsem_props.
 Require Import palloca_props.
 Require Import phiplacement_bsim_defs.
 Require Import top_wfS.
-
-Lemma entry_blockStrictDominates_others: forall s m f (HwfF : wf_fdef s m f)
-  (b be : block) (Hentry : getEntryBlock f = ret be)
-  (n : getBlockLabel be <> getBlockLabel b)
-  (Hreach : isReachableFromEntry f b),
-  blockStrictDominates f be b.
-Proof.
-  unfold blockStrictDominates.
-  intros.
-  destruct be as [l1 ? ? ?].
-  destruct b as [l2 ? ? ?].
-  simpl in n.
-  assert (getEntryLabel f = Some l1) as Gentry.
-    destruct f as [? blocks5].
-    destruct blocks5; inv Hentry. auto.
-  eapply dom_analysis__entry_doms_others1 with (b:=l2) in Gentry; eauto.
-    admit. (* typings should ensure dom_analysis always succeeds. *)
-Qed.
+Require Import trans_tactic.
 
 (*********************************************************)
 (*
