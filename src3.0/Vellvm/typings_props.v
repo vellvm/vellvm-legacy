@@ -4562,23 +4562,6 @@ Proof.
     simpl in Hdom''. rewrite <- HeqR0 in Hdom''. auto.
 Qed.
 
-Lemma lookupTypViaIDFromFdef_elim': forall (f : fdef) (vid : id) (t : typ)
-  (Hlk: lookupTypViaIDFromFdef f vid = ret t) (HuniqF: uniqFdef f),
-  In vid (getArgsIDsOfFdef f) \/
-  exists instr : insn,
-    lookupInsnViaIDFromFdef f vid = ret instr /\
-    getInsnTyp instr = ret t /\ getInsnLoc instr = vid.
-Proof.
-  intros. 
-  apply lookupTypViaIDFromFdef_elim in Hlk; auto.
-  destruct Hlk as [[att0 Hin] | [b [instr [J1 [J2 J3]]]]]; subst.
-    left. destruct f as [[]]. simpl in *.
-    eapply In_getArgsIDs_spec; eauto.
-
-    right. exists instr. split; auto.
-    eapply IngetInsnsLocs__lookupInsnViaIDFromFdef; eauto.
-Qed.
-
 Lemma inscope_of_blocks_with_init__id_in_reachable_block: forall s m F 
   (HwfF: wf_fdef s m F) (Huniq: uniqFdef F) b
   (Hreach : isReachableFromEntry F b)
@@ -4846,5 +4829,65 @@ Proof.
     destruct (In_dec V_eq_dec (index l1) vl); auto.
       assert (G:=J (vl,al)). clear J.
       contradict G. auto.
+Qed.
+
+Lemma wf_fdef__wf_phinode: forall (s : system) (m : module) (f : fdef) 
+  (l3 : l) (cs : cmds) (tmn : terminator) (ps : phinodes) p
+  (HwfF: wf_fdef s m f) (HBinF: blockInFdefB (block_intro l3 ps cs tmn) f)
+  (HinPs: In p ps), wf_phinode f (block_intro l3 ps cs tmn) p.
+Proof.
+  intros.
+  eapply wf_fdef__wf_phinodes in HBinF; eauto.
+  eapply wf_phinodes__wf_phinode in HBinF; eauto.
+  inv HBinF; auto.
+Qed.
+
+Lemma phinodes_from_the_same_block__dont__valueDominate: forall 
+  l0 ps0 cs0 tmn0 f vid1 vid2 s m (HwfF: wf_fdef s m f)
+  (Huniq: uniqFdef f) (Hreach: reachable f l0)
+  (HBinF: blockInFdefB (block_intro l0 ps0 cs0 tmn0) f = true)
+  (Hdom : valueDominates f (value_id vid1) (value_id vid2))
+  (Hpin1 : In vid1 (getPhiNodesIDs ps0))
+  (Hpin2 : In vid2 (getPhiNodesIDs ps0)),
+  False.
+Proof.
+  intros.
+  assert (id_in_reachable_block f vid2) as Hreach'.
+    intros b2 Hlkup2.
+    assert (block_intro l0 ps0 cs0 tmn0 = b2) as EQ.
+      solve_block_eq.
+    subst. auto.
+  simpl in Hdom.
+  apply_clear Hdom in Hreach'.
+  unfold idDominates, inscope_of_id in *.
+  inv_mbind. symmetry_ctx.
+  assert (block_intro l0 ps0 cs0 tmn0 = b) as EQ.
+    solve_block_eq.
+  subst. 
+  unfold init_scope in HeqR0.
+  destruct_if; try congruence.
+  remember ((dom_analyze f) !! l0) as R.
+  destruct R.
+  apply fold_left__spec in H0.
+  destruct H0 as [_ [_ H0]].
+  apply_clear H0 in Hreach'.
+  destruct Hreach' as [Hreach' | [b1 [l1' [J1 [J2 J3]]]]].
+    contradict Hreach'.
+    apply inGetBlockIDs__lookupBlockViaIDFromFdef with (id1:=vid1) 
+      in HBinF; auto.
+      solve_notin_getArgsIDs.
+      simpl. solve_in_list.
+    lookupBlockViaLabelFromFdef_inv_tac.
+    assert (block_intro l5 phinodes5 cmds5 terminator5 = 
+            block_intro l0 ps0 cs0 tmn0) as EQ.
+      eapply block_eq2 with (id1:=vid1); eauto.
+        solve_in_list.
+        simpl. solve_in_list.
+    inv EQ.
+    eapply sdom_is_sound with (l':=l0) in HBinF; eauto.
+      destruct HBinF. congruence.
+
+      rewrite <- HeqR0.      
+      apply ListSet.set_diff_elim1 in J1; auto.
 Qed.
 

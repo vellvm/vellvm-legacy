@@ -5439,19 +5439,6 @@ Proof.
     solve_in_list.
 Qed.
 
-Ltac solve_lookupInsnViaIDFromFdef :=
-match goal with
-| Huniq: uniqFdef ?f, 
-  H: insnInFdefBlockB (insn_cmd ?c) ?f ?b = true |- 
-  lookupInsnViaIDFromFdef ?f (getCmdLoc ?c) = Some (insn_cmd ?c) =>
-  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef'; eauto
-| Huniq: uniqFdef ?f, 
-  H: blockInFdefB (block_intro _ _ ?cs _) ?f = true,
-  H1: In ?c ?cs |- 
-  lookupInsnViaIDFromFdef ?f (getCmdLoc ?c) = Some (insn_cmd ?c) =>
-  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef; eauto
-end.
-
 Lemma getBlocksLocs__notin__getArgsIDs: forall f b (Huniq : uniqFdef f)
   (HBinF: blockInFdefB b f = true) i0 (Hin: In i0 (getBlockLocs b)),
   ~ In i0 (getArgsIDsOfFdef f).
@@ -6184,4 +6171,63 @@ Proof.
       apply IHl1 in H. 
       destruct H as [b0 H]. eauto.
 Qed.
+
+Ltac destruct_phinodeInFdefBlockB_tac :=
+match goal with
+| Hin: phinodeInFdefBlockB _ _ ?b = true |- _ =>
+  let HPinB:=fresh "HPinB" in
+  let HBinF:=fresh "HBinF" in
+  destruct b;
+  apply andb_true_iff in Hin;
+  destruct Hin as [HPinB HBinF];
+  simpl in HPinB;
+  apply InPhiNodesB_In in HPinB
+end.
+
+Lemma lookupTypViaIDFromFdef_elim': forall (f : fdef) (vid : id) (t : typ)
+  (Hlk: lookupTypViaIDFromFdef f vid = Some t) (HuniqF: uniqFdef f),
+  In vid (getArgsIDsOfFdef f) \/
+  exists instr : insn,
+    lookupInsnViaIDFromFdef f vid = Some instr /\
+    getInsnTyp instr = Some t /\ getInsnLoc instr = vid.
+Proof.
+  intros. 
+  apply lookupTypViaIDFromFdef_elim in Hlk; auto.
+  destruct Hlk as [[att0 Hin] | [b [instr [J1 [J2 J3]]]]]; subst.
+    left. destruct f as [[]]. simpl in *.
+    eapply In_getArgsIDs_spec; eauto.
+
+    right. exists instr. split; auto.
+    eapply IngetInsnsLocs__lookupInsnViaIDFromFdef; eauto.
+Qed.
+
+Lemma getValueViaLabelFromValuels__InValueList: forall (l1 : l) 
+  (vls1 : list (value * l))
+  (v : value) (Hnth : getValueViaLabelFromValuels vls1 l1 = Some v),
+  In (v, l1) vls1.
+Proof.
+  induction vls1 as [|[]]; simpl in *; intros.
+    congruence.
+    destruct_if; auto.
+Qed.
+
+Ltac solve_lookupInsnViaIDFromFdef :=
+match goal with
+| _: In ?p ?ps, _:blockInFdefB (block_intro _ ?ps _ _) ?f = true,
+  _: uniqFdef ?f |-
+  lookupInsnViaIDFromFdef ?f (getPhiNodeID ?p) = Some (insn_phinode ?p) =>
+  eapply IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef'; eauto 1
+| _: insnInFdefBlockB ?i ?f _ = true, _: uniqFdef ?f |-
+  lookupInsnViaIDFromFdef ?f (getInsnLoc ?i) = Some ?i =>
+  eapply IngetInsnsLocs__lookupInsnViaIDFromFdef; eauto 1
+| Huniq: uniqFdef ?f, 
+  H: insnInFdefBlockB (insn_cmd ?c) ?f ?b = true |- 
+  lookupInsnViaIDFromFdef ?f (getCmdLoc ?c) = Some (insn_cmd ?c) =>
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef'; eauto
+| Huniq: uniqFdef ?f, 
+  H: blockInFdefB (block_intro _ _ ?cs _) ?f = true,
+  H1: In ?c ?cs |- 
+  lookupInsnViaIDFromFdef ?f (getCmdLoc ?c) = Some (insn_cmd ?c) =>
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef; eauto
+end.
 

@@ -7,6 +7,7 @@ Require Import primitives.
 Require Import die_wfS.
 Require Import die_top.
 Require Import subst.
+Require Import subst_inv.
 Require Import subst_sim.
 Require Import phielim_spec.
 Require Import phisubst_inv.
@@ -62,6 +63,29 @@ Proof.
      eapply assigned_phi__wf_value; eauto 1.
 Qed. 
 
+Lemma assigned_phi__substing_value: forall S M p f l0 ps0 cs0 tmn0
+  (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
+  (HBinF: blockInFdefB (block_intro l0 ps0 cs0 tmn0) f = true) 
+  (Hin: In p ps0) v (Hassign: assigned_phi v p),
+  substing_value f v.
+Proof.
+  intros.
+  assert (Hwfp:=HBinF).
+  eapply wf_fdef__wf_phinodes in Hwfp; eauto.
+  eapply wf_phinodes__wf_phinode in Hwfp; eauto.
+  inv Hwfp.
+  inv Hassign.
+  destruct Hex as [lv Hinlist].
+  apply in_split_l in Hinlist.
+  rewrite fst_split__map_fst in Hinlist. 
+  apply H0 in Hinlist.
+  unfold substing_value.
+  simpl in Hinlist.
+  inv Hinlist; auto.
+  apply lookupTypViaIDFromFdef_elim' in H2; auto.
+  destruct H2 as [H2 | [instr [J1 [J2 J3]]]]; subst; eauto.
+Qed.
+
 Lemma subst_phi_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
@@ -80,10 +104,12 @@ Proof.
   assert (Hinit:=HwfS).
   eapply subst_phi_init in Hinit; eauto.
   destruct Hinit as [J1 [J2 [J3 J4]]].
-  assert (lookupInsnViaIDFromFdef f (getPhiNodeID p) = Some (insn_phinode p))
+  assert (phinodeInFdefBlockB p f (block_intro l0 ps0 cs0 tmn0) = true)
     as Hlkup.
-    eapply IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef'; eauto.
-  set (pi:=mkPEInfo f p v Hlkup Hassign).
+    bsplit; auto. simpl. solve_in_list.
+  assert (substing_value f v) as Hsubst.
+    eapply assigned_phi__substing_value; eauto.
+  set (pi:=mkPEInfo f (block_intro l0 ps0 cs0 tmn0) p v Hlkup Hsubst Hassign).
   subst.
   set (ctx_inv := fun (cfg:OpsemAux.Config) (St:@Opsem.State DGVs) => True).
   apply SubstSim.sim with (ctx_inv:=ctx_inv); auto.

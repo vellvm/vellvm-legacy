@@ -53,3 +53,11 @@ Proof.
     destruct v1; simpl in *; eauto.
 Qed.
 
+Definition substing_value (f:fdef) (v:value) : Prop :=
+match v with
+| value_const _ => True
+| value_id vid =>
+    In vid (getArgsIDsOfFdef f) \/
+    exists instr, lookupInsnViaIDFromFdef f vid = ret instr
+end.
+

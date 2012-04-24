@@ -1765,6 +1765,33 @@ Proof.
       split; auto.
 Qed.
 
+Lemma getIncomingValuesForBlockFromPHINodes_spec9': forall TD gl lc b id0 gvs0
+  ps' l0,
+  ret l0 = @Opsem.getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc ->
+  id0 `in` dom l0 ->
+  lookupAL _ l0 id0 = ret gvs0 ->
+  exists t1, exists vls1, exists v, 
+    In (insn_phi id0 t1 vls1) ps' /\
+    getValueViaLabelFromValuels vls1 (getBlockLabel b) = Some v /\
+    Opsem.getOperandValue TD v lc gl= Some gvs0.
+Proof.
+  induction ps' as [|[i0 t l0]]; simpl; intros.
+    inv H. fsetdec.
+
+    inv_mbind. simpl in *.
+    destruct (id0 == i0); subst.
+      destruct b. simpl in *.
+      symmetry in HeqR.
+      inv H1.
+      exists t. exists l0. exists v. 
+      split; auto.
+
+      apply IHps' in H1; auto; try fsetdec.
+      destruct H1 as [t1 [vls1 [v' [J1 [J2 J3]]]]].
+      exists t1. exists vls1. exists v'.
+      split; auto.
+Qed.
+
 Lemma updateValuesForNewBlock_spec5: forall lc1' lc2' i0
   (Hlk: lookupAL _ lc1' i0 = lookupAL _ lc2' i0) lc2
   (Hlk: merror = lookupAL _ lc2 i0),
