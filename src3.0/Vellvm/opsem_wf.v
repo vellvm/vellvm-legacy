@@ -555,7 +555,6 @@ Proof.
 
   assert (incl contents' (l3::contents3)) as Hsub.
     clear - HBinF Hsucc Heqdefs3 Heqdefs' HeqDoms Huniq HwfF.
-    simpl in Huniq. destruct Huniq.
     eapply dom_successors; eauto.
 
   assert (J1:=inbound').
@@ -2674,7 +2673,7 @@ Proof.
       eapply In__getValueViaLabelFromValuels; eauto.
       destruct J2 as [_ J2].
       apply J2.
-      eapply successors_predOfBlock; eauto.
+      eapply successors_predecessors_of_block; eauto.
 
     destruct J as [v J].
     rewrite J.

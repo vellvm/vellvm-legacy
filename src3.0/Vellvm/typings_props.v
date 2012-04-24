@@ -43,79 +43,48 @@ Qed.
 (********************************************)
 (** * Inversion of well-formedness *)
 
-Lemma getEntryBlock_inv : forall
-  (bs : blocks)
+Ltac inv_wf_fdef H :=
+let S5 := fresh "S5" in
+let los5 := fresh "los5" in
+let nts5 := fresh "nts5" in
+let prods5 := fresh "prods5" in
+let fh5 := fresh "fh5" in
+let bs5 := fresh "bs5" in
+let b5 := fresh "b5" in
+let HpInS := fresh "HpInS" in
+let Hwffh := fresh "Hwffh" in
+let Hentry := fresh "Hentry" in
+let Hnpred := fresh "Hnpred" in
+let Hsuccess := fresh "Hsuccess" in
+let Hwfb := fresh "Hwfb" in
+let EQ1 := fresh "EQ1" in
+let EQ2 := fresh "EQ2" in
+let EQ3 := fresh "EQ3" in
+inversion H as 
+  [S5 los5 nts5 prods5 fh5 bs5 b5 HpInS Hwffh Hentry Hnpred
+   Hsuccess Hwfb EQ1 EQ2 EQ3]; subst S5.
+
+Lemma getEntryBlock_inv : forall fh bs
   (l3 : l)
   (l' : l)
   (ps : phinodes)
   (cs : cmds)
   (tmn : terminator)
-  (fh : fheader)
   (s : system)
   (m : module)
-  (HwfF : wf_fdef s m (fdef_intro fh bs))
+  (HwfF : wf_fdef s m (fdef_intro fh bs)) (Huniq:uniqFdef (fdef_intro fh bs))
   (HBinF : InBlocksB (block_intro l3 ps cs tmn) bs = true)
-  (a : atom)
-  (Hsucc : In l' (successors_terminator tmn))
-  ps1 cs1 tmn1
-  (H : getEntryBlock (fdef_intro fh bs) = ret block_intro a ps1 cs1 tmn1),
+  (Hsucc : In l' (successors_terminator tmn)) a ps0 cs0 tmn0
+  (H : getEntryBlock (fdef_intro fh bs) = ret block_intro a ps0 cs0 tmn0),
   l' <> a.
 Proof.
   intros.
-   destruct (eq_atom_dec l' a); subst; auto.
-   inv HwfF.
-   match goal with
-   | H11: hasNonePredecessor ?b _ = _,
-     H7: getEntryBlock _ = Some ?b,
-     H: getEntryBlock _ = _ |- _ =>
-       rename H11 into J1; rename H7 into J2; rename H into J3;
-       simpl in J1; rewrite J3 in J2; inv J2;
-       clear - J1 Hsucc HBinF
-   end.
-   induction bs; simpl in *.
-     inversion HBinF.
-
-     apply orb_prop in HBinF.
-     destruct HBinF as [HBinF | HBinF].
-       apply blockEqB_inv in HBinF; subst.
-       simpl in J1.
-       destruct tmn as [| |? ? l1 l2| l1 |]; try solve [inversion Hsucc].
-         unfold hasNonePredecessor in J1.
-         unfold predOfBlock in J1. simpl in J1.
-         simpl in Hsucc.
-         destruct Hsucc as [Hsucc | [Hsucc | Hsucc]]; subst;
-           try inversion Hsucc.
-
-           destruct (@lookupAL_update_udb_eq (update_udb nil l3 l2) l3 a)
-             as [re [Hlk Hin]].
-           apply lookupAL_genBlockUseDef_blocks_spec with (bs:=bs) in Hlk.
-           destruct Hlk as [re' [Hlk Hinc]].
-           rewrite Hlk in J1.
-           destruct re'; inversion J1.
-           apply Hinc in Hin. inversion Hin.
-
-           destruct (@lookupAL_update_udb_eq nil l3 a) as [re [Hlk Hin]].
-           apply lookupAL_update_udb_spec with (l1:=l3)(l2:=l1) in Hlk.
-           destruct Hlk as [re1 [Hlk Hinc1]].
-           apply lookupAL_genBlockUseDef_blocks_spec with (bs:=bs) in Hlk.
-           destruct Hlk as [re2 [Hlk Hinc2]].
-           rewrite Hlk in J1.
-           destruct re2; inversion J1.
-           apply Hinc1 in Hin.
-           apply Hinc2 in Hin.
-           inversion Hin.
-
-         unfold hasNonePredecessor in J1.
-         unfold predOfBlock in J1. simpl in J1.
-         simpl in Hsucc.
-         destruct Hsucc as [Hsucc | Hsucc]; subst; try inversion Hsucc.
-           destruct (@lookupAL_update_udb_eq nil l3 a) as [re [Hlk Hin]].
-           apply lookupAL_genBlockUseDef_blocks_spec with (bs:=bs) in Hlk.
-           destruct Hlk as [re' [Hlk Hinc]].
-           rewrite Hlk in J1.
-           destruct re'; inversion J1.
-           apply Hinc in Hin. inversion Hin.
-     apply hasNonPredecessor__mono in J1; eauto.
+  destruct (eq_atom_dec l' a); subst; auto.
+  inv_wf_fdef HwfF. subst.
+  uniq_result.
+  eapply successors_predecessors_of_block in Hsucc; eauto 1.
+  apply has_no_predecessors_tinv in Hnpred.
+  simpl in Hnpred. rewrite Hnpred in Hsucc. tauto.
 Qed.
 
 Lemma entryBlock_has_no_pred: forall s m F B l0 l3 ps cs tmn
@@ -415,21 +384,14 @@ Proof.
     destruct R;
     destruct H5 as [J1 [J2 J3]]
   end.
-  inv Hwff.
+  inv Hwff. uniq_result.
   match goal with
-  | Hentry: getEntryBlock _ = Some (block_intro _ _ _ _),
-    H14: getEntryBlock _ = Some _ |- _ =>
-    rewrite H14 in Hentry; inv Hentry
+  | H5: has_no_predecessors _ _ = _,
+    J1: (length _ > 0)%nat |- _ => 
+    apply has_no_predecessors_tinv in H5;
+    rewrite H5 in J1;
+    contradict J1; simpl; omega
   end.
-  match goal with
-  | H18: hasNonePredecessor _ _ = _ |- _ =>
-    unfold hasNonePredecessor in H18;
-    simpl in *;
-    destruct (predOfBlock
-            (block_intro l1 (insn_phi id5 typ5 value_l_list :: ps1) cs1 tmn1)
-            (genBlockUseDef_blocks blocks5 nil)); inversion H18
-  end.
-  simpl in J1. contradict J1. omega.
 Qed.
 
 Lemma entryBlock_has_no_phinodes : forall s f l1 ps1 cs1 tmn1 los nts ps,
@@ -749,7 +711,7 @@ Lemma dom_successors : forall
   (l' : l)
   ps cs tmn fh s m
   (HwfF : wf_fdef s m (fdef_intro fh bs))
-  (Huniq : uniqBlocks bs)
+  (Huniq' : uniqFdef (fdef_intro fh bs))
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) (fdef_intro fh bs) = true)
   (Doms : AMap.t
            (Dominators.t (bound_fdef (fdef_intro fh bs))))
@@ -767,7 +729,10 @@ Lemma dom_successors : forall
              DomDS.L.bs_bound := inbound' |} = Doms !! l'),
   incl contents' (l3 :: contents3).
 Proof.
-  intros. simpl in *.
+  intros. 
+  assert (uniqBlocks bs) as Huniq by eauto using uniqF__uniqBlocks.
+Local Opaque uniqFdef.
+  simpl in *.
   unfold dom_analyze in *.
   remember (entry_dom bs) as R.
   destruct R as [R Hp].
@@ -827,7 +792,7 @@ Proof.
         unfold entry_dom in HeqR1.
         exists p. exists c. exists t. auto.
       assert (l' <> l0) as Neq.
-        clear - H Hsucc HwfF HBinF.
+        clear - H Hsucc HwfF HBinF Huniq'.
         destruct H as [ps1 [cs1 [tmn1 H]]].
         eapply getEntryBlock_inv; eauto.
       rewrite AMap.gso in Heqdefs'; auto.
@@ -838,6 +803,7 @@ Proof.
 
   Case "entry is wrong".
     subst. inversion HBinF.
+Transparent uniqFdef.
 Qed.
 
 Lemma wf_tmn__in_successors: forall s m f l0 cs ps tmn l1
@@ -1467,6 +1433,7 @@ Lemma dom_is_sound : forall
 Proof.
   unfold domination, strict_domination.
   intros. destruct f as [fh bs].
+  assert (HuniqF':=HuniqF).
   apply uniqF__uniqBlocks in HuniqF.
   assert (HwfF':=HwfF).
   apply wf_fdef__non_entry in HwfF'.
@@ -1554,8 +1521,7 @@ Proof.
       remember ((dom_analyze f) !! l3) as R.
       destruct R.
       assert (incl bs_contents0 (a0 :: bs_contents)) as Hinc.
-        destruct f. apply uniqF__uniqBlocks in HuniqF.
-        eapply dom_successors; eauto.
+        destruct f. eapply dom_successors; eauto.
       rewrite <- HeqR0. simpl.
       simpl in Hin.
       apply Hinc; auto.
@@ -2060,6 +2026,7 @@ Lemma dom_is_sound : forall
 Proof.
   unfold domination, strict_domination.
   intros. destruct f as [fh bs].
+  assert (HuniqF':=HuniqF).
   apply uniqF__uniqBlocks in HuniqF.
   assert (HwfF':=HwfF).
   apply wf_fdef__non_entry in HwfF'.
@@ -2150,8 +2117,7 @@ Proof.
         remember ((dom_analyze f) !! l3) as R.
         destruct R.
         assert (incl bs_contents0 (a0 :: bs_contents)) as Hinc.
-          destruct f. apply uniqF__uniqBlocks in HuniqF.
-          eapply dom_successors; eauto.
+          destruct f. eapply dom_successors; eauto.
         rewrite <- HeqR0. simpl.
         simpl in Hin.
         apply Hinc; auto.
@@ -4283,12 +4249,13 @@ Proof.
   inv Hty; simpl; auto.
 Qed.
 
-Lemma dom_analysis__entry_doms_others1: forall S M f 
-  (HwfF: wf_fdef S M f) entry
-  (H: getEntryLabel f = Some entry)
-  (Hex: exists b,  match (AMap.get b (dom_analyze f)) with
-                   | Dominators.mkBoundedSet dts _ => dts <> nil
-                   end),
+Lemma wf_fdef__dom_analysis_is_successful: forall S M f
+  (HwfF: wf_fdef S M f), dom_analysis_is_successful f.
+Proof. intros. inv HwfF; auto. Qed.
+
+Lemma dom_analysis__entry_doms_others: forall S M f 
+  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) entry
+  (H: getEntryLabel f = Some entry),
   (forall b, b <> entry /\ reachable f b ->
      match (AMap.get b (dom_analyze f)) with
      | Dominators.mkBoundedSet dts _ => In entry dts
@@ -4298,7 +4265,10 @@ Proof.
   destruct H0 as [J1 J2].
   case_eq ((dom_analyze f) !! b).
   intros bs_contents bs_bound H1.
-  unfold dom_analyze in H1, Hex.
+  unfold dom_analyze in H1.
+  assert (Hex: dom_analysis_is_successful f).
+    eapply wf_fdef__dom_analysis_is_successful; eauto.
+  unfold dom_analysis_is_successful in Hex.
   destruct f as [f b0].
   remember (entry_dom b0) as R.
   destruct R.
@@ -4351,16 +4321,33 @@ Proof.
           split; auto.
             split; intros x Hin; auto.
 
-      rewrite AMap.gso in H1; auto.
-      rewrite AMap.gi in H1. inv H1.
-      destruct Hex as [b0 Hex].
-      destruct (l_dec entry b0); subst.
-        rewrite AMap.gss in Hex; auto. congruence.
-
-        rewrite AMap.gso in Hex; auto. rewrite AMap.gi in Hex. simpl in Hex.
-        contradict Hex; auto.
+      tauto.
 
     inv H.
+Qed.
+
+Lemma entry_blockStrictDominates_others: forall s m f (HwfF : wf_fdef s m f)
+  (Huniq: uniqFdef f) (b be : block) (Hentry : getEntryBlock f = ret be)
+  (n : getBlockLabel be <> getBlockLabel b)
+  (Hreach : isReachableFromEntry f b),
+  blockStrictDominates f be b.
+Proof.
+  unfold blockStrictDominates.
+  intros.
+  destruct be as [l1 ? ? ?].
+  destruct b as [l2 ? ? ?].
+  simpl in n.
+  assert (getEntryLabel f = Some l1) as Gentry.
+    destruct f as [? blocks5].
+    destruct blocks5; inv Hentry. auto.
+  eapply dom_analysis__entry_doms_others with (b:=l2) in Gentry; eauto.
+Qed.
+
+Lemma getPointerAlignmentInfo_pos: forall los (Hwfl: wf_layouts los),
+ (getPointerAlignmentInfo los true > 0)%nat.
+Proof.
+  intros.
+  destruct (@Hwfl true); auto.
 Qed.
 
 Lemma wf_cmds_intro: forall s m f b cs,
@@ -4418,28 +4405,6 @@ let EQ4 := fresh "EQ4" in
 inversion H as 
   [S5 M5 F5 l5 ps5 cs5 tmn5 HBinSMF Hwfps Hwfcs Hwfi EQ1 EQ2 EQ3 EQ4];
 subst S5 M5 F5.
-
-Ltac inv_wf_fdef H :=
-let S5 := fresh "S5" in
-let los5 := fresh "los5" in
-let nts5 := fresh "nts5" in
-let prods5 := fresh "prods5" in
-let fh5 := fresh "fh5" in
-let bs5 := fresh "bs5" in
-let b5 := fresh "b5" in
-let udb5 := fresh "udb5" in
-let HpInS := fresh "HpInS" in
-let Hwffh := fresh "Hwffh" in
-let Hentry := fresh "Hentry" in
-let EQ0 := fresh "EQ0" in
-let Hnpred := fresh "Hnpred" in
-let Hwfb := fresh "Hwfb" in
-let EQ1 := fresh "EQ1" in
-let EQ2 := fresh "EQ2" in
-let EQ3 := fresh "EQ3" in
-inversion H as 
-  [S5 los5 nts5 prods5 fh5 bs5 b5 udb5 HpInS Hwffh Hentry EQ0 Hnpred
-   Hwfb EQ1 EQ2 EQ3]; subst udb5 S5.
 
 (* wf_phi_operands doesnt depend on i0 and t0, which should be removed. *)
 Lemma wf_phi_operands__intro : forall f b i0 t0 vls0,
@@ -4733,7 +4698,7 @@ Proof.
   remember (split vls) as R.
   destruct R as [? ls1].
   destruct Hwfops as [_ [Hwfops _]].
-  apply successors_predOfBlock' in Hscs; auto.
+  apply successors_predecessors_of_block' in Hscs; auto.
   apply Hwfops in Hscs.
   apply split_r_in; auto.
     unfold l in *.
@@ -4891,3 +4856,56 @@ Proof.
       apply ListSet.set_diff_elim1 in J1; auto.
 Qed.
 
+Lemma wf_system__wf_layouts: forall los nts Ps1 f Ps2 S 
+  (HwfS : wf_system S) 
+  (Hin: In (module_intro los nts (Ps1 ++ product_fdef f :: Ps2)) S),
+  wf_layouts los.
+Proof.
+  intros.
+  inv HwfS.
+  apply In_InModulesB in Hin.
+  eapply wf_modules__wf_module in H; eauto.
+  inv H. inv H5; auto.
+Qed.
+
+Lemma wf_typ_pointer: forall S los nts t (Hwft: wf_typ S (los,nts) t)
+  (Hwfl: wf_layouts los),
+  wf_typ S (los,nts) (typ_pointer t).
+Proof.
+  intros. 
+  inv Hwft.
+  constructor; auto.
+    constructor; auto.
+      eapply wf_styp__isValidElementTyp; eauto.
+      apply getPointerAlignmentInfo_pos; auto.
+Qed.
+
+Lemma successors_codom__uniq: forall s m f 
+  (HwfF : wf_fdef s m f) l0, 
+  NoDup ((successors f) !!! l0).
+Proof.
+  intros.
+  unfold successors_list.
+  remember (@ATree.get (list atom) l0 (successors f)) as R.
+  destruct R as [scs|]; auto.
+  apply successors__successors_terminator in HeqR.
+  destruct HeqR as [ps0 [cs0 [tmn0 [HBinF Heq]]]]; subst.
+  eapply wf_fdef__wf_tmn in HBinF; eauto.
+  inv HBinF; simpl; auto.
+    constructor; auto.
+      simpl. intro J.
+      destruct J as [J | J]; try solve [auto | congruence].
+Qed.
+
+Lemma predecessors_dom__uniq: forall s m f l0 pds
+  (HeqR3 : ret pds = (make_predecessors (successors f)) ! l0)
+  (HwfF0 : wf_fdef s m f),
+  NoDup pds.
+Proof.
+  intros.
+  assert (J: forall l1, NoDup ((successors f) !!! l1)).
+    eapply successors_codom__uniq; eauto.
+  apply make_predecessors_dom__uniq with (l0:=l0) in J; auto.
+  unfold successors_list in J.
+  rewrite <- HeqR3 in J. auto.
+Qed.

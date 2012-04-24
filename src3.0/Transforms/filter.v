@@ -1373,13 +1373,14 @@ Proof.
   inv_wf_fdef HwfF'.
   match goal with
   | Hentry : getEntryBlock _ = _,
-    HuniqF : uniqFdef _,
-    Hnpred : hasNonePredecessor _ _ = _,
-    HwfBs : wf_blocks _ _ _ _ |- _ =>
+    Hnpred : has_no_predecessors _ _ = _,
+    Hsuccess: dom_analysis_is_successful _ |- _ =>
      eapply (@TransCFG.pres_getEntryBlock (Filter check))
        in Hentry; eauto;
-     eapply (@TransCFG.pres_hasNonePredecessor (Filter check)) 
-       in Hnpred; eauto
+     erewrite (@TransCFG.pres_has_no_predecessors (Filter check)) 
+       in Hnpred;
+     eapply (@TransCFG.pres_dom_analysis_is_successful (Filter check)) 
+       in Hsuccess; eauto
   end.
   rewrite EQ2 in Hwfb.
   match goal with

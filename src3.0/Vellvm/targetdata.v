@@ -1172,12 +1172,11 @@ Proof.
   rewrite <- le_plus_minus; auto.
 Qed.
 
-Definition wf_targetdata (TD:TargetData) : Prop :=
-let (los, nts) := TD in 
-uniq nts  /\
-forall abi_or_pref,
-  let result := getTypeSizeInBits_and_Alignment_for_namedts TD abi_or_pref in
-  forall nid,
-    lookupAL _ nts nid <> None -> lookupAL _ result nid <> None.
+Definition wf_layouts (los:layouts) : Prop :=
+forall ABInfo,
+  (getPointerAlignmentInfo los ABInfo > 0)%nat /\
+forall BitWidth,
+  (getIntAlignmentInfo los BitWidth ABInfo > 0)%nat /\
+  (getFloatAlignmentInfo los BitWidth ABInfo > 0)%nat.
 
 End LLVMtd.

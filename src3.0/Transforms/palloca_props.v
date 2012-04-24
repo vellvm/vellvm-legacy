@@ -1844,10 +1844,8 @@ Proof.
     solve_blockInFdefB.
 Qed.
 
-(* entry_cmds_simulation in phiplacement_bsim_defs.v should 
-   also use the lemma *)
 Lemma PI_preds_of_entry_cannot_be_nonempty: forall s m pinfo
-  (HwfF: wf_fdef s m (PI_f pinfo)) b
+  (HwfF: wf_fdef s m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo)) b
   (Hentry: getEntryBlock (PI_f pinfo) = Some b),
   forall (pd : l) (pds : list l), 
     (PI_preds pinfo) ! (getBlockLabel b) <> ret (pd :: pds).
@@ -1997,6 +1995,20 @@ Proof.
     rewrite nonalloca_cannot_find_promotable_alloca; auto.
 
     rewrite IHcs; auto.
+Qed.
+
+Lemma WF_PhiInfo__wf_value: forall pinfo (Hwfpi : WF_PhiInfo pinfo) S los nts Ps
+  (HUniq: uniqFdef (PI_f pinfo)) (Hwfl: wf_layouts los)
+  (HwfF : wf_fdef S (module_intro los nts Ps) (PI_f pinfo)),
+  wf_value S (module_intro los nts Ps) (PI_f pinfo) (value_id (PI_id pinfo)) 
+    (typ_pointer (PI_typ pinfo)).
+Proof.
+  intros.
+  constructor.
+    apply WF_PhiInfo_spec21 in HwfF; auto.
+    apply wf_typ_pointer; auto.
+
+    apply WF_PhiInfo_spec20 in HUniq; auto.
 Qed.
 
 (***************************************************************************)

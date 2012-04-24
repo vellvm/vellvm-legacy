@@ -472,8 +472,6 @@ Proof.
 
   assert (incl contents' (l3::contents3)) as Hsub.
     clear - HBinF Hsucc Heqdefs3 Heqdefs' HeqDoms HuniqF HwfF.
-    apply uniqF__uniqBlocks in HuniqF.
-    simpl in HuniqF.
     eapply dom_successors; eauto.
 
   assert (isReachableFromEntry (fdef_intro fh bs) (block_intro l' ps' nil tmn'))

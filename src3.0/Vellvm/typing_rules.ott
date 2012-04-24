@@ -1221,8 +1221,8 @@ Jwf_fdef :: '' ::=
       % Check the entry node
       % Entry block to function must not have predecessors!
       getEntryBlock (define fheader { blocks }) = block
-      {{ genBlockUseDef_fdef [[:user_syntax__fdef:define fheader { blocks }]] = [[usedef_block]] }}
-      {{ hasNonePredecessor [[:user_syntax__block:block]] [[usedef_block]] = true }}
+      {{ has_no_predecessors [[:user_syntax__fdef:define fheader { blocks }]] [[:user_syntax__block:block]] = true }}
+      {{ dom_analysis_is_successful [[:user_syntax__fdef:define fheader { blocks }]] }}
       % Checking function body
       system , (layouts namedts products) , define fheader { blocks } |- blocks
       ------------------------------------------------------------------------------------------------------------------- :: wf_fdef_intro
@@ -1293,6 +1293,7 @@ Jwf_namedts :: '' ::=
       %% Check circularity
       system , layouts |- namedts
       {{ uniq [[namedts]] }}
+      {{ LLVMtd.wf_layouts [[layouts]] }}
       --------------------------------------------- :: wf_namedts_intro
       system |- layouts namedts
 

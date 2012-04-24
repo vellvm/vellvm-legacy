@@ -87,6 +87,19 @@ Definition dom_analyze (f: fdef) : AMap.t (Dominators.t (bound_fdef f)) :=
   | (existT None _) => AMap.init top
   end.
 
+Definition dom_analysis_is_successful (f: fdef) : Prop :=
+  let '(fdef_intro _ bs) := f in
+  let bound := bound_blocks bs in
+  match entry_dom bs with
+  | (existT (Some (le, start)) _) =>
+      match DomDS.fixpoint bound (successors_blocks bs) (transfer bound)
+        ((le, start) :: nil) with
+      | None => False
+      | Some res => True
+      end
+  | (existT None _) => False
+  end.
+
 Definition blockDominates (f: fdef) (b1 b2: block) : Prop :=
 let '(block_intro l1 _ _ _) := b1 in
 let '(block_intro l2 _ _ _) := b2 in
@@ -435,6 +448,44 @@ Proof.
           unfold Maps.AMap.get. simpl.
           repeat rewrite Maps.ATree.gempty. simpl.
           split; intro; auto.
+Qed.
+
+Lemma DomDS_fixpoint_iff : forall (l4 l1 l0 : l) (id' : id)
+  bd1 bd2 succ (Heq : bd1 = bd2) cts
+  (bs_bound1 : incl cts bd1)
+  (bs_bound2 : incl cts bd2) init1 init2
+  (Heq1 : init1 = {| DomDS.L.bs_contents := cts;
+                   DomDS.L.bs_bound := bs_bound1 |})
+  (Heq2 : init2 = {| DomDS.L.bs_contents := cts;
+                   DomDS.L.bs_bound := bs_bound2 |}) Pt1 Pt2 Pf1 Pf2
+  (Ht: Pt1 <-> Pt2) (Hf: Pf1 <-> Pf2),
+   (match DomDS.fixpoint bd1 succ (transfer bd1) ((l4, init1) :: nil) with
+    | ret _ => Pt1
+    | merror => Pf1
+    end ) <->
+   (match DomDS.fixpoint bd2 succ (transfer bd2) ((l4, init2):: nil) with
+    | ret _ => Pt2
+    | merror => Pf2
+    end).
+Proof.
+  intros.
+  unfold l in *.
+  case_eq (DomDS.fixpoint bd2 succ (transfer bd2) ((l4, init2) :: nil)).
+    intros dom2 Hfix2.
+    apply DomDS.fixpoint_some2_right with (pc:=l1) (P:=eq_dts bd1 bd2)
+      (bound1:=bd1) (transf1:=transfer bd1)(entrypoints1:=((l4, init1):: nil))
+      in Hfix2; subst;
+      try solve [(auto with eq_dts_db) |
+                 apply Forall2_cons; simpl; auto using Lattice.AtomSet.set_eq_refl].
+      destruct Hfix2 as [dom1 [Hfix1 Heq']].
+      rewrite Hfix1. auto.
+    
+    intros Hfix2.
+    apply DomDS.fixpoint_none2_right with (bound1:=bd1) (P:=eq_dts bd1 bd2)
+      (transf1:=transfer bd1) (entrypoints1:=((l4,init1) :: nil)) in Hfix2;
+      subst; try solve [(auto with eq_dts_db) |
+                         apply Forall2_cons; simpl; auto using Lattice.AtomSet.set_eq_refl].
+      rewrite Hfix2. auto.
 Qed.
 
 (********************************************)
@@ -2925,7 +2976,7 @@ Qed.
 
 Lemma successors_predOfBlock': forall (f : fdef) b (Huniq : uniqFdef f) 
   (l1 : atom)
-  (Hscs : In (getBlockLabel b) (Kildall.successors_list (successors f) l1)),
+  (Hscs : In (getBlockLabel b) ((successors f) !!! l1)),
   In l1 (predOfBlock b (genBlockUseDef_fdef f)).
 Proof.
   intros.
@@ -2951,10 +3002,18 @@ Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     wf_phi_operands f b id0 t0 vls ->
     wf_phi_operands f b id0 t0 ((value_const c1, l1) :: vls).
 
+Definition predecessors (f: fdef) : ATree.t ls :=
+make_predecessors (successors f).
+
+Definition has_no_predecessors (f: fdef) (b:block) : bool :=
+match (predecessors f) !!! (getBlockLabel b) with
+| nil => true
+| _ => false
+end.
+
 Definition check_list_value_l (f:fdef) (b:block) (vls: list (value * l)) :=
-  let ud := genBlockUseDef_fdef f in
   let '(vs1,ls1) := List.split vls in
-  let ls2 := predOfBlock b ud in
+  let ls2 := (predecessors f) !!! (getBlockLabel b) in
   (length ls2 > 0)%nat /\
   AtomSet.set_eq _ ls1 ls2 /\
   NoDup ls1.
@@ -2962,3 +3021,219 @@ Definition check_list_value_l (f:fdef) (b:block) (vls: list (value * l)) :=
 Definition wf_phinode (f:fdef) (b:block) (p:phinode) :=
 let '(insn_phi id0 t0 vls0) := p in
 wf_phi_operands f b id0 t0 vls0 /\ check_list_value_l f b vls0.
+
+Lemma successors_predecessors_of_block : forall f l1 ps1 cs1 tmn1 l0,
+  uniqFdef f ->
+  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
+  In l0 (successors_terminator tmn1) ->
+  In l1 ((predecessors f) !!! l0).
+Proof.
+  unfold predecessors.
+  intros.
+  apply make_predecessors_correct; auto.
+  unfold successors_list.
+  erewrite blockInFdefB__successors; eauto.
+Qed.
+
+Lemma successors_predecessors_of_block': forall (f : fdef) b (Huniq : uniqFdef f) 
+  (l1 : atom)
+  (Hscs : In (getBlockLabel b) ((successors f) !!! l1)),
+  In l1 ((predecessors f) !!! (getBlockLabel b)).
+Proof.
+  intros.
+  destruct b as [l0 ps0 cs0 tmn0].
+  apply successors__blockInFdefB in Hscs.
+  destruct Hscs as [ps1 [cs1 [tmn1 [HBinF Hintmn]]]].
+  eapply successors_predecessors_of_block in Hintmn; eauto.
+Qed.
+
+Lemma has_no_predecessors_tinv: forall f b
+  (Hnpred: has_no_predecessors f b = true),
+  (predecessors f) !!! (getBlockLabel b) = nil.
+Proof.
+  unfold has_no_predecessors.
+  intros.
+  destruct (predecessors f) !!! (getBlockLabel b); tinv Hnpred; auto.
+Qed.
+
+Lemma successors__successors_terminator : forall scs a f
+  (H: Some scs = (successors f) ! a),
+  exists ps0, exists cs0, exists tmn0,
+    blockInFdefB (block_intro a ps0 cs0 tmn0) f /\
+    scs = successors_terminator tmn0.
+Proof.
+  destruct f as [fh bs]. simpl.
+  induction bs as [|a0 bs]; simpl; intro.
+    rewrite ATree.gempty in H. inv H.
+
+    destruct a0 as [l1 p c t].
+    destruct (id_dec l1 a); subst.
+      rewrite ATree.gss in H.
+      inv H.
+      exists p. exists c. exists t.
+      split; auto.
+        eapply orb_true_iff. left. apply blockEqB_refl.
+
+      rewrite ATree.gso in H; auto.
+      apply IHbs in H; auto.
+      destruct H as [ps0 [cs0 [tmn0 [J1 J2]]]].
+      exists ps0. exists cs0. exists tmn0.
+      split; auto.
+        eapply orb_true_iff; eauto.
+Qed.
+
+Definition predecessors_dom__uniq_prop 
+  (scs:ATree.t ls) (pds: ATree.t ls) : Prop :=
+(forall l1 l2, In l1 pds !!! l2 -> In l2 scs !!! l1) /\
+forall l0 (Huniq: forall l1, NoDup (scs !!! l1)), 
+  NoDup (pds !!! l0).
+
+Lemma predecessors_dom__uniq_aux_helper: forall m k v
+  (Herr : m ! k = merror)
+  (Huniq1 : forall l1, NoDup ((ATree.set k v m) !!! l1)),
+  NoDup v /\ forall l1, NoDup (m !!! l1).
+Proof.
+  intros.
+  split.
+    assert (J:=Huniq1 k).
+    unfold successors_list in J.
+    rewrite ATree.gsspec in J.
+    destruct (ATree.elt_eq k k); try congruence.
+
+    intros l0.
+    assert (J:=Huniq1 l0).
+    unfold successors_list in J.
+    rewrite ATree.gsspec in J.
+    unfold successors_list.
+    destruct (ATree.elt_eq l0 k); subst; auto.
+      rewrite Herr. auto.
+Qed.
+
+Lemma add_successors_dom__uniq: forall
+  (m : ATree.t (list atom))
+  (k : ATree.elt)
+  (l0 : atom)
+  (v2 v1 : list atom)
+  (a : ATree.t (list atom))
+  (H : forall l1 l2 : atom, 
+          In l1 a !!! l2 -> 
+          (l1 <> k -> In l2 m !!! l1) /\
+          (l1 = k -> In l2 v1))
+  (G1 : NoDup (v1++v2)) 
+  (J : NoDup a !!! l0),
+  NoDup (add_successors a k v2) !!! l0.
+Proof.
+  induction v2; simpl; intros; auto.
+    rewrite_env ((v1++[a])++v2) in G1.
+    apply IHv2 with (v1:=v1++[a]); clear IHv2; auto.
+    Case "1".
+      intros l1 l2 Hin.
+      unfold successors_list in Hin.
+      destruct (id_dec a l2); subst.
+      SCase "1.1".
+        rewrite ATree.gss in Hin.
+        destruct_in Hin.
+        SSCase "1.1.1".
+          split; intro; try congruence.
+            xsolve_in_list.
+
+        SSCase "1.1.2".
+          apply H in Hin.
+          destruct Hin as [Hin1 Hin2].
+          split; auto.
+            intros EQ; subst.
+            xsolve_in_list.
+
+      SCase "1.2".
+        rewrite ATree.gso in Hin; auto.
+        apply H in Hin.
+        destruct Hin as [Hin1 Hin2].
+        split; auto.
+          intros EQ; subst.
+          xsolve_in_list.
+
+    Case "2".
+      unfold successors_list in J.
+      unfold successors_list.
+      destruct (id_dec a l0); subst.
+      SCase "2.1".
+        rewrite ATree.gss.
+        remember (a0 ! l0) as R.
+        destruct R; auto.
+          constructor; auto.
+            intro Hin.
+            assert (In k (a0 !!! l0)) as Hin'.
+              unfold successors_list.
+              rewrite <- HeqR. auto.
+            apply_clear H in Hin'.
+            destruct Hin' as [_ Hin'].
+            apply NoDup_inv in G1. destruct G1 as [G1 _].
+            eapply NoDup_disjoint in G1; simpl; eauto.
+
+      SCase "2.2".
+        rewrite ATree.gso; auto.
+Qed.
+
+Lemma predecessors_dom__uniq_aux: forall scs, 
+  predecessors_dom__uniq_prop scs (make_predecessors scs).
+Proof.
+  intros.
+  unfold make_predecessors.
+  apply ATree_Properties.fold_rec.
+  Case "1".
+    unfold predecessors_dom__uniq_prop. 
+    intros m m' a Heq [IH1 IH2].
+    split.
+    SCase "1.1".
+      intros l1 l2.
+      intros.
+      erewrite eq_eli__eq_successors_list; eauto.
+
+    SCase "1.2".
+      intros l0 Huniq.
+      apply IH2 with (l0:=l0).
+        intros l1.
+        assert (J:=Huniq l1).
+        erewrite eq_eli__eq_successors_list; eauto.
+
+  Case "2".
+    unfold predecessors_dom__uniq_prop.
+    unfold successors_list.
+    split; intros; repeat rewrite ATree.gempty.
+      tauto.
+      auto.
+
+  Case "3".
+    unfold predecessors_dom__uniq_prop.
+    intros m a k v Herr Hkh [IH1 IH2].
+    split.
+    SCase "3.1".
+      clear - IH1 Herr.
+      intros. eapply add_successors_correct''; eauto.
+
+    SCase "3.2".
+      intros l0 Huniq.
+      assert (G:=Huniq).
+      apply predecessors_dom__uniq_aux_helper in G; auto.
+      destruct G as [G1 G2].
+      apply IH2 with (l0:=l0) in G2; auto.
+        clear - G1 G2 IH1 Herr.
+        eapply add_successors_dom__uniq with (v1:=nil)(m:=m); eauto.
+          intros l1 l2 Hin.
+          split; auto.
+            intro EQ; subst.
+            apply IH1 in Hin.
+            unfold successors_list in Hin.
+            rewrite Herr in Hin. tauto.
+Qed.
+
+Lemma make_predecessors_dom__uniq: forall scs l0
+  (Huniq: forall l1, NoDup (scs !!! l1)), 
+  NoDup ((make_predecessors scs) !!! l0).
+Proof.
+  intros.
+  assert (J:=predecessors_dom__uniq_aux scs).
+  unfold predecessors_dom__uniq_prop in J. destruct J; auto.
+Qed.
+
+

@@ -410,10 +410,9 @@ Lemma subst_check_list_value_l : forall f b vls
   check_list_value_l (subst_fdef id0 v0 f) (subst_block id0 v0 b)
     (subst_list_value_l id0 v0 vls).
 Proof.
-  unfold check_list_value_l. destruct f as [fh bs]. simpl. intros until vls.
+  unfold check_list_value_l. intros until vls.
   fold_subst_tac.
-  repeat rewrite <- TransCFG.pres_genBlockUseDef_blocks.
-  erewrite TransCFG.pres_predOfBlock.
+  erewrite TransCFG.pres_predecessors_of_block.
   assert (J:=@subst_list_value_l__labels vls).
   destruct (split vls).
   destruct (split (subst_list_value_l id0 v0 vls)).
@@ -1697,13 +1696,15 @@ Proof.
   inv_wf_fdef HwfF'.
   match goal with
   | Hentry : getEntryBlock _ = _,
-    HuniqF : uniqFdef _,
-    Hnpred : hasNonePredecessor _ _ = _,
-    HwfBs : wf_blocks _ _ _ _ |- _ =>
+    Hnpred : has_no_predecessors _ _ = _,
+    Hsuccess: dom_analysis_is_successful _
+    |- _ => 
      eapply (@TransCFG.pres_getEntryBlock (Subst id0 v0)) 
        in Hentry; eauto;
-     eapply (@TransCFG.pres_hasNonePredecessor (Subst id0 v0)) 
-       in Hnpred; eauto
+     erewrite (@TransCFG.pres_has_no_predecessors (Subst id0 v0)) 
+       in Hnpred;
+     eapply (@TransCFG.pres_dom_analysis_is_successful (Subst id0 v0)) 
+       in Hsuccess; eauto
   end.
   rewrite EQ2 in Hwfb.
   match goal with

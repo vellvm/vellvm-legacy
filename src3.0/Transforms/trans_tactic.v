@@ -186,21 +186,4 @@ Qed.
 Ltac repeat_solve :=
   repeat (split; eauto 2 using cmds_at_block_tail_next).
 
-Lemma entry_blockStrictDominates_others: forall s m f (HwfF : wf_fdef s m f)
-  (b be : block) (Hentry : getEntryBlock f = ret be)
-  (n : getBlockLabel be <> getBlockLabel b)
-  (Hreach : isReachableFromEntry f b),
-  blockStrictDominates f be b.
-Proof.
-  unfold blockStrictDominates.
-  intros.
-  destruct be as [l1 ? ? ?].
-  destruct b as [l2 ? ? ?].
-  simpl in n.
-  assert (getEntryLabel f = Some l1) as Gentry.
-    destruct f as [? blocks5].
-    destruct blocks5; inv Hentry. auto.
-  eapply dom_analysis__entry_doms_others1 with (b:=l2) in Gentry; eauto.
-    admit. (* typings should ensure dom_analysis always succeeds. *)
-Qed.
 

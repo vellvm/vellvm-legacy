@@ -227,11 +227,6 @@ Proof.
       destruct blocks5; inv H1; destruct block5; eauto
     end.
   destruct Hentry as [entry Hentry].
-  assert (exists b : atom,
-     match (dom_analyze f) !! b with
-     | {| DomDS.L.bs_contents := dts |} => dts <> nil
-     end) as Hex.
-    exists l3. rewrite <- HeqR3. intro J. subst. inv i1.
   assert (reachable f l2) as Hreach2.
     apply sdom_reachable in Hsdom23; auto.
   assert (reachable f l1) as Hreach1.
@@ -242,7 +237,7 @@ Proof.
       match (AMap.get l2 (dom_analyze f)) with
       | Dominators.mkBoundedSet dts _ => In entry dts
       end) as G.
-      eapply dom_analysis__entry_doms_others1; eauto.
+      eapply dom_analysis__entry_doms_others; eauto.
         rewrite <- HeqR2 in G.
         destruct (in_dec l_dec entry bs_contents0); auto.
   destruct (l_dec l2 entry); subst.
@@ -251,7 +246,7 @@ Proof.
       match (AMap.get l1 (dom_analyze f)) with
       | Dominators.mkBoundedSet dts _ => In entry dts
       end) as G.
-      eapply dom_analysis__entry_doms_others1; eauto.
+      eapply dom_analysis__entry_doms_others; eauto.
         rewrite <- HeqR1 in G.
         destruct (in_dec l_dec entry bs_contents); auto.
   eapply sdom_ordered with (l1:=l2) in Hsdom13; eauto.
@@ -266,7 +261,7 @@ Proof.
         match (AMap.get l1 (dom_analyze f)) with
         | Dominators.mkBoundedSet dts _ => In entry dts
         end) as G.
-        eapply dom_analysis__entry_doms_others1; eauto.
+        eapply dom_analysis__entry_doms_others; eauto.
           rewrite <- HeqR1 in G. intro J. subst. inv G.
 
     left.
@@ -279,7 +274,7 @@ Proof.
         match (AMap.get l2 (dom_analyze f)) with
         | Dominators.mkBoundedSet dts _ => In entry dts
         end) as G.
-        eapply dom_analysis__entry_doms_others1; eauto.
+        eapply dom_analysis__entry_doms_others; eauto.
           rewrite <- HeqR2 in G. intro J. subst. inv G.
 Qed.
 
@@ -968,79 +963,6 @@ Proof.
       congruence.
 Qed.
 
-Lemma dom_analysis__entry_doms_others2: forall S M f 
-  (HwfF: wf_fdef S M f) entry rd,
-  getEntryLabel f = Some entry ->
-  reachablity_analysis f = Some rd ->
-  (forall b, b <> entry /\ In b rd ->
-     match (AMap.get b (dom_analyze f)) with
-     | Dominators.mkBoundedSet dts _ => dts <> nil -> In entry dts
-     end).
-Proof.
-  intros.
-  destruct H1 as [J1 J2].
-  case_eq ((dom_analyze f) !! b).
-  intros bs_contents bs_bound H1 Hnnil.
-  unfold dom_analyze in H1.
-  destruct f as [f b0].
-  remember (entry_dom b0) as R.
-  destruct R.
-  destruct x as [[]|]; subst.
-    destruct b0 as [|b0 b2]; inv H.
-    destruct b1; tinv y.
-    destruct bs_contents0; tinv y.
-    destruct b0 as [l2 p c t]. inv HeqR.
-    inv H3.
-    remember (
-      DomDS.fixpoint (bound_blocks (block_intro entry p c t :: b2))
-           (successors_blocks (block_intro entry p c t :: b2))
-           (transfer (bound_blocks (block_intro entry p c t :: b2)))
-           ((entry,
-            {| DomDS.L.bs_contents := nil; DomDS.L.bs_bound := bs_bound0 |})
-            :: nil)) as R.
-    destruct R.
-      symmetry in HeqR.
-      eapply EntryDomsOthers.dom_entry_doms_others with (entry:=entry) in HeqR;
-        eauto.
-        unfold EntryDomsOthers.entry_doms_others in HeqR.
-        apply HeqR in J1.
-        unfold Dominators.member in J1.
-        unfold EntryDomsOthers.dt, EntryDomsOthers.bound, DomDS.dt, DomDS.L.t
-          in J1.
-        unfold Dominators.t in H1. simpl in J1, H1.
-        rewrite H1 in J1; auto.
-
-        split.
-           remember (Kildall.successors_list
-             (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
-               entry) as R.
-           destruct R; auto.
-           assert (
-             In a
-               (Kildall.successors_list
-                 (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
-               entry)) as Hin. rewrite <- HeqR0. simpl; auto.
-           apply Kildall.make_predecessors_correct' in Hin.
-           change (successors_blocks (block_intro entry p c t :: b2)) with
-             (successors (fdef_intro f (block_intro entry p c t :: b2))) in Hin.
-           apply successors__blockInFdefB in Hin.
-           destruct Hin as [ps0 [cs0 [tmn0 [G1 G2]]]].
-           eapply getEntryBlock_inv with (l3:=a)(a:=entry) in G2; simpl; eauto.
-           congruence.
-
-        split; auto.
-          exists{| DomDS.L.bs_contents := nil; DomDS.L.bs_bound := bs_bound0 |}.
-          simpl.
-          split; auto.
-            split; intros x Hin; auto.
-
-      rewrite AMap.gso in H1; auto.
-      rewrite AMap.gi in H1.
-      inv H1. contradict Hnnil; auto.
-
-    inv H.
-Qed.
-
 Lemma entry_is_head_of_compute_sdom_chains: forall S M f 
   (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) entry rd l0 chain0
   (H:getEntryLabel f = Some entry)
@@ -1056,7 +978,12 @@ Proof.
     match (AMap.get b (dom_analyze f)) with
     | Dominators.mkBoundedSet dts _ => dts <> nil -> In entry dts
     end) as J.
-    eapply dom_analysis__entry_doms_others2; eauto.
+    intros b Hp.
+    destruct Hp as [Hp1 Hp2].
+    eapply reachablity_analysis__reachable in Hp2; eauto.
+    eapply dom_analysis__entry_doms_others in H; eauto.
+    destruct ((dom_analyze f) !! b); auto.
+      
   assert (J0:=H0).
   apply reachablity_analysis__in_bound in H0.
   assert (forall x : atom, In x rd -> reachable f x) as W.

@@ -3127,6 +3127,14 @@ Proof.
     destruct J as [J | J]; auto.
 Qed.
 
+Lemma NoDup_rev: forall A (l1:list A) (Huniq: NoDup l1), NoDup (rev l1).
+Proof.
+  induction 1; simpl; auto.
+    apply NoDup_commut. simpl.
+    constructor; auto.
+      intro J. apply H. apply in_rev; auto.
+Qed.
+
 Lemma inGetBlockIDs__lookupBlockViaIDFromFdef: forall id1 b f,
   uniqFdef f -> In id1 (getBlockIDs b) -> blockInFdefB b f = true ->
   lookupBlockViaIDFromFdef f id1 = Some b.

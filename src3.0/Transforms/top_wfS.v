@@ -1,4 +1,5 @@
 Require Import vellvm.
+Require Import Kildall.
 
 Lemma subst_module_preserves_uniqModules: forall Ms2 M M'
   (HuniqM': uniqModule M') Ms1 
@@ -996,6 +997,41 @@ Proof.
     subst. simpl in *. inv HeqR2. split; intro; auto.
 Qed.
 
+Lemma pres_dom_analysis_is_successful : forall f,
+  dom_analysis_is_successful f <-> dom_analysis_is_successful (pass.(ftrans) f).
+Proof.
+  unfold dom_analysis_is_successful.
+  destruct f as [fh bs]. ftrans_spec_tac.
+  rewrite <- pres_successors_blocks.
+  remember (entry_dom bs) as R1.
+  remember (entry_dom (List.map pass.(btrans) bs)) as R2.
+  destruct R1 as [x1 Hx1].
+  destruct R2 as [x2 Hx2].
+  destruct x1 as [x1|].
+  Case "1".
+    destruct x1 as [le1 start1].
+    destruct start1.
+    destruct bs_contents as [|l2' bs_contents]; tinv Hx1.
+    destruct x2 as [x2|].
+    SCase "1.1".
+      destruct x2 as [le2 start2].
+      destruct start2.
+      destruct bs_contents as [|l3 bs_contents]; tinv Hx2.
+      destruct bs as [|b bs]; tinv HeqR1.
+      assert (J:=pass.(btrans_eq_label) b).
+      simpl in *.
+      destruct (btrans pass b). 
+      destruct b. 
+      inv HeqR1. inv HeqR2. simpl in J. subst. 
+      eapply DomDS_fixpoint_iff; try solve [eauto 1 | tauto].
+      rewrite pres_bound_blocks; auto.
+    SCase "1.2".
+      destruct bs; simpl in *; tinv HeqR1.
+        inv Hx2.
+  Case "2".
+    subst. simpl in *. inv HeqR2. split; intro; auto.
+Qed.
+
 Lemma pres_lookupBlockViaLabelFromBlocks : forall l5 bs b,
   lookupBlockViaLabelFromBlocks bs l5 = ret b ->
   lookupBlockViaLabelFromBlocks (List.map pass.(btrans) bs) l5 =
@@ -1050,16 +1086,36 @@ Proof.
   rewrite ftrans_spec. simpl. auto.
 Qed.
 
+Lemma pres_predecessors : forall f,
+  predecessors f = predecessors (pass.(ftrans) f).
+Proof.
+  intros. unfold predecessors.
+  rewrite pres_successors; auto.
+Qed.
+
+Lemma pres_predecessors_of_block : forall f b,
+ (predecessors f) !!! (getBlockLabel b) = 
+   (predecessors (pass.(ftrans) f)) !!! (getBlockLabel (pass.(btrans) b)).
+Proof.
+  intros. 
+  rewrite pres_predecessors.
+  rewrite pass.(btrans_eq_label); auto.
+Qed.
+
+Lemma pres_has_no_predecessors : forall f b,
+  has_no_predecessors f b = 
+   has_no_predecessors (pass.(ftrans) f) (pass.(btrans) b).
+Proof.
+  intros. unfold has_no_predecessors.
+  rewrite pres_predecessors_of_block; auto.
+Qed.
+
 Lemma pres_check_list_value_l : forall f b vls
   (Hcl: check_list_value_l f b vls),
   check_list_value_l (pass.(ftrans) f) (pass.(btrans) b) vls.
 Proof.
-  unfold check_list_value_l. destruct f as [bs]. simpl. intros until vls.
-  rewrite ftrans_spec. simpl.
-  repeat rewrite <- pres_genBlockUseDef_blocks.
-  erewrite TransCFG.pres_predOfBlock. 
-  destruct (split vls).
-  subst. eauto.
+  unfold check_list_value_l. intros until vls.
+  rewrite pres_predecessors_of_block; auto.
 Qed.
 
 End TransCFG.

@@ -418,8 +418,9 @@ Proof.
            apply trans_block_inv in J1.
            destruct J1 as [p' [cs'' [cs0' [J9 [J10 [J11 J12]]]]]].
            inv J12.
+           assert (HuniqF:=HFinPs). eapply wf_system__uniqFdef in HuniqF; eauto.
            eapply wf_system__wf_fdef in HFinPs; eauto.
-           clear - HBinF H Heqb1 HFinPs.
+           clear - HBinF H Heqb1 HFinPs HuniqF.
            destruct Heqb1 as [l1 [ps1 [cs1'' Heq1]]]; subst.
            eapply getEntryBlock_inv with (l':=l0)(a:=l0) in HBinF; simpl; eauto.
            contradict HBinF; auto.
@@ -580,10 +581,11 @@ Proof.
         apply trans_block_inv in J1.
         destruct J1 as [p' [cs'' [cs0' [J9 [J10 [J11 J12]]]]]].
         inv J12.
+        assert (HuniqF:=HFinPs). eapply wf_system__uniqFdef in HuniqF; eauto.
         eapply wf_system__wf_fdef in HFinPs; eauto.
         destruct Heqb1 as [l3 [ps1 [cs1'' Heq1]]]; subst.
         assert (l1 <> l0 /\ l2 <> l0) as HA.
-          clear - HBinF H HFinPs.
+          clear - HBinF H HFinPs HuniqF.
           split.
             eapply getEntryBlock_inv with (l':=l1)(a:=l0) in HBinF;
               simpl; eauto.
