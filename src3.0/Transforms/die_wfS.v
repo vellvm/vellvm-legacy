@@ -13,7 +13,7 @@ Require Import filter.
 Lemma subst_fdef__diinfo: forall f id0 v0
   (Hpure: forall (instr : insn)
             (Hlkup: lookupInsnViaIDFromFdef f id0 = ret instr),
-            pure_cmd instr)
+            pure_insn instr)
   (Hnoself: ~ In id0 (infrastructure.LLVMinfra.getValueIDs v0)),
   exists diinfo:DIInfo, DI_f diinfo = subst_fdef id0 v0 f /\ DI_id diinfo = id0.
 Proof.
@@ -22,7 +22,7 @@ Proof.
     apply subst_unused_in_fdef; auto.
   assert (Hpure': forall (instr : insn)
             (Hlk: lookupInsnViaIDFromFdef (subst_fdef id0 v0 f) id0 = ret instr),
-            pure_cmd instr).
+            pure_insn instr).
     intros. apply subst_lookupInsnViaIDFromFdef_rev in Hlk.
     destruct Hlk as [instr1 [Hlk EQ]]; subst.
     apply Hpure in Hlk.
@@ -35,7 +35,7 @@ Lemma subst_fdef_dom__diinfo: forall S M f id0 v0
   (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
   (Hpure: forall (instr : insn)
             (Hlkup: lookupInsnViaIDFromFdef f id0 = ret instr),
-            pure_cmd instr)
+            pure_insn instr)
   (Hreach: id_in_reachable_block f id0)
   (Hvdom: valueDominates f v0 (value_id id0)),
   exists diinfo:DIInfo, 
@@ -92,5 +92,20 @@ Proof.
   intros.
   rewrite remove_fdef_is_a_filter.
   eapply filter_reachablity_analysis; eauto.
+Qed.
+
+Lemma remove_subst_reachablity_successors : forall i2 i1 v1 f,
+  reachablity_analysis f =
+    reachablity_analysis (remove_fdef i2 (subst_fdef i1 v1 f)) /\
+  successors f = successors (remove_fdef i2 (subst_fdef i1 v1 f)).
+Proof.
+  split.
+    transitivity (reachablity_analysis (subst_fdef i1 v1 f)).
+      apply subst_reachablity_analysis.
+      apply remove_reachablity_analysis.
+
+    transitivity (successors (subst_fdef i1 v1 f)).
+      apply subst_successors.
+      apply remove_successors.
 Qed.
 

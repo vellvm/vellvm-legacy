@@ -12,6 +12,54 @@ Require Import subst_sim.
 Require Import phielim_spec.
 Require Import phisubst_inv.
 
+Lemma eliminate_phi_reachablity_successors: forall (f1 f2 : fdef) p
+ (Helim: (f2, true) = eliminate_phi f1 p),
+ reachablity_analysis f1 = reachablity_analysis f2 /\
+ successors f1 = successors f2.
+Proof.
+  destruct p as [pid pty pvls].
+  unfold eliminate_phi.
+  intros. 
+  remember (mem2reg.remove_redundancy nil 
+             (value_id pid :: List.map fst pvls)) as vs.
+  destruct vs as [|v1 vs']; tinv Helim.
+  destruct v1 as [vid1 | vc1].
+    destruct vs' as [|v2]; tinv Helim.
+      inv Helim.
+      split.
+        apply remove_reachablity_analysis.
+        apply remove_successors.
+
+      destruct vs' as [|]; tinv Helim.
+      destruct_if; apply remove_subst_reachablity_successors.
+
+    destruct vs' as [|? vs']; tinv Helim.
+      inv Helim.
+      split.
+        apply remove_reachablity_analysis.
+        apply remove_successors.
+
+      destruct vs' as [|? vs']; inv Helim.
+        apply remove_subst_reachablity_successors.
+Qed.
+
+Lemma eliminate_phis_reachablity_successors: forall (f1 f2 : fdef) ps
+ (Helim: (f2, true) = eliminate_phis f1 ps),
+ reachablity_analysis f1 = reachablity_analysis f2 /\
+ successors f1 = successors f2.
+Proof.
+  induction ps as [|p]; simpl; intros.
+    inv Helim.
+
+    remember (eliminate_phi f1 p) as R.
+    destruct R as []; inv Helim.
+    destruct_if.
+      eapply eliminate_phi_reachablity_successors; eauto.
+
+      apply eliminate_phi_false_spec in HeqR. subst. 
+      apply IHps in H1; auto. 
+Qed.
+ 
 Lemma subst_phi_init: forall (los : layouts) (nts : namedts) (fh : fheader)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product)
@@ -152,8 +200,11 @@ Proof.
   eapply assigned_phi__domination in Hspec'; eauto.
   assert (Hpure: forall (instr : insn)
             (Hlkup: lookupInsnViaIDFromFdef f0 (getPhiNodeID p) = ret instr),
-            die.pure_cmd instr).
-    admit. (* die should support phinode *)
+            die.pure_insn instr).
+    intros instr0 Hlkup0.
+    erewrite IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef' in Hlkup0; eauto 1.
+    inv Hlkup0. simpl. auto.
+
   assert (Hid_reach: id_in_reachable_block f0 (getPhiNodeID p)).
     intros b0 Hlkup.
     assert (b0 = block_intro l0 ps0 cs0 tmn0) as EQ.
@@ -184,12 +235,6 @@ Proof.
       eapply subst_phi_wfS; eauto.
       eapply program_sim__preserves__defined_program; eauto using subst_phi_sim.
 Qed.
-
-Lemma eliminate_phis_reachablity_successors: forall (f1 f2 : fdef) ps0,
- (f2, true) = eliminate_phis f1 ps0 ->
- reachablity_analysis f1 = reachablity_analysis f2 /\
- successors f1 = successors f2.
-Admitted. (* reach succ  *)
 
 Ltac elimphi_tac :=
 intros;

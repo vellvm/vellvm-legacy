@@ -259,7 +259,7 @@ Lemma removable_State__non_removable_State' : forall dinfo f1 b1 c1 cs1 tmn1
   tr0 = E0 /\ ~ removable_State dinfo IS1''.
 Proof.
   intros.
-  assert (pure_cmd (insn_cmd c1)) as Hpure.
+  assert (pure_insn (insn_cmd c1)) as Hpure.
     simpl in Hrm.
     destruct_if.
     destruct_dec; try tauto.

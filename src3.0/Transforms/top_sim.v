@@ -837,6 +837,53 @@ Proof.
   apply remove_phinodes_stable; auto.
 Qed.
 
+Lemma phis_simulation_elim_cons_inv: forall p (ps1 : list phinode)
+  (ps2 : phinodes) (Heq : ID0 = getPhiNodeID p)
+  (Hpssim2 : phis_simulation F0 (p :: ps1) ps2),
+  phis_simulation F0 ps1 ps2.
+Proof.
+  intros.
+  unfold phis_simulation in *.
+  destruct (fdef_dec F0 F0); try congruence.
+  simpl in *. rewrite Heq in Hpssim2.
+  destruct (id_dec (getPhiNodeID p) (getPhiNodeID p)); 
+    simpl in *; try congruence.
+Qed.
+
+Lemma phis_simulation_nil_inv: forall f1 ps,
+  phis_simulation f1 nil ps -> ps = nil.
+Proof.
+  unfold phis_simulation. simpl.
+  intros. destruct (fdef_dec F0 f1); auto.
+Qed.
+
+Lemma phis_simulation_nelim_cons_inv: forall F p ps2 ps',
+  phis_simulation F (p :: ps2) ps' ->
+  F0 <> F \/ ID0 <> getPhiNodeID p ->
+  exists ps2',
+    ps' = p :: ps2' /\ phis_simulation F ps2 ps2'.
+Proof.
+  intros.
+  unfold phis_simulation in *.
+  destruct (fdef_dec F0 F); subst; simpl; eauto.
+  destruct (id_dec (getPhiNodeID p) ID0); subst; simpl; eauto.
+  destruct H0; congruence.
+Qed.
+
+Lemma phis_simulation_nelim_cons_inv': forall F p ps2 ps',
+  phis_simulation F (p :: ps2) ps' ->
+  (F0 = F -> getPhiNodeID p <> ID0) ->
+  exists ps2',
+    ps' = p :: ps2' /\ phis_simulation F ps2 ps2'.
+Proof.
+  intros.
+  unfold phis_simulation in *.
+  destruct (fdef_dec F0 F); subst; simpl; eauto.
+  destruct (id_dec (getPhiNodeID p) ID0); subst; simpl; eauto.
+  assert (F=F) as EQ. auto.
+  apply H0 in EQ. congruence.
+Qed.
+
 Definition removable_State (St:@Opsem.State DGVs) : Prop :=
 match St with
 | Opsem.mkState

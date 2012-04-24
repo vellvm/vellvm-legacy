@@ -15,7 +15,7 @@ Require Import trans_tactic.
 
 (**********************************************)
 
-Definition pure_cmd (instr:insn) : Prop :=
+Definition pure_insn (instr:insn) : Prop :=
 match instr with
 | insn_cmd c =>
   match c with
@@ -26,6 +26,7 @@ match instr with
   | insn_call _ _ _ _ _ _ _ => False
   | _ => True
   end
+| insn_phinode _ => True
 | _ => False
 end.
 
@@ -34,7 +35,7 @@ Record DIInfo := mkDIInfo {
   DI_id : id;
   DI_pure : forall instr,
                lookupInsnViaIDFromFdef DI_f DI_id = Some instr ->
-               pure_cmd instr;
+               pure_insn instr;
   DI_unused : used_in_fdef DI_id DI_f = false
 }.
 
@@ -128,7 +129,7 @@ Proof.
       destruct (id_dec (DI_id dinfo) id5); subst; auto.  
       destruct_dec. 
 Qed.
-
+(*
 Lemma dont_remove_phinodes: forall (dinfo : DIInfo) (ps1 : phinodes)
   (l1 : l) (cs1 : cmds) (tmn1 : terminator)
   (HBinF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) (DI_f dinfo) = true)
@@ -140,10 +141,10 @@ Proof.
   destruct Hin as [p2 [Hin Heq]].
   apply (DI_pure dinfo) in Hin. auto.
 Qed.
-
+*)
 Definition phis_simulation (dinfo: DIInfo) (f1:fdef) ps1 ps2 : Prop :=
 RemoveSim.phis_simulation (DI_f dinfo) (DI_id dinfo) f1 ps1 ps2.
-
+(*
 Lemma phis_simulation_inv: forall dinfo F ps1 ps2 l1 cs1 tmn1
   (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true),
   uniqFdef F ->
@@ -154,6 +155,7 @@ Proof.
     intro. subst. 
     eapply dont_remove_phinodes; eauto.
 Qed.
+*)
 
 (* regsim can also be generalized *)
 Lemma reg_simulation_update: forall dinfo F lc1 lc2 id0 gvs,
@@ -172,73 +174,98 @@ Proof.
       rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
 
+Lemma reg_simulation_update_dead: forall (dinfo : DIInfo)
+  (lc1 lc2 : Opsem.GVsMap) gv
+  (Hlcsim2 : reg_simulation dinfo (DI_f dinfo) lc1 lc2),
+  reg_simulation dinfo (DI_f dinfo)
+    (updateAddAL (GVsT DGVs) lc1 (DI_id dinfo) gv) lc2.
+Proof.
+  intros.
+  unfold reg_simulation in *.
+  destruct (fdef_dec (DI_f dinfo) (DI_f dinfo)); try congruence.
+  intros.
+  assert (J:=@Hlcsim2 i0). clear Hlcsim2.
+  rewrite <- lookupAL_updateAddAL_neq; auto.
+Qed.
+
 Lemma getIncomingValuesForBlockFromPHINodes_rsim : forall los nts B1 B2 gl F
-  lc1' dinfo lc2' ps
-  (Hnuse: DI_f dinfo <> F \/ ~ In (DI_id dinfo) (getPhiNodesIDs ps))
-  (Hnuse': forall pn v (Hin: In pn ps)
+  lc1' dinfo lc2' ps1 ps2
+  (Hnuse': forall pn v (Hin: In pn ps1)
              (Hget: getValueViaBlockFromPHINode pn B1 = Some v),
              conditional_used_in_value (DI_f dinfo) F (DI_id dinfo) v)
   (l3 l0:list (id * GVsT DGVs))
-  (HeqR0 : Opsem.getIncomingValuesForBlockFromPHINodes (los,nts) ps B1 gl lc1' =
+  (HeqR0 : Opsem.getIncomingValuesForBlockFromPHINodes (los,nts) ps1 B1 gl lc1' =
            ret l3)
   (Hbsim2 : block_simulation dinfo F B1 B2)
   (Hrsim : reg_simulation dinfo F lc1' lc2')
-  (HeqR : Opsem.getIncomingValuesForBlockFromPHINodes (los,nts) ps B2 gl lc2' =
+  (Hpssim : phis_simulation dinfo F ps1 ps2)
+  (HeqR : Opsem.getIncomingValuesForBlockFromPHINodes (los,nts) ps2 B2 gl lc2' =
           ret l0),
   reg_simulation dinfo F (Opsem.updateValuesForNewBlock l3 lc1')
      (Opsem.updateValuesForNewBlock l0 lc2').
 Proof.
-  induction ps as [|[i0 ? l0]]; simpl; intros.
-    uniq_result. simpl. auto.
+  induction ps1 as [|[i0 ? l0]]; simpl; intros.
+    uniq_result. simpl.
+    apply RemoveSim.phis_simulation_nil_inv in Hpssim. subst.
+    simpl in HeqR. uniq_result. auto.
 
     inv_mbind'. symmetry_ctx. simpl.
-    assert (DI_f dinfo <> F \/ DI_id dinfo <> i0) as J1.
-      clear - Hnuse.
-      destruct Hnuse as [Hnuse | Hnuse]; auto.
-    assert (reg_simulation dinfo F
-             (Opsem.updateValuesForNewBlock l1 lc1')
-             (Opsem.updateValuesForNewBlock l2 lc2')) as J2.
-      assert (DI_f dinfo <> F \/ ~ In (DI_id dinfo) (getPhiNodesIDs ps)) as J3.
-        clear - Hnuse.
-        destruct Hnuse as [Hnuse | Hnuse]; auto.
-      apply IHps; eauto 2.
-        intros. eapply Hnuse' in Hget; eauto.
-    erewrite RemoveSim.block_simulation__getValueViaBlockFromValuels in HeqR3; 
-      eauto.
-    erewrite simulation__getOperandValue in HeqR0; eauto.
-      repeat uniq_result. 
-      apply reg_simulation_update; auto.
+    assert ((DI_f dinfo <> F \/ DI_id dinfo <> i0) \/
+            (DI_f dinfo = F /\ DI_id dinfo = i0)) as Hdec.
+      destruct (fdef_dec (DI_f dinfo) F); subst; auto.
+      destruct (id_dec (DI_id dinfo) i0); subst; auto.
+    destruct Hdec as [J1 | J1].
+    Case "undead case".
+      apply RemoveSim.phis_simulation_nelim_cons_inv in Hpssim; auto.
+      destruct Hpssim as [ps2' [EQ Hpssim]]; subst.
+      simpl in *. inv_mbind'. symmetry_ctx. simpl.
+      assert (reg_simulation dinfo F
+               (Opsem.updateValuesForNewBlock l2 lc1')
+               (Opsem.updateValuesForNewBlock l3 lc2')) as J2.
+        eapply IHps1; eauto 2.
+          intros. eapply Hnuse' in Hget; eauto.
+      erewrite RemoveSim.block_simulation__getValueViaBlockFromValuels in HeqR1; 
+        eauto.
+      uniq_result. 
+      erewrite simulation__getOperandValue in HeqR0; eauto.
+        repeat uniq_result. 
+        apply reg_simulation_update; auto.
 
-      assert (getValueViaBlockFromPHINode (insn_phi i0 typ5 l0) B1 = Some v0) 
-        as Hget'.
-        simpl. destruct B1, B2.
-        apply RemoveSim.block_simulation_inv in Hbsim2.
-        destruct Hbsim2; subst. simpl. auto.
-      eapply Hnuse'; eauto.
+        assert (getValueViaBlockFromPHINode (insn_phi i0 typ5 l0) B1 = Some v) 
+          as Hget'.
+          simpl. destruct B1, B2.
+          apply RemoveSim.block_simulation_inv in Hbsim2.
+          destruct Hbsim2; subst. simpl. auto.
+        eapply Hnuse'; eauto.
+
+    Case "dead case".
+      destruct J1; subst.
+      apply RemoveSim.phis_simulation_elim_cons_inv in Hpssim; auto.
+      apply reg_simulation_update_dead.
+      eapply IHps1; eauto 2.
+        intros. eapply Hnuse' in Hget; eauto.
 Qed.
 
-Lemma switchToNewBasicBlock_rsim : forall los nts l1 l2 ps cs1 cs2 tmn1 tmn2 B1 
-  B2 gl lc1 lc2 F dinfo lc1' lc2' Ps S
+Lemma switchToNewBasicBlock_rsim : forall los nts l1 l2 ps2 cs1 cs2 tmn1 tmn2 B1 
+  B2 gl lc1 lc2 F dinfo lc1' lc2' Ps S ps1
   (Hreach: isReachableFromEntry F B1) 
   (HBinF1: blockInFdefB B1 F = true)
-  (HBinF1': blockInFdefB (block_intro l2 ps cs2 tmn2) F = true)
   (Huniq: uniqFdef F) (HwfF: wf_fdef S (module_intro los nts Ps) F)
-  (HBinF: blockInFdefB (block_intro l1 ps cs1 tmn1) F = true)
+  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true)
   (H23 : @Opsem.switchToNewBasicBlock DGVs (los,nts)
-          (block_intro l1 ps cs1 tmn1) B1 gl lc1' =
+          (block_intro l1 ps1 cs1 tmn1) B1 gl lc1' =
          ret lc1)
   (Hbsim2 : block_simulation dinfo F B1 B2)
   (Hrsim: reg_simulation dinfo F lc1' lc2')
+  (Hpssim : phis_simulation dinfo F ps1 ps2)
   (H2 : Opsem.switchToNewBasicBlock (los,nts)
-         (block_intro l2 ps cs2 tmn2) B2 gl lc2' =
+         (block_intro l2 ps2 cs2 tmn2) B2 gl lc2' =
         ret lc2), reg_simulation dinfo F lc1 lc2.
 Proof.
   intros.
   unfold Opsem.switchToNewBasicBlock in *. simpl in *.
   inv_mbind'. symmetry_ctx.
   eapply getIncomingValuesForBlockFromPHINodes_rsim; eauto 1.
-    destruct (fdef_dec (DI_f dinfo) F); subst; auto.
-      right. eapply dont_remove_phinodes; eauto.
     intros. destruct dinfo. simpl in *.
     eapply conditional_runused_in_fdef__used_in_getValueViaBlockFromPHINode; 
       eauto.
@@ -331,20 +358,6 @@ Proof.
   apply reg_simulation_nil; auto.
 Qed.
 
-Lemma reg_simulation_update_dead: forall (dinfo : DIInfo)
-  (lc1 lc2 : Opsem.GVsMap) gv
-  (Hlcsim2 : reg_simulation dinfo (DI_f dinfo) lc1 lc2),
-  reg_simulation dinfo (DI_f dinfo)
-    (updateAddAL (GVsT DGVs) lc1 (DI_id dinfo) gv) lc2.
-Proof.
-  intros.
-  unfold reg_simulation in *.
-  destruct (fdef_dec (DI_f dinfo) (DI_f dinfo)); try congruence.
-  intros.
-  assert (J:=@Hlcsim2 i0). clear Hlcsim2.
-  rewrite <- lookupAL_updateAddAL_neq; auto.
-Qed.
-
 Lemma returnUpdateLocals_reg_simulation: forall dinfo F' lc' los nts i0 n
   c t0 v0 v p Result lc gl lc'' lc3 lc''0 lc2 F 
   (Hprop: DI_f dinfo <> F' \/ DI_id dinfo <> i0)
@@ -384,7 +397,7 @@ Qed.
 Lemma dont_remove_impure_cmd: forall (dinfo : DIInfo) (ps1 : phinodes)
   (l1 : l) (cs1 : cmds) (tmn1 : terminator) F c cs0
   (HBinF : blockInFdefB (block_intro l1 ps1 (cs0++c::cs1) tmn1) F = true)
-  (H : uniqFdef F) (Hnok: ~ pure_cmd (insn_cmd c)),
+  (H : uniqFdef F) (Hnok: ~ pure_insn (insn_cmd c)),
   DI_f dinfo <> F \/ DI_id dinfo <> getCmdLoc c.
 Proof.
   intros.
@@ -494,7 +507,7 @@ Proof.
      [EQ1 [EQ2 Hdid]]]]]]]]]]]; subst.
   destruct Cfg1 as [S1 TD1 Ps1 gl1 fs1].
   destruct_ctx_other.
-  assert (pure_cmd (insn_cmd c1)) as Hpure.
+  assert (pure_insn (insn_cmd c1)) as Hpure.
     apply (DI_pure diinfo); auto.
       eapply wf_system__uniqFdef in HFinPs1; eauto 1.
       rewrite Hdid.
@@ -564,65 +577,6 @@ match goal with
     ];
     rewrite H1 in H2; inv H2; clear H1
 end.
-
-Ltac die_is_sim_branch := 
-  let foo diinfo b1 b2 f1 f2 :=
-    assert (block_simulation diinfo f1 b1 b2) as Hbsim; try solve[
-      try simulation__getOperandValue_tac;
-      try destruct_if; eapply RemoveSim.fdef_sim__block_sim; eauto
-    ];
-    assert (Hbsim':=Hbsim);
-    apply RemoveSim.block_simulation_inv in Hbsim';
-    destruct Hbsim' as [Heq1 [Hpssim' [Hcssim' Heq5]]]; subst;
-    assert (uniqFdef f1) as Huniq; try solve [eauto using wf_system__uniqFdef]
-  in
-
-  destruct_ctx_other;
-  match goal with
-  | Hcssim2: cmds_simulation _ _ nil _,
-    Hop2: Opsem.sInsn _ _ _ _ |- _ =>
-    apply RemoveSim.cmds_simulation_nil_inv in Hcssim2; subst;
-    inv Hop2;
-    uniq_result
-  end;
-
-  match goal with
-  | H1: Some ?b1 = (if _ then lookupBlockViaLabelFromFdef ?f1 _ else _),
-    H2: Some ?b2 = (if _ then lookupBlockViaLabelFromFdef ?f2 _ else _),
-    Hfsim: fdef_simulation ?diinfo ?f1 ?f2
-   |- _ => foo diinfo b1 b2 f1 f2
-  | H1: Some ?b1 = lookupBlockViaLabelFromFdef ?f1 _,
-    H2: Some ?b2 = lookupBlockViaLabelFromFdef ?f2 _,
-    Hfsim: fdef_simulation ?diinfo ?f1 ?f2
-   |- _ => foo diinfo b1 b2 f1 f2
-  end;
-
-  match goal with
-  | Hfsim: fdef_simulation ?diinfo ?f1 ?f2,
-    Hbsim: block_simulation ?diinfo ?f1 ?b1 ?b2,
-    Hbsim2: block_simulation ?diinfo ?f1 ?b1' ?b2',
-    Hpssim': RemoveSim.phis_simulation _ _ ?f1 _ _,
-    _: Opsem.switchToNewBasicBlock _ ?b1 ?b1' _ _ = Some ?lc1',
-    _: Opsem.switchToNewBasicBlock _ ?b2 ?b2' _ _ = Some ?lc2'
-   |- _ =>
-    assert (blockInFdefB b1 f1) as HBinF1'; try solve_blockInFdefB;
-    eapply phis_simulation_inv in Hpssim'; eauto 2;
-    subst;
-    assert (reg_simulation diinfo f1 lc1' lc2') as Hlcsim2'; try solve [
-      assert (HBinF1'':=HBinF1');
-      eapply wf_system__blockInFdefB__wf_block in HBinF1''; eauto;
-      inv HBinF1'';
-      eapply switchToNewBasicBlock_rsim in Hbsim2;
-        eauto 1; value_doesnt_use_did_tac
-    ];
-    repeat_solve;
-    match goal with
-    | |- exists _:_, exists _:_, exists _:_,
-         block_intro ?l'0 ?ps'0 ?cs' ?tmn'0 =
-         block_intro _ _ (_ ++ ?cs') ?tmn'0 =>
-      exists l'0; exists ps'0; exists nil; auto
-    end
-  end.
 
 Ltac die_is_sim_common_case :=
 match goal with
@@ -698,6 +652,64 @@ match goal with
     assert (HuniqF: uniqFdef F) by eauto 2 using wf_system__uniqFdef
   end
 end.
+
+Ltac die_is_sim_branch := 
+  let foo diinfo b1 b2 f1 f2 :=
+    assert (block_simulation diinfo f1 b1 b2) as Hbsim; try solve[
+      try simulation__getOperandValue_tac;
+      try destruct_if; eapply RemoveSim.fdef_sim__block_sim; eauto
+    ];
+    assert (Hbsim':=Hbsim);
+    apply RemoveSim.block_simulation_inv in Hbsim';
+    destruct Hbsim' as [Heq1 [Hpssim' [Hcssim' Heq5]]]; subst;
+    assert (uniqFdef f1) as Huniq; try solve [eauto using wf_system__uniqFdef]
+  in
+
+  destruct_ctx_other;
+  match goal with
+  | Hcssim2: cmds_simulation _ _ nil _,
+    Hop2: Opsem.sInsn _ _ _ _ |- _ =>
+    apply RemoveSim.cmds_simulation_nil_inv in Hcssim2; subst;
+    inv Hop2;
+    uniq_result
+  end;
+
+  match goal with
+  | H1: Some ?b1 = (if _ then lookupBlockViaLabelFromFdef ?f1 _ else _),
+    H2: Some ?b2 = (if _ then lookupBlockViaLabelFromFdef ?f2 _ else _),
+    Hfsim: fdef_simulation ?diinfo ?f1 ?f2
+   |- _ => foo diinfo b1 b2 f1 f2
+  | H1: Some ?b1 = lookupBlockViaLabelFromFdef ?f1 _,
+    H2: Some ?b2 = lookupBlockViaLabelFromFdef ?f2 _,
+    Hfsim: fdef_simulation ?diinfo ?f1 ?f2
+   |- _ => foo diinfo b1 b2 f1 f2
+  end;
+
+  match goal with
+  | Hfsim: fdef_simulation ?diinfo ?f1 ?f2,
+    Hbsim: block_simulation ?diinfo ?f1 ?b1 ?b2,
+    Hbsim2: block_simulation ?diinfo ?f1 ?b1' ?b2',
+    Hpssim': RemoveSim.phis_simulation _ _ ?f1 _ ?ps2',
+    _: Opsem.switchToNewBasicBlock _ ?b1 ?b1' _ _ = Some ?lc1',
+    _: Opsem.switchToNewBasicBlock _ ?b2 ?b2' _ _ = Some ?lc2'
+   |- _ =>
+    assert (blockInFdefB b1 f1) as HBinF1'; try solve_blockInFdefB;
+    subst;
+    assert (reg_simulation diinfo f1 lc1' lc2') as Hlcsim2'; try solve [
+      assert (HBinF1'':=HBinF1');
+      eapply wf_system__blockInFdefB__wf_block in HBinF1''; eauto;
+      inv HBinF1'';
+      eapply switchToNewBasicBlock_rsim with (ps2:=ps2') in Hbsim2;
+        eauto 1; value_doesnt_use_did_tac
+    ];
+    repeat_solve;
+    match goal with
+    | |- exists _:_, exists _:_, exists _:_,
+         block_intro ?l'0 ?ps'0 ?cs' ?tmn'0 =
+         block_intro _ _ (_ ++ ?cs') ?tmn'0 =>
+      exists l'0; exists ps'0; exists nil; auto
+    end
+  end.
 
 Lemma die_is_sim : forall diinfo Cfg1 St1 Cfg2 St2
   (Hwfpp: OpsemPP.wf_State Cfg1 St1) (Hwfcfg: OpsemPP.wf_Config Cfg1)

@@ -257,21 +257,6 @@ Proof.
     inv H; auto.
 Qed.
 
-Lemma remove_subst_reachablity_successors : forall i2 i1 v1 f,
-  reachablity_analysis f =
-    reachablity_analysis (remove_fdef i2 (subst_fdef i1 v1 f)) /\
-  successors f = successors (remove_fdef i2 (subst_fdef i1 v1 f)).
-Proof.
-  split.
-    transitivity (reachablity_analysis (subst_fdef i1 v1 f)).
-      apply subst_reachablity_analysis.
-      apply remove_reachablity_analysis.
-
-    transitivity (successors (subst_fdef i1 v1 f)).
-      apply subst_successors.
-      apply remove_successors.
-Qed.
-
 Lemma elim_stld_cmds_reachablity_successors: forall f cs0 f0
   dones0 dones id0 (Hpass : (f0, true, dones0) = elim_stld_cmds f cs0 id0 dones),
   reachablity_analysis f = reachablity_analysis f0 /\
