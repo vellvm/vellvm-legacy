@@ -403,6 +403,8 @@ match vs with
     else remove_redundancy (v::acc) vs'
 end.
 
+Parameter does_dead_phi_elim : unit -> bool.
+
 Definition eliminate_phi (f:fdef) (pn:phinode): fdef * bool:=
 let '(insn_phi pid _ vls) := pn in 
 let ndpvs := 
@@ -422,7 +424,10 @@ match ndpvs with
 | v1::nil => 
     (* v1 must be pid, so pn:= pid = phi [pid, ..., pid] *)
     (remove_fdef pid f, true)
-| _ => (f, false)
+| _ => 
+   if does_dead_phi_elim tt then
+      if used_in_fdef pid f then (f, false) else (remove_fdef pid f, true)
+   else (f, false)
 end.
 
 Fixpoint eliminate_phis (f:fdef) (ps: phinodes): fdef * bool :=

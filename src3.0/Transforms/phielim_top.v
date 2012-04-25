@@ -12,35 +12,46 @@ Require Import subst_sim.
 Require Import phielim_spec.
 Require Import phisubst_inv.
 
-Lemma eliminate_phi_reachablity_successors: forall (f1 f2 : fdef) p
- (Helim: (f2, true) = eliminate_phi f1 p),
- reachablity_analysis f1 = reachablity_analysis f2 /\
- successors f1 = successors f2.
+Lemma remove_reachablity_successors: forall did f1,
+  reachablity_analysis f1 = reachablity_analysis (remove_fdef did f1) /\
+  successors f1 = successors (remove_fdef did f1).
+Proof.
+  intros.
+  split; eauto using remove_reachablity_analysis, remove_successors.
+Qed.
+
+Lemma eliminate_phi_true_simpl_spec: forall p f f'
+  (Helim: (f', true) = eliminate_phi f p),
+  f' = remove_fdef (getPhiNodeID p) f \/
+  exists v, 
+    f' = remove_fdef (getPhiNodeID p) (subst_fdef (getPhiNodeID p) v f).
 Proof.
   destruct p as [pid pty pvls].
   unfold eliminate_phi.
   intros. 
   remember (mem2reg.remove_redundancy nil 
              (value_id pid :: List.map fst pvls)) as vs.
-  destruct vs as [|v1 vs']; tinv Helim.
+  destruct vs as [|v1 vs']; try solve [repeat destruct_if; auto].
   destruct v1 as [vid1 | vc1].
-    destruct vs' as [|v2]; tinv Helim.
-      inv Helim.
-      split.
-        apply remove_reachablity_analysis.
-        apply remove_successors.
+    destruct vs' as [|v2]; inv Helim; auto.
+      destruct vs' as [|]; try solve [repeat destruct_if; auto].
+        right. destruct_if; eauto.
+    destruct vs' as [|? vs']; try solve [repeat destruct_if; auto].
+      inv Helim. auto.
+      destruct vs' as [|? vs']; try solve [repeat destruct_if; auto].
+        inv Helim. eauto.
+Qed.
 
-      destruct vs' as [|]; tinv Helim.
-      destruct_if; apply remove_subst_reachablity_successors.
-
-    destruct vs' as [|? vs']; tinv Helim.
-      inv Helim.
-      split.
-        apply remove_reachablity_analysis.
-        apply remove_successors.
-
-      destruct vs' as [|? vs']; inv Helim.
-        apply remove_subst_reachablity_successors.
+Lemma eliminate_phi_reachablity_successors: forall (f1 f2 : fdef) p
+  (Helim: (f2, true) = eliminate_phi f1 p),
+  reachablity_analysis f1 = reachablity_analysis f2 /\
+  successors f1 = successors f2.
+Proof.
+  intros.
+  apply eliminate_phi_true_simpl_spec in Helim.
+  destruct Helim as [EQ | [v EQ]]; subst;
+    eauto using remove_reachablity_successors, 
+                remove_subst_reachablity_successors.
 Qed.
 
 Lemma eliminate_phis_reachablity_successors: forall (f1 f2 : fdef) ps
@@ -195,7 +206,23 @@ Proof.
   destruct J as [HwfF HuniqF].
   eapply reachablity_analysis__reachable in Hreach; eauto.
   eapply eliminate_phis_true_spec in Helim; eauto 1.
-  destruct Helim as [p [Hin [v [Hspec Heq]]]]; subst f1.
+  destruct Helim as [p [Hin [[Hnuse Heq] | [v [Hspec Heq]]]]]; subst f1.
+  Case "dead phinode".
+  assert (Hpure: forall (instr : insn)
+            (Hlkup: lookupInsnViaIDFromFdef f0 (getPhiNodeID p) = ret instr),
+            die.pure_insn instr).
+    intros instr0 Hlkup0.
+    erewrite IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef' in Hlkup0; eauto 1.
+    inv Hlkup0. simpl. auto.
+  set (dinfo:=die.mkDIInfo f0 (getPhiNodeID p) Hpure Hnuse).
+  subst.
+  assert (Hsim:=HwfS2). eapply die_sim with (dinfo:=dinfo) in HwfS2; eauto.
+  split; auto.
+  split.
+    eapply die_wfS with (diinfo:=dinfo); eauto.
+    eapply program_sim__preserves__defined_program in Hok; eauto.
+
+  Case "redundant phinode".
   assert (Hspec':=Hspec).
   eapply assigned_phi__domination in Hspec'; eauto.
   assert (Hpure: forall (instr : insn)
@@ -219,7 +246,7 @@ Proof.
       [module_intro los nts
           (Ps1 ++ product_fdef (subst_fdef (getPhiNodeID p) v f0) :: Ps2)]); 
     auto; intros.
-  Case "die".
+  SCase "die".
     subst.
     split.
       eapply die_sim; eauto.
@@ -227,7 +254,7 @@ Proof.
       eapply die_wfS; eauto.
       eapply program_sim__preserves__defined_program in H0; eauto using die_sim.
 
-  Case "subst".
+  SCase "subst".
     subst.
     split.
       eapply subst_phi_sim; eauto.

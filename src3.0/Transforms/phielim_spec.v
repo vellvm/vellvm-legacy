@@ -44,13 +44,16 @@ Proof.
   remember (remove_redundancy nil (value_id pid :: List.map fst pvls)) 
     as R.
   destruct R as [|[] l0]; inv Helim; auto.
-    destruct l0 as [|[] l0]; inv H0; auto.
-      destruct l0 as [|]; inv H1; auto.
-      destruct_if; auto.
+    repeat destruct_if; auto.
 
-      destruct l0 as [|]; inv H1; auto.
-      destruct_if; auto.
-    destruct l0 as [|? [|]]; inv H0; auto.
+    destruct l0 as [|[] l0]; inv H0; try solve [
+      auto |
+      destruct l0 as [|]; inv H1; 
+        try solve [auto | repeat destruct_if; auto]
+    ].
+
+    destruct l0 as [|? [|]]; inv H0; 
+      try solve [auto | repeat destruct_if; auto].
 Qed.
 
 Lemma eliminate_phis_false_spec: forall f' f ps0
@@ -568,6 +571,8 @@ Lemma eliminate_phi_true_spec: forall S M f b f'
   (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
   (HPinF: phinodeInFdefBlockB p f b = true)
   (Helim: (f', true) = eliminate_phi f p),
+  (used_in_fdef (getPhiNodeID p) f = false /\
+     f' = remove_fdef (getPhiNodeID p) f) \/
   exists v, assigned_phi v p /\ 
     f' = remove_fdef (getPhiNodeID p) (subst_fdef (getPhiNodeID p) v f).
 Proof.
@@ -582,7 +587,7 @@ Proof.
   apply remove_redundancy in Heqvs.
   destruct Heqvs as [Hinc Hnodup].
   rewrite <- fst_split__map_fst in Hinc.
-  destruct vs as [|v1 vs']; tinv Helim.
+  destruct vs as [|v1 vs']; try solve [repeat destruct_if; auto].
   destruct v1 as [vid1 | vc1].
   Case "1".
     destruct vs' as [|v2].
@@ -604,8 +609,9 @@ Proof.
         destruct_in Hin'; try tauto. 
        
     SCase "1.2".
-      destruct vs' as [|]; tinv Helim.
+      destruct vs' as [|]; try solve [repeat destruct_if; auto].
       SSCase "1.2.1: pid = phi v2 .. v2 . pid".
+        right.
         destruct_dec; inv Helim.
           SSSCase "pid=vid1".
           exists v2.
@@ -654,8 +660,9 @@ Proof.
               destruct Hin'; subst; tauto.
 
   Case "2".
-    destruct vs' as [|? vs']; tinv Helim.
+    destruct vs' as [|? vs']; try solve [repeat destruct_if; auto].
     SCase "2.1: pid = vc".
+      right.
       assert (In (value_id pid) (value_id pid :: fst (split pvls))) as Hin.
         simpl; auto.
       apply Hinc in Hin.
@@ -663,8 +670,9 @@ Proof.
         congruence.
 
     SCase "2.2".
-      destruct vs' as [|? vs']; inv Helim.
+      destruct vs' as [|? vs']; try solve [repeat destruct_if; auto].
         SSCase "2.2.2: pid = phi pid c .. c . pid".
+        inv Helim. right.
         assert (v = value_id pid) as EQ.         
           assert (In (value_id pid) (value_id pid :: fst (split pvls))) 
             as Hin0.
@@ -698,8 +706,11 @@ Lemma eliminate_phis_true_spec': forall f b f' S M
   (Hreach: isReachableFromEntry f b) ps
   (HBinF: forall p, In p ps -> phinodeInFdefBlockB p f b = true)
   (Helim: (f', true) = eliminate_phis f ps),
-  exists p, In p ps /\ exists v, assigned_phi v p /\ 
-    f' = remove_fdef (getPhiNodeID p) (subst_fdef (getPhiNodeID p) v f).
+  exists p, In p ps /\ 
+    ((used_in_fdef (getPhiNodeID p) f = false /\
+      f' = remove_fdef (getPhiNodeID p) f) \/
+    exists v, assigned_phi v p /\ 
+      f' = remove_fdef (getPhiNodeID p) (subst_fdef (getPhiNodeID p) v f)).
 Proof.
   induction ps as [|p]; simpl; intros.
     inv Helim.
@@ -713,8 +724,7 @@ Proof.
 
       apply eliminate_phi_false_spec in HeqR. subst. 
       apply IHps in H1; auto. 
-      destruct H1 as [p' [Hin [v [H1 H2]]]].
-      eauto 6.
+      destruct H1 as [p' [Hin [H1 | [v [H1 H2]]]]]; eauto 7.
 Qed.
     
 Lemma eliminate_phis_true_spec: forall f f' l0 S M 
@@ -722,8 +732,11 @@ Lemma eliminate_phis_true_spec: forall f f' l0 S M
   (Hreach: reachable f l0) ps cs0 tmn0
   (HBinF: blockInFdefB (block_intro l0 ps cs0 tmn0) f = true)
   (Helim: (f', true) = eliminate_phis f ps),
-  exists p, In p ps /\ exists v, assigned_phi v p /\ 
-    f' = remove_fdef (getPhiNodeID p) (subst_fdef (getPhiNodeID p) v f).
+  exists p, In p ps /\ 
+    ((used_in_fdef (getPhiNodeID p) f = false /\
+      f' = remove_fdef (getPhiNodeID p) f) \/
+    exists v, assigned_phi v p /\ 
+      f' = remove_fdef (getPhiNodeID p) (subst_fdef (getPhiNodeID p) v f)).
 Proof.
   intros.
   eapply eliminate_phis_true_spec' with (b:=block_intro l0 ps cs0 tmn0); 

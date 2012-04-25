@@ -52,6 +52,10 @@ let () = match Sys.argv with
   | [| _; "-mem2reg" ; in_filename |] -> 
        mem2reg := true; 
        main in_filename
+  | [| _; "-mem2reg-dead-phi-elim" ; in_filename |] -> 
+       mem2reg := true; 
+       Globalstates.does_dead_phi_elim := true; 
+       main in_filename
   | [| _; "-mem2reg-no-stld-elim" ; in_filename |] -> 
        mem2reg := true; 
        Globalstates.does_stld_elim := false; 
