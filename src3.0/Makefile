@@ -39,6 +39,11 @@ ocaml: theories extraction
 	ocamlbuild $(OCAMLBUILD_OPT) SoftBound/main.d.byte
 	ocamlbuild $(OCAMLBUILD_OPT) Parser/main.d.byte
 
+dtree: theories extraction
+	+make -f Makefile.ocaml -C Extraction
+	ocamlbuild -clean
+	ocamlbuild $(OCAMLBUILD_OPT) Vellvm/Dominators/main.d.byte
+
 clean:
 	rm -rf Vellvm/main.pdf Vellvm/main.log Vellvm/main.aux \
 		Vellvm/syntax_base.v Vellvm/typing_rules.v Vellvm/m_*.ott
