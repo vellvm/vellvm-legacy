@@ -159,3 +159,7 @@
 ./Transforms/phisubst_inv.v
 ./Transforms/phielim_top.v
 ./Transforms/list_facts.v
+
+./Vellvm/Dominators/dom_type.v
+./Vellvm/Dominators/fast_iter.v
+
