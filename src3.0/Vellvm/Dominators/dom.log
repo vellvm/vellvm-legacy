@@ -1,108 +1,108 @@
 bh: Fast Dom
 
-real	0m0.069s
-user	0m0.049s
-sys	0m0.008s
+real	0m0.067s
+user	0m0.003s
+sys	0m0.001s
 Slow Dom
 
-real	0m0.411s
-user	0m0.405s
-sys	0m0.007s
+real	0m0.396s
+user	0m0.388s
+sys	0m0.006s
 LLVM Dom
 
-real	0m0.069s
-user	0m0.006s
-sys	0m0.003s
+real	0m0.067s
+user	0m0.003s
+sys	0m0.000s
 bisort: Fast Dom
 
-real	0m0.018s
-user	0m0.011s
-sys	0m0.006s
+real	0m0.014s
+user	0m0.009s
+sys	0m0.005s
 Slow Dom
 
-real	0m0.018s
-user	0m0.013s
-sys	0m0.003s
+real	0m0.016s
+user	0m0.011s
+sys	0m0.004s
 LLVM Dom
+
+real	0m0.013s
+user	0m0.010s
+sys	0m0.002s
+em3d: Fast Dom
+
+real	0m0.012s
+user	0m0.008s
+sys	0m0.004s
+Slow Dom
+
+real	0m0.017s
+user	0m0.012s
+sys	0m0.005s
+LLVM Dom
+
+real	0m0.013s
+user	0m0.010s
+sys	0m0.002s
+health: Fast Dom
+
+real	0m0.017s
+user	0m0.012s
+sys	0m0.005s
+Slow Dom
+
+real	0m0.022s
+user	0m0.018s
+sys	0m0.004s
+LLVM Dom
+
+real	0m0.019s
+user	0m0.015s
+sys	0m0.003s
+mst: Fast Dom
 
 real	0m0.014s
 user	0m0.011s
 sys	0m0.003s
-em3d: Fast Dom
-
-real	0m0.018s
-user	0m0.011s
-sys	0m0.003s
 Slow Dom
 
 real	0m0.020s
-user	0m0.000s
-sys	0m0.002s
-LLVM Dom
-
-real	0m0.016s
-user	0m0.013s
-sys	0m0.002s
-health: Fast Dom
-
-real	0m0.018s
-user	0m0.002s
-sys	0m0.001s
-Slow Dom
-
-real	0m0.020s
-user	0m0.017s
-sys	0m0.002s
-LLVM Dom
-
-real	0m0.020s
-user	0m0.002s
-sys	0m0.002s
-mst: Fast Dom
-
-real	0m0.017s
-user	0m0.013s
-sys	0m0.003s
-Slow Dom
-
-real	0m0.023s
-user	0m0.017s
+user	0m0.014s
 sys	0m0.005s
 LLVM Dom
 
-real	0m0.015s
-user	0m0.008s
-sys	0m0.007s
+real	0m0.014s
+user	0m0.013s
+sys	0m0.000s
 perimeter: Fast Dom
 
 real	0m0.017s
 user	0m0.012s
-sys	0m0.004s
+sys	0m0.005s
 Slow Dom
 
-real	0m0.041s
-user	0m0.034s
-sys	0m0.006s
+real	0m0.049s
+user	0m0.045s
+sys	0m0.003s
 LLVM Dom
 
-real	0m0.019s
+real	0m0.018s
 user	0m0.016s
-sys	0m0.002s
+sys	0m0.001s
 power: Fast Dom
 
-real	0m0.027s
-user	0m0.022s
-sys	0m0.005s
+real	0m0.029s
+user	0m0.025s
+sys	0m0.003s
 Slow Dom
 
 real	0m0.036s
-user	0m0.030s
-sys	0m0.005s
+user	0m0.031s
+sys	0m0.004s
 LLVM Dom
 
 real	0m0.026s
-user	0m0.022s
-sys	0m0.003s
+user	0m0.018s
+sys	0m0.007s
 treeadd: Fast Dom
 
 real	0m0.009s
@@ -111,85 +111,85 @@ sys	0m0.002s
 Slow Dom
 
 real	0m0.010s
-user	0m0.005s
-sys	0m0.005s
+user	0m0.006s
+sys	0m0.004s
 LLVM Dom
 
-real	0m0.010s
+real	0m0.009s
 user	0m0.006s
 sys	0m0.003s
 tsp: Fast Dom
 
-real	0m0.021s
-user	0m0.017s
+real	0m0.018s
+user	0m0.014s
 sys	0m0.005s
 Slow Dom
 
-real	0m0.040s
-user	0m0.033s
+real	0m0.044s
+user	0m0.038s
+sys	0m0.005s
+LLVM Dom
+
+real	0m0.019s
+user	0m0.016s
+sys	0m0.003s
+129.compress: Fast Dom
+
+real	0m0.044s
+user	0m0.038s
+sys	0m0.006s
+Slow Dom
+
+real	0m0.091s
+user	0m0.086s
 sys	0m0.006s
 LLVM Dom
 
-real	0m0.021s
-user	0m0.017s
-sys	0m0.004s
-129.compress: Fast Dom
-
-real	0m0.048s
-user	0m0.039s
-sys	0m0.008s
-Slow Dom
-
-real	0m0.089s
-user	0m0.084s
-sys	0m0.004s
-LLVM Dom
-
-real	0m0.051s
-user	0m0.006s
-sys	0m0.000s
+real	0m0.041s
+user	0m0.035s
+sys	0m0.006s
 099.go: Fast Dom
 
-real	0m0.976s
-user	0m0.956s
-sys	0m0.018s
+real	0m0.975s
+user	0m0.948s
+sys	0m0.025s
 Slow Dom
 
-real	0m22.223s
-user	0m22.141s
-sys	0m0.039s
+real	0m21.661s
+user	0m21.617s
+sys	0m0.030s
 LLVM Dom
 
-real	0m0.970s
-user	0m0.122s
-sys	0m0.007s
+real	0m0.901s
+user	0m0.884s
+sys	0m0.017s
 130.li: Fast Dom
 
-real	0m0.262s
-user	0m0.249s
-sys	0m0.011s
+real	0m0.266s
+user	0m0.257s
+sys	0m0.009s
 Slow Dom
 
-real	0m1.267s
-user	0m1.255s
-sys	0m0.012s
+real	0m1.192s
+user	0m1.181s
+sys	0m0.011s
 LLVM Dom
 
-real	0m0.288s
-user	0m0.031s
+real	0m0.304s
+user	0m0.015s
 sys	0m0.000s
 132.ijpeg: Fast Dom
 
-real	0m0.631s
-user	0m0.612s
-sys	0m0.019s
+real	0m0.654s
+user	0m0.639s
+sys	0m0.015s
 Slow Dom
 
-real	0m4.399s
-user	0m4.375s
-sys	0m0.021s
+real	0m4.174s
+user	0m4.156s
+sys	0m0.016s
 LLVM Dom
 
-real	0m0.647s
-user	0m0.625s
-sys	0m0.022s
+real	0m0.603s
+user	0m0.587s
+sys	0m0.014s

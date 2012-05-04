@@ -1,25 +1,498 @@
 Require Export Coqlib.
 Require Export Iteration.
 Require Export Maps.
+Require Import syntax.
+Require Import Kildall.
+Require Import infrastructure_props.
+Require Import Metatheory.
 
+Import LLVMsyntax.
 
-(*
-Program Fixpoint DFS (succs:ATree.t ls) (visited:ATree.t ls)
-  (acc:ATree.t positive * PTree.t l) 
-  (po:positive) (todo:ls) 
-  {measure ((fun s' v' => f s' - length) visited succs)} :
-  (ATree.t positive * PTree.t l) := 
-match todo with
-| nil => acc
-| next::todo' =>
-    match ATree.get next visited with
-    | None => 
-        let acc' := DFS succs visited acc po (succs!!!next) in
-        acc'
-    | Some _ => DFS succs visited acc po todo'
+Section MoreMove. (* copied from dtree.v *)
+
+Variable A: Type.
+Hypothesis Hdec: forall x y : A, {x = y} + {x <> y}.
+
+Lemma remove_length: forall (a: A) (l1: list A),
+  (length (List.remove Hdec a l1) <= length l1)%nat.
+Proof.
+  induction l1; simpl; intros.
+    omega.
+    destruct (Hdec a a0); subst; simpl; omega.
+Qed.
+
+Lemma remove_in_length: forall (a: A) (l1: list A),
+  In a l1 -> (length (List.remove Hdec a l1) < length l1)%nat.
+Proof.
+  induction l1; simpl; intros.
+    inv H.
+
+    destruct H as [H | H]; subst.
+      destruct (Hdec a a); try congruence.
+      assert (J:=@remove_length a l1). omega.
+
+      destruct (Hdec a a0); subst.
+        assert (J:=@remove_length a0 l1). omega.
+        assert (J:=@IHl1 H). simpl. omega.
+Qed.
+
+Lemma remove_neq_in: forall (a b:A) (l1: list A),
+  a <> b ->
+  In a l1 ->
+  In a (List.remove Hdec b l1).
+Proof.
+  induction l1; simpl; intros; auto.
+    destruct H0 as [H0 | H0]; subst.
+      destruct (Hdec b a); subst; simpl; auto.
+        congruence.
+      destruct (Hdec b a0); subst; simpl; auto.
+Qed.
+
+Lemma remove_notin_incl: forall (a : A) (l2 l1 : list A)
+  (Hinc : incl l1 l2) (Hnotin : ~ In a l1),
+  incl l1 (List.remove Hdec a l2).
+Proof.
+  intros. intros x Hin.
+  destruct (Hdec x a); subst.
+    congruence.
+    apply remove_neq_in; auto.
+Qed.
+
+Lemma remove_neq_in': forall (a b:A) (l1: list A),
+  In a (List.remove Hdec b l1) ->
+  In a l1 /\ a <> b.
+Proof.
+  induction l1; simpl; intros; auto.
+    destruct (Hdec b a0); subst; simpl.
+      apply IHl1 in H.
+      destruct H as [H1 H2].
+      split; auto.
+
+      simpl in H.
+      destruct H as [H | H]; subst; auto.
+      apply IHl1 in H.
+      destruct H as [H1 H2].
+      split; auto.
+Qed.
+
+End MoreMove.
+
+Record Frame := mkFrame {
+  Fr_name: l;
+  Fr_scs: ls
+}.
+
+Fixpoint find_next_visit_in_scs (visited: ATree.t unit) (scs: ls) 
+  : option (l * ls) :=
+match scs with
+| nil => None
+| sc::scs' => 
+    match ATree.get sc visited with
+    | None => Some (sc, scs')
+    | _ => find_next_visit_in_scs visited scs'
     end
 end.
-*)
+
+Record PostOrder := mkPO {
+  PO_cnt: positive;
+  PO_a2p: ATree.t positive
+}.
+
+Definition postorder_inc (po:PostOrder) (v:l) : PostOrder :=
+let '(mkPO cnt a2p) := po in
+mkPO (Psucc cnt) (ATree.set v cnt a2p).
+
+Fixpoint find_next_visit_in_stk (succs: ATree.t ls)
+  (visited: ATree.t unit) (po:PostOrder) (frs: list Frame) 
+  : l * list Frame * PostOrder + PostOrder :=
+match frs with
+| nil => inr po
+| mkFrame v scs::frs' => 
+    match find_next_visit_in_scs visited scs with
+    | Some (sc, scs') => 
+        inl (sc, mkFrame sc (succs!!!sc)::mkFrame v scs'::frs', po)
+    | None => find_next_visit_in_stk succs visited (postorder_inc po v) frs'
+    end
+end.
+
+Definition children_of_tree A (tree: ATree.t (list A)) :=
+  flat_map snd (ATree.elements tree).
+
+Definition parents_of_tree A (tree: ATree.t A) :=
+  List.map fst (ATree.elements tree).
+
+Implicit Arguments children_of_tree [A].
+Implicit Arguments parents_of_tree [A].
+
+Require Import Program.Tactics.
+
+Ltac inv_mbind_app :=
+  match goal with
+  | H: _ = match ?e with
+       | Some _ => _
+       | None => _
+       end |- _ => remember e as R; destruct R
+  | H: match ?e with
+       | Some _ => _
+       | None => _
+       end = _ |- _ => remember e as R; destruct R
+  end.
+
+Lemma find_next_visit_in_scs_spec: forall visited scs sc scs'
+  (Hfind : Some (sc, scs') = find_next_visit_in_scs visited scs),
+  incl (sc::scs') scs /\ ATree.get sc visited = None.
+Proof.
+  induction scs as [|sc scs]; simpl; intros.
+    congruence.
+
+    inv_mbind_app.
+      apply IHscs in Hfind.
+      destruct_pairs.
+      split; eauto with datatypes v62.
+    
+      uniq_result.
+      split; eauto with datatypes v62.
+Qed.
+
+Lemma successors_list_spec: forall a scss l0,
+  In a (scss!!!l0) -> exists scs, scss!l0 = Some scs /\ In a scs.
+Proof.
+  unfold successors_list.
+  intros.
+  destruct (scss!l0); [eauto | tauto].
+Qed.
+
+Lemma children_in_children_of_tree: forall succs l0,
+  incl succs !!! l0 (children_of_tree succs).
+Proof.
+  intros.
+  intros x Hin.
+  apply in_flat_map.
+  apply successors_list_spec in Hin.
+  destruct_conjs.
+  eauto using ATree.elements_correct.
+Qed.
+
+Lemma incl__length_le: forall A (eq_dec : forall x y : A, {x = y}+{x <> y})
+  (l1:list A) (Huniq: list_norepet l1) (l2:list A) (Hinc: incl l1 l2), 
+  (length l1 <= length l2)%nat.
+Proof.
+  induction 2 as [|hd tl Hnotin Huniq IH]; simpl; intros.
+    auto with datatypes v62.
+
+    assert (incl tl (List.remove eq_dec hd l2)) as Hinc'.
+      apply remove_notin_incl; eauto with datatypes v62.
+    apply IH in Hinc'.
+    assert (length (List.remove eq_dec hd l2) < length l2)%nat as Hle.
+      apply remove_in_length; auto with datatypes v62.
+    omega.
+Qed.
+
+Lemma length_le__length_lt: forall A 
+  (eq_dec : forall x y : A, {x = y}+{x <> y})
+  (a:A) (l2:list A) (l1:list A) 
+  (Huniq: list_norepet l1) (Hinc: incl l1 l2)  
+  (Hnotin: ~ In a l1) (Hin: In a l2), 
+  (length l1 < length l2)%nat.
+Proof.
+  intros.
+  assert (incl l1 (List.remove eq_dec a l2)) as Hinc'.
+    apply remove_notin_incl; eauto with datatypes v62.
+  apply incl__length_le in Hinc'; auto.
+  assert (length (List.remove eq_dec a l2) < length l2)%nat as Hle.
+    apply remove_in_length; auto with datatypes v62.
+  omega.
+Qed.
+
+Lemma parents_of_tree_spec: forall A l0 (tr: ATree.t A),
+  In l0 (parents_of_tree tr) <-> exists a, In (l0, a) (ATree.elements tr).
+Proof.
+  unfold parents_of_tree.
+  intros.
+  split; intro J.
+    apply in_map_iff in J.
+    destruct J as [[x1 x2] [J1 J2]]. subst. eauto.
+
+    apply in_map_iff.
+    destruct J as [y J]. exists (l0, y). auto.
+Qed.
+
+Lemma notin_tree__notin_parents_of_tree: forall (visited : ATree.t unit)
+  (l0 : l) (H0 : visited ! l0 = None),
+  ~ In l0 (parents_of_tree visited).
+Proof.
+  intros.
+  intros Hin'. apply parents_of_tree_spec in Hin'.
+  destruct Hin' as [a Hin'].
+  apply ATree.elements_complete in Hin'. 
+  congruence.
+Qed.
+
+Lemma in_tree__in_parents_of_tree: forall (visited : ATree.t unit) a
+  (l0 : l) (H0 : visited ! l0 = Some a),
+  In l0 (parents_of_tree visited).
+Proof.
+  intros.
+  apply parents_of_tree_spec. 
+  apply ATree.elements_correct in H0.  eauto.
+Qed.
+
+Lemma parents_children_of_tree__inc__length_le: forall A (visited:ATree.t A)
+  succs (Hinc: incl (parents_of_tree visited) (children_of_tree succs)),
+  (length (parents_of_tree visited) <= length (children_of_tree succs))%nat.
+Proof.
+  intros. 
+  apply incl__length_le; auto.
+    apply ATree.elements_keys_norepet.
+Qed.
+
+Lemma list_equiv_nil: forall A (l1:list A) (Heq: list_equiv nil l1), l1 = nil.
+Proof.
+  intros.
+  destruct l1 as [|x l1]; auto.
+  destruct (Heq x) as [_ J1].
+  assert (In x (x::l1)) as J. auto with datatypes v62.
+  apply J1 in J. tauto.
+Qed.
+
+Lemma norepet_equiv__length_eq: forall A (l1:list A)
+  (Huniq1: list_norepet l1) (l2:list A) (Huniq2: list_norepet l2)
+  (Heq: list_equiv l1 l2),
+  (length l1 = length l2)%nat.
+Proof.
+  induction 1; simpl; intros.
+    apply list_equiv_nil in Heq. subst. auto.
+
+    destruct (Heq hd) as [J1 _].
+    assert (In hd (hd::tl)) as J2. auto with datatypes v62.
+    apply J1 in J2.
+    apply in_split in J2.
+    destruct_conjs; subst.
+    rewrite app_length. simpl.
+    rewrite IHHuniq1 with (l2:=J2++H0).
+      rewrite app_length.
+      omega.
+
+      apply list_norepet_append_commut in Huniq2.
+      simpl_env in Huniq2.
+      apply list_norepet_append_commut.
+      apply list_norepet_app in Huniq2.
+      tauto.
+
+      apply list_norepet_append_commut in Huniq2.
+      simpl_env in Huniq2.
+      apply list_norepet_app in Huniq2.
+      destruct_conjs.
+      intro x.
+      destruct (Heq x) as [J1' J2'].
+      split; intro J.
+        assert (Hin: In x (hd::tl)). auto with datatypes v62.
+        apply J1' in Hin.
+        destruct_in Hin; auto with datatypes v62.
+        destruct_in Hin; auto with datatypes v62.
+
+        assert (Hin: In x (J2 ++ hd :: H0)). 
+          destruct_in J; auto with datatypes v62.
+        apply J2' in Hin.
+        destruct_in Hin; auto with datatypes v62.
+        assert (x <> x) as Hf.
+          apply H3; simpl; auto with datatypes v62.     
+          destruct_in J; auto with datatypes v62.
+        congruence.
+Qed.
+
+Lemma norepet_equiv__length_cons_eq: forall A l1 l2 (a:A)
+  (Huniq1: list_norepet l1) (Huniq2: list_norepet l2)
+  (Hnotin: ~ In a l1) (Heq: list_equiv l2 (a::l1)),
+  (length l2 = length l1 + 1)%nat.
+Proof.
+  intros.
+  apply norepet_equiv__length_eq in Heq; auto.
+    simpl in *. omega.
+    constructor; auto.
+Qed.
+
+Lemma parents_of_tree_succ_len: forall (visited : ATree.t unit)
+  (l0 : l) (H0 : visited ! l0 = None),
+  length (parents_of_tree (ATree.set l0 tt visited)) =
+    (length (parents_of_tree visited) + 1)%nat.
+Proof.
+  intros.
+  unfold parents_of_tree.
+  apply norepet_equiv__length_cons_eq with (a:=l0); 
+    auto using ATree.elements_keys_norepet.
+    apply notin_tree__notin_parents_of_tree; auto.
+
+    intro x; split; intro Hin.
+      apply parents_of_tree_spec in Hin.
+      destruct_conjs.
+      apply ATree.elements_complete in H. 
+      rewrite ATree.gsspec in H.
+      destruct_if.
+        auto with datatypes v62.
+
+        apply in_tree__in_parents_of_tree in H2.
+        auto with datatypes v62.
+
+      apply parents_of_tree_spec.
+      destruct_in Hin.
+        exists tt.
+        apply ATree.elements_correct.
+        rewrite ATree.gsspec.
+        destruct_if. 
+          congruence.
+
+        apply parents_of_tree_spec in Hin.
+        destruct_conjs.
+        exists Hin. 
+        apply ATree.elements_correct.
+        rewrite ATree.gsspec.
+        destruct_if. 
+          apply ATree.elements_complete in H.  
+          congruence.
+
+          apply ATree.elements_complete in H. auto.
+Qed.
+
+Lemma find_next_visit_in_stk_spec1: forall succs visited (stk : list Frame)
+  (Hp : Forall (fun fr : Frame => 
+                incl (Fr_scs fr) (children_of_tree succs)) stk)  
+  po (next : l) (stk' : list Frame) po'
+  (Hfind : inl (next, stk', po') = find_next_visit_in_stk succs visited po stk),
+  Forall (fun fr : Frame => incl (Fr_scs fr) (children_of_tree succs)) stk'.
+Proof.
+  induction 1 as [|[v scs]]; simpl; intros.
+    congruence.
+        
+    inv_mbind_app; eauto 2.
+      destruct_let.
+      uniq_result.
+      apply find_next_visit_in_scs_spec in HeqR.
+      destruct_pairs.
+      constructor.
+        simpl. apply children_in_children_of_tree.
+        constructor; auto.
+          simpl in *.
+          eauto with datatypes v62.
+Qed.
+
+Lemma find_next_visit_in_stk_spec3_helper: forall 
+  (succs : ATree.t (list MetatheoryAtom.AtomImpl.atom))
+  (visited : ATree.t unit)
+  (Hinc : incl (parents_of_tree visited) (children_of_tree succs))
+  (v : l) (scs : ls)
+  (H : incl (Fr_scs {| Fr_name := v; Fr_scs := scs |})
+        (children_of_tree succs))
+  (l0 : l) (l1 : ls) (H0 : incl (l0 :: l1) scs)
+  (H1 : visited ! l0 = None),
+  (length (parents_of_tree visited) < length (children_of_tree succs))%nat.
+Proof.
+  intros.
+  assert (In l0 (children_of_tree succs)) as Hin.
+    apply H. simpl. apply H0. xsolve_in_list.
+  eapply length_le__length_lt; eauto.
+    apply ATree.elements_keys_norepet; auto.
+    apply notin_tree__notin_parents_of_tree; auto.
+Qed.
+
+Lemma find_next_visit_in_stk_spec3: forall succs visited 
+  (Hinc: incl (parents_of_tree visited) (children_of_tree succs))
+  (stk : list Frame) 
+  (Hp : Forall (fun fr : Frame => 
+                incl (Fr_scs fr) (children_of_tree succs)) stk)
+  (next : l) (stk' : list Frame) po po'
+  (Hfind : inl (next, stk', po') =
+                   find_next_visit_in_stk succs visited po stk),
+  (length (children_of_tree succs) -
+    length (parents_of_tree (ATree.set next tt visited)) <
+    length (children_of_tree succs) - length (parents_of_tree visited))%nat.
+Proof.
+  induction 2 as [|[v scs]]; simpl; intros.
+    congruence.
+
+    inv_mbind_app; eauto 2.
+      destruct_let.
+      uniq_result.
+      apply find_next_visit_in_scs_spec in HeqR.
+      destruct_pairs.
+      assert (length (parents_of_tree (ATree.set l1 tt visited)) =
+                length (parents_of_tree visited) + 1)%nat as Heq.
+        apply parents_of_tree_succ_len; auto.
+      assert (length (parents_of_tree visited) <
+                length (children_of_tree succs))%nat as Hlt.
+        eapply find_next_visit_in_stk_spec3_helper; eauto.
+      omega.
+Qed.
+
+Lemma find_next_visit_in_stk_spec2: forall (succs : ATree.t ls) 
+  (visited : ATree.t unit)
+  (Hinc : incl (parents_of_tree visited) (children_of_tree succs))
+  (stk : list Frame)
+  (Hp : Forall (fun fr : Frame => 
+                incl (Fr_scs fr) (children_of_tree succs)) stk)
+  (next : l) (stk' : list Frame) po po'
+  (Hfind : inl (next, stk', po') = find_next_visit_in_stk succs visited po stk),
+  incl (parents_of_tree (ATree.set next tt visited))
+    (children_of_tree succs).
+Proof.
+  induction 2 as [|[v scs] ? IH]; simpl; intros.
+    congruence.
+
+    inv_mbind_app; eauto 2.
+      destruct_let.
+      uniq_result.
+      apply find_next_visit_in_scs_spec in HeqR.
+      destruct_pairs.
+      intros x Hin.
+      apply parents_of_tree_spec in Hin.
+      destruct Hin as [? Hin].
+      apply ATree.elements_complete in Hin. 
+      rewrite ATree.gsspec in Hin.
+      destruct_if.
+        eauto with datatypes v62.
+           
+        apply ATree.elements_correct in H2. 
+        apply Hinc.
+        apply List.in_map with (f:=fst) in H2; auto.
+Qed.
+
+Program Fixpoint dfs_aux (succs: ATree.t ls)
+  (visited: ATree.t unit) (po:PostOrder) (stk: list Frame) 
+  (Hp: List.Forall 
+         (fun fr => incl (Fr_scs fr) (children_of_tree succs)) stk /\
+       incl (parents_of_tree visited) (children_of_tree succs))
+  {measure 
+    ((fun succs acc => 
+      (length (children_of_tree succs) - 
+       length (parents_of_tree visited))%nat) succs visited) }
+  : PostOrder :=
+  match find_next_visit_in_stk succs visited po stk with
+  | inr po' => po'
+  | inl (next, stk', po') => dfs_aux succs (ATree.set next tt visited) po' stk' _
+  end.
+Next Obligation.
+  split.
+    eapply find_next_visit_in_stk_spec1; eauto.
+    eapply find_next_visit_in_stk_spec2; eauto.
+Qed.
+Next Obligation.
+  eapply find_next_visit_in_stk_spec3; eauto.
+Qed.
+
+Lemma parents_of_empty_tree: forall A,
+  parents_of_tree (ATree.empty A) = nil.
+Proof. auto. Qed.
+
+Program Definition dfs (succs: ATree.t ls) (entry:l) (pinit:positive) : PostOrder :=
+dfs_aux succs (ATree.empty unit) (mkPO pinit (ATree.empty positive)) 
+  (mkFrame entry (succs!!!entry)::nil) _.
+Next Obligation.
+  split.  
+    constructor; auto.
+      apply children_in_children_of_tree.
+    rewrite parents_of_empty_tree. 
+    intros x Hin. tauto.
+Qed.
 
 Notation "a ! b" := (PTree.get b a) (at level 1).
 Notation "a !! b" := (PMap.get b a) (at level 1).
@@ -637,11 +1110,6 @@ End Kildall.
 
 End Weak_Dataflow_Solver.
 
-Require Import syntax.
-Require Import infrastructure.
-Import LLVMsyntax.
-Parameter dfs : ATree.t ls -> l -> positive -> ATree.t positive * PTree.t l.
-
 Fixpoint asucc_psucc_aux (mapping: ATree.t positive)  
                          (pred: PTree.t (list positive))
                          (pfrom: positive) (tolist: list l)
@@ -708,12 +1176,13 @@ match input with
 end.
 
 Require analysis.
+Require Import infrastructure.
 
 Definition dom_analyze (f: fdef) : PMap.t LDoms.t :=
   let asuccs := analysis.successors f in
   match LLVMinfra.getEntryBlock f with
   | Some (block_intro le _ _ _) =>
-      let '(a2p, p2a) := dfs asuccs le 1%positive in
+      let 'mkPO _ a2p := dfs asuccs le 1%positive in
       let psuccs := asuccs_psuccs a2p asuccs in
       match ATree.get le a2p with
       | Some pe => 
