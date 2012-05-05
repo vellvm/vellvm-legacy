@@ -6,13 +6,19 @@ OC_CASES="bh bisort em3d health mst perimeter power treeadd tsp"
 S95_DIR=../../Transforms/testcases/spec95-ccured/
 S95_CASES="129.compress 099.go 130.li 132.ijpeg"
 
+DEBUG="$1"
+
 Compiling ()
 {
   echo -e $2": \c" ;
 
-  echo -e "Fast Dom"; time $DOM $1
-  echo -e "Slow Dom"; time $DOM -slow-dom $1
-  echo -e "LLVM Dom"; time $DOM -llvm-dom $1
+  if [[ $DEBUG != "debug" ]]; then
+    echo -e "Fast Dom"; time $DOM $1
+    echo -e "Slow Dom"; time $DOM -slow-dom $1
+    echo -e "LLVM Dom"; time $DOM -llvm-dom $1
+  else
+    echo -e "Fast Dom"; time $DOM -dfast-dom $1
+  fi
 }
 
 for name in $OC_CASES; do 
@@ -21,5 +27,4 @@ done;
 
 for name in $S95_CASES; do 
   Compiling $S95_DIR$name"/src/test.bc" $name
-done;
-
+done

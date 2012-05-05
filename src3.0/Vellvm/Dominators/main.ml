@@ -41,7 +41,7 @@ let print_doms (dms: Fast_iter.LDoms.t PMap.t) =
 
 let fast_dom f =
   let dts = Fast_iter.dom_analyze f in
-  if (!Globalstates.debug) then (ignore (print_doms dts))
+  if (!Globalstates.print_dtree) then (ignore (print_doms dts))
 
 let dom_product g =
   match g with
@@ -77,9 +77,6 @@ let main in_filename =
 
 let () = 
   match Sys.argv with
-  | [| _; "-d" ; in_filename |] -> 
-       Globalstates.debug := true; 
-       main in_filename
   | [| _; in_filename |] -> 
        main in_filename
   | [| _; "-slow-dom"; in_filename |] -> 
@@ -87,15 +84,18 @@ let () =
        main in_filename
   | [| _; "-llvm-dom"; in_filename |] -> 
        dom_type := 2;
-       Globalstates.validate_dtree := true;
+       Globalstates.gen_llvm_dtree := true;
+       main in_filename
+  | [| _; "-dfast-dom" ; in_filename |] -> 
+       Globalstates.print_dtree := true; 
        main in_filename
   | [| _; "-dslow-dom"; in_filename |] -> 
-       Globalstates.debug := true; 
        dom_type := 1;
+       Globalstates.print_dtree := true; 
        main in_filename
   | [| _; "-dllvm-dom"; in_filename |] -> 
-       Globalstates.debug := true; 
        dom_type := 2;
-       Globalstates.validate_dtree := true;
+       Globalstates.print_dtree := true; 
+       Globalstates.gen_llvm_dtree := true;
        main in_filename
   | _ -> main "input.bc"
