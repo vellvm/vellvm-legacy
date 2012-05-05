@@ -41,8 +41,13 @@ ocaml: theories extraction
 
 dtree: theories extraction
 	+make -f Makefile.ocaml -C Extraction
-	ocamlbuild -clean
+	ocamlbuild Vellvm/Dominators/main.native -clean
 	ocamlbuild $(OCAMLBUILD_OPT) Vellvm/Dominators/main.native
+
+mem2reg: theories extraction
+	+make -f Makefile.ocaml -C Extraction
+	ocamlbuild Transforms/main.native -clean
+	ocamlbuild $(OCAMLBUILD_OPT) Transforms/main.native
 
 clean:
 	rm -rf Vellvm/main.pdf Vellvm/main.log Vellvm/main.aux \

@@ -98,7 +98,7 @@ Compiling ()
   echo -e "  LLVM ld1"; time llvm-ld -native -lm $LD_FLAG $2"a.bc" -o $2"a.exe"
 
   if [[ $DEBUG != "debug" ]]; then
-  echo -e "Coq M2R no phielim"; time $M2R -mem2reg-no-phi-elim $2"o.bc" >& $2"c.ll"
+  echo -e "Coq M2R pruned"; time $M2R -mem2reg -prune $2"o.bc" >& $2"c.ll"
   llvm-as -f $2"c.ll" -o $2"c.bc"
   echo -e "  LLVM ld"; time llvm-ld -native -lm $LD_FLAG $2"c.bc" -o $2"c.exe"
  
@@ -115,7 +115,7 @@ Running ()
   if [[ $DEBUG != "debug" ]]; then
   echo -e $1" nopt: \c"; eval "time ./"$1"b.exe "$2" >& /dev/null"
   echo -e $1" vm2r: \c"; eval "time ./"$1"a.exe "$2" >& /dev/null"
-  echo -e $1" vm2r noelim: \c"; eval "time ./"$1"c.exe "$2" >& /dev/null"
+  echo -e $1" vm2r pruned: \c"; eval "time ./"$1"c.exe "$2" >& /dev/null"
   echo -e $1" m2r: \c"; eval "time ./"$1"d.exe "$2" >& /dev/null"
   fi
 }
@@ -152,7 +152,7 @@ Running "129.compress" "< ./testcases/spec95-ccured/129.compress/src/slow_input.
 Running "132.ijpeg" "-image_file testcases/spec95-ccured/132.ijpeg/data/ref/input/vigo.ppm -compression.quality 90 -compression.optimize_coding 0 -compression.smoothing_factor 90 -difference.image 1 -difference.x_stride 10 -difference.y_stride 10 -verbose 1 -GO.findoptcomp"
 
 if [[ $DEBUG != "debug" ]]; then
-rm -f bisort* em3d* health* mst* treeadd* 129.compress* test-softbound.bc \A
+rm -f bisort* em3d* health* mst* treeadd* 129.compress* test-softbound.bc \
   130.li* 099.go* tsp* bh* power* perimeter* 132.ijpeg* opt.bc input.* output.* \
   test.exe test.exe.bc aa.db
 fi

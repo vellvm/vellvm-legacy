@@ -10,3 +10,4 @@ LLVM = $(HOME)/Tools/llvm-3.0/
 LLVM_LIB = $(LLVM)/lib/
 LLVM_OCAML_LIB = $(LLVM_LIB)/ocaml/
 EXTRACTION_LIB = $(RELEASE)/vol/src3.0/Extraction/_build/
+FFI_LIB =
