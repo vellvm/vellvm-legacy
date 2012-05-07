@@ -10,7 +10,7 @@ OCAMLBUILD_OPT=-no-hygiene -no-links -j 0 -build-dir _build \
 #CMXAS:=$(CMAS:.cma=.cmxa)
 COQLIBS=-I Vellvm/ -I Vellvm/ott -I Vellvm/monads -I Vellvm/compcert \
 	-I Vellvm/GraphBasics -I Transforms -I TV -I SoftBound \
-	-I $(METALIB)
+	-I Vellvm/Dominators -I $(METALIB)
 MAKECOQ=make -f Makefile.coq COQLIBS="$(COQLIBS)"
 
 all: theories extraction ocaml
@@ -35,6 +35,7 @@ ocaml: theories extraction
 	+make -f Makefile.ocaml -C Extraction
 	ocamlbuild -clean
 	ocamlbuild $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)
+	ocamlbuild $(OCAMLBUILD_OPT) Vellvm/Dominators/main.native
 	ocamlbuild $(OCAMLBUILD_OPT) Transforms/main.native
 	ocamlbuild $(OCAMLBUILD_OPT) SoftBound/main.d.byte
 	ocamlbuild $(OCAMLBUILD_OPT) Parser/main.d.byte
