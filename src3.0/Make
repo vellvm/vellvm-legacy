@@ -163,6 +163,6 @@
 ./Vellvm/Dominators/dom_type.v
 ./Vellvm/Dominators/dom_libs.v
 ./Vellvm/Dominators/dfs.v
-./Vellvm/Dominators/rpo_iter.v
-./Vellvm/Dominators/bfs_iter.v
+./Vellvm/Dominators/pull_iter.v
+./Vellvm/Dominators/push_iter.v
 

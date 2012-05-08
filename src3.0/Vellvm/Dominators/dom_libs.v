@@ -4,6 +4,41 @@ Require Export Maps.
 Require Import infrastructure_props.
 Require Import Program.Tactics.
 
+Lemma Pnlt__Pgt_Peq : forall n m: positive, 
+  ~ ((n < m)%positive) -> (n > m)%positive \/ (n = m)%positive.
+Proof.
+  unfold BinPos.Plt, Pgt.
+  intros.
+  remember ((n ?= m)%positive Eq) as R.
+  destruct R; try solve [congruence | auto].
+    symmetry in HeqR.
+    apply Pcompare_Eq_eq in HeqR. auto.
+Qed.
+
+Lemma Pgt_trans : forall (n m p : positive)
+  (H1: (n > m)%positive) (H2: (m > p)%positive), (n > p)%positive.
+Proof.
+  unfold Pgt; intros.
+  apply ZC2. apply ZC1 in H1. apply ZC1 in H2.
+  eapply Plt_trans; eauto.
+Qed.
+
+Lemma is_tail_Forall: forall A (l1 l2:list A) P (Hp2: Forall P l2)
+  (Htail: is_tail l1 l2), Forall P l1.
+Proof.
+  induction 2; auto.
+    inv Hp2. auto.
+Qed.
+
+Lemma order_lt_order: forall p x (Horder : (p > x)%positive) l0
+  (Horder : Forall (Plt p) l0),
+  Forall (Plt x) l0.
+Proof.
+  induction 2; simpl; intros; constructor; auto.
+    eapply Plt_trans; eauto.
+    apply ZC1. auto.
+Qed.
+
 Section MoreMove. (* copied from dtree.v *)
 
 Variable A: Type.
@@ -435,6 +470,48 @@ Proof.
   congruence.
 Qed.
 
+Definition in_cfg successors n : Prop :=
+  In n (parents_of_tree successors) \/ 
+  In n (children_of_tree successors).
+
+Lemma in_parents_of_tree__in_cfg: forall scs n,
+  In n (parents_of_tree scs) -> in_cfg scs n.
+Proof. unfold in_cfg. auto. Qed.
+
+Lemma in_succ__in_cfg: forall p scs sc
+  (Hinscs : In sc scs !!! p),
+  in_cfg scs sc.
+Proof.
+  intros. right.
+  apply children_in_children_of_tree in Hinscs. auto.
+Qed.
+
+Lemma parents_of_tree__in_successors: forall A p (successors:T.t A),
+  In p (parents_of_tree successors) <-> exists s, successors ! p = Some s.
+Proof.
+  intros.
+  split; intro J.
+    apply parents_of_tree_spec in J.
+    destruct J as [? J].
+    apply T.elements_complete in J. eauto.
+
+    apply parents_of_tree_spec.
+    destruct J as [? J].
+    apply T.elements_correct in J. eauto.
+Qed.
+
+Lemma in_pred__in_parents: forall p scs n
+  (Hinprds : In p (make_predecessors scs) !!! n),
+  In p (parents_of_tree scs).
+Proof.
+  intros.
+  apply make_predecessors_correct' in Hinprds.
+  apply parents_of_tree_spec.
+  apply successors_list_spec in Hinprds.
+  destruct Hinprds as [scs0 [J1 J2]].
+  apply T.elements_correct in J1. eauto.
+Qed.
+
 End More_Tree_Properties.
 
 Module XATree := More_Tree_Properties(ATree).
@@ -532,6 +609,61 @@ Module PNodeSetMax <: PNODE_SET.
     intros. rewrite PTree.gsspec in H2. rewrite add_spec.
     destruct (peq n k). auto. eauto.
   Qed.
+
+  Lemma pick_in:
+    forall s n s', pick s = Some(n, s') -> In n s.
+  Proof.
+    intros until s'; unfold pick. 
+    caseEq (PositiveSet.max_elt s); intros; try congruence.
+    uniq_result.
+    apply PositiveSet.max_elt_1. auto.
+  Qed.
+  
+  Lemma pick_notin:
+    forall s n s', pick s = Some(n, s') -> ~ In n s'.
+  Proof.
+    intros until s'; unfold pick. 
+    caseEq (PositiveSet.max_elt s); intros; try congruence.
+    uniq_result.
+    apply PositiveSet.remove_1. auto.
+  Qed.
+  
+  Lemma pick_max:
+    forall s n s', pick s = Some(n, s') -> 
+      PositiveSet.max_elt s = Some n.
+  Proof.
+    intros until s'; unfold pick. 
+    caseEq (PositiveSet.max_elt s); intros; try congruence.
+  Qed.
+  
+  Lemma pick_remove:
+    forall s n s', pick s = Some(n, s') -> s' = PositiveSet.remove n s.
+  Proof.
+    intros until s'; unfold pick. 
+    caseEq (PositiveSet.max_elt s); intros; try congruence.
+  Qed.
+  
+  Lemma initial_spec':
+    forall successors n,
+    In n (initial successors) -> 
+    exists s, successors ? n = Some s.
+  Proof.
+    intros successors.
+    apply PTree_Properties.fold_rec with
+      (P := fun succ set =>
+              forall n, In n set -> exists s, succ ? n = Some s).
+    (* extensionality *)
+    intros. rewrite <- H. eauto.
+    (* base case *)
+    intros. apply PositiveSet.empty_1 in H. tauto.
+    (* inductive case *)
+    intros. rewrite PTree.gsspec. rewrite add_spec in H2.
+    destruct (peq n k); eauto.
+      destruct H2 as [H2 | H2]; subst.
+        congruence.
+        eauto.
+  Qed.
+  
 End PNodeSetMax.
 
 Module PNodeSetMin <: PNODE_SET.
@@ -899,6 +1031,79 @@ Module Doms (MG:MERGE) <: LATTICEELT.
   Lemma merge_cmp_cons: forall p ps (Hlt: Forall (MG.Pcmp p) ps),
     ps = MG.merge ps (p :: ps).
   Proof. apply MG.merge_cmp_cons. Qed.
+
+  Definition transfer (n:positive) (input:t) : t :=
+  match input with
+  | None => None
+  | Some ps => Some (n::ps)
+  end.
+
+  Lemma ge_lub_left: forall dmap x y, 
+    ge (lub (dmap??x) (transfer y (dmap??y))) (dmap??x).
+  Proof.
+    intros.
+    unfold transfer.
+    caseEq (dmap ?? y).
+      intros Ysdms Hgety.
+      caseEq (dmap ?? x); simpl; auto.
+        intros Xsdms Hgetx.
+        simpl. apply merge_is_tail_of_left.
+  
+      intros Hgety.
+      caseEq (dmap ?? x); simpl; auto with coqlib.
+  Qed.
+
+  Lemma lub_bot_inv: forall x y (Hlub: lub x y = bot),
+    x = bot /\ y = bot.
+  Proof.
+    intros.
+    destruct x; destruct y; inv Hlub; auto.
+  Qed.
+  
+  Lemma lub_nonbot_spec: forall x y (Hnonbot: x <> bot \/ y <> bot),
+    lub x y <> bot.
+  Proof.
+    intros.
+    destruct x; destruct y; try tauto.
+      simpl. unfold bot. congruence.
+  Qed.
+  
+  Lemma Leq_nonbot_inv_r: forall x y (Hnonbot: y <> bot) (Heq: eq x y),
+    x <> None.
+  Proof.
+    unfold eq, beq.
+    destruct y; try tauto.
+    destruct x; intros; congruence.
+  Qed.
+
+  Lemma Leq_nonbot_inv_l: forall x y (Hnonbot: x <> bot) (Heq: eq x y),
+    y <> None.
+  Proof.
+    unfold eq, beq.
+    destruct x; try tauto.
+    destruct y; intros; congruence.
+  Qed.
+
+  Lemma transfer_nonbot: forall p dms (Hnonbot: dms <> bot),
+    transfer p dms <> bot.
+  Proof.
+    unfold transfer, bot.
+    intros.
+    destruct dms; congruence.
+  Qed.
+
+  Lemma ge_Forall: forall P ox y (Hlt : Forall P y)
+    (Hge: ge ox (Some y)),
+    match ox with
+    | Some x => Forall P x
+    | _ => True
+    end.
+  Proof.
+    intros.
+    destruct ox as [x|]; tinv Hge.
+    simpl in Hge.
+    eapply is_tail_Forall; eauto.
+  Qed.
 
 End Doms.
 

@@ -39,12 +39,12 @@ let print_doms (dms: Fast_iter.LDoms.t PMap.t) =
              );
              eprintf "\n") cnts
 
-let rpo_dom f =
-  let dts = Rpo_iter.dom_analyze f in
+let pull_dom f =
+  let dts = Pull_iter.dom_analyze f in
   if (!Globalstates.print_dtree) then (ignore (print_doms dts))
 
-let bfs_dom f =
-  let dts = Bfs_iter.dom_analyze f in
+let push_dom f =
+  let dts = Push_iter.dom_analyze f in
   if (!Globalstates.print_dtree) then (ignore (print_doms dts))
 
 let dom_product g =
@@ -54,8 +54,8 @@ let dom_product g =
         (LLVMsyntax.Coq_fheader_intro (_, _, fid, _, _), _) as f) -> 
       (if (!Globalstates.print_dtree) then eprintf "Dom %s:\n" fid);
       (match !dom_type with
-	| 0 -> bfs_dom f 
-	| 1 -> rpo_dom f 
+	| 0 -> push_dom f 
+	| 1 -> pull_dom f 
 	| 2 -> slow_dom f      
 	| _ -> ())
   | _ -> ()
@@ -84,7 +84,7 @@ let () =
   match Sys.argv with
   | [| _; in_filename |] -> 
        main in_filename
-  | [| _; "-repo-dom"; in_filename |] -> 
+  | [| _; "-pull-dom"; in_filename |] -> 
        dom_type := 1;
        main in_filename
   | [| _; "-slow-dom"; in_filename |] -> 
@@ -94,10 +94,10 @@ let () =
        dom_type := 3;
        Globalstates.gen_llvm_dtree := true;
        main in_filename
-  | [| _; "-dbfs-dom" ; in_filename |] -> 
+  | [| _; "-dpush-dom" ; in_filename |] -> 
        Globalstates.print_dtree := true; 
        main in_filename
-  | [| _; "-drpo-dom" ; in_filename |] -> 
+  | [| _; "-dpull-dom" ; in_filename |] -> 
        dom_type := 1;
        Globalstates.print_dtree := true; 
        main in_filename

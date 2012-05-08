@@ -27,12 +27,12 @@ Compiling ()
   echo -e $2": \c" ;
 
   if [[ $DEBUG != "debug" ]]; then
-    echo -e "BFS Dom"; time $DOM $1
-    echo -e "RPO Dom"; time $DOM -rpo-dom $1
-    echo -e "Slow Dom"; time $DOM -slow-dom $1
-    echo -e "LLVM Dom"; time $DOM -llvm-dom $1
+    echo -e "Push RPO"; time $DOM $1
+    echo -e "Pull RPO"; time $DOM -pull-dom $1
+    echo -e "Slow"; time $DOM -slow-dom $1
+    echo -e "LLVM"; time $DOM -llvm-dom $1
   else
-    echo -e "BFS Dom"; time $DOM -dbfs-dom $1
+    echo -e "Push RPO"; time $DOM -push-dom $1
   fi
 }
 
