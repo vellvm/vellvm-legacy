@@ -165,4 +165,5 @@
 ./Vellvm/Dominators/dfs.v
 ./Vellvm/Dominators/pull_iter.v
 ./Vellvm/Dominators/push_iter.v
+./Vellvm/Dominators/cpdt_tactics.v
 
