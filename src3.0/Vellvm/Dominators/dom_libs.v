@@ -1038,19 +1038,17 @@ Module Doms (MG:MERGE) <: LATTICEELT.
   | Some ps => Some (n::ps)
   end.
 
-  Lemma ge_lub_left: forall dmap x y, 
-    ge (lub (dmap??x) (transfer y (dmap??y))) (dmap??x).
+  Lemma ge_lub_left: forall x y, ge (lub x y) x.
   Proof.
     intros.
-    unfold transfer.
-    caseEq (dmap ?? y).
+    caseEq y.
       intros Ysdms Hgety.
-      caseEq (dmap ?? x); simpl; auto.
+      caseEq x; simpl; auto.
         intros Xsdms Hgetx.
         simpl. apply merge_is_tail_of_left.
   
       intros Hgety.
-      caseEq (dmap ?? x); simpl; auto with coqlib.
+      caseEq x; simpl; auto with coqlib.
   Qed.
 
   Lemma lub_bot_inv: forall x y (Hlub: lub x y = bot),
