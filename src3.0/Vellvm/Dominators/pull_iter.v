@@ -73,7 +73,7 @@ fold_left (fun acc p => L.lub acc (transf p s.(st_in) ?? p)) preds oldl.
   pseudocode. *)
 
 Definition add_successors_into_worklist (rem: NS.t) (n: positive) : NS.t :=
-fold_left (fun acc s => NS.add n acc) (successors ??? n) rem.
+fold_left (fun acc s => NS.add s acc) (successors ??? n) rem.
 
 Definition step (s: state) : PMap.t L.t + state :=
   match NS.pick s.(st_wrk) with
