@@ -505,7 +505,7 @@ end.
 
 Fixpoint wf_ECStack TD gl (ps:list product) (ecs:ECStack) : Prop :=
 match ecs with
-| nil => False
+| nil => True
 | ec::ecs' =>
     wf_ExecutionContext TD gl ps ec /\ wf_ECStack TD gl ps ecs' /\
     wf_call ec ecs'
@@ -518,17 +518,6 @@ ecs <> nil /\
 wf_system s /\
 moduleInSystemB (module_intro los nts ps) s = true /\
 wf_ECStack (los,nts) gl ps ecs.
-
-Lemma wf_State_False : forall cfg S, ~ wf_State cfg S.
-Proof.
-  unfold wf_State.
-  intros cfg S contra. destruct cfg as [? [] ? ? ?]. destruct S.
-  destruct contra as [_ [_ [_ contra]]].
-  clear - contra.
-  induction ECS0 as [|ec ecs]; simpl in *. auto.
-  apply IHecs.
-  destruct contra as [? []]. auto.
-Qed.
 
 Lemma wf_State__inv : forall S los nts Ps F B c cs tmn lc als EC gl fs Mem0,
   wf_State (mkCfg S (los,nts) Ps gl fs)
@@ -1856,4 +1845,3 @@ Case "sExCall".
 Qed.
 
 End OpsemDom. End OpsemDom.
-
