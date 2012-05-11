@@ -20,6 +20,8 @@ S06_CASES="462.libquantum/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-libquantum-pr
            470.lbm/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-lbm-prefix.bc
            433.milc/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-milc-prefix.bc
            458.sjeng/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-sjeng-prefix.bc"
+WORST_DIR=./worstcases/
+WORST_CASES="itworst_large.bc idfsquad_large.bc ibfsquad_large.bc sncaworst_large.bc"
 
 DEBUG="$1"
 
@@ -54,3 +56,17 @@ if [[ $DEBUG != "debug" ]]; then
     Compiling $S06_DIR$name $name
   done
 fi
+
+Worstcase() 
+{
+  echo -e $2": \c" ;
+  opt -lowerswitch $1 -f -o lower.bc
+  echo -e "Push RPO"; time $DOM lower.bc
+  echo -e "Pull RPO"; time $DOM -pull-dom lower.bc
+  echo -e "LLVM"; time $DOM -llvm-dom lower.bc
+}
+
+for name in $WORST_CASES; do 
+  Worstcase $WORST_DIR$name $name
+done
+
