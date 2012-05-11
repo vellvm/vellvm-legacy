@@ -725,12 +725,30 @@ End PNodeSetMin.
 
 Require Import list_facts.
 
+Import Lattice.AtomSet.
+Require Import Sorted.
+Require Import ListSet.
+
 Module Type MERGE.
 
   Variable Pcmp: positive -> positive -> Prop.
   Variable merge : list positive -> list positive -> list positive * bool.
   Hypothesis merge_cmp_cons: forall p ps (Hlt: Forall (Pcmp p) ps),
     merge ps (p :: ps) = (ps, false).
+  Hypothesis merge_spec: forall Xsdms Ysdms rl changed 
+    (Hmerge: merge Xsdms Ysdms = (rl, changed)),
+    sublist rl Xsdms /\ sublist rl Ysdms /\
+    (changed = false -> rl = Xsdms).
+  Hypothesis merge_commut: forall Xsdms Ysdms rl changed rl' changed'
+    (Hmerge: merge Xsdms Ysdms = (rl, changed))
+    (Hmerge': merge Ysdms Xsdms = (rl', changed')),
+    rl = rl'.
+  Hypothesis merge_refl: forall Xsdms, merge Xsdms Xsdms = (Xsdms, false).
+
+  Hypothesis merge_inter: forall Xsdms Ysdms rl changed
+    (Hmerge: merge Xsdms Ysdms = (rl, changed))
+    (Hsortx: StronglySorted Plt Xsdms) (Hsorty: StronglySorted Plt Ysdms),
+    set_eq _ (set_inter positive_eq_dec Xsdms Ysdms) (rev rl).
 
 End MERGE.
 
@@ -740,6 +758,10 @@ match goal with
     symmetry in H; apply Pcompare_Eq_eq in H; subst
 | H: (_ ?= _)%positive Eq = Eq |- _ => 
     apply Pcompare_Eq_eq in H; subst
+| H: nil = _ ++ _ |- _ => 
+    symmetry in H; apply app_eq_nil in H; destruct H; subst
+| H: _ ++ _ = _ |- _ => 
+    apply app_eq_nil in H; destruct H; subst
 | _ => uniq_result
 end.
 
@@ -1005,6 +1027,87 @@ Module MergeLt <: MERGE.
       rewrite rev_involutive. auto.
   Qed.
 
+  Definition merge_aux_inter_prop (n:nat) := forall Xsdms Ysdms
+    (Hlen: (length Xsdms + length Ysdms = n)%nat)
+    rl1 changed1 rl2 changed2
+    (Hsortx: StronglySorted Plt Xsdms) (Hsorty: StronglySorted Plt Ysdms)
+    (Hmerge: merge_aux Xsdms Ysdms (rl1, changed1) = (rl2, changed2)),
+    set_eq _ 
+           (set_union positive_eq_dec rl1
+           (set_inter positive_eq_dec Xsdms Ysdms)) rl2.
+
+  Lemma merge_aux_inter_aux: forall n, merge_aux_inter_prop n.
+  Proof.
+    intro n.
+    elim n using (well_founded_induction lt_wf).
+    intros x Hrec.
+    unfold merge_aux_inter_prop; intros.
+    destruct Xsdms as [|Xd Xsdms]; destruct Ysdms as [|Yd Ysdms]; 
+      simpl in Hlen; try solve [contradict Hlen; simpl; omega].
+      compute in Hmerge. uniq_result. simpl. admit. (* set refl *)
+      compute in Hmerge. uniq_result. simpl. admit. (* set refl *)
+      compute in Hmerge. uniq_result. simpl. admit. (* set inter refl *)
+
+      inv Hsortx. inv Hsorty.
+      revert Hmerge. unfold_merge_aux. intro.
+      remember ((Xd ?= Yd)%positive Eq) as Cmp.
+      destruct Cmp; subst.
+        uniq_result'.
+        destruct_if.
+          clear HeqR.      
+          eapply Hrec with (y:=(length Xsdms + length Ysdms)%nat) in Hmerge; 
+            try solve [eauto | simpl; omega].
+          admit. (* (a :: Z) \/ (X /\ Y) = Z \/ (a :: (X /\ Y)) *)
+
+          destruct_if; congruence.
+
+        destruct_if.
+          admit. (* X < Y < Ysdms => ~ In X (Y::Ysdms) *)
+
+          clear HeqR.      
+          eapply Hrec with (y:=(length Xsdms + S (length Ysdms))%nat) in Hmerge; 
+            try solve [eauto | simpl; omega | constructor; auto].
+
+        eapply Hrec with (y:=(S (length Xsdms) + (length Ysdms))%nat) in Hmerge; 
+          try solve [eauto | simpl; omega | constructor; auto].
+        destruct_if.
+          (* X > Y, In X (Y::Ysdms) => In X Ysdms 
+             In X Ysdms => (X :: Xsdms) /\ Ysdms = X ++ (Xsdms /\ Ysdms)
+             X > Y, Xsdms > X => ~ In Y Xsdms
+             ~ In Y Xsdms => Xsdms /\ Ysdms = Xsdms /\ (Y :: Ysdms)
+             so,
+             rl1 \/ ((X :: Xsdms) /\ Ysdms) = 
+             rl1 \/ (X :: (Xsdms /\ Ysdms)) = 
+             rl1 \/ (X :: Xsdms /\ (Y :: Ysdms)) *)
+          admit.
+
+          (* ~ In X (Y::Ys) => ~ In X Ys 
+             ~ In X Ys => (X :: Xs) /\ Ys = Xs /\ Ys
+             X > Y, Xs > X => ~ In Y Xs
+             ~ In Y Xs => Xs /\ Ys = Xs /\ (Y :: Ys)
+             so, 
+             rl1 \/ ((X :: Xs) /\ Ys) =
+             rl1 \/ (Xs /\ Ys) =
+             rl1 \/ (Xs /\ (Y :: Ys))
+          *)
+          admit.
+  Qed.
+
+  Lemma merge_inter: forall Xsdms Ysdms rl changed
+    (Hmerge: merge Xsdms Ysdms = (rl, changed))
+    (Hsortx: StronglySorted Plt Xsdms) (Hsorty: StronglySorted Plt Ysdms),
+    set_eq _ (set_inter positive_eq_dec Xsdms Ysdms) (rev rl).
+  Proof.
+    unfold merge.
+    intros. destruct_let. uniq_result.
+    assert (J:=@merge_aux_inter_aux (length Xsdms + length Ysdms)).
+    unfold merge_aux_inter_prop in J.
+    symmetry in HeqR.
+    apply_clear J in HeqR; auto.
+    rewrite rev_involutive.
+    admit. (* nil \/ x = x *)
+  Qed.
+
 End MergeLt.
 
 (*
@@ -1138,10 +1241,53 @@ repeat match goal with
 | H: Peqb _ _ = true |- _ => eapply Peqb_eq in H; subst
 | |- Peqb _ _ = true => eapply Peqb_eq
 end.
+
+Require Import Coq.Program.Equality.
+
+Theorem sublist_split : forall X (l1 l2: list X) l12'
+  (H: sublist (l1++l2) l12'), 
+  exists l1', exists l2', 
+    l12' = l1' ++ l2' /\ sublist l1 l1' /\ sublist l2 l2'.
+Proof.
+  intros.
+  dependent induction H; simpl; intros.
+    uniq_result'.
+    exists nil. exists l. repeat (split; try solve [constructor | auto]).
+
+    destruct l1 as [|x1 l1]; simpl in x; inv x.
+      exists nil. exists (x0::l3).
+      repeat (split; try solve [constructor; auto | auto]).
+
+      destruct (IHsublist l1 l2) as [l1' [l2' [EQ [Hsub1 Hsub2]]]]; subst; auto.
+      exists (x1::l1'). exists l2'.
+      repeat (split; try solve [constructor; auto | auto]).
+
+    destruct (IHsublist l1 l2) as [l1' [l2' [EQ [Hsub1 Hsub2]]]]; subst; auto.
+    exists (x::l1'). exists l2'.
+    repeat (split; try solve [constructor; auto | auto]).
+Qed.
  
-Theorem sublist_trans : forall X (l1 l2 l3: list X), 
-  sublist l1 l2 -> sublist l2 l3 -> sublist l1 l3.
-Admitted.
+Theorem sublist_trans : forall X (l1 l2: list X)
+  (H12: sublist l1 l2) l3 (H23: sublist l2 l3), sublist l1 l3.
+Proof.
+  induction 1; simpl; intros; try constructor.
+    simpl_env in H23.
+    apply sublist_split in H23.
+    destruct H23 as [l1' [l2' [EQ [H1' H2']]]]; subst.
+    simpl_env.
+    apply sublist_app; auto.
+
+    apply sublist_cons_weaken in H23. auto.
+Qed.
+
+Lemma sublist_Forall: forall A (l1 l2:list A) P (Hp2: Forall P l2)
+  (Htail: sublist l1 l2), Forall P l1.
+Proof.
+  induction 2; try solve [auto | inv Hp2; auto].
+Qed.
+
+Hint Resolve sublist_refl sublist_trans sublist_app sublist_cons_weaken
+             sublist_app_r sublist_Forall: sublist.
 
 Module Doms (MG:MERGE) <: LATTICEELT.
 
@@ -1209,59 +1355,101 @@ Module Doms (MG:MERGE) <: LATTICEELT.
   Lemma merge_is_tail_of_left: forall Xsdms Ysdms, 
     is_tail (MG.merge Xsdms Ysdms) Xsdms.
   Proof. apply MG.merge_is_tail_of_left. Qed.
-  
+*)  
   Lemma merge_cmp_cons: forall p ps (Hlt: Forall (MG.Pcmp p) ps),
-    ps = MG.merge ps (p :: ps).
+    MG.merge ps (p :: ps) = (ps, false).
   Proof. apply MG.merge_cmp_cons. Qed.
-*)
+
   Definition transfer (n:positive) (input:t) : t :=
   match input with
   | None => None
   | Some ps => Some (n::ps)
   end.
-(*
-  Lemma ge_lub_left: forall x y, ge (lub x y) x.
+
+  Lemma ge_lub_left': forall x y, ge (fst (lub x y)) x.
   Proof.
     intros.
     caseEq y.
       intros Ysdms Hgety.
       caseEq x; simpl; auto.
         intros Xsdms Hgetx.
-        simpl. apply merge_is_tail_of_left.
-  
+        simpl. 
+        destruct_let.
+        symmetry in HeqR.
+        apply MG.merge_spec in HeqR. 
+        simpl. tauto.
+
       intros Hgety.
-      caseEq x; simpl; auto with coqlib.
+      caseEq x; simpl; auto with sublist.
   Qed.
 
-  Lemma lub_bot_inv: forall x y (Hlub: lub x y = bot),
-    x = bot /\ y = bot.
+  Lemma ge_lub_left: forall x y r changed (Hlub: lub x y = (r, changed)),
+    ge r x.
   Proof.
     intros.
+    replace r with (fst (lub x y)); try solve [rewrite Hlub; auto].
+    apply ge_lub_left'.
+  Qed.
+
+  Lemma lub_commut: forall x y, fst (lub x y) = fst (lub y x).
+  Proof.
+    intros.
+    caseEq y.
+      intros Ysdms Hgety.
+      caseEq x; simpl; auto.
+        intros Xsdms Hgetx.
+        simpl. 
+        repeat destruct_let.
+        symmetry in HeqR.
+        eapply MG.merge_commut in HeqR; eauto.
+        simpl. congruence.
+
+      intros Hgety.
+      caseEq x; simpl; auto.
+  Qed.
+
+  Lemma ge_lub_right': forall x y, ge (fst (lub x y)) y.
+  Proof.
+    intros.
+    rewrite lub_commut.
+    apply ge_lub_left'.
+  Qed.
+
+  Lemma ge_lub_right: forall x y r changed (Hlub: lub x y = (r, changed)),
+    ge r y.
+  Proof.
+    intros.
+    replace r with (fst (lub x y)); try solve [rewrite Hlub; auto].
+    apply ge_lub_right'.
+  Qed.
+
+  Lemma lub_bot_inv: forall x y (Hlub: fst (lub x y) = bot),
+    x = bot /\ y = bot.
+  Proof.
+    unfold bot.
+    intros.
     destruct x; destruct y; inv Hlub; auto.
+    destruct_let. simpl in *. congruence.
   Qed.
   
-  Lemma lub_nonbot_spec: forall x y (Hnonbot: x <> bot \/ y <> bot),
-    lub x y <> bot.
+  Lemma lub_nonbot_spec': forall x y (Hnonbot: x <> bot \/ y <> bot),
+    fst (lub x y) <> bot.
   Proof.
     intros.
     destruct x; destruct y; try tauto.
-      simpl. unfold bot. congruence.
+      simpl. unfold bot. destruct_let. simpl. congruence.
   Qed.
   
   Lemma Leq_nonbot_inv_r: forall x y (Hnonbot: y <> bot) (Heq: eq x y),
     x <> None.
-  Proof.
-    unfold eq, beq.
-    destruct y; try tauto.
-    destruct x; intros; congruence.
+  Proof. 
+    unfold eq. intros. subst. auto.
   Qed.
 
   Lemma Leq_nonbot_inv_l: forall x y (Hnonbot: x <> bot) (Heq: eq x y),
     y <> None.
   Proof.
-    unfold eq, beq.
-    destruct x; try tauto.
-    destruct y; intros; congruence.
+    unfold eq. intros. subst. auto.
   Qed.
 
   Lemma transfer_nonbot: forall p dms (Hnonbot: dms <> bot),
@@ -1281,10 +1469,66 @@ Module Doms (MG:MERGE) <: LATTICEELT.
   Proof.
     intros.
     destruct ox as [x|]; tinv Hge.
-    simpl in Hge.
-    eapply is_tail_Forall; eauto.
+    simpl in Hge. eauto with sublist.
   Qed.
-*)
+
+  Lemma lub_bot_invl: forall x y changed
+    (Hlub: lub x y = (bot, changed)),
+    x = bot.
+  Proof.
+    intros. assert (J:=lub_bot_inv x y).
+    rewrite Hlub in J. simpl in J. eapply J; eauto.
+  Qed.
+
+  Lemma lub_bot_invr: forall x y changed
+    (Hlub: lub x y = (bot, changed)),
+    y = bot.
+  Proof.
+    intros. assert (J:=lub_bot_inv x y).
+    rewrite Hlub in J. simpl in J. eapply J; eauto.
+  Qed.
+
+  Lemma lub_nonbot_spec : forall (x y r : t) changed
+    (Hnbot: x <> bot \/ y <> bot)
+    (Hlub: lub x y = (r, changed)),
+    r <> bot.
+  Proof.
+    intros.
+    apply lub_nonbot_spec' in Hnbot. 
+    rewrite Hlub in Hnbot.
+    simpl in Hnbot. auto.
+  Qed.
+  
+  Lemma Lub_unchanged_rnonbot__lnonbot: forall x y r
+    (Hnonbot : y <> None)
+    (HeqR : (r, false) = lub x y),
+    x <> None.
+  Proof.
+    intros.
+    intro J. rewrite J in HeqR. simpl in HeqR.
+    destruct y; congruence.
+  Qed.
+
+  Lemma lub_unchanged_eq_left: forall x y r (Hlub: lub x y = (r, false)),
+    x = r.
+  Proof.
+    intros.
+    caseEq y.
+      intros Ysdms Hgety. subst.
+      caseEq x; simpl.
+        intros Xsdms Hgetx. subst.
+        simpl in *.
+        destruct_let. uniq_result.
+        symmetry in HeqR.
+        apply MG.merge_spec in HeqR. 
+        destruct_conjs. f_equal. rewrite H1; auto.
+
+        intros. subst. simpl in Hlub. congruence.
+
+      intros Hgety. subst.
+      caseEq x; intros; subst; simpl in *; try congruence.
+  Qed.
+
 End Doms.
 
 Require Import syntax.

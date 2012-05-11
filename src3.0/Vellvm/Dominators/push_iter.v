@@ -129,7 +129,6 @@ Definition dom_analyze (f: fdef) : PMap.t LDoms.t :=
   | None => PMap.init LDoms.bot
   end.
 
-(*
 Module DomMap := LATTICEELT_MAP (LDoms).
 
 Lemma propagate_succ_list_st_in_aux: forall out sc st2 scs st1 (Hnotin: ~ In sc scs)
@@ -140,8 +139,8 @@ Proof.
   induction scs as [|sc' scs' IHscs']; simpl; intros; auto.
     rewrite IHscs'; auto.
     unfold DomDS.propagate_succ.
-    destruct_if; simpl.
-      rewrite PMap.gso; auto.
+    destruct_let. destruct_if. simpl.
+    rewrite PMap.gso; auto.
 Qed.
 
 Lemma propagate_succ_list_st_in: forall out sc scs st (Hnotin: ~ In sc scs),
@@ -157,8 +156,8 @@ Lemma propagate_succ_incr_worklist:
   PNodeSetMax.In x (DomDS.propagate_succ st out n).(DomDS.st_wrk).
 Proof.
   intros. unfold DomDS.propagate_succ.
-  destruct_if.
-  simpl. rewrite PNodeSetMax.add_spec. auto.
+  destruct_let. destruct_if. simpl. 
+  rewrite PNodeSetMax.add_spec. auto.
 Qed.
 
 Lemma propagate_succ_list_incr_worklist:
@@ -177,12 +176,12 @@ Lemma propagate_succ_bot_inv: forall st out sc n
 Proof.
   unfold DomDS.propagate_succ.
   intros.
-  destruct_if; auto.
+  destruct_let. destruct_if; auto.
     destruct (positive_eq_dec sc n); subst.
       rewrite PMap.gss in H0.
       rewrite PMap.gss.
-      rewrite H0.
-      apply LDoms.lub_bot_inv in H0. tauto.
+      subst.
+      eapply LDoms.lub_bot_invl; eauto.
 
       rewrite PMap.gso in H0; auto.
       rewrite PMap.gso; auto.
@@ -211,14 +210,12 @@ Lemma propagate_succ_nonbot: forall (sc : positive) (st : DomDS.state)
 Proof.
   intros.
   unfold DomDS.propagate_succ.
-  destruct_if; simpl.
+  destruct_let. destruct_if; simpl.
     symmetry in HeqR.
-    apply LDoms.beq_correct in HeqR.
-    apply LDoms.Leq_nonbot_inv_r in HeqR; auto.
-    apply LDoms.lub_nonbot_spec; auto.
-   
     rewrite PMap.gss.
-    apply LDoms.lub_nonbot_spec; auto.
+    eapply LDoms.lub_nonbot_spec in HeqR; eauto.
+
+    eapply LDoms.Lub_unchanged_rnonbot__lnonbot; eauto.
 Qed.
 
 Lemma propagate_succ_list_nonbot_aux: forall sc scs scs2 scs1 st out
@@ -260,7 +257,7 @@ Lemma propagate_succ_records_changes:
   st'.(DomDS.st_in)??s = st.(DomDS.st_in)??s.
 Proof.
   simpl. intros. unfold DomDS.propagate_succ.
-  destruct_if.
+  destruct_let. destruct_if.
   case (positive_eq_dec s n); intro.
     subst s. left. simpl. rewrite PNodeSetMax.add_spec. auto.
     right. simpl. apply PMap.gso. auto.
@@ -305,6 +302,7 @@ Proof.
   induction scs; simpl; intros; auto.
     apply IHscs; auto.
       unfold DomDS.propagate_succ.
+      destruct_let. 
       destruct_if; auto.
         intros n Hinwrk. simpl in *.
         destruct (positive_eq_dec n a); subst.
@@ -501,13 +499,17 @@ Lemma propagate_succ_incr:
   DomMap.in_incr st.(DomDS.st_in) (DomDS.propagate_succ st out n).(DomDS.st_in).
 Proof.
   unfold DomMap.in_incr, DomDS.propagate_succ; simpl; intros.
+  destruct_let. 
   destruct_if.
-    apply LDoms.ge_refl. 
-
     simpl. 
     case (positive_eq_dec n n0); intro; subst.
-      rewrite PMap.gss. apply LDoms.ge_lub_left; auto.
+      rewrite PMap.gss. 
+      eapply LDoms.ge_lub_left; eauto.
+
       rewrite PMap.gso; auto. apply LDoms.ge_refl. 
+
+    simpl.
+    apply LDoms.ge_refl. 
 Qed.
 
 Lemma propagate_succ_list_incr:
@@ -603,14 +605,18 @@ forall n,
       List.Forall (Plt n) sdms
   end.
 
-Lemma lub_transfer_stable: forall dmap (Hwf: wf_doms dmap) p,
-  dmap ?? p = LDoms.lub dmap ?? p (LDoms.transfer p dmap ?? p).
+Lemma lub_transfer_stable: forall dmap (Hwf: wf_doms dmap) p r changed
+  (Heq: LDoms.lub dmap ?? p (LDoms.transfer p dmap ?? p) = (r, changed)),
+  dmap ?? p = r.
 Proof.
   intros.
   assert (J:=Hwf p).
   destruct (dmap ?? p); auto.    
-    simpl. f_equal. 
-    apply LDoms.merge_cmp_cons. tauto.
+    simpl in Heq.
+    rewrite LDoms.merge_cmp_cons in Heq; auto.
+    congruence.
+
+    simpl in Heq. congruence.
 Qed.
 
 Lemma propagate_succ_self_stable: forall st n p 
@@ -622,9 +628,9 @@ Proof.
   destruct st as [dmap rem]. simpl.
   intros.
   unfold DomDS.propagate_succ. simpl.
-  destruct_if. simpl.
+  destruct_let. destruct_if. simpl.
   case (positive_eq_dec n p); intro; subst.
-    rewrite PMap.gss. apply lub_transfer_stable; auto.
+    rewrite PMap.gss. eapply lub_transfer_stable; eauto.
     rewrite PMap.gso; auto. 
 Qed.
 
@@ -637,9 +643,10 @@ Lemma propagate_succ_wf_doms:
 Proof.
   intros.
   unfold DomDS.propagate_succ.
-  destruct_if. simpl.
+  destruct_let. destruct_if. simpl.
   intros x.
   case (positive_eq_dec n x); intro; subst.
+  Case "1".
     rewrite PMap.gss. 
     assert (G:=Hwf x).
     assert (J:=LDoms.ge_lub_left 
@@ -647,17 +654,21 @@ Proof.
                  (LDoms.transfer p (DomDS.st_in st) ?? p)).
     remember ((DomDS.st_in st) ?? x) as R.
     destruct R.
+    SCase "1.1".
       eapply LDoms.ge_Forall; eauto.
-      
+    SCase "1.2".     
       remember ((DomDS.st_in st) ?? p) as R.
-      destruct R; auto.
-        simpl.
+      destruct R.
+        simpl in HeqR. uniq_result.
         assert (G':=Hwf p).
         fill_holes_in_ctx.
         constructor.
           apply ZC1. apply Horder. auto.
           eapply order_lt_order in G'; eauto.  
 
+        simpl in HeqR. congruence.
+
+  Case "2".
     rewrite PMap.gso; auto. 
     apply Hwf; auto.
 Qed.
@@ -779,6 +790,39 @@ Proof.
     inv Hsort. auto.
 Qed.
 
+Lemma Plt_Sorted__StronglySorted: forall l1 (Hsort: Sorted Plt l1), 
+  StronglySorted Plt l1.
+Proof.
+  intros.
+  apply Sorted_StronglySorted; auto.
+   unfold Relations_1.Transitive.
+   eauto with positive.
+Qed.
+
+Require Import list_facts.
+
+Lemma sublist_StronglySorted: forall l1 l2 (Hsort: StronglySorted Plt l2)
+  (Histl: sublist l1 l2), StronglySorted Plt l1.
+Proof.
+  intros.
+  induction Histl.
+    constructor.
+
+    inv Hsort. 
+    constructor; eauto with sublist.
+
+    inv Hsort. auto.
+Qed.
+
+Lemma sublist_sorted: forall l1 l2 (Hsort: Sorted Plt l2)
+  (Histl: sublist l1 l2), Sorted Plt l1.
+Proof.
+  intros.
+  apply Plt_Sorted__StronglySorted in Hsort.
+  apply StronglySorted_Sorted.
+  eapply sublist_StronglySorted; eauto.
+Qed.
+
 Lemma Forall_HdRel: forall A P (x:A) l1 (Hlt : Forall (P x) l1),
   HdRel P x l1.
 Proof.
@@ -799,6 +843,14 @@ Proof.
   intros.
   inv Hsort.
   constructor; eauto using is_tail_sorted, Forall_is_tail_HdRel.
+Qed.
+
+Lemma sublist_cons_sorted: forall x l1 l2 (Hsort: Sorted Plt (x::l2)) 
+  (Hlt : Forall (Plt x) l2) (Histl: sublist l1 l2), Sorted Plt (x :: l1).
+Proof.
+  intros.
+  inv Hsort.
+  constructor; eauto using sublist_sorted, Forall_HdRel with sublist. 
 Qed.
 
 Module SortedDoms. Section SortedDoms.
@@ -836,9 +888,10 @@ Lemma propagate_succ_wf_doms:
 Proof.
   intros.
   unfold DomDS.propagate_succ.
-  destruct_if. simpl.
+  destruct_let. destruct_if. simpl.
   intros x.
   case (positive_eq_dec n x); intro; subst.
+  Case "1".
     rewrite PMap.gss.
     assert (Hincfg:=Hwf x). 
     assert (Hlt:=Hwflt x).
@@ -847,19 +900,25 @@ Proof.
                  (LDoms.transfer p (DomDS.st_in st) ?? p)).
     remember ((DomDS.st_in st) ?? x) as R.
     destruct R.
-      destruct (LDoms.transfer p (DomDS.st_in st) ?? p) as [out|]; auto.
-      simpl. simpl in J.
-      eapply is_tail_cons_sorted; eauto.
+    SCase "1.1".
+      symmetry in HeqR.
+      apply_clear J in HeqR.
+      destruct t as [out|]; auto.
+        eapply sublist_cons_sorted; eauto.
 
+    SCase "1.2".
       remember ((DomDS.st_in st) ?? p) as R.
-      destruct R; auto.
-        simpl.
+      destruct R.
+        simpl in HeqR. uniq_result.
         assert (Hin:=Hwf p).
         fill_holes_in_ctx.
         constructor; auto.
           constructor.
           apply ZC1. apply Horder. auto.
 
+        simpl in HeqR. inv HeqR.
+
+  Case "2".
     rewrite PMap.gso; auto. 
     apply Hwf; auto.
 Qed.
@@ -976,15 +1035,6 @@ Qed.
 
 End SortedDoms. End SortedDoms.
 
-Lemma Plt_Sorted__StrongSorted: forall l1 (Hsort: Sorted Plt l1), 
-  StronglySorted Plt l1.
-Proof.
-  intros.
-  apply Sorted_StronglySorted; auto.
-   unfold Relations_1.Transitive.
-   eauto with positive.
-Qed.
-
 Module Inequations. Section Inequations.
 
 (** ** Correctness invariant *)
@@ -1005,42 +1055,6 @@ Definition good_state (st: DomDS.state) : Prop :=
              LDoms.ge st.(DomDS.st_in)??s 
                       (LDoms.transfer n st.(DomDS.st_in)??n)).
 
-Lemma lub_commut: forall x y, LDoms.lub x y = LDoms.lub y x.
-Admitted.
-
-Lemma ge_lub_right: forall x y, LDoms.ge (LDoms.lub x y) y.
-Proof.
-  intros.
-  rewrite lub_commut.
-  apply LDoms.ge_lub_left.
-Qed.
-
-Lemma eq_ge__Eq: forall x y (Heq: LDoms.eq x y) (Lge: LDoms.ge x y) 
-  (Hsort: SortedDoms.wf_dom y), x = y.
-Proof.
-  unfold LDoms.eq.
-  intros.
-  destruct x as [x|]; destruct y as [y|]; simpl in *; try congruence.
-  inv Lge; auto.
-  destruct x as [|hd x]; inv Heq.
-  apply Peqb_true_eq in H1. subst.
-  apply is_tail_in in H.
-  apply Plt_Sorted__StrongSorted in Hsort.
-  inv Hsort. 
-  eapply Forall_forall in H3; eauto.
-  contradict H3; auto using Plt_irrefl.
-Qed.
-
-Lemma eq_lub__Eq: forall x y (Heq: LDoms.eq x (LDoms.lub x y)) 
-  (Hsort: SortedDoms.wf_dom x), x = (LDoms.lub x y).
-Proof.
-  intros.
-  assert (J:=LDoms.ge_lub_left x y).
-  symmetry.
-  apply eq_ge__Eq; auto.
-  apply LDoms.eq_sym; auto.
-Qed.
-
 Lemma propagate_succ_charact:
   forall st out n (Hwf: SortedDoms.wf_doms st.(DomDS.st_in)),
   let st' := DomDS.propagate_succ st out n in
@@ -1048,20 +1062,20 @@ Lemma propagate_succ_charact:
   (forall s, n <> s -> st'.(DomDS.st_in)??s = st.(DomDS.st_in)??s).
 Proof.
   unfold DomDS.propagate_succ; intros; simpl.
-  predSpec LDoms.beq LDoms.beq_correct
-           ((DomDS.st_in st) ?? n) (LDoms.lub (DomDS.st_in st) ?? n out).
-  split; auto.
-    apply eq_lub__Eq in H; auto using SortedDoms.wf_doms__wf_dom.
-    eapply LDoms.ge_trans. 
-      apply LDoms.ge_refl. 
-      rewrite H. apply ge_lub_right.
+  destruct_let.
+  destruct_if.
+    simpl.
+    split.
+      rewrite PMap.gss.
+      eapply LDoms.ge_lub_right; eauto.
 
-  simpl. 
-  split.
-    rewrite PMap.gss.
-    apply ge_lub_right.
+      intros. rewrite PMap.gso; auto.
 
-    intros. rewrite PMap.gso; auto.
+    split; auto.
+      symmetry in HeqR.
+      assert (J:=HeqR).
+      apply LDoms.lub_unchanged_eq_left in J. subst.
+      eapply LDoms.ge_lub_right; eauto.
 Qed.
 
 Lemma propagate_succ_list_charact:
@@ -1234,17 +1248,17 @@ Proof.
   elim H.
   elim H; intros.
     subst a. rewrite PMap.gss.
-    apply ge_lub_right.
+    apply LDoms.ge_lub_right'.
 
     destruct a. 
     rewrite PMap.gsspec; auto.
     destruct_if.
     destruct H as [H | H].
       inv H.
-      apply ge_lub_right.
-
+      apply LDoms.ge_lub_right'.
+  
       apply LDoms.ge_trans with (DomDS.start_state_in ep)??p; auto.
-        apply LDoms.ge_lub_left. 
+        apply LDoms.ge_lub_left'. 
 Qed.
 
 Theorem fixpoint_entry:
@@ -1260,7 +1274,6 @@ Proof.
 Qed.
 
 End Inequations. End Inequations.
-*)
 
 (*
 (** ** Preservation of a property over solutions *)
