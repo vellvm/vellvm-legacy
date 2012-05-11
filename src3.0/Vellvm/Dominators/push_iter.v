@@ -54,7 +54,8 @@ Fixpoint start_state_in (ep: list (positive * L.t)) : PMap.t L.t :=
   | nil =>
       PMap.init L.bot
   | (n, v) :: rem =>
-      let m := start_state_in rem in PMap.set n (L.lub m ?? n v) m
+      let m := start_state_in rem in 
+      PMap.set n (fst (L.lub m ?? n v)) m
   end.
 
 Definition start_state :=
@@ -65,10 +66,10 @@ Definition start_state :=
 
 Definition propagate_succ (s: state) (out: L.t) (n: positive) :=
   let oldl := s.(st_in) ?? n in
-  let newl := L.lub oldl out in
-  if L.beq oldl newl
-  then s
-  else mkstate (PMap.set n newl s.(st_in)) (NS.add n s.(st_wrk)).
+  let '(newl, changed) := L.lub oldl out in
+  if changed
+  then mkstate (PMap.set n newl s.(st_in)) (NS.add n s.(st_wrk))
+  else s.
 
 (** [propagate_succ_list] corresponds, in the pseudocode,
   to the [for] loop iterating over all successors. *)
@@ -128,6 +129,7 @@ Definition dom_analyze (f: fdef) : PMap.t LDoms.t :=
   | None => PMap.init LDoms.bot
   end.
 
+(*
 Module DomMap := LATTICEELT_MAP (LDoms).
 
 Lemma propagate_succ_list_st_in_aux: forall out sc st2 scs st1 (Hnotin: ~ In sc scs)
@@ -354,18 +356,6 @@ Proof.
 Qed.
 
 End WorklistProps. End WorklistProps.
-
-Ltac fill_holes_in_ctx :=
-repeat match goal with
-| H: match ?e with
-     | Some _ => _
-     | None => _
-     end |- _ =>
-  match goal with
-  | H1: _ = e |- _ => rewrite <- H1 in H
-  | H1: e = _ |- _ => rewrite H1 in H
-  end
-end.
 
 Module InitOrder. Section InitOrder.
 
@@ -1270,6 +1260,7 @@ Proof.
 Qed.
 
 End Inequations. End Inequations.
+*)
 
 (*
 (** ** Preservation of a property over solutions *)

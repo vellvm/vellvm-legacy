@@ -417,24 +417,6 @@ Definition dfs_aux_wf_stack_prop (n:nat) : Prop := forall (succs: ATree.t ls)
   (Hwf: wf_stack succs entry po1 stk),
   wf_aorder succs entry (PO_a2p po2).
 
-Ltac fill_holes_in_ctx := (* from push_iter.v *)
-let fill e H :=
-  match goal with
-  | H1: _ = e |- _ => rewrite <- H1 in H
-  | H1: e = _ |- _ => rewrite H1 in H
-  end
-in
-repeat match goal with
-| H: match ?e with
-     | Some _ => _
-     | None => _
-     end |- _ => fill e H
-| H: match ?e with
-     | inl _ => _
-     | inr _ => _
-     end |- _ => fill e H
-end.
-
 Lemma find_next_visit_in_stk_inl_spec: forall succs visited po stk re
   (Heq: find_next_visit_in_stk succs visited po stk = inl re),
   stk <> nil.

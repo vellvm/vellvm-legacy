@@ -66,7 +66,9 @@ Worstcase()
   echo -e "LLVM"; time $DOM -llvm-dom lower.bc
 }
 
-for name in $WORST_CASES; do 
-  Worstcase $WORST_DIR$name $name
-done
+if [[ $DEBUG != "debug" ]]; then
+  for name in $WORST_CASES; do 
+    Worstcase $WORST_DIR$name $name
+  done
+fi
 

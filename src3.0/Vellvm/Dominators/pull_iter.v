@@ -56,7 +56,8 @@ Fixpoint start_state_in (ep: list (positive * L.t)) : PMap.t L.t :=
   | nil =>
       PMap.init L.bot
   | (n, v) :: rem =>
-      let m := start_state_in rem in PMap.set n (L.lub m ?? n v) m
+      let m := start_state_in rem in 
+      PMap.set n (fst (L.lub m ?? n v)) m
   end.
 
 Definition start_state :=
@@ -66,8 +67,11 @@ Definition start_state :=
   to the [for] loop iterating over all predecessors. *)
 
 Definition propagate_pred_list (s: state) (oldl: L.t) (preds: list positive) 
-  : L.t :=
-fold_left (fun acc p => L.lub acc (transf p s.(st_in) ?? p)) preds oldl.
+  : (L.t * bool) :=
+fold_left (fun acc p => 
+           let '(accl, accb) := acc in
+           let '(newl, changed) := L.lub accl (transf p s.(st_in) ?? p) in
+           (newl, accb || changed)) preds (oldl, false).
 
 (** [step] corresponds to the body of the outer [while] loop in the
   pseudocode. *)
@@ -81,12 +85,12 @@ Definition step (s: state) : PMap.t L.t + state :=
       inl _ s.(st_in)
   | Some(n, rem) =>
       let oldl := s.(st_in) ?? n in
-      let newl := propagate_pred_list s oldl (predecessors ??? n) in
+      let '(newl, changed) := propagate_pred_list s oldl (predecessors ??? n) in
       let s' := 
-        if L.beq oldl newl
-        then mkstate s.(st_in) rem
-        else mkstate (PMap.set n newl s.(st_in)) 
-               (add_successors_into_worklist rem n) in
+        if changed
+        then mkstate (PMap.set n newl s.(st_in)) 
+               (add_successors_into_worklist rem n)
+        else mkstate s.(st_in) rem in
       inr _ s'
   end.
 

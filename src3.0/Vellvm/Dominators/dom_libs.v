@@ -723,139 +723,291 @@ Module PNodeSetMin <: PNODE_SET.
   Qed.
 End PNodeSetMin.
 
-Module Type LATTICEELT.
-
-  Variable t: Type.
-  Variable eq: t -> t -> Prop.
-  Hypothesis eq_refl: forall x, eq x x.
-  Hypothesis eq_sym: forall x y, eq x y -> eq y x.
-  Hypothesis eq_trans: forall x y z, eq x y -> eq y z -> eq x z.
-  Variable beq: t -> t -> bool.
-  Hypothesis beq_correct: forall x y, beq x y = true -> eq x y.
-  Variable bot: t.
-  Variable lub: t -> t -> t.
-  Variable top: t.
-  Variable ge: t -> t -> Prop.
-  Hypothesis ge_trans: forall x y z, ge x y -> ge y z -> ge x z.
-  Hypothesis ge_refl: forall x, ge x x.
-
-End LATTICEELT.
-
-Module LATTICEELT_MAP (L: LATTICEELT).
-
-Definition in_incr (in1 in2: PMap.t L.t) : Prop :=
-  forall n, L.ge in2??n in1??n.
-
-Lemma in_incr_refl:
-  forall in1, in_incr in1 in1.
-Proof.
-  unfold in_incr; intros. apply L.ge_refl. 
-Qed.
-
-Lemma in_incr_trans:
-  forall in1 in2 in3, in_incr in1 in2 -> in_incr in2 in3 -> in_incr in1 in3.
-Proof.
-  unfold in_incr; intros. apply L.ge_trans with in2??n; auto.
-Qed.
-
-End LATTICEELT_MAP.
+Require Import list_facts.
 
 Module Type MERGE.
 
   Variable Pcmp: positive -> positive -> Prop.
-  Variable merge : list positive -> list positive -> list positive.
-  Hypothesis merge_is_tail_of_left: forall Xsdms Ysdms, 
-    is_tail (merge Xsdms Ysdms) Xsdms.
+  Variable merge : list positive -> list positive -> list positive * bool.
   Hypothesis merge_cmp_cons: forall p ps (Hlt: Forall (Pcmp p) ps),
-    ps = merge ps (p :: ps).
+    merge ps (p :: ps) = (ps, false).
 
 End MERGE.
+
+Ltac uniq_result' :=
+match goal with
+| H: Eq = (_ ?= _)%positive Eq |- _ => 
+    symmetry in H; apply Pcompare_Eq_eq in H; subst
+| H: (_ ?= _)%positive Eq = Eq |- _ => 
+    apply Pcompare_Eq_eq in H; subst
+| _ => uniq_result
+end.
+
+Require Import cpdt_tactics.
+
+Ltac fill_holes_in_ctx :=
+let fill e H :=
+  match goal with
+  | H1: _ = e |- _ => rewrite <- H1 in H
+  | H1: e = _ |- _ => rewrite H1 in H
+  end
+in
+repeat match goal with
+| H: match ?e with
+     | Some _ => _
+     | None => _
+     end |- _ => fill e H
+| H: match ?e with
+     | inl _ => _
+     | inr _ => _
+     end |- _ => fill e H
+| H: match ?e with
+     | (_,_) => _
+     end = _ |- _ => fill e H
+| H: _ = match ?e with
+     | (_,_) => _
+     end |- _ => fill e H
+end.
+
+Ltac destruct_let :=
+match goal with
+| _:context [match ?e with
+             | (_, _) => _
+             end] |- _ => remember e as R; destruct R
+| |- context [match ?e with
+              | (_, _) => _
+              end] => remember e as R; destruct R
+end.
 
 Module MergeLt <: MERGE.
 
   Definition Pcmp := Plt.
 
-  Program Fixpoint merge (l1 l2: list positive) 
-    {measure ((fun l1 l2 => (length l1 + length l2)%nat) l1 l2)}
-    : list positive :=
+  Program Fixpoint merge_aux (l1 l2: list positive) (acc:list positive * bool)
+    {measure (length l1 + length l2)%nat}
+    : (list positive * bool) :=
+  let '(rl, changed) := acc in
   match l1, l2 with
   | p1::l1', p2::l2' =>
       match (Pcompare p1 p2 Eq) with
-      | Eq => l1
-      | Lt => merge l1' l2 
-      | Gt => merge l1 l2'
+      | Eq => merge_aux l1' l2' (p1::rl, changed)
+      | Lt => merge_aux l1' l2 (rl, true)
+      | Gt => merge_aux l1 l2' (rl, changed)
       end
-  | _, _ => nil
+  | nil, _ => acc
+  | _::_, nil => (rl, true)
   end.
   Next Obligation.
     simpl. omega.
   Qed.
+  Next Obligation.
+    simpl. omega.
+  Qed.
   
-  Definition merge_is_tail_of_left_prop (n:nat) := forall Xsdms Ysdms
-    (Hlen: (length Xsdms + length Ysdms = n)%nat),
-    is_tail (merge Xsdms Ysdms) Xsdms.
+  Definition merge_aux_spec_prop (n:nat) := forall Xsdms Ysdms
+    (Hlen: (length Xsdms + length Ysdms = n)%nat)
+    rl1 changed1 rl2 changed2 
+    (Hmerge: merge_aux Xsdms Ysdms (rl1, changed1) = (rl2, changed2)),
+    exists rl3, rl2 = rl3 ++ rl1 /\ 
+                sublist (List.rev rl3) Xsdms /\
+                sublist (List.rev rl3) Ysdms /\
+                (changed2 = false -> (List.rev rl3) = Xsdms) /\
+                (changed1 = true -> changed2 = true).
 
-  Ltac fold_merge :=
+  Ltac fold_merge_aux :=
   match goal with
-  | |- context [merge_func (existT _ ?arg1 ?arg2)] => 
-         fold (merge arg1 arg2)
+  | |- context [merge_aux_func (existT _ ?arg1 (existT _ ?arg2 ?arg3))] => 
+         fold (merge_aux arg1 arg2 arg3)
   end.
 
-  Ltac unfold_merge :=
+  Ltac unfold_merge_aux :=
   match goal with
-  | |- appcontext [merge ?arg] =>
-     unfold merge; unfold merge_func;
-     Program.Wf.WfExtensionality.unfold_sub merge arg; simpl;
-     repeat Program.Wf.fold_sub merge_func;
-     repeat fold_merge
+  | |- appcontext [merge_aux ?arg] =>
+     unfold merge_aux; unfold merge_aux_func;
+     Program.Wf.WfExtensionality.unfold_sub merge_aux arg; simpl;
+     repeat Program.Wf.fold_sub merge_aux_func;
+     repeat fold_merge_aux
   end.
 
-  Lemma merge_is_tail_of_left_aux: forall n, merge_is_tail_of_left_prop n.
+  Lemma merge_aux_spec_aux: forall n, merge_aux_spec_prop n.
   Proof.
-    induction n; unfold merge_is_tail_of_left_prop; intros.
-      destruct Xsdms as [|Xsdms]; destruct Ysdms as [|Ysdms]; 
-        simpl in Hlen; try solve [contradict Hlen; simpl; omega].
-      compute. auto with coqlib.
+    intro n.
+    elim n using (well_founded_induction lt_wf).
+    intros x Hrec.
+    unfold merge_aux_spec_prop; intros.
+    destruct Xsdms as [|Xd Xsdms]; destruct Ysdms as [|Yd Ysdms]; 
+      simpl in Hlen; try solve [contradict Hlen; simpl; omega].
+      compute in Hmerge. uniq_result.
+      exists nil. simpl. repeat (split; try solve [auto | constructor]).
+
+      compute in Hmerge. uniq_result. 
+      exists nil. simpl. repeat (split; try solve [auto | constructor]).
+
+      compute in Hmerge. uniq_result. 
+      exists nil. simpl. 
+      repeat (split; try solve [auto | constructor | congruence]).
   
-      destruct Xsdms as [|Xsdms]; destruct Ysdms as [|Ysdms]; 
-        simpl in Hlen; try solve [contradict Hlen; simpl; omega].
-      
-        uniq_result.
-        compute. auto with coqlib.
-  
-        uniq_result.
-        compute. apply is_tail_nil.
-  
-        uniq_result.
-        unfold_merge.
-        remember ((Xsdms ?= Ysdms)%positive Eq) as Cmp.
-        destruct Cmp; auto with coqlib.
-          apply IHn. simpl. omega.
+      uniq_result.
+      revert Hmerge. unfold_merge_aux.
+      remember ((Xd ?= Yd)%positive Eq) as Cmp.
+      intro.
+      destruct Cmp; subst.
+        apply Hrec with (y:=(length Xsdms + length Ysdms)%nat) in Hmerge; 
+          try solve [simpl; omega].
+        destruct Hmerge as [rl3 [J1 [J2 [J3 [J4 J5]]]]].
+        subst.
+        exists (rl3++[Xd]). simpl_env.
+        rewrite rev_app_distr. simpl. 
+        uniq_result'.
+        repeat (split; try solve [auto | constructor; auto]).
+          crush.
+        
+        apply Hrec with (y:=(length Xsdms + S (length Ysdms))%nat) in Hmerge; 
+           try solve [simpl; omega].
+        destruct Hmerge as [rl3 [J1 [J2 [J3 [J4 J5]]]]].
+        subst.
+        exists rl3. 
+        repeat (split; try solve [auto | constructor; auto]).
+          crush.
+        
+        apply Hrec with (y:=(S (length Xsdms) + length Ysdms)%nat) in Hmerge; 
+           try solve [simpl; omega].
+        destruct Hmerge as [rl3 [J1 [J2 [J3 [J4 J5]]]]].
+        subst.
+        exists rl3. 
+        repeat (split; try solve [auto | constructor; auto]).
   Qed.
 
-  Lemma merge_is_tail_of_left: forall Xsdms Ysdms, 
-    is_tail (merge Xsdms Ysdms) Xsdms.
+  Lemma merge_aux_spec: forall Xsdms Ysdms rl1 changed1 rl2 changed2 
+    (Hmerge: merge_aux Xsdms Ysdms (rl1, changed1) = (rl2, changed2)),
+    exists rl3, rl2 = rl3 ++ rl1 /\ 
+                sublist (List.rev rl3) Xsdms /\
+                sublist (List.rev rl3) Ysdms /\
+                (changed2 = false -> (List.rev rl3) = Xsdms) /\
+                (changed1 = true -> changed2 = true).
   Proof.
     intros.
-    assert (J:=@merge_is_tail_of_left_aux (length Xsdms + length Ysdms)).
-    unfold merge_is_tail_of_left_prop in J.
+    assert (J:=@merge_aux_spec_aux (length Xsdms + length Ysdms)).
+    unfold merge_aux_spec_prop in J.
     auto.
   Qed.
   
+  Definition merge (l1 l2: list positive) : (list positive * bool) :=
+    let '(rl, changed) := merge_aux l1 l2 (nil, false) in
+    (rev rl, changed).
+
+  Lemma merge_spec: forall Xsdms Ysdms rl changed 
+    (Hmerge: merge Xsdms Ysdms = (rl, changed)),
+    sublist rl Xsdms /\ sublist rl Ysdms /\
+    (changed = false -> rl = Xsdms).
+  Proof.
+    unfold merge.
+    intros.
+    destruct_let.
+    fill_holes_in_ctx. uniq_result.
+    symmetry in HeqR.
+    apply merge_aux_spec in HeqR.
+    destruct_conjs.
+    subst. simpl_env.
+    crush.
+  Qed.
+
+  Definition merge_aux_commut_prop (n:nat) := forall Xsdms Ysdms
+    (Hlen: (length Xsdms + length Ysdms = n)%nat)
+    rl1 changed1 changed1' rl2 changed2 rl2' changed2' 
+    (Hmerge: merge_aux Xsdms Ysdms (rl1, changed1) = (rl2, changed2))
+    (Hmerge': merge_aux Ysdms Xsdms (rl1, changed1') = (rl2', changed2')),
+    rl2 = rl2'.
+
+  Lemma merge_aux_commut_aux: forall n, merge_aux_commut_prop n.
+  Proof.
+    intro n.
+    elim n using (well_founded_induction lt_wf).
+    intros x Hrec.
+    unfold merge_aux_commut_prop; intros.
+    destruct Xsdms as [|Xd Xsdms]; destruct Ysdms as [|Yd Ysdms]; 
+      simpl in Hlen; try solve [contradict Hlen; simpl; omega].
+      compute in Hmerge, Hmerge'. uniq_result. auto.
+      compute in Hmerge, Hmerge'. uniq_result. auto.
+      compute in Hmerge, Hmerge'. uniq_result. auto.
+  
+      revert Hmerge. unfold_merge_aux. intro.
+      revert Hmerge'. unfold_merge_aux. intro.
+      remember ((Xd ?= Yd)%positive Eq) as Cmp.
+      destruct Cmp; subst.
+        uniq_result'.
+        rewrite Pcompare_refl in Hmerge'.
+        eapply Hrec with (y:=(length Xsdms + length Ysdms)%nat); 
+          try solve [eauto | simpl; omega].
+
+        rewrite ZC2 in Hmerge'; auto.
+        eapply Hrec with (y:=(length Xsdms + S (length Ysdms))%nat); 
+          eauto; simpl; omega.
+
+        rewrite ZC1 in Hmerge'; auto.
+        eapply Hrec with (y:=(S (length Xsdms) + length Ysdms)%nat); 
+          eauto; simpl; omega.
+  Qed.
+
+  Lemma merge_commut: forall Xsdms Ysdms rl changed rl' changed'
+    (Hmerge: merge Xsdms Ysdms = (rl, changed))
+    (Hmerge': merge Ysdms Xsdms = (rl', changed')),
+    rl = rl'.
+  Proof.
+    unfold merge.
+    intros. destruct_let. destruct_let. uniq_result.
+    assert (J:=@merge_aux_commut_aux (length Xsdms + length Ysdms)).
+    unfold merge_aux_commut_prop in J.
+    f_equal. eauto.
+  Qed.
+
+  Definition merge_aux_refl_prop (n:nat) := forall Xsdms
+    (Hlen: (length Xsdms + length Xsdms = n)%nat) rl changed,
+    merge_aux Xsdms Xsdms (rl, changed) = (rev Xsdms++rl, changed).
+
+  Lemma merge_aux_refl_aux: forall n, merge_aux_refl_prop n.
+  Proof.
+    intro n.
+    elim n using (well_founded_induction lt_wf).
+    intros x Hrec.
+    unfold merge_aux_refl_prop; intros.
+    destruct Xsdms as [|Xd Xsdms];
+      simpl in Hlen; try solve [contradict Hlen; simpl; omega].
+      compute. auto.
+  
+      unfold_merge_aux. 
+      simpl_env.
+      rewrite Pcompare_refl. 
+      erewrite Hrec with (y:=(length Xsdms + length Xsdms)%nat); 
+        try solve [eauto | simpl; omega].
+  Qed.
+
+  Lemma merge_refl: forall Xsdms, merge Xsdms Xsdms = (Xsdms, false).
+  Proof.
+    unfold merge. intros. destruct_let.
+    assert (J:=@merge_aux_refl_aux (length Xsdms + length Xsdms)).
+    unfold merge_aux_refl_prop in J.
+    rewrite J in HeqR; auto.
+    uniq_result. simpl_env.
+    rewrite rev_involutive. auto.
+  Qed.
+
   Lemma merge_cmp_cons: forall p ps (Hlt: Forall (Plt p) ps),
-    ps = merge ps (p :: ps).
+    merge ps (p :: ps) = (ps, false).
   Proof.
     destruct 1; intros.
       compute. auto.
 
-      unfold_merge.
+      unfold merge. unfold_merge_aux.
       rewrite ZC2; auto.
-      unfold_merge.
-      rewrite Pcompare_refl. auto.
+      erewrite merge_aux_refl_aux; eauto.
+      simpl_env.
+      rewrite rev_involutive. auto.
   Qed.
 
 End MergeLt.
 
+(*
 Module MergeGt <: MERGE.
 
   Definition Pcmp := Pgt.
@@ -940,11 +1092,62 @@ Module MergeGt <: MERGE.
   Qed.
 
 End MergeGt.
+*)
+
+Module Type LATTICEELT.
+
+  Variable t: Type.
+  Variable eq: t -> t -> Prop.
+  Hypothesis eq_refl: forall x, eq x x.
+  Hypothesis eq_sym: forall x y, eq x y -> eq y x.
+  Hypothesis eq_trans: forall x y z, eq x y -> eq y z -> eq x z.
+(*
+  Variable beq: t -> t -> bool.
+  Hypothesis beq_correct: forall x y, beq x y = true -> eq x y.
+*)
+  Variable bot: t.
+  Variable lub: t -> t -> t * bool.
+  Variable top: t.
+  Variable ge: t -> t -> Prop.
+  Hypothesis ge_trans: forall x y z, ge x y -> ge y z -> ge x z.
+  Hypothesis ge_refl: forall x, ge x x.
+
+End LATTICEELT.
+
+Module LATTICEELT_MAP (L: LATTICEELT).
+
+Definition in_incr (in1 in2: PMap.t L.t) : Prop :=
+  forall n, L.ge in2??n in1??n.
+
+Lemma in_incr_refl:
+  forall in1, in_incr in1 in1.
+Proof.
+  unfold in_incr; intros. apply L.ge_refl. 
+Qed.
+
+Lemma in_incr_trans:
+  forall in1 in2 in3, in_incr in1 in2 -> in_incr in2 in3 -> in_incr in1 in3.
+Proof.
+  unfold in_incr; intros. apply L.ge_trans with in2??n; auto.
+Qed.
+
+End LATTICEELT_MAP.
+
+Ltac Peqb_eq_tac :=
+repeat match goal with
+| H: Peqb _ _ = true |- _ => eapply Peqb_eq in H; subst
+| |- Peqb _ _ = true => eapply Peqb_eq
+end.
+ 
+Theorem sublist_trans : forall X (l1 l2 l3: list X), 
+  sublist l1 l2 -> sublist l2 l3 -> sublist l1 l3.
+Admitted.
 
 Module Doms (MG:MERGE) <: LATTICEELT.
 
   Definition t := option (list positive).
-  
+
+(*  
   Definition beq_hd (l1 l2: list positive) : bool :=
   match l1, l2 with
   | h1::_, h2::_ => Peqb h1 h2
@@ -958,47 +1161,26 @@ Module Doms (MG:MERGE) <: LATTICEELT.
   | None, None => true
   | _, _ => false
   end.
-  
-  Definition eq (x y: t) := beq x y = true.
-  
-  Hint Unfold eq beq.
-  
-  Ltac Peqb_eq_tac :=
-  repeat match goal with
-  | H: Peqb _ _ = true |- _ => eapply Peqb_eq in H; subst
-  | |- Peqb _ _ = true => eapply Peqb_eq
-  end.
-  
-  Lemma eq_refl: forall x, eq x x.
-  Proof.
-    destruct x as [[|x]|]; auto.
-      autounfold. simpl. Peqb_eq_tac. auto.
-  Qed.
-  
-  Lemma eq_sym: forall x y (Heq: eq x y), eq y x.
-  Proof.
-    destruct x as [[|x]|]; destruct y as [[|y]|]; intros; inv Heq; auto.
-      autounfold. simpl. Peqb_eq_tac. auto.
-  Qed.
-  
-  Lemma eq_trans: forall x y z (Heq1: eq x y) (Heq2: eq y z), eq x z.
-  Proof.
-    intros.
-    destruct x as [[|x]|]; destruct y as [[|y]|]; inv Heq1; auto.
-    destruct z as [[|z]|]; inv Heq2; auto.
-      autounfold. simpl. Peqb_eq_tac. auto.
-  Qed.
-  
+*)  
+
+  Definition eq (x y: t) := (x = y).
+  Definition eq_refl: forall x, eq x x := (@refl_equal t).
+  Definition eq_sym: forall x y, eq x y -> eq y x := (@sym_equal t).
+  Definition eq_trans: forall x y z, eq x y -> eq y z -> eq x z := (@trans_equal t).
+
+(* 
   Lemma beq_correct: forall x y (Heq: beq x y = true), eq x y.
   Proof. auto. Qed.
+*)
   
   Definition bot : t := None.
   
-  Definition lub (x y:t) : t :=
+  Definition lub (x y:t) : t * bool :=
   match x, y with
-  | Some x', Some y' => Some (MG.merge x' y')
-  | _, None => x
-  | None, _ => y
+  | Some x', Some y' => 
+     let '(r, changed) := (MG.merge x' y') in (Some r, changed)
+  | _, None => (x, false)
+  | None, _ => (y, true)
   end.
   
   Definition top : t := Some nil.
@@ -1006,7 +1188,7 @@ Module Doms (MG:MERGE) <: LATTICEELT.
   Definition ge (x y:t) : Prop :=
   match x, y with
   | _, None => True
-  | Some x', Some y' => is_tail x' y'
+  | Some x', Some y' => sublist x' y'
   | _, _ => False
   end.
 
@@ -1014,16 +1196,16 @@ Module Doms (MG:MERGE) <: LATTICEELT.
   Proof.
     unfold ge.
     destruct x as [x|]; destruct y as [y|]; destruct z as [z|]; 
-      eauto using is_tail_trans.
+      eauto using sublist_trans.
       tauto.
   Qed.
 
   Lemma ge_refl: forall x, ge x x.
   Proof.
     unfold ge.
-    destruct x as [x|]; auto using is_tail_refl.
+    destruct x as [x|]; auto using sublist_refl.
   Qed.
-
+(*
   Lemma merge_is_tail_of_left: forall Xsdms Ysdms, 
     is_tail (MG.merge Xsdms Ysdms) Xsdms.
   Proof. apply MG.merge_is_tail_of_left. Qed.
@@ -1031,13 +1213,13 @@ Module Doms (MG:MERGE) <: LATTICEELT.
   Lemma merge_cmp_cons: forall p ps (Hlt: Forall (MG.Pcmp p) ps),
     ps = MG.merge ps (p :: ps).
   Proof. apply MG.merge_cmp_cons. Qed.
-
+*)
   Definition transfer (n:positive) (input:t) : t :=
   match input with
   | None => None
   | Some ps => Some (n::ps)
   end.
-
+(*
   Lemma ge_lub_left: forall x y, ge (lub x y) x.
   Proof.
     intros.
@@ -1102,7 +1284,7 @@ Module Doms (MG:MERGE) <: LATTICEELT.
     simpl in Hge.
     eapply is_tail_Forall; eauto.
   Qed.
-
+*)
 End Doms.
 
 Require Import syntax.
