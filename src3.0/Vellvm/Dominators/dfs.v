@@ -503,11 +503,6 @@ Proof.
         right. eapply node_in_stk_push; eauto.
 Qed.
 
-Lemma Plt_succ: forall (x: positive), (x < (Psucc x))%positive.
-Proof. apply Pcompare_p_Sp. Qed.
-
-Hint Resolve Plt_lt_succ Plt_succ: positive.
-
 Lemma node_in_stk_hd: forall Fr_name0 Fr_scs0 stk,
   node_in_stk Fr_name0 ({| Fr_name := Fr_name0; Fr_scs := Fr_scs0 |} :: stk).
 Proof.

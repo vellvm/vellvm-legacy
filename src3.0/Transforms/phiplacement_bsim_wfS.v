@@ -88,7 +88,7 @@ Lemma phinodes_placement_reachablity_analysis: forall f rd pid ty al,
   reachablity_analysis f =
   reachablity_analysis
      (phinodes_placement rd pid ty al (successors f)
-        (make_predecessors (successors f)) f).
+        (XATree.make_predecessors (successors f)) f).
 Proof.
   intros.
   rewrite phinodes_placement_fdef_spec1.
@@ -100,7 +100,7 @@ Lemma phinodes_placement_successors: forall f rd pid ty al,
   successors f =
   successors
     (phinodes_placement rd pid ty al (successors f)
-       (make_predecessors (successors f)) f).
+       (XATree.make_predecessors (successors f)) f).
 Proof.
   intros.
   rewrite phinodes_placement_fdef_spec1.
@@ -1104,7 +1104,7 @@ Proof.
                 | merror => value_const (const_undef (PI_typ pinfo))
                 end, p) :: acc) pds nil)) as R.
    destruct R. simpl in J. subst. 
-   unfold successors_list.
+   unfold XATree.successors_list.
    unfold predecessors.
    unfold PI_preds, PI_succs in HeqR3.
    rewrite <- HeqR3.
@@ -1400,7 +1400,7 @@ Lemma phinodes_placement_wfS: forall rd f Ps1 Ps2 los nts pid ty al
     [module_intro los nts
       (Ps1 ++
        product_fdef (phinodes_placement rd pid ty al (successors f)
-                    (make_predecessors (successors f)) f) :: Ps2)].
+                    (XATree.make_predecessors (successors f)) f) :: Ps2)].
 Proof.
   intros.
   assert (Hwfl: wf_layouts los).
@@ -1551,7 +1551,7 @@ Lemma phinodes_placement_wfPI: forall rd f Ps1 Ps2 los nts pid ty al
        [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
   WF_PhiInfo {|
     PI_f := phinodes_placement rd pid ty al (successors f)
-              (make_predecessors (successors f)) f;
+              (XATree.make_predecessors (successors f)) f;
     PI_rd := rd;
     PI_id := pid;
     PI_typ := ty;

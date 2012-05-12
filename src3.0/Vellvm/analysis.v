@@ -205,26 +205,26 @@ Definition eq_dts bound1 bound2 (dts1:DomDS.dt1 bound1) (dts2:DomDS.dt2 bound2)
   :=
 match dts1, dts2 with
 | {| DomDS.L.bs_contents := els1 |}, {| DomDS.L.bs_contents := els2 |} =>
-  set_eq _ els1 els2
+  set_eq els1 els2
 end.
 
 Ltac solve_set_eq :=
 repeat match goal with
-| |- set_eq _ ?a ?a => apply set_eq_refl
-| H : set_eq _ ?bs_contents ?bs_contents0,
-  H0 : set_eq _ ?bs_contents1 ?bs_contents2 |-
-  set_eq _ (set_inter _ ?bs_contents ?bs_contents1)
+| |- set_eq ?a ?a => apply set_eq_refl
+| H : set_eq ?bs_contents ?bs_contents0,
+  H0 : set_eq ?bs_contents1 ?bs_contents2 |-
+  set_eq (set_inter _ ?bs_contents ?bs_contents1)
      (set_inter _ ?bs_contents0 ?bs_contents2) =>
   apply set_eq_inter; auto
-| |- set_eq _ (?pc :: _) (?pc :: _) => simpl_env
-| |- set_eq _ (?pc ++ _) (?pc ++ _) => apply set_eq_app
-| H : set_eq _ ?bs_contents ?bs_contents0 |- 
-      set_eq _ ?bs_contents ?bs_contents0 => exact H
-| H0 : set_eq _ ?C ?D, EQ : set_eq _ ?A ?B, e : set_eq _ ?C ?A |- 
-  set_eq _ ?D ?B =>
+| |- set_eq (?pc :: _) (?pc :: _) => simpl_env
+| |- set_eq (?pc ++ _) (?pc ++ _) => apply set_eq_app
+| H : set_eq ?bs_contents ?bs_contents0 |- 
+      set_eq ?bs_contents ?bs_contents0 => exact H
+| H0 : set_eq ?C ?D, EQ : set_eq ?A ?B, e : set_eq ?C ?A |- 
+  set_eq ?D ?B =>
   eauto using set_eq_trans, set_eq_sym
-| H0 : set_eq _ ?A ?B, EQ : set_eq _ ?C ?D, e : set_eq _ ?B ?D |- 
-  set_eq _ ?A ?C =>
+| H0 : set_eq ?A ?B, EQ : set_eq ?C ?D, e : set_eq ?B ?D |- 
+  set_eq ?A ?C =>
   eauto using set_eq_trans, set_eq_sym
 end.
 
@@ -264,7 +264,7 @@ Proof.
   intros.
   destruct x1. destruct x2. destruct y1. destruct y2. simpl in *.
   assert (
-    set_eq atom (ListSet.set_inter eq_atom_dec bs_contents1 bs_contents)
+    set_eq (ListSet.set_inter eq_atom_dec bs_contents1 bs_contents)
       (ListSet.set_inter eq_atom_dec bs_contents2 bs_contents0)
   ) as EQ.
     solve_set_eq.
@@ -476,7 +476,7 @@ Proof.
       (bound1:=bd1) (transf1:=transfer bd1)(entrypoints1:=((l4, init1):: nil))
       in Hfix2; subst;
       try solve [(auto with eq_dts_db) |
-                 apply Forall2_cons; simpl; auto using Lattice.AtomSet.set_eq_refl].
+                 apply Forall2_cons; simpl; auto using AtomSet.set_eq_refl].
       destruct Hfix2 as [dom1 [Hfix1 Heq']].
       rewrite Hfix1. auto.
     
@@ -484,7 +484,7 @@ Proof.
     apply DomDS.fixpoint_none2_right with (bound1:=bd1) (P:=eq_dts bd1 bd2)
       (transf1:=transfer bd1) (entrypoints1:=((l4,init1) :: nil)) in Hfix2;
       subst; try solve [(auto with eq_dts_db) |
-                         apply Forall2_cons; simpl; auto using Lattice.AtomSet.set_eq_refl].
+                         apply Forall2_cons; simpl; auto using AtomSet.set_eq_refl].
       rewrite Hfix2. auto.
 Qed.
 
@@ -597,11 +597,11 @@ Proof.
     destruct HbInF as [HbInF | HbInF].
       unfold blockEqB in HbInF.
       apply sumbool2bool_true in HbInF. inv HbInF.
-      unfold successors_list.
+      unfold XATree.successors_list.
       rewrite ATree.gss. auto.
 
       apply IHbs in J2; auto.
-      unfold successors_list in *.
+      unfold XATree.successors_list in *.
       destruct HuniqF as [J _].
       inv J.
       rewrite ATree.gso; auto.
@@ -723,6 +723,7 @@ Proof.
         assert ((successors_terminator tmn) = (successors_blocks bs) !!! l0)
           as EQ.
           eapply successors_terminator__successors_blocks; eauto.
+        unfold l in *.
         rewrite <- EQ; auto.
     elim J; intro. congruence. auto.
 
@@ -764,7 +765,7 @@ Lemma successors__blockInFdefB : forall l0 a f,
     In l0 (successors_terminator tmn0).
 Proof.
   destruct f as [fh bs]. simpl.
-  unfold successors_list.
+  unfold XATree.successors_list.
   induction bs as [|a0 bs]; simpl; intro.
     rewrite ATree.gempty in H. inv H.
 
@@ -984,7 +985,7 @@ Section EntryDomsOthers.
 
 Variable bs : blocks.
 Definition bound := bound_blocks bs.
-Definition predecessors := make_predecessors (successors_blocks bs).
+Definition predecessors := XATree.make_predecessors (successors_blocks bs).
 Definition transf := transfer bound.
 Definition top := Dominators.top bound.
 Definition bot := Dominators.bot bound.
@@ -1138,7 +1139,7 @@ Proof.
   apply in_map_iff in H0.
   destruct H0 as [x [J1 J2]]; subst.
   eapply DomDS.fixpoint_solution; eauto.
-  apply make_predecessors_correct'; auto.
+  apply XATree.make_predecessors_correct'; auto.
 Qed.
 
 End EntryDomsOthers.
@@ -1315,7 +1316,7 @@ Qed.
 
 Lemma getCmdsIDs__cmds_dominates_cmd : forall cs2' c',
   ~ In (getCmdLoc c') (getCmdsLocs cs2') ->
-  set_eq _ (getCmdsIDs (cs2' ++ [c']))
+  set_eq (getCmdsIDs (cs2' ++ [c']))
   (cmds_dominates_cmd (cs2' ++ [c']) (getCmdLoc c') ++
     match getCmdID c' with
     | Some id1 => [id1]
@@ -1344,7 +1345,7 @@ Qed.
 Definition opt_set_eq (ops1 ops2:option (list atom)) : Prop :=
 match (ops1, ops2) with
 | (None, None) => True
-| (Some s1, Some s2) => set_eq _ s1 s2
+| (Some s1, Some s2) => set_eq s1 s2
 | _ => False
 end.
 
@@ -1381,10 +1382,10 @@ Proof.
 Qed.
 
 Lemma fold_left__opt_set_eq : forall (ls0:list atom) f l1 init1 init2 r1,
-  set_eq _ init1 init2 ->
+  set_eq init1 init2 ->
   fold_left (inscope_of_block f l1) ls0 (Some init1) = Some r1 ->
   exists r2, fold_left (inscope_of_block f l1) ls0 (Some init2) = Some r2 /\
-    set_eq _ r1 r2.
+    set_eq r1 r2.
 Proof.
   intros.
   assert (opt_set_eq (Some init1) (Some init2)) as EQ. unfold opt_set_eq. auto.
@@ -1399,7 +1400,7 @@ Qed.
 Lemma inscope_of_block__opt_union : forall f l1 l' init1 init2 r1,
   inscope_of_block f l1 (Some init1) l' = Some r1 ->
   exists r2, inscope_of_block f l1 (Some (init1++init2)) l' = Some r2 /\
-    set_eq _ (r1++init2) r2.
+    set_eq (r1++init2) r2.
 Proof.
   intros.
   unfold inscope_of_block in *.
@@ -1421,7 +1422,7 @@ Lemma fold_left__opt_union : forall (ls0:list atom) f l1 init1 init2 r1,
   fold_left (inscope_of_block f l1) ls0 (Some init1) = Some r1 ->
   exists r2,
     fold_left (inscope_of_block f l1) ls0 (Some (init1++init2)) = Some r2
-      /\ set_eq _ (r1++init2) r2.
+      /\ set_eq (r1++init2) r2.
 Proof.
   induction ls0; intros f l1 init1 init2 r1 H; simpl in *; auto.
     inv H. exists (r1 ++ init2). split; auto using set_eq_refl.
@@ -1439,8 +1440,8 @@ Some ids1 = inscope_of_cmd f (block_intro l2 ps2 (cs2'++[c']) tmn') c' ->
 exists ids2,
   Some ids2 = inscope_of_tmn f (block_intro l2 ps2 (cs2'++[c']) tmn') tmn' /\
   match getCmdID c' with
-  | Some id1 => set_eq _ (id1::ids1) ids2
-  | None => set_eq _ ids1 ids2
+  | Some id1 => set_eq (id1::ids1) ids2
+  | None => set_eq ids1 ids2
   end.
 Proof.
   intros f l2 ps2 cs2' c' tmn' ids1 Huniq Hinscope.
@@ -1500,7 +1501,7 @@ Qed.
 
 Lemma cmds_dominates_cmd__cmds_dominates_cmd : forall cs2' c' c cs',
   NoDup (getCmdsLocs (cs2'++[c']++[c]++cs')) ->
-  set_eq _ (cmds_dominates_cmd (cs2' ++ c' :: c :: cs') (getCmdLoc c))
+  set_eq (cmds_dominates_cmd (cs2' ++ c' :: c :: cs') (getCmdLoc c))
     (cmds_dominates_cmd (cs2' ++ c' :: c :: cs') (getCmdLoc c') ++
      match getCmdID c' with
      | Some id1 => [id1]
@@ -1544,8 +1545,8 @@ exists ids2,
   Some ids2 =
     inscope_of_cmd f (block_intro l2 ps2 (cs2'++[c']++[c]++cs') tmn') c /\
   match getCmdID c' with
-  | Some id1 => set_eq _ (id1::ids1) ids2
-  | None => set_eq _ ids1 ids2
+  | Some id1 => set_eq (id1::ids1) ids2
+  | None => set_eq ids1 ids2
   end.
 Proof.
   intros f l2 ps2 cs2' c' c cs' tmn' ids1 Huniq Hinscope.
@@ -2777,7 +2778,7 @@ Lemma inscope_of_id__append_cmds: forall l0 ps0 cs1 c2 cs3 c4 cs5 tmn0 l2 l4 f
          inscope_of_id f
            (block_intro l0 ps0 (cs1 ++ c2 :: cs3 ++ c4 :: cs5) tmn0) 
            (getCmdLoc c2)),
-  AtomSet.set_eq _ (l2 ++ getCmdsIDs (c2::cs3)) l4.
+  AtomSet.set_eq (l2 ++ getCmdsIDs (c2::cs3)) l4.
 Proof.
   unfold inscope_of_id, init_scope.
   intros.
@@ -3003,7 +3004,7 @@ Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     wf_phi_operands f b id0 t0 ((value_const c1, l1) :: vls).
 
 Definition predecessors (f: fdef) : ATree.t ls :=
-make_predecessors (successors f).
+XATree.make_predecessors (successors f).
 
 Definition has_no_predecessors (f: fdef) (b:block) : bool :=
 match (predecessors f) !!! (getBlockLabel b) with
@@ -3015,7 +3016,7 @@ Definition check_list_value_l (f:fdef) (b:block) (vls: list (value * l)) :=
   let '(vs1,ls1) := List.split vls in
   let ls2 := (predecessors f) !!! (getBlockLabel b) in
   (length ls2 > 0)%nat /\
-  AtomSet.set_eq _ ls1 ls2 /\
+  AtomSet.set_eq ls1 ls2 /\
   NoDup ls1.
 
 Definition wf_phinode (f:fdef) (b:block) (p:phinode) :=
@@ -3030,8 +3031,8 @@ Lemma successors_predecessors_of_block : forall f l1 ps1 cs1 tmn1 l0,
 Proof.
   unfold predecessors.
   intros.
-  apply make_predecessors_correct; auto.
-  unfold successors_list.
+  apply XATree.make_predecessors_correct; auto.
+  unfold XATree.successors_list.
   erewrite blockInFdefB__successors; eauto.
 Qed.
 
@@ -3088,7 +3089,7 @@ Definition predecessors_dom__uniq_prop
 forall l0 (Huniq: forall l1, NoDup (scs !!! l1)), 
   NoDup (pds !!! l0).
 
-Lemma predecessors_dom__uniq_aux_helper: forall m k v
+Lemma predecessors_dom__uniq_aux_helper: forall m k (v:list atom)
   (Herr : m ! k = merror)
   (Huniq1 : forall l1, NoDup ((ATree.set k v m) !!! l1)),
   NoDup v /\ forall l1, NoDup (m !!! l1).
@@ -3096,15 +3097,15 @@ Proof.
   intros.
   split.
     assert (J:=Huniq1 k).
-    unfold successors_list in J.
+    unfold XATree.successors_list in J.
     rewrite ATree.gsspec in J.
     destruct (ATree.elt_eq k k); try congruence.
 
     intros l0.
     assert (J:=Huniq1 l0).
-    unfold successors_list in J.
+    unfold XATree.successors_list in J.
     rewrite ATree.gsspec in J.
-    unfold successors_list.
+    unfold XATree.successors_list.
     destruct (ATree.elt_eq l0 k); subst; auto.
       rewrite Herr. auto.
 Qed.
@@ -3121,14 +3122,14 @@ Lemma add_successors_dom__uniq: forall
           (l1 = k -> In l2 v1))
   (G1 : NoDup (v1++v2)) 
   (J : NoDup a !!! l0),
-  NoDup (add_successors a k v2) !!! l0.
+  NoDup (XATree.add_successors a k v2) !!! l0.
 Proof.
   induction v2; simpl; intros; auto.
     rewrite_env ((v1++[a])++v2) in G1.
     apply IHv2 with (v1:=v1++[a]); clear IHv2; auto.
     Case "1".
       intros l1 l2 Hin.
-      unfold successors_list in Hin.
+      unfold XATree.successors_list in Hin.
       destruct (id_dec a l2); subst.
       SCase "1.1".
         rewrite ATree.gss in Hin.
@@ -3153,17 +3154,18 @@ Proof.
           xsolve_in_list.
 
     Case "2".
-      unfold successors_list in J.
-      unfold successors_list.
+      unfold XATree.successors_list in J.
+      unfold XATree.successors_list.
       destruct (id_dec a l0); subst.
       SCase "2.1".
         rewrite ATree.gss.
+        unfold ATree.elt.
         remember (a0 ! l0) as R.
         destruct R; auto.
           constructor; auto.
             intro Hin.
             assert (In k (a0 !!! l0)) as Hin'.
-              unfold successors_list.
+              unfold XATree.successors_list.
               rewrite <- HeqR. auto.
             apply_clear H in Hin'.
             destruct Hin' as [_ Hin'].
@@ -3175,10 +3177,10 @@ Proof.
 Qed.
 
 Lemma predecessors_dom__uniq_aux: forall scs, 
-  predecessors_dom__uniq_prop scs (make_predecessors scs).
+  predecessors_dom__uniq_prop scs (XATree.make_predecessors scs).
 Proof.
   intros.
-  unfold make_predecessors.
+  unfold XATree.make_predecessors.
   apply ATree_Properties.fold_rec.
   Case "1".
     unfold predecessors_dom__uniq_prop. 
@@ -3187,18 +3189,18 @@ Proof.
     SCase "1.1".
       intros l1 l2.
       intros.
-      erewrite eq_eli__eq_successors_list; eauto.
+      erewrite XATree.eq_eli__eq_successors_list; eauto.
 
     SCase "1.2".
       intros l0 Huniq.
       apply IH2 with (l0:=l0).
         intros l1.
         assert (J:=Huniq l1).
-        erewrite eq_eli__eq_successors_list; eauto.
+        erewrite XATree.eq_eli__eq_successors_list; eauto.
 
   Case "2".
     unfold predecessors_dom__uniq_prop.
-    unfold successors_list.
+    unfold XATree.successors_list.
     split; intros; repeat rewrite ATree.gempty.
       tauto.
       auto.
@@ -3209,7 +3211,7 @@ Proof.
     split.
     SCase "3.1".
       clear - IH1 Herr.
-      intros. eapply add_successors_correct''; eauto.
+      intros. eapply XATree.add_successors_correct''; eauto.
 
     SCase "3.2".
       intros l0 Huniq.
@@ -3223,13 +3225,14 @@ Proof.
           split; auto.
             intro EQ; subst.
             apply IH1 in Hin.
-            unfold successors_list in Hin.
+            unfold XATree.successors_list in Hin.
+            change l with ATree.elt in Hin.
             rewrite Herr in Hin. tauto.
 Qed.
 
 Lemma make_predecessors_dom__uniq: forall scs l0
   (Huniq: forall l1, NoDup (scs !!! l1)), 
-  NoDup ((make_predecessors scs) !!! l0).
+  NoDup ((XATree.make_predecessors scs) !!! l0).
 Proof.
   intros.
   assert (J:=predecessors_dom__uniq_aux scs).

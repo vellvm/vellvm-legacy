@@ -838,7 +838,7 @@ Variable M : module.
 Variable fh : fheader.
 Variable bs : blocks.
 Definition bound := bound_blocks bs.
-Definition predecessors := make_predecessors (successors_blocks bs).
+Definition predecessors := XATree.make_predecessors (successors_blocks bs).
 Definition transf := transfer bound.
 Definition top := Dominators.top bound.
 Definition bot := Dominators.bot bound.
@@ -904,7 +904,7 @@ Proof.
     inv H0.
     destruct b; simpl in *.
     destruct H0 as [vl [al H0]].
-    apply DWalk_to_dpath in H0.
+    apply DWalk_to_dpath in H0; auto.
     destruct H0 as [vl0 [al0 Hp]].
     exists vl0. exists al0.
     destruct wf_entrypoints as [_ [Heq _]]; subst.
@@ -950,7 +950,7 @@ Proof.
       destruct J as [vl [al [J1 J2]]].
       exists (index p::vl). exists (A_ends (index l2) (index p)::al).
       split.
-        apply make_predecessors_correct' in Hinpds.
+        apply XATree.make_predecessors_correct' in Hinpds.
         change (successors_blocks bs) with (successors (fdef_intro fh bs))
           in Hinpds.
         apply successors__blockInFdefB in Hinpds.
@@ -1022,7 +1022,7 @@ Proof.
   intros st n rem WKL GOOD.
   destruct st. simpl.
   apply propagate_succ_list_non_sdomination; auto.
-    apply make_predecessors_correct.
+    apply XATree.make_predecessors_correct.
 Qed.
 
 Theorem dom_non_sdomination: forall res,
@@ -1115,7 +1115,7 @@ Variable M : module.
 Variable fh : fheader.
 Variable bs : blocks.
 Definition bound := bound_blocks bs.
-Definition predecessors := make_predecessors (successors_blocks bs).
+Definition predecessors := XATree.make_predecessors (successors_blocks bs).
 Definition transf := transfer bound.
 Definition top := Dominators.top bound.
 Definition bot := Dominators.bot bound.
@@ -1224,7 +1224,7 @@ Proof.
         destruct wf_entrypoints as [_ [J _]].
         destruct bs as [|b ?]; tinv J.
         destruct b as [l5 ? ? ?]. subst entry.
-        unfold successors_list in Hin. simpl in Hin. rewrite ATree.gss in Hin.
+        unfold XATree.successors_list in Hin. simpl in Hin. rewrite ATree.gss in Hin.
         clear J.
         exists (index l0::nil). exists (A_ends (index s) (index l0)::nil).
         constructor.
@@ -1308,11 +1308,11 @@ Proof.
         split.
            remember ((DomComplete.predecessors (block_intro l0 p c t :: bs))
              !!! l0) as R.
-           destruct R; auto.
+           destruct R as [|a]; auto.
            assert (In a (DomComplete.predecessors (block_intro l0 p c t :: bs))
              !!! l0) as Hin. rewrite <- HeqR0. simpl; auto.
            unfold DomComplete.predecessors in Hin.
-           apply make_predecessors_correct' in Hin.
+           apply XATree.make_predecessors_correct' in Hin.
            apply successors_blocks__blockInFdefB with (fh:=fheader5) in Hin.
            destruct Hin as [ps0 [cs0 [tmn0 [J1 J2]]]].
            eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.
@@ -1400,11 +1400,11 @@ Proof.
         split.
            remember ((DomComplete.predecessors (block_intro l0 p c t :: bs))
              !!! l0) as R.
-           destruct R; auto.
+           destruct R as [|a]; auto.
            assert (In a (DomComplete.predecessors (block_intro l0 p c t :: bs))
              !!! l0) as Hin. rewrite <- HeqR0. simpl; auto.
            unfold DomComplete.predecessors in Hin.
-           apply make_predecessors_correct' in Hin.
+           apply XATree.make_predecessors_correct' in Hin.
            apply successors_blocks__blockInFdefB with (fh:=fh) in Hin.
            destruct Hin as [ps0 [cs0 [tmn0 [J1 J2]]]].
            eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.
@@ -1499,7 +1499,7 @@ Proof.
   destruct R; try congruence.
   destruct b as [l0 ? ? ?].
   destruct Hreach as [vl [al Hreach]].
-  apply DWalk_to_dpath in Hreach.
+  apply DWalk_to_dpath in Hreach; auto.
   destruct Hreach as [vl0 [al0 Hp]].
   destruct (id_dec l3 l0); subst.
     symmetry in HeqR.
@@ -1531,8 +1531,8 @@ Proof.
     assert (Hw:=H).
     apply D_path_isa_walk in Hw.
     apply J in Hw.
-    destruct Hw as [Hw | Hw]; subst; try congruence.
-    apply H4 in Hw. inv Hw; try congruence.
+    destruct Hw as [Hw | Hw]; subst; auto.
+      apply H4 in Hw. inv Hw; try congruence.
 Qed.
 
 Lemma sdom_isnt_refl : forall
@@ -1574,7 +1574,8 @@ Proof.
   assert (Hw':=Hw).
   apply H0 in Hw'.
   destruct Hw' as [Hw' | Hw']; subst.
-    apply DW_extract with (x:=index l2) in Hw; simpl; auto.
+    apply DW_extract with (x:=index l2)(eq_a_dec:=eq_atom_dec) in Hw; 
+      simpl; auto.
     destruct Hw as [al' Hw].
     assert (Hw'':=Hw).
     apply H in Hw''.
@@ -1600,7 +1601,7 @@ Proof.
   destruct R; auto. clear HwfF'.
   destruct b as [l0 ? ? ?].
   destruct H as [vl [al Hw]].
-  apply DWalk_to_dpath in Hw.
+  apply DWalk_to_dpath in Hw; auto.
   destruct Hw as [vl0 [al0 Hp]].
   assert (Hw:=Hp).
   apply D_path_isa_walk in Hw.
@@ -1609,7 +1610,8 @@ Proof.
   apply J1 in Hw'.
   destruct Hw' as [Hw' | Hw']; subst; try congruence.
   intros J.
-  apply DW_extract with (x:=index l1) in Hw; simpl; auto.
+  apply DW_extract with (x:=index l1)(eq_a_dec:=eq_atom_dec) in Hw; 
+    simpl; auto.
   destruct Hw as [al' Hw].
   assert (Hw'':=Hw).
   apply J in Hw''.
@@ -1644,9 +1646,10 @@ Proof.
   apply J1 in H'.
   assert (In (index l1) vl) as Hin.
     destruct H' as [H' | H']; subst; try congruence.
-  apply DW_extract with (x:=index l1) in H; simpl; auto.
+  apply DW_extract with (x:=index l1)(eq_a_dec:=eq_atom_dec) in H; 
+    simpl; auto.
   destruct H as [al' H].
-  exists (V_extract (index l1) (index l2 :: vl)). exists al'.
+  exists (V_extract eq_atom_dec (index l1) (index l2 :: vl)). exists al'.
   auto.
 Qed.
 
@@ -1992,11 +1995,11 @@ Proof.
         split.
            remember ((DomComplete.predecessors (block_intro l0 p c t :: bs))
              !!! l0) as R.
-           destruct R; auto.
+           destruct R as [|a]; auto.
            assert (In a (DomComplete.predecessors (block_intro l0 p c t :: bs))
              !!! l0) as Hin. rewrite <- HeqR0. simpl; auto.
            unfold DomComplete.predecessors in Hin.
-           apply make_predecessors_correct' in Hin.
+           apply XATree.make_predecessors_correct' in Hin.
            apply successors_blocks__blockInFdefB with (fh:=fh) in Hin.
            destruct Hin as [ps0 [cs0 [tmn0 [J1 J2]]]].
            eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.
@@ -2091,7 +2094,7 @@ Proof.
   destruct b as [l0 ? ? ?].
   intros vl al Hreach.
   assert (Hw':=Hreach).
-  apply DWalk_to_dpath in Hreach.
+  apply DWalk_to_dpath in Hreach; auto.
   destruct Hreach as [vl0 [al0 Hp]].
   destruct (id_dec l' l3); subst; auto.
   Case "l'=l3".
@@ -2126,9 +2129,10 @@ Proof.
       rewrite <- HeqR in J.
       assert (Hw:=H).
       apply D_path_isa_walk in Hw.
-      apply J in Hw.
-      destruct Hw as [Hw | Hw]; subst; try congruence.
-      apply H4 in Hw. inv Hw; try congruence.
+      apply J in Hw; auto.
+      destruct Hw as [Hw | Hw]; subst.
+        apply H4 in Hw. inv Hw; try congruence.
+        elimtype False. auto.
   Case "l'<>l3".
     apply HBinF in Hw'.
     split; auto. destruct Hw'; subst; auto. congruence.
@@ -2147,7 +2151,8 @@ Proof.
   assert (Hw':=Hw).
   apply H0 in Hw'.
   destruct Hw' as [Hw' | Hw']; subst.
-    apply DW_extract with (x:=index l2) in Hw; simpl; auto.
+    apply DW_extract with (x:=index l2)(eq_a_dec:=eq_atom_dec) in Hw; 
+      simpl; auto.
     destruct Hw as [al' Hw].
     assert (Hw'':=Hw).
     apply H in Hw''.
@@ -2173,7 +2178,7 @@ Proof.
   destruct R; auto. clear HwfF'.
   destruct b as [l0 ? ? ?].
   destruct H as [vl [al Hw]].
-  apply DWalk_to_dpath in Hw.
+  apply DWalk_to_dpath in Hw; auto.
   destruct Hw as [vl0 [al0 Hp]].
   assert (Hw:=Hp).
   apply D_path_isa_walk in Hw.
@@ -2181,7 +2186,8 @@ Proof.
   apply H0 in Hw'.
   destruct Hw' as [J1 J2].
   intros J.
-  apply DW_extract with (x:=index l1) in Hw; simpl; auto.
+  apply DW_extract with (x:=index l1)(eq_a_dec:=eq_atom_dec) in Hw; 
+    simpl; auto.
   destruct Hw as [al' Hw].
   assert (Hw'':=Hw).
   apply J in Hw''.
@@ -2213,9 +2219,10 @@ Proof.
   destruct H as [vl [al H]].
   assert (H':=H).
   apply H0 in H'. destruct H' as [J1 J2].
-  apply DW_extract with (x:=index l1) in H; simpl; auto.
+  apply DW_extract with (x:=index l1)(eq_a_dec:=eq_atom_dec) in H; 
+    simpl; auto.
   destruct H as [al' H].
-  exists (V_extract (index l1) (index l2 :: vl)). exists al'.
+  exists (V_extract eq_atom_dec (index l1) (index l2 :: vl)). exists al'.
   auto.
 Qed.
 
@@ -2229,9 +2236,9 @@ Proof.
   destruct H as [vl [al H]].
   assert (H':=H).
   apply H0 in H'.
-  apply DW_extract with (x:=index l1) in H; simpl; auto.
+  apply DW_extract with (x:=index l1)(eq_a_dec:=eq_atom_dec) in H; simpl; auto.
     destruct H as [al' H].
-    exists (V_extract (index l1) (index l2 :: vl)). exists al'. auto.
+    exists (V_extract eq_atom_dec (index l1) (index l2 :: vl)). exists al'. auto.
 
     destruct H' as [H' | H']; subst; auto.
 Qed.
@@ -4298,16 +4305,16 @@ Proof.
         rewrite H1 in J1; auto.
 
         split.
-           remember (Kildall.successors_list
+           remember (XATree.successors_list
              (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
                entry) as R.
-           destruct R; auto.
+           destruct R as [|a]; auto.
            assert (
              In a
-               (Kildall.successors_list
+               (XATree.successors_list
                  (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
                entry)) as Hin. rewrite <- HeqR0. simpl; auto.
-           apply Kildall.make_predecessors_correct' in Hin.
+           apply XATree.make_predecessors_correct' in Hin.
            change (successors_blocks (block_intro entry p c t :: b2)) with
              (successors (fdef_intro f (block_intro entry p c t :: b2))) in Hin.
            apply successors__blockInFdefB in Hin.
@@ -4791,7 +4798,7 @@ Proof.
     destruct be.
     intros vl al Hwalk.
     left.
-    destruct (In_dec V_eq_dec (index l1) vl); auto.
+    destruct (In_dec (V_eq_dec eq_atom_dec) (index l1) vl); auto.
       assert (G:=J (vl,al)). clear J.
       contradict G. auto.
 Qed.
@@ -4885,8 +4892,8 @@ Lemma successors_codom__uniq: forall s m f
   NoDup ((successors f) !!! l0).
 Proof.
   intros.
-  unfold successors_list.
-  remember (@ATree.get (list atom) l0 (successors f)) as R.
+  unfold XATree.successors_list.
+  remember (@ATree.get (list l) l0 (successors f)) as R.
   destruct R as [scs|]; auto.
   apply successors__successors_terminator in HeqR.
   destruct HeqR as [ps0 [cs0 [tmn0 [HBinF Heq]]]]; subst.
@@ -4898,7 +4905,7 @@ Proof.
 Qed.
 
 Lemma predecessors_dom__uniq: forall s m f l0 pds
-  (HeqR3 : ret pds = (make_predecessors (successors f)) ! l0)
+  (HeqR3 : ret pds = (XATree.make_predecessors (successors f)) ! l0)
   (HwfF0 : wf_fdef s m f),
   NoDup pds.
 Proof.
@@ -4906,6 +4913,6 @@ Proof.
   assert (J: forall l1, NoDup ((successors f) !!! l1)).
     eapply successors_codom__uniq; eauto.
   apply make_predecessors_dom__uniq with (l0:=l0) in J; auto.
-  unfold successors_list in J.
+  unfold XATree.successors_list in J.
   rewrite <- HeqR3 in J. auto.
 Qed.

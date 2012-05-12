@@ -139,7 +139,7 @@ Lemma valueDominates_value_in_scope__value_in_scope__cmd: forall
   (Hreach : isReachableFromEntry F' (block_intro l1 ps1 cs1 tmn1))
   (Hinscope : ret ids1 = inscope_of_cmd F' (block_intro l1 ps1 cs1 tmn1) c)
   (Hvals : substable_values td gl F' v1 v2) ids2
-  (Heq : AtomSet.set_eq _ (getCmdLoc c::ids1) ids2)
+  (Heq : AtomSet.set_eq (getCmdLoc c::ids1) ids2)
   (Hina : value_in_scope v1 ids2),
   value_in_scope v2 ids2.
 Proof.
@@ -187,7 +187,7 @@ Lemma wf_defs_updateAddAL: forall v1 v2 F td Mem gl F' lc' c ids1 ids2 g0
   (Hvinscope2 : vev_defs v1 v2 F td Mem gl F' lc' c ids1)
   (Hinscope2' : wf_defs v1 v2 F td gl F' lc' ids1)
   (Hinscope2'' : OpsemPP.wf_defs td F' lc' ids1)
-  (Heq : AtomSet.set_eq _ (getCmdLoc c::ids1) ids2)
+  (Heq : AtomSet.set_eq (getCmdLoc c::ids1) ids2)
   (Heval: eval_rhs td Mem gl lc' c g0) (Hsome: getCmdID c <> None),
   wf_defs v1 v2 F td gl F' (updateAddAL _ lc' (getCmdLoc c) g0) ids2.
 Proof.

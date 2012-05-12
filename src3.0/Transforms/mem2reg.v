@@ -151,7 +151,7 @@ let f1 := ssa_renaming_dtree f dt pid newpids (vm_init ty) in
 if used_in_fdef pid f1 then f1 else remove_fdef pid f1.
 
 Definition insert_phis (f:fdef) (rd:list l) (pid:id) (ty:typ): fdef * list id :=
-let preds := make_predecessors (successors f) in
+let preds := XATree.make_predecessors (successors f) in
 let '(fdef_intro fh bs) := f in
 let ex_ids := getFdefLocs f in
 let '(bs', _, newpids) :=
@@ -505,7 +505,7 @@ match getEntryBlock f, reachablity_analysis f with
       if (does_macro_m2r tt) then
         let f0 := remove_dbg_declares f cs in
         let succs := successors f0 in
-        let preds := make_predecessors succs in
+        let preds := XATree.make_predecessors succs in
         SafePrimIter.iterate _ 
           (macro_mem2reg_fdef_step rd succs preds) (f0, nil) 
       else

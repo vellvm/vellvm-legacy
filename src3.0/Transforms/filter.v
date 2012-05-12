@@ -2,7 +2,6 @@ Require Import vellvm.
 Require Import primitives.
 Require Import mem2reg.
 Require Import top_wfS.
-Require Import list_facts.
 Require Import palloca_props.
 Require Import trans_tactic.
 
@@ -275,7 +274,7 @@ Lemma filter_block__uniqBlocks :
 Proof.
   intros bs H.
   split; [destruct H as [H _] | destruct H as [_ H]];
-    apply (NoDup_sublist _ _ _ H); clear H;
+    apply (NoDup_sublist H); clear H;
       [|apply filter_block__blockLocs__sublist].
   induction bs as [|[lab phis cmds tmn] bs]; simpl;
     [apply sl_nil|apply sl_cons]; trivial.

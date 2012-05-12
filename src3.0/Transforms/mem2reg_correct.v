@@ -1,5 +1,4 @@
 Require Import vellvm.
-Require Import Kildall.
 Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
@@ -397,7 +396,7 @@ Lemma macro_mem2reg_fdef_sim_wfS: forall rd f1 dones1 f2 dones2 Ps1 Ps2 los
   (HwfS : wf_system S2) (Hok: defined_program S2 main VarArgs)
   (Hiter: SafePrimIter.iterate (fdef * list id)
             (macro_mem2reg_fdef_step rd (successors f1)
-              (make_predecessors (successors f1)))
+              (XATree.make_predecessors (successors f1)))
             (f1, dones1) = (f2, dones2)),
   (program_sim S1 S2 main VarArgs /\
    wf_system S1 /\ defined_program S1 main VarArgs) /\
@@ -439,7 +438,7 @@ Proof.
     rewrite does_stld_elim_is_true.
     remember (IterationPass.iter ElimStld pid rd
                (phinodes_placement rd pid ty al (successors f1)
-                  (make_predecessors (successors f1)) f)) as R.
+                  (XATree.make_predecessors (successors f1)) f)) as R.
     destruct R as [f0 dones0].
     unfold IterationPass.iter in HeqR1.
 
@@ -452,10 +451,10 @@ Proof.
             [module_intro los nts (Ps1 ++
               product_fdef
                  (phinodes_placement rd pid ty al (successors f1)
-                   (make_predecessors (successors f1)) f) :: Ps2)]); auto; intros.
+                   (XATree.make_predecessors (successors f1)) f) :: Ps2)]); auto; intros.
           eapply elim_stld_sim_wfS_wfPI with
             (pinfo:=mkPhiInfo (phinodes_placement rd pid ty al
-              (successors f1) (make_predecessors (successors f1)) f)
+              (successors f1) (XATree.make_predecessors (successors f1)) f)
                 rd pid ty num al); eauto.
             rewrite EQ1. destruct HPa as [Hpa1 [Hpa2 Hpa3]].
             eapply phinodes_placement_wfPI; eauto.
@@ -478,13 +477,13 @@ Proof.
         split.
           transitivity (reachablity_analysis
             (phinodes_placement rd pid ty al (successors f1)
-              (make_predecessors (successors f1)) f)); auto.
+              (XATree.make_predecessors (successors f1)) f)); auto.
             rewrite EQ1. rewrite EQ2.
             apply phinodes_placement_reachablity_analysis.
 
           transitivity (successors
             (phinodes_placement rd pid ty al (successors f1)
-              (make_predecessors (successors f1)) f)); auto.
+              (XATree.make_predecessors (successors f1)) f)); auto.
             rewrite EQ1.
 
             apply phinodes_placement_successors.
@@ -494,7 +493,7 @@ Proof.
      apply change_keep_pinfo with (pinfo1:=
                (update_pinfo pinfo
                  (phinodes_placement rd pid ty al (successors f)
-                   (make_predecessors (successors f)) f))); auto.
+                   (XATree.make_predecessors (successors f)) f))); auto.
      destruct HPa as [HPa1 [HPa2 HPa3]].
      eapply elim_stld_sim_wfS_wfPI; eauto.
        simpl. rewrite EQ1. auto.
@@ -624,7 +623,7 @@ Proof.
   remember (SafePrimIter.iterate (fdef * list id)
                    (macro_mem2reg_fdef_step rd 
                       (successors (remove_dbg_declares f cs))
-                      (make_predecessors 
+                      (XATree.make_predecessors 
                         (successors (remove_dbg_declares f cs)))) 
                    ((remove_dbg_declares f cs), nil)) as R.
   destruct R as [f1 dones]; auto using program_sim_refl.

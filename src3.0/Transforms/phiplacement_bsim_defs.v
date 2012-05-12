@@ -1,5 +1,4 @@
 Require Import vellvm.
-Require Import Kildall.
 Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
@@ -160,7 +159,7 @@ end.
 Lemma phinodes_placement_fheaderOfFdef: forall f rd pid ty al,
   fheaderOfFdef f =
   fheaderOfFdef (phinodes_placement rd pid ty al (successors f)
-                  (make_predecessors (successors f)) f).
+                  (XATree.make_predecessors (successors f)) f).
 Proof.
   intros. destruct f as [fh bs]. simpl. destruct_let. auto.
 Qed.

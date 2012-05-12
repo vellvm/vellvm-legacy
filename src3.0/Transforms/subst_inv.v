@@ -42,7 +42,7 @@ let '(Opsem.mkState ecs _) := S in
 wf_ECStack v1 v2 F td gl ps ecs.
 
 Lemma wf_defs_eq : forall ids2 ids1 v1 v2 F td gl F' lc',
-  AtomSet.set_eq _ ids1 ids2 ->
+  AtomSet.set_eq ids1 ids2 ->
   wf_defs v1 v2 F td gl F' lc' ids1 ->
   wf_defs v1 v2 F td gl F' lc' ids2.
 Proof.

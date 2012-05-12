@@ -62,7 +62,7 @@ Lemma valueDominates_value_in_scope__value_in_scope__cmd: forall
   (Hinscope : 
     ret ids1 = inscope_of_cmd (PEI_f pi) (block_intro l1 ps1 cs1 tmn1) c)
   ids2
-  (Heq : AtomSet.set_eq _ (getCmdLoc c::ids1) ids2)
+  (Heq : AtomSet.set_eq (getCmdLoc c::ids1) ids2)
   (Hina : value_in_scope (value_id (getPhiNodeID (PEI_p pi))) ids2),
   value_in_scope (PEI_v pi) ids2.
 Proof.
@@ -102,7 +102,7 @@ Lemma wf_defs_updateAddAL: forall (pi:PEInfo) td gl F' lc' c ids1 ids2 g0
   (Hinscope2' : wf_defs (value_id (getPhiNodeID (PEI_p pi))) (PEI_v pi) (PEI_f pi) 
                   td gl F' lc' ids1)
   (Hinscope2'' : OpsemPP.wf_defs td F' lc' ids1)
-  (Heq : AtomSet.set_eq _ (getCmdLoc c::ids1) ids2)
+  (Heq : AtomSet.set_eq (getCmdLoc c::ids1) ids2)
   (Hsome: getCmdID c <> None),
   wf_defs (value_id (getPhiNodeID (PEI_p pi))) (PEI_v pi) (PEI_f pi) 
     td gl F' (updateAddAL _ lc' (getCmdLoc c) g0) ids2.

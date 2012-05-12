@@ -782,77 +782,6 @@ End LtDoms. End LtDoms.
 
 Require Import Sorted.
 
-Lemma is_tail_sorted: forall l1 l2 (Hsort: Sorted Plt l2)
-  (Histl: is_tail l1 l2), Sorted Plt l1.
-Proof.
-  intros.
-  induction Histl; auto.
-    inv Hsort. auto.
-Qed.
-
-Lemma Plt_Sorted__StronglySorted: forall l1 (Hsort: Sorted Plt l1), 
-  StronglySorted Plt l1.
-Proof.
-  intros.
-  apply Sorted_StronglySorted; auto.
-   unfold Relations_1.Transitive.
-   eauto with positive.
-Qed.
-
-Require Import list_facts.
-
-Lemma sublist_StronglySorted: forall l1 l2 (Hsort: StronglySorted Plt l2)
-  (Histl: sublist l1 l2), StronglySorted Plt l1.
-Proof.
-  intros.
-  induction Histl.
-    constructor.
-
-    inv Hsort. 
-    constructor; eauto with sublist.
-
-    inv Hsort. auto.
-Qed.
-
-Lemma sublist_sorted: forall l1 l2 (Hsort: Sorted Plt l2)
-  (Histl: sublist l1 l2), Sorted Plt l1.
-Proof.
-  intros.
-  apply Plt_Sorted__StronglySorted in Hsort.
-  apply StronglySorted_Sorted.
-  eapply sublist_StronglySorted; eauto.
-Qed.
-
-Lemma Forall_HdRel: forall A P (x:A) l1 (Hlt : Forall (P x) l1),
-  HdRel P x l1.
-Proof.
-  induction 1; simpl; auto.
-Qed.
-
-Lemma Forall_is_tail_HdRel: forall A P (x:A) l1 l2 (Hlt : Forall (P x) l2)
-  (Histl : is_tail l1 l2), HdRel P x l1.
-Proof.
-  intros.
-  induction Histl; auto using Forall_HdRel.
-    inv Hlt. auto.
-Qed.
-
-Lemma is_tail_cons_sorted: forall x l1 l2 (Hsort: Sorted Plt (x::l2)) 
-  (Hlt : Forall (Plt x) l2) (Histl: is_tail l1 l2), Sorted Plt (x :: l1).
-Proof.
-  intros.
-  inv Hsort.
-  constructor; eauto using is_tail_sorted, Forall_is_tail_HdRel.
-Qed.
-
-Lemma sublist_cons_sorted: forall x l1 l2 (Hsort: Sorted Plt (x::l2)) 
-  (Hlt : Forall (Plt x) l2) (Histl: sublist l1 l2), Sorted Plt (x :: l1).
-Proof.
-  intros.
-  inv Hsort.
-  constructor; eauto using sublist_sorted, Forall_HdRel with sublist. 
-Qed.
-
 Module SortedDoms. Section SortedDoms.
 
 Variable successors: PTree.t (list positive).
@@ -905,6 +834,7 @@ Proof.
       apply_clear J in HeqR.
       destruct t as [out|]; auto.
         eapply sublist_cons_sorted; eauto.
+          unfold Relations_1.Transitive. eauto with positive.
 
     SCase "1.2".
       remember ((DomDS.st_in st) ?? p) as R.

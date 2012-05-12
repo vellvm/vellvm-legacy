@@ -388,7 +388,7 @@ Lemma uniq_products_phiplacement_simulation: forall f Ps2 rd pid ty
      (Ps1 ++
       product_fdef
         (phinodes_placement rd pid ty al (successors f)
-           (make_predecessors (successors f)) f) :: Ps2).
+           (XATree.make_predecessors (successors f)) f) :: Ps2).
 Proof.
   induction Ps1; simpl; intros; subst.
     constructor.
@@ -731,7 +731,7 @@ Lemma phinodes_placement_sim: forall rd f Ps1 Ps2 los nts main VarArgs pid ty al
     [module_intro los nts
       (Ps1 ++
        product_fdef (phinodes_placement rd pid ty al (successors f)
-                    (make_predecessors (successors f)) f) :: Ps2)]
+                    (XATree.make_predecessors (successors f)) f) :: Ps2)]
     [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
     main VarArgs.
 Proof.
@@ -746,7 +746,7 @@ Proof.
      [module_intro los nts
         (Ps1 ++
          product_fdef (phinodes_placement rd pid ty al (successors f)
-                      (make_predecessors (successors f)) f) :: Ps2)]) as Hssim.
+                      (XATree.make_predecessors (successors f)) f) :: Ps2)]) as Hssim.
     unfold system_simulation.
     constructor; auto.
     repeat split; auto.

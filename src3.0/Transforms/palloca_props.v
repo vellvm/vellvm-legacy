@@ -1,5 +1,4 @@
 Require Import vellvm.
-Require Import Kildall.
 Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
@@ -26,7 +25,7 @@ Definition PI_succs (pinfo: PhiInfo): ATree.t (list l):=
   successors (PI_f pinfo).
 
 Definition PI_preds (pinfo: PhiInfo): ATree.t (list l):=
-  make_predecessors (PI_succs pinfo).
+  XATree.make_predecessors (PI_succs pinfo).
 
 Definition promotable_alloca (f:fdef) (pid:id) (ty:typ) (num:value) (al:align)
   : Prop :=
@@ -470,13 +469,14 @@ Proof.
   intros.
   eapply blockInFdefB__successors in H; eauto.
   assert (In l0 (successors (PI_f pinfo))!!!l1) as Hin.
-    unfold successors_list.
+    unfold XATree.successors_list.
     unfold ls, l in *.
     rewrite H. auto.
-  apply make_predecessors_correct in Hin.
-  unfold successors_list in Hin.
+  apply XATree.make_predecessors_correct in Hin.
+  unfold XATree.successors_list in Hin.
   unfold ls, l in *. unfold PI_preds, PI_succs.
-  destruct ((make_predecessors (successors (PI_f pinfo))) ! l0); tinv Hin.
+  change atom with ATree.elt.
+  destruct ((XATree.make_predecessors (successors (PI_f pinfo))) ! l0); tinv Hin.
   destruct l2; tinv Hin.
   eauto.
 Qed.
@@ -941,12 +941,12 @@ Proof.
   intros.
   destruct Hwfpi as [J1 J2].
   assert (In l0 (successors (PI_f pinfo))!!!l3) as Hin'.
-    unfold successors_list.
+    unfold XATree.successors_list.
     unfold ls, l in *.
     rewrite Hsucc. auto.
-  apply make_predecessors_correct in Hin'.
-  unfold successors_list in Hin'.
-  unfold ls, l in *.
+  apply XATree.make_predecessors_correct in Hin'.
+  unfold XATree.successors_list in Hin'.
+  unfold ls, l, ATree.elt in *. 
   rewrite Heq' in Hin'. auto.
 Qed.
 
@@ -1853,9 +1853,9 @@ Proof.
   intros.
   unfold PI_preds.
   intros. intro J.
-  assert (In pd (make_predecessors (PI_succs pinfo))!!!(getBlockLabel b)) as G.
-    unfold successors_list. unfold l in J. rewrite J. simpl. auto.
-  apply make_predecessors_correct' in G.
+  assert (In pd (XATree.make_predecessors (PI_succs pinfo))!!!(getBlockLabel b)) as G.
+    unfold XATree.successors_list. unfold ATree.elt, l in *. rewrite J. simpl. auto.
+  apply XATree.make_predecessors_correct' in G.
   unfold PI_succs in G.
   apply successors__blockInFdefB in G.
   destruct G as [ps1 [cs1' [tmn1 [G1 G2]]]].
@@ -1930,13 +1930,13 @@ Proof.
   unfold PI_preds. unfold PI_succs.
   intros.
   destruct Hwfpi as [J1 J2].
-  assert (In l3 ((make_predecessors (successors (PI_f pinfo)))!!!l0)) as Hin'.
-    unfold successors_list.
-    unfold ls, l in *.
+  assert (In l3 ((XATree.make_predecessors (successors (PI_f pinfo)))!!!l0)) as Hin'.
+    unfold XATree.successors_list.
+    unfold ls, l, ATree.elt in *.
     rewrite Heq'. auto.
-  apply make_predecessors_correct' in Hin'.
-  unfold successors_list in Hin'.
-  remember (@ATree.get (list atom) l3 (successors (PI_f pinfo))) as R.
+  apply XATree.make_predecessors_correct' in Hin'.
+  unfold XATree.successors_list in Hin'.  
+  remember (@ATree.get (list ATree.elt) l3 (successors (PI_f pinfo))) as R.
   destruct R; tinv Hin'. eauto.
 Qed.
 

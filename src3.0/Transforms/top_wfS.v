@@ -1,5 +1,5 @@
 Require Import vellvm.
-Require Import Kildall.
+Require Import Maps.
 
 Lemma subst_module_preserves_uniqModules: forall Ms2 M M'
   (HuniqM': uniqModule M') Ms1 

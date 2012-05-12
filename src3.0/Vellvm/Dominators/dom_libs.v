@@ -23,12 +23,10 @@ Proof.
   eapply Plt_trans; eauto.
 Qed.
 
-Lemma is_tail_Forall: forall A (l1 l2:list A) P (Hp2: Forall P l2)
-  (Htail: is_tail l1 l2), Forall P l1.
-Proof.
-  induction 2; auto.
-    inv Hp2. auto.
-Qed.
+Lemma Plt_succ: forall (x: positive), (x < (Psucc x))%positive.
+Proof. apply Pcompare_p_Sp. Qed.
+
+Hint Resolve Plt_lt_succ Plt_succ Plt_trans: positive.
 
 Lemma order_lt_order: forall p x (Horder : (p > x)%positive) l0
   (Horder : Forall (Plt p) l0),
@@ -39,491 +37,20 @@ Proof.
     apply ZC1. auto.
 Qed.
 
-Section MoreMove. (* copied from dtree.v *)
-
-Variable A: Type.
-Hypothesis Hdec: forall x y : A, {x = y} + {x <> y}.
-
-Lemma remove_length: forall (a: A) (l1: list A),
-  (length (List.remove Hdec a l1) <= length l1)%nat.
-Proof.
-  induction l1; simpl; intros.
-    omega.
-    destruct (Hdec a a0); subst; simpl; omega.
-Qed.
-
-Lemma remove_in_length: forall (a: A) (l1: list A),
-  In a l1 -> (length (List.remove Hdec a l1) < length l1)%nat.
-Proof.
-  induction l1; simpl; intros.
-    inv H.
-
-    destruct H as [H | H]; subst.
-      destruct (Hdec a a); try congruence.
-      assert (J:=@remove_length a l1). omega.
-
-      destruct (Hdec a a0); subst.
-        assert (J:=@remove_length a0 l1). omega.
-        assert (J:=@IHl1 H). simpl. omega.
-Qed.
-
-Lemma remove_neq_in: forall (a b:A) (l1: list A),
-  a <> b ->
-  In a l1 ->
-  In a (List.remove Hdec b l1).
-Proof.
-  induction l1; simpl; intros; auto.
-    destruct H0 as [H0 | H0]; subst.
-      destruct (Hdec b a); subst; simpl; auto.
-        congruence.
-      destruct (Hdec b a0); subst; simpl; auto.
-Qed.
-
-Lemma remove_notin_incl: forall (a : A) (l2 l1 : list A)
-  (Hinc : incl l1 l2) (Hnotin : ~ In a l1),
-  incl l1 (List.remove Hdec a l2).
-Proof.
-  intros. intros x Hin.
-  destruct (Hdec x a); subst.
-    congruence.
-    apply remove_neq_in; auto.
-Qed.
-
-Lemma remove_neq_in': forall (a b:A) (l1: list A),
-  In a (List.remove Hdec b l1) ->
-  In a l1 /\ a <> b.
-Proof.
-  induction l1; simpl; intros; auto.
-    destruct (Hdec b a0); subst; simpl.
-      apply IHl1 in H.
-      destruct H as [H1 H2].
-      split; auto.
-
-      simpl in H.
-      destruct H as [H | H]; subst; auto.
-      apply IHl1 in H.
-      destruct H as [H1 H2].
-      split; auto.
-Qed.
-
-End MoreMove.
-
-(* More properties of Coqlib *)
-
-Lemma is_tail_nil: forall A (l1:list A), is_tail nil l1.
-Proof.
-  induction l1; constructor; auto.
-Qed.
-
-Lemma incl__length_le: forall A (eq_dec : forall x y : A, {x = y}+{x <> y})
-  (l1:list A) (Huniq: list_norepet l1) (l2:list A) (Hinc: incl l1 l2), 
-  (length l1 <= length l2)%nat.
-Proof.
-  induction 2 as [|hd tl Hnotin Huniq IH]; simpl; intros.
-    auto with datatypes v62.
-
-    assert (incl tl (List.remove eq_dec hd l2)) as Hinc'.
-      apply remove_notin_incl; eauto with datatypes v62.
-    apply IH in Hinc'.
-    assert (length (List.remove eq_dec hd l2) < length l2)%nat as Hle.
-      apply remove_in_length; auto with datatypes v62.
-    omega.
-Qed.
-
-Lemma list_equiv_nil: forall A (l1:list A) (Heq: list_equiv nil l1), l1 = nil.
+Lemma Plt_Sorted__StronglySorted: forall l1 (Hsort: Sorted Plt l1), 
+  StronglySorted Plt l1.
 Proof.
   intros.
-  destruct l1 as [|x l1]; auto.
-  destruct (Heq x) as [_ J1].
-  assert (In x (x::l1)) as J. auto with datatypes v62.
-  apply J1 in J. inv J.
+  apply Sorted_StronglySorted; auto.
+   unfold Relations_1.Transitive.
+   eauto with positive.
 Qed.
 
-Lemma norepet_equiv__length_eq: forall A (l1:list A)
-  (Huniq1: list_norepet l1) (l2:list A) (Huniq2: list_norepet l2)
-  (Heq: list_equiv l1 l2),
-  (length l1 = length l2)%nat.
-Proof.
-  induction 1; simpl; intros.
-    apply list_equiv_nil in Heq. subst. auto.
-
-    destruct (Heq hd) as [J1 _].
-    assert (In hd (hd::tl)) as J2. auto with datatypes v62.
-    apply J1 in J2.
-    apply in_split in J2.
-    destruct_conjs; subst.
-    rewrite app_length. simpl.
-    rewrite IHHuniq1 with (l2:=J2++H0).
-      rewrite app_length.
-      omega.
-
-      apply list_norepet_append_commut in Huniq2.
-      simpl_env in Huniq2.
-      apply list_norepet_append_commut.
-      apply list_norepet_app in Huniq2.
-      tauto.
-
-      apply list_norepet_append_commut in Huniq2.
-      simpl_env in Huniq2.
-      apply list_norepet_app in Huniq2.
-      destruct_conjs.
-      intro x.
-      destruct (Heq x) as [J1' J2'].
-      split; intro J.
-        assert (Hin: In x (hd::tl)). auto with datatypes v62.
-        apply J1' in Hin.
-        destruct_in Hin; auto with datatypes v62.
-        destruct_in Hin; auto with datatypes v62.
-
-        assert (Hin: In x (J2 ++ hd :: H0)). 
-          destruct_in J; auto with datatypes v62.
-        apply J2' in Hin.
-        destruct_in Hin; auto with datatypes v62.
-        assert (x <> x) as Hf.
-          apply H3; simpl; auto with datatypes v62.     
-          destruct_in J; auto with datatypes v62.
-        congruence.
-Qed.
-
-Lemma norepet_equiv__length_cons_eq: forall A l1 l2 (a:A)
-  (Huniq1: list_norepet l1) (Huniq2: list_norepet l2)
-  (Hnotin: ~ In a l1) (Heq: list_equiv l2 (a::l1)),
-  (length l2 = length l1 + 1)%nat.
-Proof.
-  intros.
-  apply norepet_equiv__length_eq in Heq; auto.
-    simpl in *. omega.
-    constructor; auto.
-Qed.
-
-Module More_Tree_Properties(T: TREE).
-
-Module TProp := Tree_Properties(T).
-
-Notation "a ! b" := (T.get b a) (at level 1).
-Notation "a !! b" := (T.get b a) (at level 1).
-
-Definition successors_list A (successors: T.t (list A)) (pc: T.elt) 
-  : list A :=
-  match successors!pc with None => nil | Some l => l end.
-
-Implicit Arguments successors_list [A].
-
-Notation "a !!! b" := (successors_list a b) (at level 1).
-
-Lemma successors_list_spec: forall A (a:A) scss l0,
-  In a (scss!!!l0) -> exists scs, scss!l0 = Some scs /\ In a scs.
-Proof.
-  unfold successors_list.
-  intros.
-  destruct (scss!l0); [eauto | tauto].
-Qed.
-
-Section Predecessor. (* from Kidall.v, should use this *)
-
-Variable successors: T.t (list T.elt).
-
-Fixpoint add_successors (pred: T.t (list T.elt))
-                        (from: T.elt) (tolist: list T.elt)
-                        {struct tolist} : T.t (list T.elt) :=
-  match tolist with
-  | nil => pred
-  | to :: rem => add_successors (T.set to (from :: pred!!!to) pred) from rem
-  end.
-
-Lemma add_successors_correct:
-  forall tolist from pred n s,
-  In n pred!!!s \/ (n = from /\ In s tolist) ->
-  In n (add_successors pred from tolist)!!!s.
-Proof.
-  induction tolist; simpl; intros.
-  tauto.
-  apply IHtolist.
-  unfold successors_list at 1. rewrite T.gsspec.
-  destruct (T.elt_eq s a).
-    subst a. 
-    destruct H. 
-      auto with coqlib.
-      destruct H.
-        subst n. auto with coqlib.
-    fold (successors_list pred s). intuition congruence.
-Qed.
-
-Lemma add_successors_correct':
-  forall tolist from pred n s,
-  In n (add_successors pred from tolist)!!!s ->
-  In n pred!!!s \/ (n = from /\ In s tolist).
-Proof.
-  induction tolist; simpl; intros.
-  tauto.
-  apply IHtolist in H.
-  unfold successors_list at 1 in H.
-  rewrite T.gsspec in H.
-  destruct (T.elt_eq s a); subst.
-    simpl in H.
-    destruct H.
-      destruct H; subst; auto.
-      destruct H as [H1 H2]; subst; auto.
-
-      fold (successors_list pred s) in H. intuition congruence.
-Qed.
-
-Lemma add_successors_correct'': forall (m a : T.t (list T.elt)) 
-  (k : T.elt) (v : list T.elt)
-  (Herr : m ! k = None) (l1 l2 : T.elt)
-  (Hinc: In l1 a !!! l2 -> In l2 m !!! l1)
-  (Hin: In l1 (add_successors a k v) !!! l2), In l2 (T.set k v m) !!! l1.
-Proof.
-  intros.
-  apply add_successors_correct' in Hin. 
-  unfold successors_list.
-  rewrite T.gsspec.
-  destruct (T.elt_eq l1 k).
-    destruct Hin as [Hin | [EQ Hin]]; subst; auto.
-      apply Hinc in Hin.
-      unfold successors_list in Hin.
-      rewrite Herr in Hin. tauto.
- 
-    destruct Hin as [Hin | [EQ Hin]]; subst; try congruence.
-      apply Hinc in Hin. 
-      unfold successors_list in Hin.
-      auto.    
-Qed.
-
-Definition make_predecessors : T.t (list T.elt) :=
-  T.fold add_successors successors (T.empty (list T.elt)).
-
-Lemma make_predecessors_correct:
-  forall n s,
-  In s successors!!!n ->
-  In n make_predecessors!!!s.
-Proof.
-  set (P := fun succ pred =>
-          forall n s, In s succ!!!n -> In n pred!!!s).
-  unfold make_predecessors.
-  apply TProp.fold_rec with (P := P).
-(* extensionality *)
-  unfold P; unfold successors_list; intros.
-  rewrite <- H in H1. auto.
-(* base case *)
-  red; unfold successors_list. intros n s. repeat rewrite T.gempty. auto.
-(* inductive case *)
-  unfold P; intros. apply add_successors_correct.
-  unfold successors_list in H2. rewrite T.gsspec in H2.
-  destruct (T.elt_eq n k).
-  subst k. auto.
-  fold (successors_list m n) in H2. auto.
-Qed.
-
-Lemma make_predecessors_correct':
-  forall n s,
-  In n make_predecessors!!!s ->
-  In s successors!!!n.
-Proof.
-  set (P := fun succ pred =>
-          forall n s, In n pred!!!s -> In s succ!!!n).
-  unfold make_predecessors.
-  apply TProp.fold_rec with (P := P).
-(* extensionality *)
-  unfold P; unfold successors_list; intros.
-  rewrite <- H. auto.
-(* base case *)
-  red; unfold successors_list. intros n s. repeat rewrite T.gempty. auto.
-(* inductive case *)
-  unfold P; intros. apply add_successors_correct' in H2.
-  unfold successors_list in *. rewrite T.gsspec.
-  destruct H2 as [H2 | [Heq H2]]; subst.
-    destruct (T.elt_eq n k); subst; auto.
-      apply H1 in H2. unfold successors_list in H2. rewrite H in H2. inv H2.
-    destruct (T.elt_eq k k); subst; auto.
-      congruence.
-Qed.
-
-Lemma eq_eli__eq_successors_list: forall (m m':T.t (list T.elt)) x
-  (Heq: m ! x = m' ! x), m !!! x = m' !!! x.
-Proof.
-  intros.
-  unfold successors_list.
-  erewrite Heq. auto.
-Qed.
-
-End Predecessor.
-
-Definition children_of_tree A (tree: T.t (list A)) :=
-  flat_map snd (T.elements tree).
-
-Definition parents_of_tree A (tree: T.t A) :=
-  List.map fst (T.elements tree).
-
-Implicit Arguments children_of_tree [A].
-Implicit Arguments parents_of_tree [A].
-
-Lemma children_in_children_of_tree: forall A (succs:T.t (list A)) l0,
-  incl (succs !!! l0) (children_of_tree succs).
-Proof.
-  intros.
-  intros x Hin.
-  apply in_flat_map.
-  apply successors_list_spec in Hin.
-  destruct_conjs.
-  eauto using T.elements_correct.
-Qed.
-
-Lemma parents_of_tree_spec: forall A l0 (tr: T.t A),
-  In l0 (parents_of_tree tr) <-> exists a, In (l0, a) (T.elements tr).
-Proof.
-  unfold parents_of_tree.
-  intros.
-  split; intro J.
-    apply in_map_iff in J.
-    destruct J as [[x1 x2] [J1 J2]]. subst. eauto.
-
-    apply in_map_iff.
-    destruct J as [y J]. exists (l0, y). auto.
-Qed.
-
-Lemma notin_tree__notin_parents_of_tree: forall (visited : T.t unit)
-  l0 (H0 : visited ! l0 = None),
-  ~ In l0 (parents_of_tree visited).
-Proof.
-  intros.
-  intros Hin'. apply parents_of_tree_spec in Hin'.
-  destruct Hin' as [a Hin'].
-  apply T.elements_complete in Hin'. 
-  congruence.
-Qed.
-
-Lemma in_tree__in_parents_of_tree: forall (visited : T.t unit) a
-  l0 (H0 : visited ! l0 = Some a),
-  In l0 (parents_of_tree visited).
-Proof.
-  intros.
-  apply parents_of_tree_spec. 
-  apply T.elements_correct in H0.  eauto.
-Qed.
-
-Lemma parents_children_of_tree__inc__length_le: forall 
-  (eq_dec : forall x y : T.elt, {x = y}+{x <> y}) (visited:T.t T.elt)
-  succs (Hinc: incl (parents_of_tree visited) (children_of_tree succs)),
-  (length (parents_of_tree visited) <= length (children_of_tree succs))%nat.
-Proof.
-  intros. 
-  apply incl__length_le; auto.
-    apply T.elements_keys_norepet.
-Qed.
-
-Lemma parents_of_tree_succ_len: forall (visited : T.t unit)
-  l0 (H0 : visited ! l0 = None),
-  length (parents_of_tree (T.set l0 tt visited)) =
-    (length (parents_of_tree visited) + 1)%nat.
-Proof.
-  intros.
-  unfold parents_of_tree.
-  apply norepet_equiv__length_cons_eq with (a:=l0); 
-    auto using T.elements_keys_norepet.
-    apply notin_tree__notin_parents_of_tree; auto.
-
-    intro x; split; intro Hin.
-      apply parents_of_tree_spec in Hin.
-      destruct_conjs.
-      apply T.elements_complete in H. 
-      rewrite T.gsspec in H.
-      destruct_if.
-        auto with datatypes v62.
-
-        apply in_tree__in_parents_of_tree in H2.
-        auto with datatypes v62.
-
-      apply parents_of_tree_spec.
-      destruct_in Hin.
-        exists tt.
-        apply T.elements_correct.
-        rewrite T.gsspec.
-        destruct_if. 
-          congruence.
-
-        apply parents_of_tree_spec in Hin.
-        destruct_conjs.
-        exists Hin. 
-        apply T.elements_correct.
-        rewrite T.gsspec.
-        destruct_if. 
-          apply T.elements_complete in H.  
-          congruence.
-
-          apply T.elements_complete in H. auto.
-Qed.
-
-Lemma parents_of_empty_tree: forall A,
-  parents_of_tree (T.empty A) = nil.
-Proof. 
-  unfold parents_of_tree. 
-  intros.
-  remember (List.map fst (T.elements (T.empty A))) as R.
-  destruct R as [|e]; auto. 
-  assert (In e (List.map fst (T.elements (T.empty A)))) as Hin.
-    rewrite <- HeqR. auto with coqlib.
-  apply in_map_iff in Hin.
-  destruct_conjs.
-  apply T.elements_complete in H0.
-  rewrite T.gempty in H0.
-  congruence.
-Qed.
-
-Definition in_cfg successors n : Prop :=
-  In n (parents_of_tree successors) \/ 
-  In n (children_of_tree successors).
-
-Lemma in_parents_of_tree__in_cfg: forall scs n,
-  In n (parents_of_tree scs) -> in_cfg scs n.
-Proof. unfold in_cfg. auto. Qed.
-
-Lemma in_succ__in_cfg: forall p scs sc
-  (Hinscs : In sc scs !!! p),
-  in_cfg scs sc.
-Proof.
-  intros. right.
-  apply children_in_children_of_tree in Hinscs. auto.
-Qed.
-
-Lemma parents_of_tree__in_successors: forall A p (successors:T.t A),
-  In p (parents_of_tree successors) <-> exists s, successors ! p = Some s.
-Proof.
-  intros.
-  split; intro J.
-    apply parents_of_tree_spec in J.
-    destruct J as [? J].
-    apply T.elements_complete in J. eauto.
-
-    apply parents_of_tree_spec.
-    destruct J as [? J].
-    apply T.elements_correct in J. eauto.
-Qed.
-
-Lemma in_pred__in_parents: forall p scs n
-  (Hinprds : In p (make_predecessors scs) !!! n),
-  In p (parents_of_tree scs).
-Proof.
-  intros.
-  apply make_predecessors_correct' in Hinprds.
-  apply parents_of_tree_spec.
-  apply successors_list_spec in Hinprds.
-  destruct Hinprds as [scs0 [J1 J2]].
-  apply T.elements_correct in J1. eauto.
-Qed.
-
-End More_Tree_Properties.
-
-Module XATree := More_Tree_Properties(ATree).
-
-Notation "a !!! b" := (XATree.successors_list a b) (at level 1).
-
-Notation "a ? b" := (PTree.get b a) (at level 1).
-Notation "a ?? b" := (PMap.get b a) (at level 1).
-
-Module XPTree := More_Tree_Properties(PTree).
-
-Notation "a ??? b" := (XPTree.successors_list a b) (at level 1).
+Ltac Peqb_eq_tac :=
+repeat match goal with
+| H: Peqb _ _ = true |- _ => eapply Peqb_eq in H; subst
+| |- Peqb _ _ = true => eapply Peqb_eq
+end.
 
 Module Type PNODE_SET.
 
@@ -552,7 +79,6 @@ Require Import Ordered.
 
 Module PositiveSet := FSetAVL.Make(OrderedPositive).
 Module PositiveSetFacts := FSetFacts.Facts(PositiveSet).
-Module PTree_Properties := Tree_Properties(PTree).
 
 Module PNodeSetMax <: PNODE_SET.
   Definition t := PositiveSet.t.
@@ -723,9 +249,7 @@ Module PNodeSetMin <: PNODE_SET.
   Qed.
 End PNodeSetMin.
 
-Require Import list_facts.
-
-Import Lattice.AtomSet.
+Import AtomSet.
 Require Import Sorted.
 Require Import ListSet.
 
@@ -748,7 +272,7 @@ Module Type MERGE.
   Hypothesis merge_inter: forall Xsdms Ysdms rl changed
     (Hmerge: merge Xsdms Ysdms = (rl, changed))
     (Hsortx: StronglySorted Plt Xsdms) (Hsorty: StronglySorted Plt Ysdms),
-    set_eq _ (set_inter positive_eq_dec Xsdms Ysdms) (rev rl).
+    set_eq (set_inter positive_eq_dec Xsdms Ysdms) (rev rl).
 
 End MERGE.
 
@@ -1032,8 +556,7 @@ Module MergeLt <: MERGE.
     rl1 changed1 rl2 changed2
     (Hsortx: StronglySorted Plt Xsdms) (Hsorty: StronglySorted Plt Ysdms)
     (Hmerge: merge_aux Xsdms Ysdms (rl1, changed1) = (rl2, changed2)),
-    set_eq _ 
-           (set_union positive_eq_dec rl1
+    set_eq (set_union positive_eq_dec rl1
            (set_inter positive_eq_dec Xsdms Ysdms)) rl2.
 
   Lemma merge_aux_inter_aux: forall n, merge_aux_inter_prop n.
@@ -1044,30 +567,82 @@ Module MergeLt <: MERGE.
     unfold merge_aux_inter_prop; intros.
     destruct Xsdms as [|Xd Xsdms]; destruct Ysdms as [|Yd Ysdms]; 
       simpl in Hlen; try solve [contradict Hlen; simpl; omega].
-      compute in Hmerge. uniq_result. simpl. admit. (* set refl *)
-      compute in Hmerge. uniq_result. simpl. admit. (* set refl *)
-      compute in Hmerge. uniq_result. simpl. admit. (* set inter refl *)
+      compute in Hmerge. uniq_result. simpl. auto with atomset.
+      compute in Hmerge. uniq_result. simpl. auto with atomset.
+      compute in Hmerge. uniq_result. simpl.
+        apply set_eq_trans with (y:=set_union positive_eq_dec rl2 nil).
+
+  Lemma set_union_empty_eq_empty2: forall l1,
+     set_eq (set_union positive_eq_dec l1 (empty_set _)) l1.
+  Admitted.
+
+  Lemma set_eq_union : forall l1 l2 l1' l2'
+    (H : set_eq l1 l1')
+    (H0 : set_eq l2 l2'),
+    set_eq (set_union positive_eq_dec l1 l2)
+      (set_union positive_eq_dec l1' l2').
+  Admitted.
+          
+          apply set_eq_union; auto with atomset.
+             apply set_inter_empty_eq_empty2.
+          apply set_union_empty_eq_empty2.
 
       inv Hsortx. inv Hsorty.
       revert Hmerge. unfold_merge_aux. intro.
       remember ((Xd ?= Yd)%positive Eq) as Cmp.
       destruct Cmp; subst.
+      Case "1".
         uniq_result'.
         destruct_if.
+        SCase "1.1".
           clear HeqR.      
           eapply Hrec with (y:=(length Xsdms + length Ysdms)%nat) in Hmerge; 
             try solve [eauto | simpl; omega].
-          admit. (* (a :: Z) \/ (X /\ Y) = Z \/ (a :: (X /\ Y)) *)
+          (* (a :: Z) \/ (X /\ Y) = Z \/ (a :: (X /\ Y)) *)
+          split; intros x Hin.
+          SSCase "1.1.1".
+            apply Hmerge.
+            apply set_union_elim in Hin.
+            apply set_union_intro.
+            simpl.
+            destruct Hin as [Hin | Hin]; auto.
+            simpl in Hin.
+            destruct Hin as [Hin | Hin]; subst; auto.
+            apply set_inter_elim in Hin.
+            destruct Hin as [Hin1 Hin2].
+            simpl in Hin2.
+            destruct Hin2 as [Hin2| Hin2]; subst; auto.
+            right. apply set_inter_intro; auto.
 
+          SSCase "1.1.2".
+            apply Hmerge in Hin.
+            apply set_union_elim in Hin.
+            apply set_union_intro.
+            simpl.
+            destruct Hin as [Hin | Hin].
+            SSSCase "1.1.2.1".
+              simpl in Hin.
+              destruct Hin as [Hin | Hin]; subst; auto.
+
+            SSSCase "1.1.2.2".
+              apply set_inter_elim in Hin.
+              destruct Hin as [Hin1 Hin2].
+              right. right.
+              apply set_inter_intro; simpl; auto.
+
+        SCase "1.2".
           destruct_if; congruence.
 
+      Case "2".
         destruct_if.
-          admit. (* X < Y < Ysdms => ~ In X (Y::Ysdms) *)
+          (* X < Y < Ysdms => ~ In X (Y::Ysdms) *)
+          admit.
 
           clear HeqR.      
           eapply Hrec with (y:=(length Xsdms + S (length Ysdms))%nat) in Hmerge; 
             try solve [eauto | simpl; omega | constructor; auto].
 
+      Case "3".
         eapply Hrec with (y:=(S (length Xsdms) + (length Ysdms))%nat) in Hmerge; 
           try solve [eauto | simpl; omega | constructor; auto].
         destruct_if.
@@ -1096,7 +671,7 @@ Module MergeLt <: MERGE.
   Lemma merge_inter: forall Xsdms Ysdms rl changed
     (Hmerge: merge Xsdms Ysdms = (rl, changed))
     (Hsortx: StronglySorted Plt Xsdms) (Hsorty: StronglySorted Plt Ysdms),
-    set_eq _ (set_inter positive_eq_dec Xsdms Ysdms) (rev rl).
+    set_eq (set_inter positive_eq_dec Xsdms Ysdms) (rev rl).
   Proof.
     unfold merge.
     intros. destruct_let. uniq_result.
@@ -1235,59 +810,6 @@ Proof.
 Qed.
 
 End LATTICEELT_MAP.
-
-Ltac Peqb_eq_tac :=
-repeat match goal with
-| H: Peqb _ _ = true |- _ => eapply Peqb_eq in H; subst
-| |- Peqb _ _ = true => eapply Peqb_eq
-end.
-
-Require Import Coq.Program.Equality.
-
-Theorem sublist_split : forall X (l1 l2: list X) l12'
-  (H: sublist (l1++l2) l12'), 
-  exists l1', exists l2', 
-    l12' = l1' ++ l2' /\ sublist l1 l1' /\ sublist l2 l2'.
-Proof.
-  intros.
-  dependent induction H; simpl; intros.
-    uniq_result'.
-    exists nil. exists l. repeat (split; try solve [constructor | auto]).
-
-    destruct l1 as [|x1 l1]; simpl in x; inv x.
-      exists nil. exists (x0::l3).
-      repeat (split; try solve [constructor; auto | auto]).
-
-      destruct (IHsublist l1 l2) as [l1' [l2' [EQ [Hsub1 Hsub2]]]]; subst; auto.
-      exists (x1::l1'). exists l2'.
-      repeat (split; try solve [constructor; auto | auto]).
-
-    destruct (IHsublist l1 l2) as [l1' [l2' [EQ [Hsub1 Hsub2]]]]; subst; auto.
-    exists (x::l1'). exists l2'.
-    repeat (split; try solve [constructor; auto | auto]).
-Qed.
- 
-Theorem sublist_trans : forall X (l1 l2: list X)
-  (H12: sublist l1 l2) l3 (H23: sublist l2 l3), sublist l1 l3.
-Proof.
-  induction 1; simpl; intros; try constructor.
-    simpl_env in H23.
-    apply sublist_split in H23.
-    destruct H23 as [l1' [l2' [EQ [H1' H2']]]]; subst.
-    simpl_env.
-    apply sublist_app; auto.
-
-    apply sublist_cons_weaken in H23. auto.
-Qed.
-
-Lemma sublist_Forall: forall A (l1 l2:list A) P (Hp2: Forall P l2)
-  (Htail: sublist l1 l2), Forall P l1.
-Proof.
-  induction 2; try solve [auto | inv Hp2; auto].
-Qed.
-
-Hint Resolve sublist_refl sublist_trans sublist_app sublist_cons_weaken
-             sublist_app_r sublist_Forall: sublist.
 
 Module Doms (MG:MERGE) <: LATTICEELT.
 

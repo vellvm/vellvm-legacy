@@ -90,7 +90,7 @@ forall id0 gvs0,
   wf_GVs TD gl f lc id0 gvs0.
 
 Lemma wf_defs_eq : forall ids2 ids1 TD gl F' lc',
-  set_eq _ ids1 ids2 ->
+  set_eq ids1 ids2 ->
   wf_defs TD gl F' lc' ids1 ->
   wf_defs TD gl F' lc' ids2.
 Proof.
@@ -653,7 +653,7 @@ Lemma wf_defs_updateAddAL : forall S M g1 lc' ids1 ids2 F1 B1 l3 ps1
   (HcInB : cmdInBlockB c B1 = true)
   (Hinscope : ret ids1 = inscope_of_id F1 B1 (getCmdLoc c)),
   wf_defs TD gl F1 lc' ids1 ->
-  set_eq _ (getCmdLoc c::ids1) ids2 ->
+  set_eq (getCmdLoc c::ids1) ids2 ->
   wf_GVs TD gl F1 lc' (getCmdLoc c) g1 ->
   wf_defs TD gl F1 (updateAddAL _ lc' (getCmdLoc c) g1) ids2.
 Proof.

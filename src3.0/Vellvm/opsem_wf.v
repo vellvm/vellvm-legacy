@@ -97,7 +97,7 @@ Proof.
 Qed.
 
 Lemma wf_defs_eq : forall TD ids2 ids1 F' lc',
-  set_eq _ ids1 ids2 ->
+  set_eq ids1 ids2 ->
   wf_defs TD F' lc' ids1 ->
   wf_defs TD F' lc' ids2.
 Proof.
@@ -111,7 +111,7 @@ Qed.
 Lemma wf_defs_updateAddAL : forall TD g F' lc' ids1 ids2 i1 t1
   (Hreach: id_in_reachable_block F' i1),
   wf_defs TD F' lc' ids1 ->
-  set_eq _ (i1::ids1) ids2 ->
+  set_eq (i1::ids1) ids2 ->
   lookupTypViaIDFromFdef F' i1 = ret t1 ->
   wf_GVs TD g t1 ->
   wf_defs TD F' (updateAddAL _ lc' i1 g) ids2.

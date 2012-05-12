@@ -28,7 +28,7 @@ let slow_dom f =
           | None -> ())
      | None -> ()
 
-let print_doms (dms: Fast_iter.LDoms.t PMap.t) =
+let print_doms (dms: Push_iter.LDoms.t PMap.t) =
   let (_, cnts) = dms in
   PTree.map (fun key ods ->
              eprintf "%ld <<" (camlint_of_positive key);

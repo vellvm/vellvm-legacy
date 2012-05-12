@@ -148,7 +148,7 @@ Proof.
     (* Get the path from entry to l1, l0 must be on the path. *)
     unfold_reachable_tac.
     unfold_domination_tac.
-    apply DWalk_to_dpath in Hwalk.
+    apply DWalk_to_dpath in Hwalk; auto.
     destruct Hwalk as [vl0 [al0 Hpath]].
     assert (Hwalk:=Hpath).
     apply D_path_isa_walk in Hwalk.
@@ -157,7 +157,7 @@ Proof.
     (* split path by l0 *)
     assert (Hpath':=Hpath).
     apply DP_split with (x:=index l0) in Hpath'; try solve
-      [simpl in *; destruct Hwalk; subst; auto]. 
+      [simpl in *; destruct Hwalk; subst; auto | auto]. 
     destruct Hpath' as [al1 [al2 [vl1 [vl2 [Hpath1 [Hpath2 [EQ1 EQ2]]]]]]]; subst.
 
     (* in the path from entry to l0, the neigher of l0 must be the pred of l0,
@@ -413,7 +413,7 @@ Proof.
 
               SSSSSSCase "ex a non-sdom walk".
                 destruct Hnsdom as [vl1 [al1 [Hwalk Hnotonwalk]]].
-                apply DWalk_to_dpath' in Hwalk.
+                apply DWalk_to_dpath' in Hwalk; auto.
                 (* consider a simple path from entry to l0, which doesnt
                    contain vid's block *)
                 destruct Hwalk as [vl0 [al0 [Hpath Hinc]]].
@@ -449,8 +449,9 @@ Proof.
                   rewrite Hentry in Hby0_dom_bly0.
                   destruct be as [le ? ? ?].
                   apply Hby0_dom_bly0 in Hwalk.
-                  destruct Hwalk as [Hinpath | EQ]; subst; simpl in *; try congruence.
-                  apply H7 in Hinpath. inv Hinpath. congruence.
+                  destruct Hwalk as [Hinpath | EQ]; subst; simpl in *.
+                    apply H7 in Hinpath. inv Hinpath. congruence.
+                    elimtype False. auto.
 
                 SSSSSSSCase "from vid".
                   (* then vid's block must appear in the path, contradict. *)

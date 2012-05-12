@@ -3,65 +3,6 @@ Require Import Lattice.
 Require Import Maps.
 Require Import ListSet.
 
-Section MoreMove.
-
-Variable A: Type.
-Hypothesis Hdec: forall x y : A, {x = y} + {x <> y}.
-
-Lemma remove_length: forall (a: A) (l1: list A),
-  (length (List.remove Hdec a l1) <= length l1)%nat.
-Proof.
-  induction l1; simpl; intros.
-    omega.
-    destruct (Hdec a a0); subst; simpl; omega.
-Qed.
-
-Lemma remove_in_length: forall (a: A) (l1: list A),
-  In a l1 -> (length (List.remove Hdec a l1) < length l1)%nat.
-Proof.
-  induction l1; simpl; intros.
-    inv H.
-
-    destruct H as [H | H]; subst.
-      destruct (Hdec a a); try congruence.
-      assert (J:=@remove_length a l1). omega.
-
-      destruct (Hdec a a0); subst.
-        assert (J:=@remove_length a0 l1). omega.
-        assert (J:=@IHl1 H). simpl. omega.
-Qed.
-
-Lemma remove_neq_in: forall (a b:A) (l1: list A),
-  a <> b ->
-  In a l1 ->
-  In a (List.remove Hdec b l1).
-Proof.
-  induction l1; simpl; intros; auto.
-    destruct H0 as [H0 | H0]; subst.
-      destruct (Hdec b a); subst; simpl; auto.
-        congruence.
-      destruct (Hdec b a0); subst; simpl; auto.
-Qed.
-
-Lemma remove_neq_in': forall (a b:A) (l1: list A),
-  In a (List.remove Hdec b l1) ->
-  In a l1 /\ a <> b.
-Proof.
-  induction l1; simpl; intros; auto.
-    destruct (Hdec b a0); subst; simpl.
-      apply IHl1 in H.
-      destruct H as [H1 H2].
-      split; auto.
-
-      simpl in H.
-      destruct H as [H | H]; subst; auto.
-      apply IHl1 in H.
-      destruct H as [H1 H2].
-      split; auto.
-Qed.
-
-End MoreMove.
-
 Program Fixpoint reachablity_analysis_aux (nvisited: list l) (succs : ATree.t ls)
   (curr: l) (acc: list l) {measure (List.length nvisited)%nat}
   : option (list l) :=
