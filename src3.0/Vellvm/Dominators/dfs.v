@@ -764,85 +764,27 @@ Admitted.
  
 (************************)
 
-Definition div_it_F (f:nat -> nat -> nat * nat) (n m:nat) :=
-  match le_gt_dec m n with
-  | left _ => let '(q, r) := f (n-m)%nat m in (S q, r)
-  | right _ => (O, n)
-  end.
+Require Import Dipaths.
 
-Program Fixpoint div_it_terminates n m (Hlt: (O < m)%nat) {measure n}
-  : { v:nat * nat | 
-      exists p:nat, 
-        forall k, (p < k)%nat ->
-        forall g:nat->nat->nat*nat,
-          iter _ k div_it_F g n m = v } :=
-  match le_gt_dec m n with
-  | left _ => let _ := div_it_terminates (n-m)%nat m _ in _
-  | right _ => (O, n)
-  end.
-Next Obligation.
-  omega.
-Qed.
-Next Obligation.
-  case div_it_terminates with (n0:=(n-m)%nat)(m:=m); auto with arith.
-  intros [q r]; intros Hex.
-  exists (S q, r).
-  elim Hex; intros p Heq.
-  exists (S p).
-  intros k.
-  case k.
-    intros. crush.
-  
-    intros k' Hplt g; simpl.
-    unfold div_it_F at 1.
-    rewrite <- Heq_anonymous; auto with arith.
-    rewrite Heq; crush.
-Qed.
-Next Obligation.
-  exists O; intros k; case k.
-    intros. crush.
-    intros k' Hltp g; simpl; unfold div_it_F at 1.
-    rewrite <- Heq_anonymous; auto.
-Qed.
+Section VertexArc.
 
-Definition div_it (n m:nat) (H:(O<m)%nat) : nat*nat :=
-  let (v, _) := div_it_terminates n m H in v.
+Variable successors: ATree.t (list atom).
 
-Lemma div_it_fix_eqn: forall n m (h: (O<m)%nat),
-  div_it n m h =
-  match le_gt_dec m n with
-  | left _ => let '(q, r) := div_it (n-m)%nat m h in (S q, r)
-  | right _ => (O, n)
-  end.
-Proof.
-  intros n m h.
-  unfold div_it.
-  case (div_it_terminates n m h).
-  intros v Hex1.
-  case (div_it_terminates (n-m) m h).
-  intros v' Hex2.
-  elim Hex2. elim Hex1.
-  intros p Heq1 p' Heq2.
-  rewrite <- Heq1 with (k:=S (S (max p p')))
-                       (g:=fun x y =>v).
-  rewrite <- Heq2 with (k:=S (max p p'))
-                       (g:=fun x y =>v).
-    reflexivity.
-    eauto using le_max_l with arith.
-    eauto using le_max_r with arith.
-Qed.
+Definition vertexes' : V_set :=
+fun (v:Vertex) => let '(index n) := v in XATree.in_cfg successors n.
 
-Lemma div_it_correct1: forall m n (h: (O<n)%nat),
-  m = (fst (div_it m n h) * n + snd (div_it m n h))%nat.
-Proof.
-  intros m.
-  elim m using (well_founded_induction lt_wf).
-  intros m' Hrec n h.
-  rewrite div_it_fix_eqn.
-  case (le_gt_dec n m'); intros H; trivial.
-  pattern m' at 1. rewrite (le_plus_minus n m'); auto.
-  pattern (m'-n)%nat at 1.
-  rewrite Hrec with (m'-n)%nat n h; auto with arith.
-  case (div_it (m' - n) n h)%nat; crush.
-Qed.
+Definition arcs' : A_set :=
+fun (arc:Arc) =>
+  let '(A_ends (index n2) (index n1)) := arc in
+  In n2 (successors!!!n1).
+
+Definition reachable' entry av : Prop :=
+  exists vl: V_list, exists al: A_list, D_walk vertexes' arcs' av entry vl al.
+
+End VertexArc.
+
+Lemma dfs_reachable: forall scs entry pinit po (Hdfs: dfs scs entry pinit = po),
+  forall l0, 
+  ~ reachable' scs (index entry) (index l0) <-> (PO_a2p po) ! l0 = None.
+Admitted.
 
