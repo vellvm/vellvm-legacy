@@ -286,6 +286,8 @@ match goal with
     symmetry in H; apply app_eq_nil in H; destruct H; subst
 | H: _ ++ _ = _ |- _ => 
     apply app_eq_nil in H; destruct H; subst
+| H: _::_ = nil |- _ => inv H
+| H: nil = _::_ |- _ => inv H
 | _ => uniq_result
 end.
 
