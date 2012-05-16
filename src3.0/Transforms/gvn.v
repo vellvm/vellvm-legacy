@@ -592,12 +592,12 @@ end.
    id1 = r in l1
 *)
 Fixpoint lookup_predundant_exp_for_id (f:fdef) (ndom: list l)
-  bd (res: AMap.t (Dominators.t bd)) (l1:l) (r:rhs) : option (l * cmd) :=
+  bd (res: AMap.t Dominators.t) (l1:l) (r:rhs) : option (l * cmd) :=
 match ndom with
 | nil => None
 | l0::ndom' =>
-    match (AMap.get l0 res) with
-    | Dominators.mkBoundedSet dts0 _ =>
+    match bound_dom bd (AMap.get l0 res) with
+    | dts0 =>
       if (in_dec eq_atom_dec l1 dts0) then
         lookup_predundant_exp_for_id f ndom' bd res l1 r
       else
@@ -612,7 +612,7 @@ match ndom with
     end
 end.
 
-Fixpoint lookup_predundant_exp (f:fdef) bd (res: AMap.t (Dominators.t bd))
+Fixpoint lookup_predundant_exp (f:fdef) bd (res: AMap.t Dominators.t)
   (rd0 rd:list l) : option (l * id * l * cmd) :=
 match rd with
 | nil => None
@@ -620,8 +620,8 @@ match rd with
     match lookupBlockViaLabelFromFdef f l1 with
     | None => None
     | Some (block_intro _ _ cs _) =>
-        match (AMap.get l1 res) with
-        | Dominators.mkBoundedSet dts1 _ =>
+        match bound_dom bd (AMap.get l1 res) with
+        | dts1 =>
            let ndom :=
              ListSet.set_diff id_dec
                (ListSet.set_inter id_dec rd0 (bound_fdef f)) (l1::dts1) in
@@ -650,20 +650,20 @@ match rd with
     end
 end.
 
-Definition find_gcd_dom bd (res: AMap.t (Dominators.t bd)) (l1 l2:l): option l:=
-match AMap.get l1 res, AMap.get l2 res with
-| Dominators.mkBoundedSet dts1 _, Dominators.mkBoundedSet dts2 _ =>
+Definition find_gcd_dom bd (res: AMap.t Dominators.t) (l1 l2:l): option l:=
+match bound_dom bd (AMap.get l1 res), bound_dom bd (AMap.get l2 res) with
+| dts1, dts2 =>
   match ListSet.set_inter id_dec dts1 dts2 with
   | l0::dts0 => find_idom_aux bd res l0 dts0
   | _ => None
   end
 end.
 
-Definition pre_fdef (f:fdef) bd (res: AMap.t (Dominators.t bd)) (rd:list l)
+Definition pre_fdef (f:fdef) bd (res: AMap.t Dominators.t) (rd:list l)
   : fdef * bool :=
 match lookup_predundant_exp f bd res rd rd with
 | Some (l1, id1, l0, c0) =>
-    match find_gcd_dom _ res l1 l0 with
+    match find_gcd_dom bd res l1 l0 with
     | Some l2 =>
         match lookupBlockViaLabelFromFdef f l2 with
         | None => (f, false)
@@ -679,7 +679,7 @@ end.
 
 Parameter does_pre : unit -> bool.
 
-Definition opt_step (dt:DTree) bd (res: AMap.t (Dominators.t bd )) (rd:list l)
+Definition opt_step (dt:DTree) bd (res: AMap.t Dominators.t) (rd:list l)
   (f: fdef) : fdef + fdef :=
 let '(f1, changed1) := gvn_fdef_dtree f false nil dt in
 if changed1 then inr _ f1

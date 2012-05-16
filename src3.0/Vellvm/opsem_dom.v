@@ -250,10 +250,7 @@ Lemma wf_defs_br_aux : forall TD gl S M lc l' ps' cs' lc' F tmn' b
   (ids0' : list atom)
   (HwfF : wf_fdef S M F) (HuniqF: uniqFdef F)
   (contents' : ListSet.set atom)
-  (inbound' : incl contents' (bound_fdef F))
-  (Heqdefs' : {|
-             DomDS.L.bs_contents := contents';
-             DomDS.L.bs_bound := inbound' |} = (dom_analyze F) !! l')
+  (Heqdefs' : contents' = dom_query F l')
   (Hinscope : (fold_left (inscope_of_block F l') contents'
     (ret (getPhiNodesIDs ps' ++ getArgsIDsOfFdef F)) = ret ids0'))
   (Hinc : incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) t),
@@ -322,21 +319,18 @@ Proof.
   unfold inscope_of_tmn in Hinscope.
   unfold inscope_of_tmn. unfold inscope_of_cmd, inscope_of_id.
   destruct F as [fh bs].
-  remember (dom_analyze (fdef_intro fh bs)) as Doms.
-  remember (Doms !! l3)as defs3.
-  remember (Doms !! l')as defs'.
-  destruct defs3 as [contents3 inbound3].
-  destruct defs' as [contents' inbound'].
 
-  assert (incl contents' (l3::contents3)) as Hsub.
-    clear - HBinF Hsucc Heqdefs3 Heqdefs' HeqDoms HuniqF HwfF.
+  assert (incl (dom_query (fdef_intro fh bs) l')
+    (l3::(dom_query (fdef_intro fh bs) l3))) as Hsub.
+    clear - HBinF Hsucc HuniqF HwfF.
     eapply dom_successors; eauto.
 
   assert (isReachableFromEntry (fdef_intro fh bs) (block_intro l' ps' nil tmn'))
     as Hreach'.
     eapply isReachableFromEntry_successors in Hlkup; eauto.
 
-  assert (J1:=inbound'). destruct fh as [f t i0 a v].
+  assert (J1:=dom_query_in_bound fh bs l').
+  destruct fh as [f t i0 a v].
   apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
       getCmdsIDs nil ++ getArgsIDs a)(bs:=bs)(l0:=l')
       (fh:=fheader_intro f t i0 a v) in J1; auto.
@@ -1794,16 +1788,12 @@ Case "sCall".
       apply dom_entrypoint in H2.
       destruct cs'.
         unfold inscope_of_tmn.
-        remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
-          !! l') as R.
-        destruct R. simpl in H2. subst. simpl.
+        rewrite H2. simpl.
         eapply preservation_dbCall_case; eauto.
 
         unfold inscope_of_cmd, inscope_of_id.
         rewrite init_scope_spec1; auto.
-        remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
-          !! l') as R.
-        destruct R. simpl. simpl in H2. subst. simpl.
+        rewrite H2. simpl.
         destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
           try solve [contradict n; auto].
         eapply preservation_dbCall_case; eauto.

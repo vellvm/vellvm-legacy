@@ -50,6 +50,20 @@ Proof.
         apply HdRel_insert; auto.
 Qed.
 
+Ltac simpl_in_dec :=
+  match goal with
+  | H: @eq bool (@proj_sumbool _ _  (@in_dec _ ?dec ?a ?s)) true |- _ =>
+       destruct (in_dec dec a s); inv H
+  | H: is_true (@proj_sumbool _ _  (@in_dec _ ?dec ?a ?s)) |- _ =>
+       destruct (in_dec dec a s); inv H
+  end.
+
+Ltac solve_in_dec :=
+  match goal with
+  | |- @eq bool (@proj_sumbool _ _  (@in_dec _ ?dec ?a ?s)) true =>
+      destruct (in_dec dec a s); auto
+  end.
+
 Lemma gt_dom_prop_trans : forall S M f l1 l2 l3
   (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
   (HBinF1: In l1 (bound_fdef f))
@@ -61,9 +75,6 @@ Lemma gt_dom_prop_trans : forall S M f l1 l2 l3
 Proof.
   unfold gt_dom_prop, gt_sdom.
   intros.
-  remember (Maps.AMap.get l2 (dom_analyze f)) as R2.
-  remember (Maps.AMap.get l3 (dom_analyze f)) as R3.
-  destruct R2. destruct R3.
   apply In_bound_fdef__blockInFdefB in HBinF1.
   apply In_bound_fdef__blockInFdefB in HBinF2.
   apply In_bound_fdef__blockInFdefB in HBinF3.
@@ -73,40 +84,28 @@ Proof.
   destruct (l_dec l1 l3); auto.
   destruct H2 as [H2 | H2]; subst; auto.
   Case "l2 in sdom(l3)".
-    destruct (in_dec l_dec l2 bs_contents0); inv H2.
+    simpl_in_dec.
     left.
     assert (domination f l2 l3) as Hdom23.
-      eapply dom_is_sound; eauto.
-        rewrite <- HeqR3. simpl. auto.
+      eapply dom_is_sound; simpl; eauto.
     destruct H1 as [H1 | H1]; subst.
     SCase "l1 in sdom(l2)".
-      destruct (in_dec l_dec l1 bs_contents); inv H1.
+      simpl_in_dec.
       assert (domination f l1 l2) as Hdom12.
-        eapply dom_is_sound; eauto.
-          rewrite <- HeqR2. simpl. auto.
+        eapply dom_is_sound; simpl; eauto.
       assert (strict_domination f l1 l3) as Hsdom13.
         split; auto.
           eapply dom_tran; eauto.
-      eapply sdom_is_complete in Hsdom13; eauto.
-        rewrite <- HeqR3 in Hsdom13. simpl in *.
-        destruct (in_dec l_dec l1 bs_contents0); auto.
-
-        rewrite <- HeqR3. simpl.
-        destruct bs_contents0; auto.
-          intro J. inv J.
+      eapply sdom_is_complete in Hsdom13; eauto 1.
+        solve_in_dec.
+        intro J. unfold dom_query in J. rewrite J in i0. auto.
 
     SCase "l1=l2".
       assert (strict_domination f l2 l3) as Hsdom23.
         split; auto.
-      eapply sdom_is_complete in Hsdom23; eauto.
-        destruct (in_dec l_dec l2 bs_contents0); auto.
-
-        rewrite <- HeqR3. simpl.
-        destruct bs_contents0; auto.
-          intro J. inv J.
-
-  Case "l2=l3".
-    rewrite <- HeqR3 in HeqR2. inv HeqR2; auto.
+      eapply sdom_is_complete in Hsdom23; eauto 1.
+        solve_in_dec.
+        intro J. unfold dom_query in J. rewrite J in i0. auto.
 Qed.
 
 Lemma gt_sdom_prop_trans : forall S M f l1 l2 l3
@@ -120,11 +119,7 @@ Lemma gt_sdom_prop_trans : forall S M f l1 l2 l3
 Proof.
   unfold gt_sdom.
   intros.
-  remember (Maps.AMap.get l2 (dom_analyze f)) as R1.
-  remember (Maps.AMap.get l3 (dom_analyze f)) as R2.
-  destruct R1. destruct R2.
-  destruct (in_dec l_dec l2 bs_contents0); inv H2.
-  destruct (in_dec l_dec l1 bs_contents); inv H1.
+  repeat simpl_in_dec.
   apply In_bound_fdef__blockInFdefB in HBinF1.
   apply In_bound_fdef__blockInFdefB in HBinF2.
   apply In_bound_fdef__blockInFdefB in HBinF3.
@@ -134,31 +129,23 @@ Proof.
   destruct (reachable_dec f l3).
     assert (strict_domination f l2 l3) as Hsdom23.
       eapply sdom_is_sound; eauto.
-        rewrite <- HeqR2. simpl. auto.
     assert (reachable f l2) as Hreach2.
       apply sdom_reachable in Hsdom23; auto.
     assert (strict_domination f l1 l2) as Hsdom12.
       eapply sdom_is_sound; eauto.
-        rewrite <- HeqR1. simpl. auto.
     assert (strict_domination f l1 l3) as Hsdom13.
       eapply sdom_tran with (l2:=l2); eauto.
-    eapply sdom_is_complete in Hsdom13; eauto.
-      rewrite <- HeqR2 in Hsdom13. simpl in *.
-      destruct (in_dec l_dec l1 bs_contents0); auto.
+    eapply sdom_is_complete in Hsdom13; eauto 1.
+      solve_in_dec.
+      intro J. unfold dom_query in J. rewrite J in i0. auto.
 
-      rewrite <- HeqR2. simpl.
-      destruct bs_contents0; auto.
-        intro J. inv J.
-
-    eapply dom_unreachable in H; eauto.
-      rewrite <- HeqR2 in H. simpl in H.
-      destruct H.
+    eapply dom_unreachable in H; eauto 1.
       apply blockInFdefB_in_vertexes in HBinF1.
       unfold vertexes_fdef in HBinF1.
-      apply H0 in HBinF1.
-      destruct (in_dec l_dec l1 bs_contents0); auto.
+      destruct ((dom_analyze f) !! l3); tinv H; simpl.
+      solve_in_dec.
 
-      rewrite <- HeqR2. simpl. intro J. subst. inv i0.
+      intro J. unfold dom_query in J. rewrite J in i0. auto.
 Qed.
 
 (*
@@ -201,12 +188,7 @@ Lemma gt_dom_dec_aux: forall S M f (HwfF: wf_fdef S M f)
 Proof.
   unfold gt_dom_prop, gt_sdom. intros.
   destruct (l_dec l1 l2); auto.
-  remember ((dom_analyze f) !! l3 ) as R3.
-  remember ((dom_analyze f) !! l2 ) as R2.
-  remember ((dom_analyze f) !! l1 ) as R1.
-  destruct R1, R2, R3.
-  destruct (in_dec l_dec l1 bs_contents1); inv H.
-  destruct (in_dec l_dec l2 bs_contents1); inv H0.
+  repeat simpl_in_dec.
   apply In_bound_fdef__blockInFdefB in HBinF1.
   apply In_bound_fdef__blockInFdefB in HBinF2.
   apply In_bound_fdef__blockInFdefB in HBinF3.
@@ -215,10 +197,8 @@ Proof.
   destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
   assert (strict_domination f l1 l3) as Hsdom13.
     eapply sdom_is_sound; eauto.
-      rewrite <- HeqR3. simpl. auto.
   assert (strict_domination f l2 l3) as Hsdom23.
     eapply sdom_is_sound; eauto.
-      rewrite <- HeqR3. simpl. auto.
   assert (exists entry, getEntryLabel f = Some entry) as Hentry.
     inv HwfF.
     match goal with
@@ -233,49 +213,31 @@ Proof.
     apply sdom_reachable in Hsdom13; auto.
   destruct (l_dec l1 entry); subst.
     left. left.
-    assert (
-      match (AMap.get l2 (dom_analyze f)) with
-      | Dominators.mkBoundedSet dts _ => In entry dts
-      end) as G.
+    assert (set_In entry (dom_query f l2)) as G.
       eapply dom_analysis__entry_doms_others; eauto.
-        rewrite <- HeqR2 in G.
-        destruct (in_dec l_dec entry bs_contents0); auto.
+    solve_in_dec.
   destruct (l_dec l2 entry); subst.
     right. left.
-    assert (
-      match (AMap.get l1 (dom_analyze f)) with
-      | Dominators.mkBoundedSet dts _ => In entry dts
-      end) as G.
+    assert (set_In entry (dom_query f l1)) as G.
       eapply dom_analysis__entry_doms_others; eauto.
-        rewrite <- HeqR1 in G.
-        destruct (in_dec l_dec entry bs_contents); auto.
-  eapply sdom_ordered with (l1:=l2) in Hsdom13; eauto.
+    solve_in_dec.
+  eapply sdom_ordered with (l1:=l2) in Hsdom13; eauto 1.
   destruct Hsdom13 as [Hsdom21 | Hsdom12].
     right.
-    eapply sdom_is_complete in Hsdom21; eauto.
-      rewrite <- HeqR1 in Hsdom21. simpl in Hsdom21.
-      destruct (in_dec l_dec l2 bs_contents); simpl; auto.
+    eapply sdom_is_complete in Hsdom21; eauto 1.
+      left. solve_in_dec.
 
-      rewrite <- HeqR1. simpl.
-      assert (
-        match (AMap.get l1 (dom_analyze f)) with
-        | Dominators.mkBoundedSet dts _ => In entry dts
-        end) as G.
+      assert (set_In entry (dom_query f l1)) as G.
         eapply dom_analysis__entry_doms_others; eauto.
-          rewrite <- HeqR1 in G. intro J. subst. inv G.
+      intro J. rewrite J in G. auto.
 
     left.
-    eapply sdom_is_complete in Hsdom12; eauto.
-      rewrite <- HeqR2 in Hsdom12. simpl in Hsdom12.
-      destruct (in_dec l_dec l1 bs_contents0); simpl; auto.
+    eapply sdom_is_complete in Hsdom12; eauto 1.
+      left. solve_in_dec.
 
-      rewrite <- HeqR2. simpl.
-      assert (
-        match (AMap.get l2 (dom_analyze f)) with
-        | Dominators.mkBoundedSet dts _ => In entry dts
-        end) as G.
+      assert (set_In entry (dom_query f l2)) as G.
         eapply dom_analysis__entry_doms_others; eauto.
-          rewrite <- HeqR2 in G. intro J. subst. inv G.
+      intro J. rewrite J in G. auto.
 Qed.
 
 Lemma gt_dom_dec: forall S M f (HwfF: wf_fdef S M f) 
@@ -611,16 +573,14 @@ Lemma gt_sdom_prop_irrefl: forall S M f (HwfF : wf_fdef S M f)
 Proof.
   unfold gt_sdom.
   intros.
-  remember ((dom_analyze f) !! a) as R.
-  destruct R.
   assert (J:=Hreach).
   apply reachable__in_bound in Hreach.
   apply In_bound_fdef__blockInFdefB in Hreach.
   destruct Hreach as [ps [cs [tnn HBinF]]].
-  destruct (in_dec l_dec a bs_contents); simpl; auto.
-  eapply sdom_is_sound with (l':=a) in HBinF; eauto.
+  destruct (in_dec l_dec a 
+    (bound_dom (bound_fdef f) (dom_analyze f) !! a)); simpl; auto.
+  eapply sdom_is_sound with (l':=a) in HBinF; eauto 1.
     destruct HBinF. congruence.
-    rewrite <- HeqR. auto.
 Qed.
 
 Lemma Sorted_HdRel__Forall: forall A (R : A -> A -> Prop) l0 (H0 : Sorted R l0),
@@ -666,7 +626,6 @@ Lemma compute_sdom_chains_aux__dom : forall bd res l0 chain0 rd acc,
   In l0 rd \/ In (l0, chain0) acc.
 Proof.
   induction rd; simpl; intros; auto.
-    destruct (res !! a).
     apply IHrd in H.
     destruct H as [H | H]; auto.
     simpl in H.
@@ -697,21 +656,29 @@ Proof.
     apply bs_bound. auto.
 Qed.
 
+Lemma in_gt_sdom__in_bound_fdef: forall f l1 l2
+  (Hin: gt_sdom (bound_fdef f) (dom_analyze f) l1 l2 = true),
+  In l1 (bound_fdef f).
+Proof.
+  unfold gt_sdom.
+  intros. simpl_in_dec.
+  eapply in_bound_dom__in_bound_fdef; eauto.
+Qed.
+
 Lemma gt_sdom_prop_trans1 : forall S M f l1 l2 l3
   (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) (Hreach: reachable f l3)
-  (HBinF1: In l1 (bound_fdef f))
   (HBinF2: In l2 (bound_fdef f))
-  (HBinF3: In l3 (bound_fdef f))
   (H1 : gt_sdom (bound_fdef f) (dom_analyze f) l1 l2 = true)
   (H2 : gt_dom_prop (bound_fdef f) (dom_analyze f) l2 l3),
   gt_sdom (bound_fdef f) (dom_analyze f) l1 l3 = true.
 Proof.
-  unfold gt_dom_prop, gt_sdom.
   intros.
-  remember (Maps.AMap.get l2 (dom_analyze f)) as R2.
-  remember (Maps.AMap.get l3 (dom_analyze f)) as R3.
-  destruct R2. destruct R3.
-  destruct (in_dec l_dec l1 bs_contents); inv H1.
+  assert (HBinF1: In l1 (bound_fdef f)).
+    eapply in_gt_sdom__in_bound_fdef; eauto.
+  assert (HBinF3: In l3 (bound_fdef f)).
+    eapply reachable__in_bound; eauto.
+  unfold gt_dom_prop, gt_sdom in *.
+  destruct (in_dec l_dec l1); inv H1.
   apply In_bound_fdef__blockInFdefB in HBinF1.
   apply In_bound_fdef__blockInFdefB in HBinF2.
   apply In_bound_fdef__blockInFdefB in HBinF3.
@@ -720,29 +687,21 @@ Proof.
   destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
   assert (domination f l2 l3) as Hdom23.
     eapply dom_is_sound; eauto.
-      rewrite <- HeqR3. simpl.
-      destruct H2 as  [H2 | H2]; auto.
-        destruct (in_dec l_dec l2 bs_contents0); inv H2; auto.
+      destruct H2 as [H2 | H2]; simpl; auto.
+        simpl_in_dec; auto.
   assert (reachable f l2) as Hreach2.
      apply dom_reachable in Hdom23; auto.
   assert (strict_domination f l1 l2) as Hsdom12.
     eapply sdom_is_sound; eauto.
-      rewrite <- HeqR2. simpl. auto.
-  eapply sdom_tran1 with (l3:=l3) in Hsdom12; eauto.
-  eapply sdom_is_complete in Hsdom12; eauto.
-    rewrite <- HeqR3 in Hsdom12. simpl in Hsdom12.
-    destruct (in_dec l_dec l1 bs_contents0); auto.
+  eapply sdom_tran1 with (l3:=l3) in Hsdom12; eauto 1.
+  eapply sdom_is_complete in Hsdom12; eauto 1.
+    solve_in_dec.
 
-    rewrite <- HeqR3. simpl.
     destruct H2 as [H2 | H2]; subst.
-      destruct bs_contents0.
-        inv H2.
-        intro J. inv J.
+      simpl_in_dec.
+      intro J. unfold dom_query in J. rewrite J in i1. auto.
 
-      rewrite <- HeqR3 in HeqR2. inv HeqR2.
-      destruct bs_contents0.
-        inv i0.
-        intro J. inv J.
+      intro J. unfold dom_query in J. rewrite J in i0. auto.
 Qed.
 
 Lemma compute_sdom_chains_aux_sorted: forall S M f 
@@ -756,20 +715,19 @@ Lemma compute_sdom_chains_aux_sorted: forall S M f
     (compute_sdom_chains_aux (bound_fdef f) (dom_analyze f) bd acc) ->
   Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f)) chain0 /\ NoDup chain0.
 Proof.
-  induction bd; simpl; intros; eauto.
-    remember ((dom_analyze f) !! a) as R.
-    destruct R.
+  induction bd as [|a bd]; simpl; intros; eauto.
     apply IHbd in H0; auto.
+    Case "1".
       simpl_env in Hinc.
       apply AtomSet.incl_app_invr in Hinc; auto.
-
-      intros.
+    Case "2".
+      intros l1 chain1 H1.
       destruct H1 as [H1 | H1]; eauto.
       inv H1.
       assert (In l1 (bound_fdef f)) as G1.
         apply Hinc; simpl; auto.
       assert (forall l' : l,
-        In l' (l1 :: bs_contents) ->
+        In l' (l1 :: bound_dom (bound_fdef f) ((dom_analyze f) !! l1)) ->
         gt_dom_prop (bound_fdef f) (dom_analyze f) l' l1 /\ In l' (bound_fdef f))
         as G2.
         intros l' Hin.
@@ -779,16 +737,17 @@ Proof.
 
           split.
             unfold gt_dom_prop, gt_sdom.
-            rewrite <- HeqR.
-            destruct (in_dec l_dec l' bs_contents); simpl; auto.
+            left. solve_in_dec.
 
-            apply bs_bound; auto.
+            eapply in_bound_dom__in_bound_fdef; eauto.
       split.
+      SCase "2.1".
         apply remove_redundant_sorted; auto.
           eapply sort_sdom_sorted; eauto.
-
+      SCase "2.2".
         apply remove_redundant_NoDup with
           (R:=gt_dom_prop (bound_fdef f) (dom_analyze f)); auto.
+        SSCase "2.2.1".
           intros.
           destruct H5; subst; try congruence.
           assert (reachable f c) as Hreachc.
@@ -804,17 +763,31 @@ Proof.
                   apply In_bound_fdef__blockInFdefB in Hin.
                   destruct Hin as [ps [cs [tmn HBinF]]].
                   eapply sdom_is_sound; eauto.
-                    rewrite <- HeqR. auto.
+
+Ltac find_in_bound_fdef :=
+match goal with
+| G1 : In ?l1 (bound_fdef ?f),
+  H2 : In ?b
+         (sort_sdom (bound_fdef ?f) (dom_analyze ?f)
+            (?l1 :: bound_dom (bound_fdef ?f) (dom_analyze ?f) !! ?l1)) |-
+  In ?b (bound_fdef ?f) =>
+  apply sort_sdom_safe in H2;
+  destruct_in H2; eauto using in_bound_dom__in_bound_fdef
+end.
+
           eapply gt_sdom_prop_trans1 with (l1:=a) in H6;
-            eauto using compute_sdom_chains_aux_sorted__helper.
+            eauto using compute_sdom_chains_aux_sorted__helper;
+            try find_in_bound_fdef.
             intro EQ; subst.
             apply gt_sdom_prop_irrefl with (a:=c) in HwfF; auto.
             rewrite HwfF in H6. congruence.
 
+         SSCase "2.2.2".
           apply strict_Sorted_StronglySorted.
             intros.
             eapply gt_dom_prop_trans with (l2:=y);
-              eauto using compute_sdom_chains_aux_sorted__helper.
+              eauto using compute_sdom_chains_aux_sorted__helper;
+              try find_in_bound_fdef.
             eapply sort_sdom_sorted; eauto.
 Qed.
 
@@ -850,55 +823,39 @@ Proof.
     simpl. intros. tauto.
 Qed.
 
-Lemma compute_sdom_chains_aux_safe: forall bd0 (res:AMap.t (Dominators.t bd0))
-  l0 l1 chain0 dts0 P0 bd acc,
-  (forall l0 l1 chain0 dts0 P0,
+Lemma compute_sdom_chains_aux_safe: forall bd0 (res:AMap.t Dominators.t)
+  l0 l1 chain0 dts0 bd acc,
+  (forall l0 l1 chain0 dts0,
     In (l0, chain0) acc ->
-    AMap.get l0 res = Dominators.mkBoundedSet _ dts0 P0 ->
+    bound_dom bd0 (AMap.get l0 res) = dts0 ->
     (In l1 chain0 <-> In l1 (l0 :: dts0))) ->
   In (l0, chain0) (compute_sdom_chains_aux bd0 res bd acc) ->
-  AMap.get l0 res = Dominators.mkBoundedSet _ dts0 P0 ->
+  bound_dom bd0 (AMap.get l0 res) = dts0 ->
   (In l1 chain0 <-> In l1 (l0 :: dts0)).
 Proof.
   induction bd; intros; eauto.
     simpl in H0.
-    remember (@AMap.get (Dominators.t bd0) a res) as R.
-    destruct R.
     apply IHbd in H0; auto.
     intros. simpl in H2.
     destruct H2 as [H2 | H2]; eauto.
-    inv H2. rewrite H3 in HeqR. inv HeqR.
-    destruct (@remove_redundant_safe l3 (sort_sdom bd0 res (l2 :: dts1)))
+    inv H2. 
+    destruct (@remove_redundant_safe l3 
+                (sort_sdom bd0 res (l2 :: bound_dom bd0 res !! l2)))
       as [J1 J2].
-    destruct (@sort_sdom_safe bd0 res (l2 :: dts1) l3) as [J3 J4].
+    destruct (@sort_sdom_safe bd0 res (l2 :: 
+                 bound_dom bd0 res !! l2) l3) as [J3 J4].
     split; eauto.
 Qed.
 
-Lemma compute_sdom_chains_safe: forall bd res rd l0 chain l1 dts0 P0,
+Lemma compute_sdom_chains_safe: forall bd res rd l0 chain l1 dts0 ,
   In (l0, chain) (compute_sdom_chains bd res rd) ->
-  AMap.get l0 res = Dominators.mkBoundedSet _ dts0 P0 ->
+  bound_dom bd (AMap.get l0 res) = dts0 ->
   (In l1 chain <-> In l1 (l0 :: dts0)).
 Proof.
   intros.
   unfold compute_sdom_chains in H.
   eapply compute_sdom_chains_aux_safe in H; eauto.
   simpl. intros. tauto.
-Qed.
-
-Lemma compute_sdom_chains__in_bound: forall l0 chain0 bd res rd
-  (Hinc: incl rd bd),
-  In (l0, chain0) (compute_sdom_chains bd res rd) ->
-  incl chain0 bd.
-Proof.
-  intros.
-  remember (AMap.get l0 res) as R. destruct R.
-  intros x Hin.
-  assert (H':=H).
-  eapply compute_sdom_chains_safe in H; eauto.
-  eapply H in Hin.
-  simpl in Hin.
-  destruct Hin as [Hin | Hin]; subst; auto.
-  apply compute_sdom_chains__dom in H'; auto.
 Qed.
 
 Lemma gt_sdom_prop_entry: forall f l1 entry
@@ -908,22 +865,20 @@ Lemma gt_sdom_prop_entry: forall f l1 entry
 Proof.
   intros.
   unfold gt_sdom_prop, gt_sdom in H4.
-  remember ((dom_analyze f) !! entry) as R.
-  destruct R.
   assert (exists ps, exists cs, exists tmn,
     getEntryBlock f = Some (block_intro entry ps cs tmn)) as Hentry.
     destruct f as [fh bs]. destruct bs; tinv H.
     destruct b; inv H; simpl; eauto.
   destruct Hentry as [ps [cs [tmn Hentry]]].
   apply dom_entrypoint in Hentry.
-  rewrite <- HeqR in Hentry. simpl in Hentry. subst.
-  inv H4.
+  unfold dom_query in Hentry. rewrite Hentry in H4. 
+  simpl_in_dec. auto.
 Qed.
 
 Lemma entry_in_compute_sdom_chains: forall entry l0 chain0 bd res rd
   (H:forall b, b <> entry /\ In b rd ->
-     match (AMap.get b res) with
-     | Dominators.mkBoundedSet dts _ => dts <> nil -> In entry dts
+     match bound_dom bd (AMap.get b res) with
+     | dts => In entry dts
      end)
   (H0:In (l0, chain0) (compute_sdom_chains bd res rd))
   (Huniq:NoDup chain0)
@@ -933,34 +888,27 @@ Proof.
   intros.
   assert (H0':=H0).
   apply compute_sdom_chains__dom in H0'.
-  remember (AMap.get l0 res) as R.
-  destruct R.
   assert (H1':=H0).
   eapply compute_sdom_chains_safe with (l1:=entry) in H0; eauto.
   apply H0.
   simpl.
   destruct (l_dec l0 entry); subst; auto.
-    assert (l0 <> entry /\ In l0 rd) as J.
-      auto.
-    apply H in J. rewrite <- HeqR in J.
-    right.
-    apply J.
-    destruct bs_contents.
-      destruct chain0; tinv G.
-      destruct chain0; try solve [contradict G; simpl; clear; omega].
-      assert (H2':=H1').
-      eapply compute_sdom_chains_safe with (l1:=l1) in H1'; eauto.
-      eapply compute_sdom_chains_safe with (l1:=l2) in H2'; eauto.
-      assert (In l1 (l1 :: l2 :: chain0)) as Hin1. simpl. auto.
-      assert (In l2 (l1 :: l2 :: chain0)) as Hin2. simpl. auto.
-      apply H1' in Hin1.
-      apply H2' in Hin2.
-      simpl in Hin1, Hin2.
-      destruct Hin1; subst; try tauto.
-      destruct Hin2; subst; try tauto.
-      inv Huniq. contradict H3; simpl; auto.
+Qed.
 
-      congruence.
+Lemma compute_sdom_chains__in_bound: forall l0 chain0 f rd
+  (Hinc: incl rd (bound_fdef f)),
+  In (l0, chain0) (compute_sdom_chains (bound_fdef f) (dom_analyze f) rd) ->
+  incl chain0 (bound_fdef f).
+Proof.
+  intros.
+  intros x Hin.
+  assert (H':=H).
+  eapply compute_sdom_chains_safe in H; eauto.
+  eapply H in Hin.
+  simpl in Hin.
+  destruct Hin as [Hin | Hin]; subst.
+    apply compute_sdom_chains__dom in H'; auto.
+    eapply in_bound_dom__in_bound_fdef; eauto.
 Qed.
 
 Lemma entry_is_head_of_compute_sdom_chains: forall S M f 
@@ -975,14 +923,13 @@ Proof.
   intros.
   assert (forall b,
     b <> entry /\ In b rd ->
-    match (AMap.get b (dom_analyze f)) with
-    | Dominators.mkBoundedSet dts _ => dts <> nil -> In entry dts
+    match bound_dom (bound_fdef f) (AMap.get b (dom_analyze f)) with
+    | dts => In entry dts
     end) as J.
     intros b Hp.
     destruct Hp as [Hp1 Hp2].
     eapply reachablity_analysis__reachable in Hp2; eauto.
     eapply dom_analysis__entry_doms_others in H; eauto.
-    destruct ((dom_analyze f) !! b); auto.
       
   assert (J0:=H0).
   apply reachablity_analysis__in_bound in H0.

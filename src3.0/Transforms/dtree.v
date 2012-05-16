@@ -70,12 +70,12 @@ match dt with
 end.
 
 (* l1 >> l2, l1 strict dominates l2 *)
-Definition gt_sdom bd (res: AMap.t (Dominators.t bd)) (l1 l2:l) : bool :=
-match AMap.get l2 res with
-| Dominators.mkBoundedSet dts2 _ => in_dec l_dec l1 dts2
+Definition gt_sdom bd (res: AMap.t Dominators.t) (l1 l2:l) : bool :=
+match bound_dom bd (AMap.get l2 res) with
+| dts2 => in_dec l_dec l1 dts2
 end.
 
-Fixpoint find_min bd (res: AMap.t (Dominators.t bd)) (acc:l) (dts: set l): l :=
+Fixpoint find_min bd (res: AMap.t Dominators.t) (acc:l) (dts: set l): l :=
 match dts with
 | nil => acc
 | l0::dts' =>
@@ -85,7 +85,7 @@ match dts with
       find_min bd res acc dts'
 end.
 
-Fixpoint insert_sort_sdom_iter bd (res: AMap.t (Dominators.t bd)) (l0:l)
+Fixpoint insert_sort_sdom_iter bd (res: AMap.t Dominators.t) (l0:l)
   (prefix suffix:list l) : list l :=
 match suffix with
 | nil => List.rev (l0 :: prefix)
@@ -94,7 +94,7 @@ match suffix with
     else insert_sort_sdom_iter bd res l0 (l1::prefix) suffix'
 end.
 
-Fixpoint insert_sort_sdom bd (res: AMap.t (Dominators.t bd)) (data:list l)
+Fixpoint insert_sort_sdom bd (res: AMap.t Dominators.t) (data:list l)
   (acc:list l) : list l :=
 match data with
 | nil => acc
@@ -102,13 +102,13 @@ match data with
     insert_sort_sdom bd res data' (insert_sort_sdom_iter bd res l1 nil acc)
 end.
 
-Definition sort_sdom bd (res: AMap.t (Dominators.t bd)) (data:list l): list l :=
+Definition sort_sdom bd (res: AMap.t Dominators.t) (data:list l): list l :=
 insert_sort_sdom bd res data nil.
 
-Definition gt_dom_prop bd (res: AMap.t (Dominators.t bd)) (l1 l2:l) : Prop :=
+Definition gt_dom_prop bd (res: AMap.t Dominators.t) (l1 l2:l) : Prop :=
 gt_sdom bd res l1 l2 = true \/ l1 = l2.
 
-Definition gt_sdom_prop bd (res: AMap.t (Dominators.t bd)) (l1 l2:l) : Prop :=
+Definition gt_sdom_prop bd (res: AMap.t Dominators.t) (l1 l2:l) : Prop :=
 gt_sdom bd res l1 l2 = true.
 
 Fixpoint remove_redundant (input: list l) : list l :=
@@ -119,29 +119,29 @@ match input with
 | _ => input
 end.
 
-Fixpoint compute_sdom_chains_aux bd0 (res: AMap.t (Dominators.t bd0))
+Fixpoint compute_sdom_chains_aux bd0 (res: AMap.t Dominators.t)
   (bd: list l) (acc: list (l * list l)) : list (l * list l) :=
 match bd with
 | nil => acc
 | l0 :: bd' =>
-    match AMap.get l0 res with
-    | Dominators.mkBoundedSet dts0 _ =>
+    match bound_dom bd0 (AMap.get l0 res) with
+    | dts0 =>
         compute_sdom_chains_aux bd0 res bd'
           ((l0, remove_redundant (sort_sdom bd0 res (l0 :: dts0)))::acc)
     end
 end.
 
-Definition compute_sdom_chains bd (res: AMap.t (Dominators.t bd)) rd
+Definition compute_sdom_chains bd (res: AMap.t Dominators.t) rd
   : list (l * list l) :=
 compute_sdom_chains_aux bd res rd nil.
 
-Fixpoint find_idom_aux bd (res: AMap.t (Dominators.t bd)) (acc:l) (dts: set l)
+Fixpoint find_idom_aux bd (res: AMap.t Dominators.t) (acc:l) (dts: set l)
   : option l :=
 match dts with
 | nil => Some acc
 | l0::dts' =>
-    match AMap.get l0 res, AMap.get acc res with
-    | Dominators.mkBoundedSet dts1 _ , Dominators.mkBoundedSet dts2 _ =>
+    match bound_dom bd (AMap.get l0 res), bound_dom bd (AMap.get acc res) with
+    | dts1, dts2 =>
         if (in_dec l_dec l0 dts2)
         then (* acc << l0 *)
           find_idom_aux bd res acc dts'
@@ -155,13 +155,13 @@ match dts with
 end.
 
 (* We should prove that this function is not partial. *)
-Definition find_idom bd (res: AMap.t (Dominators.t bd)) (l0:l) : option l :=
-match AMap.get l0 res with
-| Dominators.mkBoundedSet (l1::dts0) _ => find_idom_aux bd res l1 dts0
+Definition find_idom bd (res: AMap.t Dominators.t) (l0:l) : option l :=
+match bound_dom bd (AMap.get l0 res) with
+| l1::dts0 => find_idom_aux bd res l1 dts0
 | _ => None
 end.
 
-Fixpoint compute_idoms bd (res: AMap.t (Dominators.t bd)) (rd: list l)
+Fixpoint compute_idoms bd (res: AMap.t Dominators.t) (rd: list l)
   (acc: list (l * l)) : list (l * l) :=
 match rd with
 | nil => acc

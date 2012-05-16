@@ -333,8 +333,6 @@ Proof.
     intros ids1 Hinscope.
     destruct_if.
     SCase "id5 in ps. nice".
-      remember (Maps.AMap.get l0 (dom_analyze f)) as R.
-      destruct R.
       destruct (in_dec id_dec vid (getArgsIDsOfFdef f)) as [Hinfh | Hnotinfh].
       SSCase "vid in args".
         apply fold_left__init in H2. auto.
@@ -377,7 +375,6 @@ Proof.
                 apply lookupBlockViaIDFromFdef__blockInFdefB in Hlkbv; auto.
                 destruct bv.
                 eapply sdom_is_complete in Hsdom; eauto 1.
-                  rewrite <- HeqR0 in Hsdom.
                   apply ListSet.set_diff_intro; auto.
                     simpl in *. intro J. destruct J as [J|J]; auto.
 

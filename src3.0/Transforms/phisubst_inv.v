@@ -179,10 +179,7 @@ Lemma valueDominates_value_in_scope__value_in_scope__at_beginning: forall
   (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) (PEI_f pi) = true)
   (Hreach : isReachableFromEntry (PEI_f pi) (block_intro l1 ps1 cs1 tmn1)) ids2
   (contents' : ListSet.set atom)
-  (inbound' : incl contents' (bound_fdef (PEI_f pi)))
-  (Heqdefs' : {|
-             DomDS.L.bs_contents := contents';
-             DomDS.L.bs_bound := inbound' |} = (dom_analyze (PEI_f pi)) !! l1)
+  (Heqdefs' : contents' = dom_query (PEI_f pi) l1)
   (Hinscope : (fold_left (inscope_of_block (PEI_f pi) l1) contents'
     (ret (getPhiNodesIDs ps1 ++ getArgsIDsOfFdef (PEI_f pi))) = ret ids2))
   (Hina : value_in_scope (value_id (getPhiNodeID (PEI_p pi))) ids2),
@@ -227,10 +224,7 @@ Lemma wf_defs_br_aux : forall pi TD gl S M lc l' ps' cs' lc' F tmn' l1 ps1 cs1
   (ids0' : list atom)
   (HwfF : wf_fdef S M F) (HuniqF: uniqFdef F)
   (contents' : ListSet.set atom)
-  (inbound' : incl contents' (bound_fdef F))
-  (Heqdefs' : {|
-             DomDS.L.bs_contents := contents';
-             DomDS.L.bs_bound := inbound' |} = (dom_analyze F) !! l')
+  (Heqdefs' : contents' = dom_query F l')
   (Hinscope : (fold_left (inscope_of_block F l') contents'
     (ret (getPhiNodesIDs ps' ++ getArgsIDsOfFdef F)) = ret ids0'))
   (Hinc : incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) t),
@@ -373,21 +367,17 @@ Proof.
   unfold inscope_of_tmn in Hinscope.
   unfold inscope_of_tmn. unfold inscope_of_cmd, inscope_of_id.
   destruct F as [fh bs].
-  remember (dom_analyze (fdef_intro fh bs)) as Doms.
-  remember (Doms !! l3)as defs3.
-  remember (Doms !! l')as defs'.
-  destruct defs3 as [contents3 inbound3].
-  destruct defs' as [contents' inbound'].
 
-  assert (incl contents' (l3::contents3)) as Hsub.
-    clear - HBinF Hsucc Heqdefs3 Heqdefs' HeqDoms HuniqF HwfF.
+  assert (incl (dom_query (fdef_intro fh bs) l')
+               (l3::(dom_query (fdef_intro fh bs) l3))) as Hsub.
+    clear - HBinF Hsucc HuniqF HwfF.
     eapply dom_successors; eauto.
 
   assert (isReachableFromEntry (fdef_intro fh bs) (block_intro l' ps' nil tmn'))
     as Hreach'.
     eapply isReachableFromEntry_successors in Hlkup; eauto.
 
-  assert (J1:=inbound'). destruct fh as [f t i0 a v].
+  assert (J1:=dom_query_in_bound fh bs l'). destruct fh as [f t i0 a v].
   apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
     getArgsIDs a)(bs:=bs)(l0:=l') (fh:=fheader_intro f t i0 a v) in J1; auto.
   destruct J1 as [r J1].
@@ -913,16 +903,12 @@ Transparent inscope_of_tmn inscope_of_cmd.
 
     destruct cs'.
       unfold inscope_of_tmn.
-      remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
-        !! l') as R.
-      destruct R. simpl in H2. subst. simpl.
+      rewrite H2. simpl.
       eapply preservation_dbCall_case; eauto.
 
       unfold inscope_of_cmd, inscope_of_id.
       rewrite init_scope_spec1; auto.
-      remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
-        !! l') as R.
-      destruct R. simpl. simpl in H2. subst. simpl.
+      rewrite H2. simpl.
       destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
         try solve [contradict n; auto].
       eapply preservation_dbCall_case; eauto.
@@ -1001,16 +987,12 @@ Transparent inscope_of_tmn inscope_of_cmd.
     apply dom_entrypoint in HeqR2.
     destruct cs0.
       unfold inscope_of_tmn.
-      remember ((dom_analyze (fdef_intro (fheader_intro f t i0 a v) b))
-        !! l0) as R.
-      destruct R. simpl in HeqR2. subst.
+      rewrite HeqR2. simpl.
       eapply initLocals__wf_defs; eauto.
 
       unfold inscope_of_cmd, inscope_of_id.
       rewrite init_scope_spec1; auto.
-      remember ((dom_analyze (fdef_intro (fheader_intro f t i0 a v) b))
-        !! l0) as R.
-      destruct R. simpl. simpl in HeqR2. subst.
+      rewrite HeqR2. simpl.
       destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
         try solve [contradict n; auto].
       eapply initLocals__wf_defs; eauto.

@@ -927,35 +927,19 @@ Proof.
   unfold blockStrictDominates. 
   btrans_eq_label_tac b1. 
   btrans_eq_label_tac b2. 
-  unfold dom_analyze. destruct f as [fh bs]. ftrans_spec_tac.
-  rewrite <- pres_successors_blocks.
-  remember (entry_dom bs) as R1.
-  remember (entry_dom (List.map pass.(btrans) bs)) as R2.
-  destruct R1 as [x1 Hx1].
-  destruct R2 as [x2 Hx2].
-  destruct x1 as [x1|].
-  Case "1".
-    destruct x1 as [le1 start1].
-    destruct start1.
-    destruct bs_contents as [|l2' bs_contents]; tinv Hx1.
-    destruct x2 as [x2|].
-    SCase "1.1".
-      destruct x2 as [le2 start2].
-      destruct start2.
-      destruct bs_contents as [|l3 bs_contents]; tinv Hx2.
-      destruct bs as [|b bs]; tinv HeqR1.
-      assert (J:=pass.(btrans_eq_label) b).
-      simpl in *.
-      destruct (btrans pass b). 
-      destruct b. 
-      inv HeqR1. inv HeqR2. simpl in J. subst.
-      eapply blockStrictDominates_iff; eauto.
-      rewrite pres_bound_blocks; auto.
-    SCase "1.2".
-      destruct bs; simpl in *; tinv HeqR1.
-        inv Hx2.
-  Case "2".
-    subst. simpl in *. inv HeqR2. split; intro; auto.
+  unfold dom_query, dom_analyze. destruct f as [fh bs]. 
+  case_eq (getEntryBlock (fdef_intro fh bs)).
+    intros b Hentry.
+    apply pres_getEntryBlock in Hentry; eauto.
+    btrans_eq_label_tac b. 
+    rewrite Hentry. ftrans_spec_tac. simpl.
+    rewrite <- pres_bound_blocks.
+    rewrite <- pres_successors_blocks. split; eauto.
+
+    intros Hentry.
+    apply pres_getEntryBlock_None in Hentry; eauto.
+    rewrite Hentry. ftrans_spec_tac. simpl.
+    rewrite <- pres_bound_blocks. split; auto.
 Qed.
 
 Lemma pres_blockDominates : forall f b1 b2,
@@ -966,70 +950,37 @@ Proof.
   unfold blockDominates.
   btrans_eq_label_tac b1. 
   btrans_eq_label_tac b2. 
-  unfold dom_analyze. destruct f as [fh bs]. ftrans_spec_tac.
-  rewrite <- pres_successors_blocks.
-  remember (entry_dom bs) as R1.
-  remember (entry_dom (List.map pass.(btrans) bs)) as R2.
-  destruct R1 as [x1 Hx1].
-  destruct R2 as [x2 Hx2].
-  destruct x1 as [x1|].
-  Case "1".
-    destruct x1 as [le1 start1].
-    destruct start1.
-    destruct bs_contents as [|l2' bs_contents]; tinv Hx1.
-    destruct x2 as [x2|].
-    SCase "1.1".
-      destruct x2 as [le2 start2].
-      destruct start2.
-      destruct bs_contents as [|l3 bs_contents]; tinv Hx2.
-      destruct bs as [|b bs]; tinv HeqR1.
-      assert (J:=pass.(btrans_eq_label) b).
-      simpl in *.
-      destruct (btrans pass b). 
-      destruct b. 
-      inv HeqR1. inv HeqR2. simpl in J. subst.
-      eapply blockDominates_iff; eauto.
-      rewrite pres_bound_blocks; auto.
-    SCase "1.2".
-      destruct bs; simpl in *; tinv HeqR1.
-        inv Hx2.
-  Case "2".
-    subst. simpl in *. inv HeqR2. split; intro; auto.
+  unfold dom_query, dom_analyze. destruct f as [fh bs].
+  case_eq (getEntryBlock (fdef_intro fh bs)).
+    intros b Hentry.
+    apply pres_getEntryBlock in Hentry; eauto.
+    btrans_eq_label_tac b. 
+    rewrite Hentry. ftrans_spec_tac. simpl.
+    rewrite <- pres_bound_blocks.
+    rewrite <- pres_successors_blocks. split; eauto.
+
+    intros Hentry.
+    apply pres_getEntryBlock_None in Hentry; eauto.
+    rewrite Hentry. ftrans_spec_tac. simpl.
+    rewrite <- pres_bound_blocks. split; auto.
 Qed.
 
 Lemma pres_dom_analysis_is_successful : forall f,
   dom_analysis_is_successful f <-> dom_analysis_is_successful (pass.(ftrans) f).
 Proof.
   unfold dom_analysis_is_successful.
-  destruct f as [fh bs]. ftrans_spec_tac.
-  rewrite <- pres_successors_blocks.
-  remember (entry_dom bs) as R1.
-  remember (entry_dom (List.map pass.(btrans) bs)) as R2.
-  destruct R1 as [x1 Hx1].
-  destruct R2 as [x2 Hx2].
-  destruct x1 as [x1|].
-  Case "1".
-    destruct x1 as [le1 start1].
-    destruct start1.
-    destruct bs_contents as [|l2' bs_contents]; tinv Hx1.
-    destruct x2 as [x2|].
-    SCase "1.1".
-      destruct x2 as [le2 start2].
-      destruct start2.
-      destruct bs_contents as [|l3 bs_contents]; tinv Hx2.
-      destruct bs as [|b bs]; tinv HeqR1.
-      assert (J:=pass.(btrans_eq_label) b).
-      simpl in *.
-      destruct (btrans pass b). 
-      destruct b. 
-      inv HeqR1. inv HeqR2. simpl in J. subst. 
-      eapply DomDS_fixpoint_iff; try solve [eauto 1 | tauto].
-      rewrite pres_bound_blocks; auto.
-    SCase "1.2".
-      destruct bs; simpl in *; tinv HeqR1.
-        inv Hx2.
-  Case "2".
-    subst. simpl in *. inv HeqR2. split; intro; auto.
+  destruct f as [fh bs]. 
+  case_eq (getEntryBlock (fdef_intro fh bs)).
+    intros b Hentry.
+    apply pres_getEntryBlock in Hentry; eauto.
+    btrans_eq_label_tac b. 
+    rewrite Hentry. ftrans_spec_tac. simpl.
+    rewrite <- pres_successors_blocks. split; eauto.
+
+    intros Hentry.
+    apply pres_getEntryBlock_None in Hentry; eauto.
+    rewrite Hentry. ftrans_spec_tac. 
+    split; auto.
 Qed.
 
 Lemma pres_lookupBlockViaLabelFromBlocks : forall l5 bs b,

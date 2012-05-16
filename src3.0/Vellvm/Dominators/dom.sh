@@ -12,14 +12,20 @@ S00_CASES="164.gzip/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-gzip-prefix.bc
            179.art/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-art-prefix.bc
            188.ammp/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-ammp-prefix.bc
            183.equake-modified/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-equake-modified-prefix.bc
-           256.bzip2/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-bzip2-prefix.bc"
+           256.bzip2/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-bzip2-prefix.bc
+           197.parser/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-parser-prefix.bc
+           300.twolf/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-twolf-prefix.bc"
 # 186.crafty: "InlineAsmVal: Not_Supported"
-# 177.mesa/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-mesa-prefix.bc: >= 15m
 S06_DIR=../../../softbound_test/spec2k6/
-S06_CASES="462.libquantum/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-libquantum-prefix.bc
+S06_CASES="401.bzip2/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-bzip2-prefix.bc
+           429.mcf/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-mcf-prefix.bc
+           456.hmmer/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-hmmer-prefix.bc
+           462.libquantum/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-libquantum-prefix.bc
            470.lbm/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-lbm-prefix.bc
            433.milc/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-milc-prefix.bc
-           458.sjeng/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-sjeng-prefix.bc"
+           458.sjeng/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-sjeng-prefix.bc
+           464.h264ref/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-h264-prefix.bc"
+# 403.gcc/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-gcc-prefix.bc: slow
 WORST_DIR=./worstcases/
 WORST_CASES="itworst_large.bc idfsquad_large.bc ibfsquad_large.bc sncaworst_large.bc"
 

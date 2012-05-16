@@ -709,39 +709,26 @@ Lemma dom_successors : forall
   (bs : blocks)
   (l3 : l)
   (l' : l)
-  ps cs tmn fh s m
-  (HwfF : wf_fdef s m (fdef_intro fh bs))
+  ps cs tmn fh
   (Huniq' : uniqFdef (fdef_intro fh bs))
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) (fdef_intro fh bs) = true)
-  (Doms : AMap.t
-           (Dominators.t (bound_fdef (fdef_intro fh bs))))
-  (HeqDoms : Doms = dom_analyze (fdef_intro fh bs))
   (contents3 : ListSet.set atom)
-  (inbound3 : incl contents3 (bound_fdef (fdef_intro fh bs)))
-  (Heqdefs3 : {|
-             DomDS.L.bs_contents := contents3;
-             DomDS.L.bs_bound := inbound3 |} = Doms !! l3)
+  (Heqdefs3 : contents3 = dom_query (fdef_intro fh bs) l3)
   (Hsucc : In l' (successors_terminator tmn))
   (contents' : ListSet.set atom)
-  (inbound' : incl contents' (bound_fdef (fdef_intro fh bs)))
-  (Heqdefs' : {|
-             DomDS.L.bs_contents := contents';
-             DomDS.L.bs_bound := inbound' |} = Doms !! l'),
+  (Heqdefs' : contents' = dom_query (fdef_intro fh bs) l'),
   incl contents' (l3 :: contents3).
 Proof.
   intros. 
   assert (uniqBlocks bs) as Huniq by eauto using uniqF__uniqBlocks.
 Local Opaque uniqFdef.
   simpl in *.
-  unfold dom_analyze in *.
-  remember (entry_dom bs) as R.
-  destruct R as [R Hp].
-  destruct R as [[le start] | ].
+  unfold dom_query, dom_analyze in *.
+  remember (getEntryBlock (fdef_intro fh bs)) as R.
+  destruct R as [[le ? ? ?]|].
   Case "entry is good".
-    remember (DomDS.fixpoint (bound_blocks bs) (successors_blocks bs)
-                (transfer (bound_blocks bs)) ((le, start) :: nil)) as R1.
-    destruct start.
-    destruct bs_contents; tinv Hp.
+    remember (DomDS.fixpoint (successors_blocks bs)
+                transfer ((le, Dominators.top) :: nil)) as R1.
     destruct R1; subst.
     SCase "analysis is done".
       symmetry in HeqR1.
@@ -751,58 +738,23 @@ Local Opaque uniqFdef.
           eapply successors_terminator__successors_blocks; eauto.
         rewrite <- EQ. auto.
 
+      assert (Hinbd: forall l0 ns0 (Hget: t !! l0 = Some ns0), 
+                     incl ns0 (bound_blocks bs)).
+        eapply dom_in_bound_blocks; eauto.
       apply DomDS.fixpoint_solution with (s:=l')(n:=l3) in HeqR1; eauto.
-      unfold transfer, DomDS.L.ge, DomDS.L.top, DomDS.L.bot, DomDS.L.sub,
-        DomDS.L.eq, Dominators.add in HeqR1.
+      unfold transfer, DomDS.L.ge, DomDS.L.sub, Dominators.add in HeqR1.
       remember (t !! l') as R2.
-      destruct R2.
-      assert (contents' = bs_contents) as EQ.
-        clear - Heqdefs' HeqR2.
-        eapply atomset_eq__proof_irr1; eauto.
-      subst.
       remember (t !! l3) as R3.
-      destruct R3.
-      assert (contents3 = bs_contents0) as EQ.
-        clear - Heqdefs3 HeqR3.
-        eapply atomset_eq__proof_irr1; eauto.
-      subst.
-      clear - Heqdefs3 Heqdefs' HeqR2 HeqR3 HeqR1.
-      destruct HeqR1 as [HeqR1 | [HeqR1 | HeqR1]].
-        destruct HeqR1 as [G1 G2].
-        intros x G.
-        apply G1 in G. inversion G.
-        destruct (in_dec eq_atom_dec l3 (bound_blocks bs)).
-          eapply incl_set_eq_right; eauto using set_eq_sym.
-          apply incl_tran with (m:=bs_contents0).
-            eapply incl_set_eq_right; eauto using set_eq_sym.
-            apply incl_tl; auto using incl_refl.
-
-        destruct (in_dec eq_atom_dec l3 (bound_blocks bs)); auto.
-          apply incl_tl; auto.
+      destruct R2 as [els2|]; destruct R3 as [els3|]; 
+        simpl; try solve [auto with datatypes v62 | tauto].
+        symmetry in HeqR2.
+        apply Hinbd in HeqR2. auto with datatypes v62.
 
     SCase "analysis fails".
-      subst.
-      unfold Dominators.top in Heqdefs3, Heqdefs'.
-      simpl in Heqdefs3, Heqdefs'.
-      destruct bs; tinv HeqR.
-      destruct b as [l0 p c t]; inv HeqR.
-      assert (exists ps, exists cs, exists tmn,
-        getEntryBlock (fdef_intro fh ((block_intro l0 p c t) :: bs)) =
-          Some (block_intro l0 ps cs tmn)) as H.
-        unfold entry_dom in HeqR1.
-        exists p. exists c. exists t. auto.
-      assert (l' <> l0) as Neq.
-        clear - H Hsucc HwfF HBinF Huniq'.
-        destruct H as [ps1 [cs1 [tmn1 H]]].
-        eapply getEntryBlock_inv; eauto.
-      rewrite AMap.gso in Heqdefs'; auto.
-      rewrite AMap.gi in Heqdefs'.
-      inv Heqdefs'.
-      clear.
-      intros x J. inversion J.
+      repeat rewrite AMap.gi. simpl. auto with datatypes v62.
 
   Case "entry is wrong".
-    subst. inversion HBinF.
+    subst. repeat rewrite AMap.gi. simpl. auto with datatypes v62.
 Transparent uniqFdef.
 Qed.
 
@@ -837,12 +789,11 @@ Variable S : system.
 Variable M : module.
 Variable fh : fheader.
 Variable bs : blocks.
-Definition bound := bound_blocks bs.
 Definition predecessors := XATree.make_predecessors (successors_blocks bs).
-Definition transf := transfer bound.
-Definition top := Dominators.top bound.
-Definition bot := Dominators.bot bound.
-Definition dt := DomDS.dt bound.
+Definition transf := transfer.
+Definition top := Dominators.top.
+Definition bot := Dominators.bot.
+Definition dt := DomDS.L.t.
 Variable entry: l.
 Variable entrypoints: list (atom * dt).
 
@@ -852,7 +803,7 @@ Hypothesis wf_entrypoints:
   | block_intro l0 _ _ _ :: _ => l0 = entry
   | _ => False
   end /\
-  exists v, [(entry, v)] = entrypoints /\ Dominators.eq _ v top.
+  exists v, [(entry, v)] = entrypoints /\ Dominators.eq v top.
 
 Hypothesis HwfF: wf_fdef S M (fdef_intro fh bs).
 Hypothesis HuniqF: uniqFdef (fdef_intro fh bs).
@@ -867,12 +818,12 @@ Definition non_sdomination (l1 l2:l) : Prop :=
 Definition non_sdomination_prop (res: AMap.t dt) : Prop :=
   forall l1 l2,
     vertexes_fdef (fdef_intro fh bs) (index l1) ->
-    ~ Dominators.member _ l1 res!!l2 ->
+    ~ Dominators.member l1 res!!l2 ->
     non_sdomination l1 l2.
 
 Lemma start_non_sdomination:
   non_sdomination_prop
-    (DomDS.st_in _ (DomDS.start_state _ (successors_blocks bs) entrypoints)).
+    (DomDS.st_in (DomDS.start_state (successors_blocks bs) entrypoints)).
 Proof.
   intros l1 l2 Hin Hnotin.
   destruct (eq_atom_dec l2 entry); try subst l2.
@@ -890,7 +841,7 @@ Proof.
     eapply EntryDomsOthers.dom_nonentry_start_state_in in n; eauto.
     contradict Hnotin.
     unfold DomDS.start_state. simpl.
-    apply Dominators.member_eq with (x2:=bot); auto.
+    apply Dominators.member_eq with (x2:=bot); simpl; auto.
 Qed.
 
 Lemma non_sdomination_refl : forall l1,
@@ -915,31 +866,31 @@ Qed.
 
 Lemma propagate_succ_non_sdomination: forall st p n out
   (Hinpds: In p predecessors!!!n)
-  (Hout: Dominators.ge _ (transf p st.(DomDS.st_in _)!!p) out)
-  (Hdom: non_sdomination_prop st.(DomDS.st_in _)),
-  non_sdomination_prop (DomDS.propagate_succ _ st out n).(DomDS.st_in _).
+  (Hout: Dominators.ge (transf p st.(DomDS.st_in)!!p) out)
+  (Hdom: non_sdomination_prop st.(DomDS.st_in)),
+  non_sdomination_prop (DomDS.propagate_succ st out n).(DomDS.st_in).
 Proof.
   unfold non_sdomination_prop. intros.
-  destruct (@DomDS.propagate_succ_spec _ st out n) as [J1 J2].
+  destruct (@DomDS.propagate_succ_spec st out n) as [J1 J2].
   destruct (eq_atom_dec n l2) as [Heq | Hneq]; subst.
   Case "n=l2".
-    destruct (Dominators.member_dec _ l1 (DomDS.st_in _ st) !! l2)
+    destruct (Dominators.member_dec l1 (DomDS.st_in st) !! l2)
       as [Hin12 | Hnotin12]; auto.
-    assert (~ Dominators.member bound l1
-      (DomDS.L.lub bound (DomDS.st_in bound st) !! l2 out)) as Hnotlub12.
+    assert (~ Dominators.member l1
+      (DomDS.L.lub (DomDS.st_in st) !! l2 out)) as Hnotlub12.
       intro J. apply H0.
       eapply Dominators.member_eq; eauto.
     clear J1 J2.
-    destruct (Dominators.member_dec _ l1 out) as [Hinout | Hnotout]; auto.
+    destruct (Dominators.member_dec l1 out) as [Hinout | Hnotout]; auto.
     SCase "l1 in out".
       contradict Hnotlub12. apply Dominators.lub_intro; auto.
     SCase "l1 notin out".
-      assert (~ Dominators.member _ l1 (transf p (DomDS.st_in bound st) !! p))
+      assert (~ Dominators.member l1 (transf p (DomDS.st_in st) !! p))
         as Hnotintransf.
         intro J. apply Hnotout.
         eapply Dominators.ge_elim in Hout; eauto.
       unfold transf, transfer in Hnotintransf.
-      assert (l1 <> p /\ ~ Dominators.member _ l1 (DomDS.st_in bound st)!!p)
+      assert (l1 <> p /\ ~ Dominators.member l1 (DomDS.st_in st)!!p)
         as J.
         split; intro J; subst; apply Hnotintransf.
           apply Dominators.add_member1; auto.
@@ -978,20 +929,20 @@ Qed.
 Lemma propagate_succ_list_non_sdomination_aux:
   forall p scs st out,
   (forall s, In s scs -> In p predecessors!!!s) ->
-  non_sdomination_prop st.(DomDS.st_in _) ->
-  Dominators.ge _ (transf p st.(DomDS.st_in _)!!p) out ->
-  non_sdomination_prop (DomDS.propagate_succ_list _ st out scs).(DomDS.st_in _).
+  non_sdomination_prop st.(DomDS.st_in) ->
+  Dominators.ge (transf p st.(DomDS.st_in)!!p) out ->
+  non_sdomination_prop (DomDS.propagate_succ_list st out scs).(DomDS.st_in).
 Proof.
   induction scs; simpl; intros; auto.
     apply IHscs; auto.
       eapply propagate_succ_non_sdomination; eauto.
-      apply Dominators.ge_trans with (y:=transf p (DomDS.st_in _ st) !! p);
+      apply Dominators.ge_trans with (y:=transf p (DomDS.st_in st) !! p);
         auto.
         eapply EntryDomsOthers.transf_mono; eauto.
-        destruct (@DomDS.propagate_succ_spec _ st out a) as [J1 J2].
+        destruct (@DomDS.propagate_succ_spec st out a) as [J1 J2].
         destruct (eq_atom_dec a p); subst.
           apply Dominators.ge_trans with
-            (y:=Dominators.lub _ (DomDS.st_in _ st) !! p out).
+            (y:=Dominators.lub (DomDS.st_in st) !! p out).
             apply Dominators.ge_refl; auto.
             apply Dominators.ge_lub_left.
           rewrite J2; auto.
@@ -1001,9 +952,9 @@ Qed.
 Lemma propagate_succ_list_non_sdomination:
   forall p scs st,
   (forall s, In s scs -> In p predecessors!!!s) ->
-  non_sdomination_prop st.(DomDS.st_in _) ->
-  non_sdomination_prop (DomDS.propagate_succ_list _ st
-    (transf p st.(DomDS.st_in _)!!p) scs).(DomDS.st_in _).
+  non_sdomination_prop st.(DomDS.st_in) ->
+  non_sdomination_prop (DomDS.propagate_succ_list st
+    (transf p st.(DomDS.st_in)!!p) scs).(DomDS.st_in).
 Proof.
   intros.
   eapply propagate_succ_list_non_sdomination_aux; eauto.
@@ -1012,12 +963,12 @@ Qed.
 
 Lemma step_non_sdomination:
   forall st n rem,
-  AtomNodeSet.pick st.(DomDS.st_wrk _) = Some(n, rem) ->
-  non_sdomination_prop st.(DomDS.st_in _) ->
-  non_sdomination_prop (DomDS.propagate_succ_list _
-                                 (DomDS.mkstate _ st.(DomDS.st_in _) rem)
-                                 (transf n st.(DomDS.st_in _)!!n)
-                                 ((successors_blocks bs)!!!n)).(DomDS.st_in _).
+  AtomNodeSet.pick st.(DomDS.st_wrk) = Some(n, rem) ->
+  non_sdomination_prop st.(DomDS.st_in) ->
+  non_sdomination_prop (DomDS.propagate_succ_list 
+                                 (DomDS.mkstate st.(DomDS.st_in) rem)
+                                 (transf n st.(DomDS.st_in)!!n)
+                                 ((successors_blocks bs)!!!n)).(DomDS.st_in).
 Proof.
   intros st n rem WKL GOOD.
   destruct st. simpl.
@@ -1026,14 +977,14 @@ Proof.
 Qed.
 
 Theorem dom_non_sdomination: forall res,
-  DomDS.fixpoint _ (successors_blocks bs) transf entrypoints = Some res ->
+  DomDS.fixpoint (successors_blocks bs) transf entrypoints = Some res ->
   non_sdomination_prop res.
 Proof.
   unfold DomDS.fixpoint. intros res PI. pattern res.
-  eapply (PrimIter.iterate_prop _ _ (DomDS.step _ _ _)
-    (fun st => non_sdomination_prop st.(DomDS.st_in _))); eauto.
+  eapply (PrimIter.iterate_prop _ _ (DomDS.step _ _)
+    (fun st => non_sdomination_prop st.(DomDS.st_in))); eauto.
     intros st GOOD. unfold DomDS.step.
-    caseEq (AtomNodeSet.pick st.(DomDS.st_wrk _)); auto.
+    caseEq (AtomNodeSet.pick st.(DomDS.st_wrk)); auto.
     intros [n rem] PICK. apply step_non_sdomination; auto.
 
     apply start_non_sdomination.
@@ -1114,12 +1065,11 @@ Variable S : system.
 Variable M : module.
 Variable fh : fheader.
 Variable bs : blocks.
-Definition bound := bound_blocks bs.
 Definition predecessors := XATree.make_predecessors (successors_blocks bs).
-Definition transf := transfer bound.
-Definition top := Dominators.top bound.
-Definition bot := Dominators.bot bound.
-Definition dt := DomDS.dt bound.
+Definition transf := transfer.
+Definition top := Dominators.top.
+Definition bot := Dominators.bot.
+Definition dt := DomDS.L.t.
 Variable entry: l.
 Variable entrypoints: list (atom * dt).
 
@@ -1129,18 +1079,18 @@ Hypothesis wf_entrypoints:
   | block_intro l0 _ _ _ :: _ => l0 = entry
   | _ => False
   end /\
-  exists v, [(entry, v)] = entrypoints /\ Dominators.eq _ v top.
+  exists v, [(entry, v)] = entrypoints /\ Dominators.eq v top.
 
 Hypothesis HwfF: wf_fdef S M (fdef_intro fh bs).
 Hypothesis HuniqF: uniqFdef (fdef_intro fh bs).
 
 Definition unrechable_doms (res: AMap.t dt) : Prop :=
   forall l0, ~ reachable (fdef_intro fh bs) l0 -> l0 <> entry ->
-  Dominators.eq _ res!!l0 bot.
+  Dominators.eq res!!l0 bot.
 
 Lemma start_unrechable_doms:
   unrechable_doms
-    (DomDS.st_in _ (DomDS.start_state _ (successors_blocks bs) entrypoints)).
+    (DomDS.st_in (DomDS.start_state (successors_blocks bs) entrypoints)).
 Proof.
   intros l0 Hunreach Heq.
   unfold DomDS.start_state. simpl.
@@ -1151,20 +1101,20 @@ Qed.
   the [step] function preserves it. *)
 
 Lemma propagate_succ_unrechable_doms: forall st n out,
-  (~ reachable (fdef_intro fh bs) n -> n <> entry -> Dominators.eq _ out bot) ->
-  unrechable_doms st.(DomDS.st_in _) ->
-  unrechable_doms (DomDS.propagate_succ _ st out n).(DomDS.st_in _).
+  (~ reachable (fdef_intro fh bs) n -> n <> entry -> Dominators.eq out bot) ->
+  unrechable_doms st.(DomDS.st_in) ->
+  unrechable_doms (DomDS.propagate_succ st out n).(DomDS.st_in).
 Proof.
   unfold unrechable_doms.
   intros.
-  destruct (@DomDS.propagate_succ_spec _ st out n) as [J1 J2].
+  destruct (@DomDS.propagate_succ_spec st out n) as [J1 J2].
   assert (H':=H1).
   apply H0 in H1; auto.
   destruct (eq_atom_dec n l0); subst.
     apply H in H'; auto.
     apply Dominators.eq_trans with
-      (y:=DomDS.L.lub bound (DomDS.st_in bound st) !! l0 out); auto.
-    apply Dominators.eq_trans with (y:=DomDS.L.lub _ bot bot); auto.
+      (y:=DomDS.L.lub (DomDS.st_in st) !! l0 out); auto.
+    apply Dominators.eq_trans with (y:=DomDS.L.lub bot bot); auto.
        apply Dominators.lub_compat_eq; auto.
        apply Dominators.eq_sym. apply Dominators.lub_refl.
 
@@ -1175,9 +1125,9 @@ Lemma propagate_succ_list_unrechable_doms:
   forall scs st out,
   (forall s, In s scs ->
              ~ reachable (fdef_intro fh bs) s -> s <> entry ->
-             Dominators.eq _ out bot) ->
-  unrechable_doms st.(DomDS.st_in _) ->
-  unrechable_doms (DomDS.propagate_succ_list _ st out scs).(DomDS.st_in _).
+             Dominators.eq out bot) ->
+  unrechable_doms st.(DomDS.st_in) ->
+  unrechable_doms (DomDS.propagate_succ_list st out scs).(DomDS.st_in).
 Proof.
   induction scs; simpl; intros; auto.
     apply IHscs.
@@ -1188,12 +1138,12 @@ Qed.
 
 Lemma step_unrechable_doms:
   forall st n rem,
-  AtomNodeSet.pick st.(DomDS.st_wrk _) = Some(n, rem) ->
-  unrechable_doms st.(DomDS.st_in _) ->
-  unrechable_doms (DomDS.propagate_succ_list _
-                                  (DomDS.mkstate _ st.(DomDS.st_in _) rem)
-                                  (transf n st.(DomDS.st_in _)!!n)
-                                  ((successors_blocks bs)!!!n)).(DomDS.st_in _).
+  AtomNodeSet.pick st.(DomDS.st_wrk) = Some(n, rem) ->
+  unrechable_doms st.(DomDS.st_in) ->
+  unrechable_doms (DomDS.propagate_succ_list 
+                                  (DomDS.mkstate st.(DomDS.st_in) rem)
+                                  (transf n st.(DomDS.st_in)!!n)
+                                  ((successors_blocks bs)!!!n)).(DomDS.st_in).
 Proof.
   intros st n rem WKL GOOD.
   destruct st. simpl.
@@ -1242,20 +1192,20 @@ Proof.
 
           match goal with | H5: getEntryBlock _ = _ |- _ => inv H5 end.
           eapply successor_in_arcs; eauto.
-      apply Dominators.eq_trans with (y:=Dominators.add _ (Dominators.bot _) n).
+      apply Dominators.eq_trans with (y:=Dominators.add (Dominators.bot) n).
         apply Dominators.add_eq; auto.
         apply Dominators.add_bot.
 Qed.
 
 Theorem dom_unrechable_doms: forall res,
-  DomDS.fixpoint _ (successors_blocks bs) transf entrypoints = Some res ->
+  DomDS.fixpoint (successors_blocks bs) transf entrypoints = Some res ->
   unrechable_doms res.
 Proof.
   unfold DomDS.fixpoint. intros res PI. pattern res.
-  eapply (PrimIter.iterate_prop _ _ (DomDS.step _ _ _)
-    (fun st => unrechable_doms st.(DomDS.st_in _))); eauto.
+  eapply (PrimIter.iterate_prop _ _ (DomDS.step _ _)
+    (fun st => unrechable_doms st.(DomDS.st_in))); eauto.
   intros st GOOD. unfold DomDS.step.
-  caseEq (AtomNodeSet.pick st.(DomDS.st_wrk _)); auto.
+  caseEq (AtomNodeSet.pick st.(DomDS.st_wrk)); auto.
   intros [n rem] PICK.
   apply step_unrechable_doms; auto.
     apply start_unrechable_doms.
@@ -1270,47 +1220,38 @@ Lemma dom_unreachable: forall
   (HwfF : wf_fdef S M f) (HuniqF: uniqFdef f)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hunreach: ~ reachable f l3)
-  (Hnempty: DomDS.L.bs_contents _ ((dom_analyze f) !! l3) <> nil),
-  DomDS.L.eq _ ((dom_analyze f) !! l3) (DomDS.L.bot _).
+  (Hnempty: dom_query f l3 <> nil),
+  DomDS.L.eq ((dom_analyze f) !! l3) (DomDS.L.bot).
 Proof.
   intros.
   assert (HwfF':=HwfF). inv HwfF'.
   destruct block5 as [l0 p c t].
-  rename blocks5 into bs.
+  rename blocks5 into bs. 
+(*
   match goal with | H1: getEntryBlock _ = _ |- _ => assert (J:=H1) end.
   destruct bs; inv J.
+*)
   match goal with | H1: getEntryBlock _ = _ |- _ =>
-    apply dom_entrypoint in H1 end.
+    assert (J:=H1); apply dom_entrypoint in H1 end.
   destruct (id_dec l3 l0); subst.
-    match goal with
-    | H1: Dominators.bs_contents _ _ = _ |- _ =>
-      rewrite H1 in Hnempty; congruence
-    end.
+    congruence.
 
     clear H.
-    unfold dom_analyze in *.
-    remember (entry_dom (block_intro l0 p c t :: bs)) as R.
-    destruct R as [R Hp].
-    destruct R as [[le start] | ]; tinv Hp.
-    destruct start; tinv Hp.
-    destruct bs_contents; tinv Hp. inv HeqR.
-    remember (DomDS.fixpoint (bound_blocks (block_intro l0 p c t :: bs))
-                  (successors_blocks (block_intro l0 p c t :: bs))
-                  (transfer (bound_blocks (block_intro l0 p c t :: bs)))
-                  ((l0,
-                   {|
-                   DomDS.L.bs_contents := nil;
-                   DomDS.L.bs_bound := bs_bound |}) :: nil)) as R.
+    unfold dom_query, dom_analyze in *.
+    match goal with | H1: getEntryBlock _ = _ |- _ => rewrite H1 in * end.
+    remember (DomDS.fixpoint 
+                  (successors_blocks bs)
+                  transfer
+                  ((l0, Dominators.top) :: nil)) as R.
     destruct R.
       symmetry in HeqR.
       eapply UnreachableDoms.dom_unrechable_doms with (entry:=l0) in HeqR;
         eauto.
         split.
-           remember ((DomComplete.predecessors (block_intro l0 p c t :: bs))
-             !!! l0) as R.
+           remember ((DomComplete.predecessors bs) !!! l0) as R.
            destruct R as [|a]; auto.
-           assert (In a (DomComplete.predecessors (block_intro l0 p c t :: bs))
-             !!! l0) as Hin. rewrite <- HeqR0. simpl; auto.
+           assert (In a (DomComplete.predecessors bs) !!! l0) as Hin. 
+           rewrite <- HeqR0. simpl; auto.
            unfold DomComplete.predecessors in Hin.
            apply XATree.make_predecessors_correct' in Hin.
            apply successors_blocks__blockInFdefB with (fh:=fheader5) in Hin.
@@ -1318,17 +1259,15 @@ Proof.
            eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.
            congruence.
 
-        split; auto.
-               exists {| DomDS.L.bs_contents := nil;
-                         DomDS.L.bs_bound := bs_bound |}.
-               split; auto. simpl. apply set_eq_refl.
+        split.
+          simpl in J.
+          destruct bs; uniq_result; auto.
+
+          exists Dominators.top. 
+          split; auto. simpl. apply set_eq_refl.
 
       simpl in Hnempty.
-      destruct (id_dec l0 l3); subst.
-        rewrite AMap.gss in *. simpl in *. congruence.
-        rewrite AMap.gso; auto. rewrite AMap.gso in Hnempty; auto.
-        rewrite AMap.gi in *; auto. simpl in *. unfold ListSet.empty_set in *.
-        congruence.
+      rewrite AMap.gi in *. simpl in *. congruence.
 Qed.
 
 Definition domination (f:fdef) (l1 l2:l) : Prop :=
@@ -1351,84 +1290,78 @@ Lemma sdom_is_complete: forall
   (HBinF' : blockInFdefB (block_intro l' ps' cs' tmn') f = true)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hsdom: strict_domination f l' l3)
-  (Hnempty: DomDS.L.bs_contents _ ((dom_analyze f) !! l3) <> nil),
-  In l' (DomDS.L.bs_contents _ ((dom_analyze f) !! l3)).
+  (Hnempty: dom_query f l3 <> nil),
+  In l' (dom_query f l3).
 Proof.
-  intros. unfold dom_analyze in *. destruct f as [fh bs].
-  remember (entry_dom bs) as R.
-  destruct R as [R Hp].
-  destruct R as [[le start] | ].
-    destruct start; tinv Hp.
-    destruct bs_contents; tinv Hp.
-    destruct bs as [|b ?]; tinv HeqR.
-    destruct b as [l0 p c t]; inv HeqR.
-    remember (DomDS.fixpoint (bound_blocks (block_intro l0 p c t :: bs))
-                  (successors_blocks (block_intro l0 p c t :: bs))
-                  (transfer (bound_blocks (block_intro l0 p c t :: bs)))
-                  ((l0,
-                   {|
-                   DomDS.L.bs_contents := nil;
-                   DomDS.L.bs_bound := bs_bound |}) :: nil)) as R.
+  intros. unfold dom_query, dom_analyze in *. destruct f as [fh bs].
+  remember (getEntryBlock (fdef_intro fh bs)) as R.
+  destruct R as [[le ? ? ?] | ].
+  Case "1".
+    remember (DomDS.fixpoint 
+                  (successors_blocks bs)
+                  transfer
+                  ((le, Dominators.top) :: nil)) as R.
     destruct R.
-      symmetry in HeqR.
-      eapply DomComplete.dom_non_sdomination with (entry:=l0) in HeqR; eauto.
+    SCase "1".
+      symmetry in HeqR0.
+      eapply DomComplete.dom_non_sdomination with (entry:=le) in HeqR0; eauto.
+      SSCase "1".
         Focus.
-        unfold DomComplete.non_sdomination_prop in HeqR.
-        destruct (in_dec eq_atom_dec l'
-          (DomDS.L.bs_contents
-            (bound_fdef (fdef_intro fh (block_intro l0 p c t :: bs)))
-            t0 !! l3)); auto.
-        assert (vertexes_fdef (fdef_intro fh (block_intro l0 p c t :: bs))
-           (index l')) as J.
+        unfold DomComplete.non_sdomination_prop in HeqR0.
+        assert (vertexes_fdef (fdef_intro fh bs) (index l')) as J.
           apply blockInFdefB_in_vertexes in HBinF'; auto.
-        apply HeqR with (l2:=l3) in J.
-          unfold DomComplete.non_sdomination in J.
-          destruct J as [vl [al [J1 J2]]].
-          unfold strict_domination in Hsdom.
-          destruct Hsdom as [Hdom Hneq].
-          unfold domination in Hdom.
-          simpl in Hdom.
-          apply Hdom in J1.
-          destruct J1; subst; congruence.
+        destruct (Dominators.member_dec l' (t!!l3)).
+        SSSCase "1".
+          unfold Dominators.member in H.
+          destruct (t!!l3); auto.
 
-          unfold Dominators.member.
-          unfold DomComplete.dt. unfold DomComplete.bound.
-          destruct (t0!!l3). simpl in *; auto.
+        SSSCase "2".
+          apply HeqR0 with (l2:=l3) in J; auto.
+            unfold DomComplete.non_sdomination in J.
+            destruct J as [vl [al [J1 J2]]].
+            unfold strict_domination in Hsdom.
+            destruct Hsdom as [Hdom Hneq].
+            unfold domination in Hdom.
+            simpl in Hdom.
+            destruct bs as [|[]]; inv HeqR.
+            apply Hdom in J1.
+            destruct J1; subst; congruence.
         Unfocus.
 
+      SSCase "2".
         assert (HwfF':=HwfF). inv HwfF'.
         split.
-           remember ((DomComplete.predecessors (block_intro l0 p c t :: bs))
-             !!! l0) as R.
+           remember ((DomComplete.predecessors bs) !!! le) as R.
            destruct R as [|a]; auto.
-           assert (In a (DomComplete.predecessors (block_intro l0 p c t :: bs))
-             !!! l0) as Hin. rewrite <- HeqR0. simpl; auto.
+           assert (In a (DomComplete.predecessors bs) !!! le) as Hin. 
+             rewrite <- HeqR1. simpl; auto.
            unfold DomComplete.predecessors in Hin.
            apply XATree.make_predecessors_correct' in Hin.
            apply successors_blocks__blockInFdefB with (fh:=fh) in Hin.
            destruct Hin as [ps0 [cs0 [tmn0 [J1 J2]]]].
-           eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.
+           eapply getEntryBlock_inv with (l3:=a)(a:=le) in J2; simpl; eauto.
            congruence.
 
-        split; auto.
-               exists {| DomDS.L.bs_contents := nil; DomDS.L.bs_bound := bs_bound |}.
-               split; auto. simpl. apply set_eq_refl.
+        split.
+          destruct bs as [|[]]; inv HeqR; auto.
 
-      simpl in Hnempty.
-      destruct (id_dec l0 l3); subst.
-        rewrite AMap.gss in *. simpl in *. auto.
-        rewrite AMap.gso in *; auto. rewrite AMap.gi in *; auto.
-        simpl in *. auto.
+          exists Dominators.top.
+          split; auto. simpl. apply set_eq_refl.
 
-    subst. inv HBinF.
+    SCase "2".
+      rewrite AMap.gi in Hnempty. simpl in Hnempty. 
+      contradict Hnempty. auto.
+
+  Case "2".
+    rewrite AMap.gi in Hnempty. simpl in Hnempty. 
+    contradict Hnempty. auto.
 Qed.
 
 Lemma dom_is_sound : forall
   S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
   (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin :
-    In l' (l3::(DomDS.L.bs_contents _ ((dom_analyze f) !! l3)))),
+  (Hin : In l' (l3::(dom_query f l3))),
   domination f l' l3.
 Proof.
   unfold domination, strict_domination.
@@ -1463,18 +1396,14 @@ Proof.
       In l3 (successors_terminator tmn0)) as J.
       eapply successors__blockInFdefB; eauto.
     destruct J as [ps0 [cs0 [tmn0 [HBinF'' Hinsucc]]]].
-    remember ((dom_analyze (fdef_intro fh bs)) !! a0) as R.
-    destruct R as [bs_contents bs_bounds].
+    remember ((dom_analyze (fdef_intro fh bs)) !! a0) as R0.
     destruct (id_dec l' l3); subst; auto.
     left.
     assert (In l'
-      (a0 :: DomDS.L.bs_contents (bound_fdef (fdef_intro fh bs))
-                (dom_analyze (fdef_intro fh bs)) !! a0)) as J.
-      remember ((dom_analyze (fdef_intro fh bs)) !! l3) as R.
-      destruct R.
-      assert (incl bs_contents0 (a0 :: bs_contents)) as Hinc.
+      (a0 :: (dom_query (fdef_intro fh bs) a0))) as J.
+      assert (incl (dom_query (fdef_intro fh bs) l3)
+                   (a0 :: (dom_query (fdef_intro fh bs) a0))) as Hinc.
         eapply dom_successors; eauto.
-      rewrite <- HeqR0. simpl.
       simpl in Hin. destruct Hin; try congruence.
       apply Hinc; auto.
     eapply IHHreach in J; eauto.
@@ -1486,8 +1415,7 @@ Lemma sdom_is_sound : forall
   S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
   (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f) (Hreach : reachable f l3)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin :
-    In l' (DomDS.L.bs_contents _ ((dom_analyze f) !! l3))),
+  (Hin : In l' (dom_query f l3)),
   strict_domination f l' l3.
 Proof.
   intros.
@@ -1513,16 +1441,10 @@ Proof.
       In l3 (successors_terminator tmn0)) as J.
       eapply successors__blockInFdefB; eauto.
     destruct J as [ps0 [cs0 [tmn0 [HBinF' Hinsucc]]]].
-    remember ((dom_analyze f) !! a0) as R.
-    destruct R as [bs_contents bs_bounds].
-    assert (In l3
-      (a0 :: DomDS.L.bs_contents (bound_fdef f)
-                (dom_analyze f) !! a0)) as J.
-      remember ((dom_analyze f) !! l3) as R.
-      destruct R.
-      assert (incl bs_contents0 (a0 :: bs_contents)) as Hinc.
+    remember ((dom_analyze f) !! a0) as R0.
+   assert (In l3 (a0 :: (dom_query f a0))) as J.
+      assert (incl (dom_query f l3) (a0 :: (dom_query f a0))) as Hinc.
         destruct f. eapply dom_successors; eauto.
-      rewrite <- HeqR0. simpl.
       simpl in Hin.
       apply Hinc; auto.
     eapply dom_is_sound in J; eauto.
@@ -1539,7 +1461,7 @@ Lemma sdom_isnt_refl : forall
   S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
   (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f) (Hreach : reachable f l3)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin : In l' (DomDS.L.bs_contents _ ((dom_analyze f) !! l3))),
+  (Hin : In l' (dom_query f l3)),
   l' <> l3.
 Proof.
   intros.
@@ -1554,11 +1476,8 @@ Lemma blockStrictDominates_isnt_refl : forall S M F1 block'
 Proof.
   intros. destruct block' as [l0 ? ? ?].
   unfold blockStrictDominates. intro J.
-  remember ((dom_analyze F1) !! l0) as R.
-  destruct R.
   simpl in Hreach.
   eapply sdom_isnt_refl in Hreach; eauto.
-  rewrite <- HeqR. simpl. auto.
 Qed.
 
 Lemma dom_tran: forall (f:fdef) (l1 l2 l3:l),
@@ -1814,8 +1733,8 @@ Lemma adom_acyclic: forall l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2 S M F,
   reachable F l2 ->
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true ->
   blockInFdefB (block_intro l2 ps2 cs2 tmn2) F = true ->
-  In l1 (DomDS.L.bs_contents (bound_fdef F) ((dom_analyze F) !! l2)) ->
-  In l2 (DomDS.L.bs_contents (bound_fdef F) ((dom_analyze F) !! l1)) ->
+  In l1 (dom_query F l2) ->
+  In l2 (dom_query F l1) ->
   l1 <> l2 ->
   False.
 Proof.
@@ -1840,34 +1759,27 @@ Lemma blockStrictDominates_trans : forall S M f b1 b2 b3
 Proof.
   unfold blockStrictDominates.
   intros. destruct b1 as [l0 ? ? ?], b2 as [l1 ? ? ?], b3 as [l2 ? ? ?].
-  remember (Maps.AMap.get l1 (dom_analyze f)) as R1.
-  remember (Maps.AMap.get l2 (dom_analyze f)) as R2.
-  destruct R1. destruct R2.
   destruct (reachable_dec f l2).
+  Case "1".
     assert (strict_domination f l1 l2) as Hsdom23.
       eapply sdom_is_sound; eauto.
-        rewrite <- HeqR2. simpl. auto.
     assert (reachable f l1) as Hreach1.
       apply sdom_reachable in Hsdom23; auto.
     assert (strict_domination f l0 l1) as Hsdom12.
       eapply sdom_is_sound; eauto.
-        rewrite <- HeqR1. simpl. auto.
     assert (strict_domination f l0 l2) as Hsdom13.
       eapply sdom_tran with (l2:=l1); eauto.
     eapply sdom_is_complete in Hsdom13; eauto.
-      rewrite <- HeqR2 in Hsdom13. simpl in *. auto.
+      intro J. rewrite J in H2. inv H2.
 
-      rewrite <- HeqR2. simpl.
-      destruct bs_contents0; auto.
-        intro J. inv J.
-
+  Case "2".
     eapply dom_unreachable in H; eauto.
-      rewrite <- HeqR2 in H. simpl in H.
-      destruct H. apply H0.
+      unfold dom_query. 
+      destruct ((dom_analyze f) !! l2); inv H.
       apply blockInFdefB_in_vertexes in HBinF1.
       unfold vertexes_fdef in HBinF1. auto.
 
-      rewrite <- HeqR2. simpl. intro J. subst. inv H2.
+      intro J. rewrite J in H2. inv H2.
 Qed.
 
 Lemma blockDominates_trans : forall S M f b1 b2 b3
@@ -1881,43 +1793,32 @@ Lemma blockDominates_trans : forall S M f b1 b2 b3
 Proof.
   unfold blockDominates.
   intros. destruct b1 as [l0 ? ? ?], b2 as [l1 ? ? ?], b3 as [l2 ? ? ?].
-  remember (Maps.AMap.get l1 (dom_analyze f)) as R1.
-  remember (Maps.AMap.get l2 (dom_analyze f)) as R2.
-  destruct R1. destruct R2.
   destruct (l_dec l0 l2); auto.
   destruct H2 as [H2 | H2]; subst; auto.
   Case "l1 in sdom(l2)".
     left.
     assert (domination f l1 l2) as Hdom23.
       eapply dom_is_sound; eauto.
-        rewrite <- HeqR2. simpl. auto.
+        simpl. auto.
     destruct H1 as [H1 | H1]; subst.
     SCase "l0 in sdom(l1)".
       assert (domination f l0 l1) as Hdom12.
         eapply dom_is_sound; eauto.
-          rewrite <- HeqR1. simpl. auto.
+          simpl. auto.
       assert (strict_domination f l0 l2) as Hsdom13.
         split; auto.
           eapply dom_tran; eauto.
       eapply sdom_is_complete in Hsdom13; eauto.
-        rewrite <- HeqR2 in Hsdom13. simpl in *. auto.
-
-        rewrite <- HeqR2. simpl.
-        destruct bs_contents0; auto.
-          intro J. inv J.
+        intro J. rewrite J in H2. inv H2.
 
     SCase "l0=l1".
       assert (strict_domination f l1 l2) as Hsdom12.
         split; auto.
       eapply sdom_is_complete in Hsdom12; eauto.
-        rewrite <- HeqR2. simpl.
-        destruct bs_contents0; auto.
-          intro J. inv J.
-
-  Case "l1=l2".
-    rewrite <- HeqR2 in HeqR1. inv HeqR1; auto.
+        intro J. rewrite J in H2. inv H2.
 Qed.
 
+(*
 Module AnotherDominators.
 
 Definition domination (f:fdef) (l1 l2:l) : Prop :=
@@ -2567,6 +2468,7 @@ Proof.
     rewrite <- HeqR2 in HeqR1. inv HeqR1; auto.
 Qed.
 End AnotherDominators.
+*)
 
 Lemma wf_insn__wf_value: forall S m F B instr v
   (Hwfi: wf_insn S m F B instr)
@@ -2843,9 +2745,7 @@ Lemma block_in_scope__strict: forall (l' : l) (ps' : phinodes) (cs' : cmds)
   (Hreach' : isReachableFromEntry F (block_intro l' ps' cs' tmn')) s m
   (HwfF : wf_fdef s m F) (HuniqF : uniqFdef F)
   (contents' : ListSet.set atom)
-  (inbound' : incl contents' (bound_fdef F))
-  (Heqdefs' : {| DomDS.L.bs_contents := contents';
-                 DomDS.L.bs_bound := inbound' |} = (dom_analyze F) !! l')
+  (Heqdefs' : contents' = dom_query F l')
   (l0 : l) (Hindom' : In l0 contents')
   (HbInF' : blockInFdefB (block_intro l' ps' cs' tmn') F = true),
   l0 <> l'.
@@ -2969,8 +2869,6 @@ Lemma in_getArgsIDsOfFdef__inscope_of_tmn: forall defs f b tmn id1
 Proof.
   intros. destruct b as [l1 ? ? ?].
   unfold inscope_of_tmn in Hinscope.
-  remember ((dom_analyze f) !! l1) as R.
-  destruct R.
   apply fold_left__spec in Hinscope.
   destruct Hinscope as [Hinscope _].
   apply Hinscope. solve_in_list.
@@ -2991,8 +2889,6 @@ Lemma in_getArgsIDsOfFdef__inscope_of_id: forall defs f b id0 id1
 Proof.
   intros. destruct b as [l1 ? ? ?].
   unfold inscope_of_id in Hinscope.
-  remember ((dom_analyze f) !! l1) as R.
-  destruct R.
   apply fold_left__spec in Hinscope.
   destruct Hinscope as [Hinscope _].
   apply Hinscope. apply in_getArgsIDsOfFdef__init_scope; auto.
@@ -3004,8 +2900,6 @@ Lemma in_getArgsIDsOfFdef__inscope_of_cmd: forall defs f b c id1
 Proof.
   intros. destruct b as [l1 ? ? ?].
   unfold inscope_of_cmd, inscope_of_id in Hinscope.
-  remember ((dom_analyze f) !! l1) as R.
-  destruct R.
   apply fold_left__spec in Hinscope.
   destruct Hinscope as [Hinscope _].
   apply Hinscope. apply in_getArgsIDsOfFdef__init_scope; auto.
@@ -3016,9 +2910,8 @@ Lemma operands_of_cmd__cannot_be__phis_that_cmd_doms: forall (l' : l)
   (Hreach' : isReachableFromEntry F (block_intro l' ps' cs' tmn')) s m
   (Hlkup : ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l')
   (ids0' : list atom) (HwfF : wf_fdef s m F) (contents' : ListSet.set atom)
-  (inbound' : incl contents' (bound_fdef F)) (Huniq: uniqFdef F)
-  (Heqdefs' : {| DomDS.L.bs_contents := contents';
-                 DomDS.L.bs_bound := inbound' |} = (dom_analyze F) !! l')
+  (Huniq: uniqFdef F)
+  (Heqdefs' : contents' = dom_query F l')
   (Hinscope : fold_left (inscope_of_block F l') contents'
                (ret (getPhiNodesIDs ps' ++ getArgsIDsOfFdef F)) = ret ids0')
   (id1 : atom) (Hid1 : In id1 ids0')
@@ -3053,7 +2946,7 @@ Proof.
       solve_in_list.
   subst.
   destruct b1 as [l0 p c t0].
-  assert (In l0 contents') as Hindom'.
+  assert (In l0 (dom_query F l')) as Hindom'.
     eapply cmd_in_scope__block_in_scope; eauto.
   assert (blockInFdefB (block_intro l' ps' cs' tmn') F = true)as HbInF'.
     symmetry in Hlkup.
@@ -3063,11 +2956,9 @@ Proof.
     eapply block_in_scope__strict; eauto.
   assert (blockInFdefB (block_intro l0 p c t0) F = true)as HbInF0.
     eauto using insnInFdefBlockB__blockInFdefB.
-  assert (In l' (DomDS.L.bs_contents (bound_fdef F)
-    ((dom_analyze F) !! l0))) as Hindom.
+  assert (In l' (dom_query F l0)) as Hindom.
     eapply domination__block_in_scope; eauto.
   eapply adom_acyclic in Hindom; eauto.
-  rewrite <- Heqdefs'. simpl. auto.
   Case "i0 is args".
     assert (blockInFdefB (block_intro l' ps' cs' tmn') F = true) as HBinF.
       solve_blockInFdefB.
@@ -3098,10 +2989,7 @@ Lemma strict_operands__in_scope: forall f (l1 : l) (ps1 : phinodes)
   (cs1 : cmds) (tmn1 : terminator) (defs : list atom) (id1 : id)
   (Hreach : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
   (bs_contents : ListSet.set atom)
-  (bs_bound : incl bs_contents (bound_fdef f))
-  (HeqR : {|
-         DomDS.L.bs_contents := bs_contents;
-         DomDS.L.bs_bound := bs_bound |} = (dom_analyze f) !! l1)
+  (HeqR : bs_contents = dom_query f l1)
   (Hinscope : forall (l2 : atom) (b1 : block),
              In l2 (ListSet.set_diff eq_atom_dec bs_contents [l1]) ->
              lookupBlockViaLabelFromFdef f l2 = ret b1 ->
@@ -3155,9 +3043,6 @@ Proof.
   Case "id1 isnt args".
   unfold inscope_of_tmn in Hinscope.
   destruct f as [[fa ty fid la va] bs].
-  remember ((dom_analyze (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l1)
-    as R.
-  destruct R.
   symmetry in Hinscope.
   apply fold_left__spec in Hinscope.
   match goal with
@@ -3195,8 +3080,6 @@ Proof.
   Case "id1 isnt args".
   unfold inscope_of_cmd, inscope_of_id in Hinscope.
   destruct b. destruct f as [[f t0 i0 a v] b].
-  remember ((dom_analyze (fdef_intro (fheader_intro f t0 i0 a v) b)) !! l5) as R.
-  destruct R.
   symmetry in Hinscope.
   assert (~ In (getCmdLoc c) (getPhiNodesIDs phinodes5)) as Hnotin.
     simpl in Hnodup.
@@ -3366,12 +3249,11 @@ Lemma l1_strict_in_scope_of_l2__l1_blockDominates_l2: forall (ids1 : list atom)
   (F1 : fdef) (l3 : l) (ps1 : phinodes) (cs : list cmd) (tmn1 : terminator)
   (c : cmd) (HBinF1 : blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true) s m
   (HwfF1 : wf_fdef s m F1) (Huniq: uniqFdef F1) (bs_contents : ListSet.set atom)
-  (bs_bound : incl bs_contents (bound_fdef F1)) (c1 : cmd)
+  (c1 : cmd)
   (Hin : In (getCmdLoc c1) ids1) (l0 : l) (p : phinodes) (c0 : cmds)
   (t : terminator)
   (H0 : insnInFdefBlockB (insn_cmd c1) F1 (block_intro l0 p c0 t) = true)
-  (HeqR : {| DomDS.L.bs_contents := bs_contents;
-             DomDS.L.bs_bound := bs_bound |} = (dom_analyze F1) !! l3)
+  (HeqR : bs_contents = dom_query F1 l3)
   init (Heq: init = getArgsIDsOfFdef F1)
   (HInscope : ret ids1 =
               fold_left (inscope_of_block F1 l3) bs_contents
@@ -3463,8 +3345,6 @@ Proof.
     eapply NoDup_disjoint in HBinF2; eauto.
     simpl in HcInB. solve_in_list.
   rewrite init_scope_spec1 in HInscope; auto.
-  remember ((dom_analyze F1) !! l1) as R.
-  destruct R.
   assert (block' = block_intro l3 ps1 cs tmn1) as RQ.
     symmetry.
     eapply lookupBlockViaIDFromFdef__lookupBlockViaLabelFromFdef__eq; eauto.
@@ -3504,26 +3384,21 @@ Proof.
     assert (l0 <> l3) as Hneq.
       match goal with
       | H6: blockStrictDominates _ _ _ |- _ => simpl in H6 end.
-      remember ((dom_analyze F1) !! l0) as R.
-      destruct R.
       simpl in Hreach'. apply insnInFdefBlockB__blockInFdefB in H.
       eapply sdom_isnt_refl with (l':=l3) in Hreach'; eauto.
-        rewrite <- HeqR0. simpl. auto.
 
-    assert (In l0 bs_contents) as Hindom'.
-      clear - H0 HeqR HInscope Hin Hneq HBinF1 HwfF1 Huniq. destruct F1 as [[]].
+    assert (In l0 (dom_query F1 l3)) as Hindom'.
+      clear - H0 HInscope Hin Hneq HBinF1 HwfF1 Huniq. destruct F1 as [[]].
       eapply l1_strict_in_scope_of_l2__l1_blockDominates_l2 in HInscope; eauto.
 
-    assert (In l3 (DomDS.L.bs_contents (bound_fdef F1)
-           ((dom_analyze F1) !! l0))) as Hindom.
+    assert (In l3 (dom_query F1 l0)) as Hindom.
       match goal with
       | H6: blockStrictDominates _ _ _ |- _ =>
         clear - H6; unfold blockStrictDominates in H6
       end.
-      destruct ((dom_analyze F1) !! l0). simpl. auto.
+      auto.
     apply insnInFdefBlockB__blockInFdefB in H0.
     eapply adom_acyclic in Hindom; eauto.
-    rewrite <- HeqR. simpl. auto.
   Case "id1 is args".
     contradict H6.
     replace (getCmdLoc c) with (getInsnLoc (insn_cmd c)); auto.
@@ -3563,9 +3438,6 @@ Proof.
   destruct vb.
   unfold inscope_of_tmn in HeqR.
   destruct f as [[fa ty fid la va] bs].
-  remember ((dom_analyze
-    (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l1) as R1.
-  destruct R1.
   symmetry in HeqR.
   apply fold_left__spec in HeqR.
   destruct (eq_atom_dec l5 l1); subst.
@@ -3584,7 +3456,8 @@ Proof.
 
   SCase "l5<>l1".
     destruct J3 as [J3 | Heq]; subst; try congruence.
-    assert (In l5 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as G.
+    assert (In l5 (ListSet.set_diff eq_atom_dec 
+       (dom_query (fdef_intro (fheader_intro fa ty fid la va) bs) l1) [l1])) as G.
       apply ListSet.set_diff_intro; auto.
         simpl. intro JJ. destruct JJ as [JJ | JJ]; auto.
     assert (
@@ -3606,17 +3479,13 @@ Lemma inscope_of_block_inscope_of_block__inscope_of_block: forall (f : fdef)
   (t : list atom) (l1 : l) (ps1 : phinodes) (cs1 : cmds) s m
   (tmn1 : terminator) id1 (id2 : id) (HwfF : wf_fdef s m f)
   (bs_contents : ListSet.set atom) (Huniq: uniqFdef f)
-  (bs_bound : incl bs_contents (bound_fdef f))
-  (HeqR3 : {| DomDS.L.bs_contents := bs_contents;
-              DomDS.L.bs_bound := bs_bound |} = (dom_analyze f) !! l1)
+  (HeqR3 : bs_contents = dom_query f l1)
   (Hreach : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
   (HbInF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
   (l2 : l) (p : phinodes) (c2 : cmds) (t0 : terminator)
   (HeqR1 : ret block_intro l2 p c2 t0 = lookupBlockViaIDFromFdef f id2)
   (bs_contents0 : ListSet.set atom)
-  (bs_bound0 : incl bs_contents0 (bound_fdef f))
-  (HeqR4 : {| DomDS.L.bs_contents := bs_contents0;
-              DomDS.L.bs_bound := bs_bound0 |} = (dom_analyze f) !! l2)
+  (HeqR4 : bs_contents0 = dom_query f l2)
   (b1 : block) (l1' : atom)
   (J10 : In l1' (ListSet.set_diff eq_atom_dec bs_contents0 [l2]))
   (J11 : lookupBlockViaLabelFromFdef f l1' = ret b1)
@@ -3640,11 +3509,11 @@ Proof.
   destruct J11 as [Heq J11]; subst.
   assert (blockStrictDominates f (block_intro l3 p0 c3 t1)
                                  (block_intro l2 p c2 t0)) as Hdom.
-    clear - J10 HeqR4 HwfF. simpl. rewrite <- HeqR4.
+    clear - J10 HwfF. simpl. 
     apply ListSet.set_diff_elim1 in J10; auto.
   assert (blockStrictDominates f (block_intro l2 p c2 t0)
                 (block_intro l1 ps1 cs1 tmn1)) as Hdom'.
-    clear - J13 HeqR3 HwfF. simpl. rewrite <- HeqR3.
+    clear - J13 HwfF. simpl. 
     apply ListSet.set_diff_elim1 in J13; auto.
   assert (blockStrictDominates f (block_intro l3 p0 c3 t1)
                 (block_intro l1 ps1 cs1 tmn1)) as Hdom''.
@@ -3659,7 +3528,7 @@ Proof.
     eapply blockStrictDominates_isnt_refl in Hreach;
       try solve [eauto | contradict Hdom''; auto].
 
-    simpl in Hdom''. rewrite <- HeqR3 in Hdom''.
+    simpl in Hdom''. 
     apply fold_left__intro with (l2:=l3)(B:=block_intro l3 p0 c3 t1)
       in HeqR'; auto.
       apply ListSet.set_diff_intro; auto.
@@ -3692,12 +3561,6 @@ Proof.
   destruct R; tinv J1.
   unfold inscope_of_id in HeqR2.
   destruct b. destruct f as [[fa ty fid la va] bs].
-  remember ((dom_analyze
-    (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l1) as R1.
-  remember ((dom_analyze
-    (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l5) as R2.
-  destruct R1, R2.
-
   assert (~ In (getCmdLoc c) (getPhiNodesIDs ps1)) as Hnotin.
     apply uniqFdef__uniqBlockLocs in HbInF; auto.
     simpl in HbInF.
@@ -3735,14 +3598,12 @@ Proof.
   Case "2".
     destruct Hid2InScope as [J12 | [b2 [l2' [J13 [J14 J15]]]]].
     SCase "2.1".
-      clear - HeqR1 HbInF Huniq HeqR' J12 J10 J11 J11' HeqR3 HeqR4 Hnotin1.
-      eapply inscope_of_block_cmds_dominates_cmd__inscope_of_cmd
-        with (bs_bound:=bs_bound); eauto.
+      clear - HeqR1 HbInF Huniq HeqR' J12 J10 J11 J11' Hnotin1.
+      eapply inscope_of_block_cmds_dominates_cmd__inscope_of_cmd; eauto.
         solve_in_list.
    SCase "2.2".
-      clear - HwfF HeqR1 J14 J15 J11 J13 HeqR4 HeqR3 J10 Hreach HbInF HeqR' J11' Huniq.
-      eapply inscope_of_block_inscope_of_block__inscope_of_block
-        with (bs_bound:=bs_bound); eauto.
+      clear - HwfF HeqR1 J14 J15 J11 J13 J10 Hreach HbInF HeqR' J11' Huniq.
+      eapply inscope_of_block_inscope_of_block__inscope_of_block; eauto.
 Qed.
 
 Lemma idDominates_inscope_of_tmn__inscope_of_tmn: forall (f : fdef)
@@ -3768,11 +3629,6 @@ Proof.
   destruct R; tinv J1.
   unfold inscope_of_id in HeqR2.
   destruct b. destruct f as [[fa ty fid la va] bs].
-  remember ((dom_analyze
-    (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l1) as R1.
-  remember ((dom_analyze
-    (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l5) as R2.
-  destruct R1, R2.
   assert (HeqR':=HeqR).
   apply fold_left__spec in HeqR.
   symmetry in HeqR2.
@@ -3801,12 +3657,10 @@ Proof.
   Case "2".
     destruct Hid2InScope as [J12 | [b2 [l2' [J13 [J14 J15]]]]].
     SCase "2.1".
-      eapply inscope_of_block_cmds_dominates_cmd__inscope_of_tmn
-        with (bs_contents:=bs_contents); eauto.
+      eapply inscope_of_block_cmds_dominates_cmd__inscope_of_tmn; eauto.
         solve_in_list.
     SCase "2.2".
-      eapply inscope_of_block_inscope_of_block__inscope_of_block
-        with (bs_contents:=bs_contents); eauto.
+      eapply inscope_of_block_inscope_of_block__inscope_of_block; eauto.
 Qed.
 
 Lemma make_list_fdef_block_insn_id_spec:
@@ -3958,9 +3812,6 @@ Proof.
     solve_blockInFdefB.
   destruct b0 as [l2 ps2 cs2 tmn2].
   destruct b as [l3 ps3 cs3 tmn3].
-  remember ((dom_analyze f) !! l2) as R2.
-  remember ((dom_analyze f) !! l3) as R3.
-  destruct R2, R3.
   apply fold_left__spec in HeqR2.
   apply fold_left__spec in HeqR0.
   destruct HeqR2 as [_ [_ HeqR2]].
@@ -4056,10 +3907,7 @@ Proof.
           apply ListSet.set_diff_elim2 in J4; auto.
           simpl in J4. auto.
         eapply adom_acyclic in Hneq; eauto 1.
-          rewrite <- HeqR4. simpl.
           apply ListSet.set_diff_elim1 in J4; auto.
-
-          rewrite <- HeqR3. simpl.
           apply ListSet.set_diff_elim1 in J1; auto.
 Qed.
 
@@ -4264,73 +4112,59 @@ Lemma dom_analysis__entry_doms_others: forall S M f
   (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) entry
   (H: getEntryLabel f = Some entry),
   (forall b, b <> entry /\ reachable f b ->
-     match (AMap.get b (dom_analyze f)) with
-     | Dominators.mkBoundedSet dts _ => In entry dts
-     end).
+     ListSet.set_In entry (dom_query f b)).
 Proof.
   intros.
   destruct H0 as [J1 J2].
-  case_eq ((dom_analyze f) !! b).
-  intros bs_contents bs_bound H1.
-  unfold dom_analyze in H1.
+  unfold dom_query, dom_analyze.
   assert (Hex: dom_analysis_is_successful f).
     eapply wf_fdef__dom_analysis_is_successful; eauto.
   unfold dom_analysis_is_successful in Hex.
   destruct f as [f b0].
-  remember (entry_dom b0) as R.
-  destruct R.
-  destruct x as [[]|]; subst.
-    destruct b0 as [|b0 b2]; inv H.
-    destruct b1; tinv y.
-    destruct bs_contents0; tinv y.
-    destruct b0 as [l1 p c t]. inv HeqR.
-    inv H2.
-    remember (
-      DomDS.fixpoint (bound_blocks (block_intro entry p c t :: b2))
+  remember (getEntryBlock (fdef_intro f b0)) as R.
+  destruct R as [[l1 p c t]|]; try tauto.
+  destruct b0 as [|b0 b2]; inv HeqR.
+  inv H.
+  remember (
+      DomDS.fixpoint 
            (successors_blocks (block_intro entry p c t :: b2))
-           (transfer (bound_blocks (block_intro entry p c t :: b2)))
-           ((entry,
-            {| DomDS.L.bs_contents := nil; DomDS.L.bs_bound := bs_bound0 |})
-            :: nil)) as R.
-    destruct R.
-      symmetry in HeqR.
-      eapply EntryDomsOthers.dom_entry_doms_others with (entry:=entry) in HeqR;
-        eauto.
-        unfold EntryDomsOthers.entry_doms_others in HeqR.
-        apply HeqR in J1.
-        unfold Dominators.member in J1.
-        unfold EntryDomsOthers.dt, EntryDomsOthers.bound, DomDS.dt, DomDS.L.t
-          in J1.
-        unfold Dominators.t in H1. simpl in J1, H1.
-        rewrite H1 in J1; auto.
+           transfer
+           ((entry, Dominators.top) :: nil)) as R.
+  destruct R; try tauto.
+  symmetry in HeqR.
+  eapply EntryDomsOthers.dom_entry_doms_others with (entry:=entry) in HeqR; 
+    eauto.
+  Case "1".
+    unfold EntryDomsOthers.entry_doms_others in HeqR.
+    apply HeqR in J1.
+    unfold Dominators.member in J1.
+    unfold EntryDomsOthers.dt in *.
+    destruct (t0 !! b); simpl; auto.
 
-        split.
-           remember (XATree.successors_list
-             (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
-               entry) as R.
-           destruct R as [|a]; auto.
-           assert (
-             In a
-               (XATree.successors_list
-                 (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
-               entry)) as Hin. rewrite <- HeqR0. simpl; auto.
-           apply XATree.make_predecessors_correct' in Hin.
-           change (successors_blocks (block_intro entry p c t :: b2)) with
-             (successors (fdef_intro f (block_intro entry p c t :: b2))) in Hin.
-           apply successors__blockInFdefB in Hin.
-           destruct Hin as [ps0 [cs0 [tmn0 [G1 G2]]]].
-           eapply getEntryBlock_inv with (l3:=a)(a:=entry) in G2; simpl; eauto.
-           congruence.
-
-        split; auto.
-          exists{| DomDS.L.bs_contents := nil; DomDS.L.bs_bound := bs_bound0 |}.
-          simpl.
-          split; auto.
-            split; intros x Hin; auto.
-
-      tauto.
-
-    inv H.
+  Case "2".
+    split.
+        remember (XATree.successors_list
+          (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
+            entry) as R.
+        destruct R as [|a]; auto.
+        assert (
+          In a
+            (XATree.successors_list
+              (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
+            entry)) as Hin. rewrite <- HeqR0. simpl; auto.
+        apply XATree.make_predecessors_correct' in Hin.
+        change (successors_blocks (block_intro entry p c t :: b2)) with
+          (successors (fdef_intro f (block_intro entry p c t :: b2))) in Hin.
+        apply successors__blockInFdefB in Hin.
+        destruct Hin as [ps0 [cs0 [tmn0 [G1 G2]]]].
+        eapply getEntryBlock_inv with (l3:=a)(a:=entry) in G2; simpl; eauto.
+        congruence.
+    
+     split; auto.
+       exists Dominators.top.
+       simpl.
+       split; auto.
+         split; intros x Hin; auto.
 Qed.
 
 Lemma entry_blockStrictDominates_others: forall s m f (HwfF : wf_fdef s m f)
@@ -4453,10 +4287,7 @@ Proof.
   unfold isReachableFromEntry in *. destruct b1, b2.
   eapply sdom_reachable; eauto.
   simpl in Hsdom.
-  remember (Maps.AMap.get l5 (dom_analyze f)) as R.
-  destruct R.
   eapply sdom_is_sound; eauto 1.
-  rewrite <- HeqR. auto.
 Qed.
 
 Lemma blockDominates_isReachableFromEntry: forall f b1 b2 S M
@@ -4469,10 +4300,8 @@ Proof.
   unfold isReachableFromEntry in *. destruct b1, b2.
   eapply dom_reachable; eauto.
   simpl in Hdom.
-  remember (Maps.AMap.get l5 (dom_analyze f)) as R.
-  destruct R.
   eapply dom_is_sound; eauto 1.
-  rewrite <- HeqR. simpl. destruct Hdom; auto.
+    simpl. destruct Hdom; auto.
 Qed.
 
 Lemma idDominates_blockStrictDominates__blockStrictDominates :
@@ -4493,10 +4322,7 @@ Proof.
   destruct b1 as [l1 p c t]. 
   destruct b as [l2 p0 c0 t0]. destruct b0 as [l3 ? ? ?]. 
   destruct b2 as [l4 p2 c2 t2].
-  remember (Maps.AMap.get l3 (dom_analyze f)) as R.
-  destruct R.
-  remember (Maps.AMap.get l2 (dom_analyze f)) as R.
-  destruct R. inv H1.
+  inv H1.
   symmetry in HeqR2.
   apply fold_left__spec in HeqR2.
   destruct HeqR2 as [J1 [J2 J3]].
@@ -4521,17 +4347,16 @@ Proof.
     destruct J2' as [Heq J2']; subst.
     assert (blockStrictDominates f (block_intro l1 p c t)
                                    (block_intro l4 p2 c2 t2)) as Hdom.
-      clear - J1' HeqR Huniq. simpl. rewrite <- HeqR.
       apply ListSet.set_diff_elim1 in J1'; auto.
     assert (blockStrictDominates f (block_intro l4 p2 c2 t2)
                   (block_intro l2 p0 c0 t0)) as Hdom'.
-      clear - H2 HeqR0 Huniq. simpl. rewrite <- HeqR0. auto.
+      auto.
     assert (blockStrictDominates f (block_intro l1 p c t)
                   (block_intro l2 p0 c0 t0)) as Hdom''.
       eapply blockStrictDominates_trans with (b2:=block_intro l4 p2 c2 t2);
         eauto.
         eapply lookupBlockViaIDFromFdef__blockInFdefB; eauto.
-    simpl in Hdom''. rewrite <- HeqR0 in Hdom''. auto.
+    auto.
 Qed.
 
 Lemma inscope_of_blocks_with_init__id_in_reachable_block: forall s m F 
@@ -4539,10 +4364,7 @@ Lemma inscope_of_blocks_with_init__id_in_reachable_block: forall s m F
   (Hreach : isReachableFromEntry F b)
   (HBinF : blockInFdefB b F = true)
   (contents' : ListSet.set atom)
-  (inbound' : incl contents' (bound_fdef F))
-  (Heqdefs' : {| DomDS.L.bs_contents := contents';
-                 DomDS.L.bs_bound := inbound' |} = 
-              (dom_analyze F) !! (getBlockLabel b)) ids2 init
+  (Heqdefs' : contents' = dom_query F (getBlockLabel b)) ids2 init
   (Hinscope : (fold_left (inscope_of_block F (getBlockLabel b)) contents'
     (ret init) = ret ids2))
   (Hinc: incl init (getBlockIDs b ++ getArgsIDsOfFdef F)) vid
@@ -4575,8 +4397,6 @@ Proof.
       destruct Hlk; subst.
       eapply sdom_reachable; eauto.
 
-      simpl in Heqdefs'.
-      rewrite <- Heqdefs'. simpl.
       apply ListSet.set_diff_elim1 in Hin. auto.
 Qed.
 
@@ -4592,8 +4412,6 @@ Lemma inscope_of_id__id_in_reachable_block: forall s m F (HwfF: wf_fdef s m F)
 Proof.
   unfold inscope_of_id.
   intros. 
-  remember ((dom_analyze F) !! l1) as R.
-  destruct R. 
   eapply inscope_of_blocks_with_init__id_in_reachable_block in HBinF; 
     eauto using init_scope_incl.
 Qed.
@@ -4617,9 +4435,7 @@ Lemma idDominates_inscope_of_cmd_at_beginning__inscope_of_cmd_at_beginning:
   (cs1 cs : cmds) (s : system) (m : module) (tmn1 : terminator) (id1 : id) 
   (instr1 : insn) (id2 : id)
   (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true) contents'
-  (inbound' : incl contents' (bound_fdef f))
-  (Heqdefs' : {| DomDS.L.bs_contents := contents';
-                 DomDS.L.bs_bound := inbound' |} = (dom_analyze f) !! l1)
+  (Heqdefs' : contents' = dom_query f l1)
   (Hinscope : fold_left (inscope_of_block f l1) contents'
                (ret (getPhiNodesIDs ps1 ++ getArgsIDsOfFdef f)) = 
              ret t)
@@ -4645,7 +4461,6 @@ Proof.
       eapply NoDup_disjoint in HBinF; simpl; eauto.
 Qed.
 
-
 Lemma blockDominates__domination: forall (S : system) (M : module) (f : fdef)
   (Hwf : wf_fdef S M f) (Huniq : uniqFdef f) (b1 b2:block)
   (HBinF : blockInFdefB b2 f) (Hdom : blockDominates f b1 b2),
@@ -4654,10 +4469,7 @@ Proof.
   intros.
   destruct b1, b2.
   unfold blockDominates in Hdom.
-  remember (Maps.AMap.get l0 (dom_analyze f)) as R.
-  destruct R.
   eapply dom_is_sound with (l':=l5) in HBinF; simpl; eauto.
-    simpl. rewrite <- HeqR.
     destruct Hdom; auto.
 Qed.
 
@@ -4690,7 +4502,6 @@ Proof.
     lookupBlockViaLabelFromFdef_inv_tac.
     simpl in *. congruence.
 Qed.
-
 
 Lemma wf_phi_operands__successors: forall (S : system) (M : module) (f : fdef) b
   (Huniq : uniqFdef f) (vls : list (value * l))
@@ -4838,8 +4649,6 @@ Proof.
   subst. 
   unfold init_scope in HeqR0.
   destruct_if; try congruence.
-  remember ((dom_analyze f) !! l0) as R.
-  destruct R.
   apply fold_left__spec in H0.
   destruct H0 as [_ [_ H0]].
   apply_clear H0 in Hreach'.
@@ -4859,7 +4668,6 @@ Proof.
     eapply sdom_is_sound with (l':=l0) in HBinF; eauto.
       destruct HBinF. congruence.
 
-      rewrite <- HeqR0.      
       apply ListSet.set_diff_elim1 in J1; auto.
 Qed.
 
