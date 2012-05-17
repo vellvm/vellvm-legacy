@@ -592,27 +592,27 @@ end.
    id1 = r in l1
 *)
 Fixpoint lookup_predundant_exp_for_id (f:fdef) (ndom: list l)
-  bd (res: AMap.t Dominators.t) (l1:l) (r:rhs) : option (l * cmd) :=
+  (res: l -> set l) (l1:l) (r:rhs) : option (l * cmd) :=
 match ndom with
 | nil => None
 | l0::ndom' =>
-    match bound_dom bd (AMap.get l0 res) with
+    match res l0 with
     | dts0 =>
       if (in_dec eq_atom_dec l1 dts0) then
-        lookup_predundant_exp_for_id f ndom' bd res l1 r
+        lookup_predundant_exp_for_id f ndom' res l1 r
       else
         match lookupBlockViaLabelFromFdef f l0 with
         | None => None
         | Some (block_intro _ _ cs _) =>
             match lookup_predundant_exp_from_cmds cs r with
-            | None => lookup_predundant_exp_for_id f ndom' bd res l1 r
+            | None => lookup_predundant_exp_for_id f ndom' res l1 r
             | Some c0 => Some (l0, c0)
             end
         end
     end
 end.
 
-Fixpoint lookup_predundant_exp (f:fdef) bd (res: AMap.t Dominators.t)
+Fixpoint lookup_predundant_exp (f:fdef) (res: l -> set l)
   (rd0 rd:list l) : option (l * id * l * cmd) :=
 match rd with
 | nil => None
@@ -620,7 +620,7 @@ match rd with
     match lookupBlockViaLabelFromFdef f l1 with
     | None => None
     | Some (block_intro _ _ cs _) =>
-        match bound_dom bd (AMap.get l1 res) with
+        match res l1 with
         | dts1 =>
            let ndom :=
              ListSet.set_diff id_dec
@@ -633,7 +633,7 @@ match rd with
                           | Some id1 =>
                               if pure_cmd c then
                                 match
-                                  lookup_predundant_exp_for_id f ndom bd res l1
+                                  lookup_predundant_exp_for_id f ndom res l1
                                     (rhs_of_cmd c) with
                                 | Some (l0, c0) => Some (l1, id1, l0, c0)
                                 | None => None
@@ -643,27 +643,26 @@ match rd with
                           end
                         | _ => acc
                         end) cs None with
-           | None => lookup_predundant_exp f bd res rd0 rd'
+           | None => lookup_predundant_exp f res rd0 rd'
            | Some re => Some re
            end
         end
     end
 end.
 
-Definition find_gcd_dom bd (res: AMap.t Dominators.t) (l1 l2:l): option l:=
-match bound_dom bd (AMap.get l1 res), bound_dom bd (AMap.get l2 res) with
+Definition find_gcd_dom (res: l -> set l) (l1 l2:l): option l:=
+match res l1, res l2 with
 | dts1, dts2 =>
   match ListSet.set_inter id_dec dts1 dts2 with
-  | l0::dts0 => find_idom_aux bd res l0 dts0
+  | l0::dts0 => find_idom_aux res l0 dts0
   | _ => None
   end
 end.
 
-Definition pre_fdef (f:fdef) bd (res: AMap.t Dominators.t) (rd:list l)
-  : fdef * bool :=
-match lookup_predundant_exp f bd res rd rd with
+Definition pre_fdef (f:fdef) (res: l -> set l) (rd:list l) : fdef * bool :=
+match lookup_predundant_exp f res rd rd with
 | Some (l1, id1, l0, c0) =>
-    match find_gcd_dom bd res l1 l0 with
+    match find_gcd_dom res l1 l0 with
     | Some l2 =>
         match lookupBlockViaLabelFromFdef f l2 with
         | None => (f, false)
@@ -679,13 +678,13 @@ end.
 
 Parameter does_pre : unit -> bool.
 
-Definition opt_step (dt:DTree) bd (res: AMap.t Dominators.t) (rd:list l)
+Definition opt_step (dt:DTree) (res: l -> set l) (rd:list l)
   (f: fdef) : fdef + fdef :=
 let '(f1, changed1) := gvn_fdef_dtree f false nil dt in
 if changed1 then inr _ f1
 else
   if does_pre tt then
-    let '(f2, changed2) := pre_fdef f1 bd res rd in
+    let '(f2, changed2) := pre_fdef f1 res rd in
     if changed2 then inr _ f2 else inl _ f2
   else inl _ f1.
 
@@ -717,8 +716,8 @@ Definition opt_fdef (f:fdef) : fdef :=
 match getEntryBlock f, reachablity_analysis f with
 | Some (block_intro root _ _ _), Some rd =>
     let b := bound_fdef f in
-    let dts := dom_analyze f in
-    let chains := compute_sdom_chains b dts rd in
+    let dts := AlgDom.dom_query f in
+    let chains := compute_sdom_chains dts rd in
     let dt :=
       fold_left
       (fun acc elt =>
@@ -728,7 +727,7 @@ match getEntryBlock f, reachablity_analysis f with
     if print_reachablity rd && print_dominators b dts &&
        print_dtree dt && read_aa_from_fun (getFdefID f) then
        match fix_temporary_fdef
-               (SafePrimIter.iterate _ (opt_step dt b dts rd)
+               (SafePrimIter.iterate _ (opt_step dt dts rd)
                  (dce_fdef f)) with
        | Some f' => f'
        | _ => f
@@ -736,47 +735,6 @@ match getEntryBlock f, reachablity_analysis f with
     else f
 | _, _ => f
 end.
-
-(*
-Program Definition opt_fdef (f:fdef) : fdef :=
-match getEntryBlock f, reachablity_analysis f with
-| Some (block_intro root _ _ _), Some rd =>
-    let b := bound_fdef f in
-    let dts := dep_doms__nondep_doms b (dom_analyze f) in
-    let idoms := compute_idoms dts rd nil in
-    match init_pre_dtree idoms root (List.remove eq_atom_dec root rd) with
-    | None => f
-    | Some (pdt0, others) =>
-        match (create_pre_dtree_aux others idoms pdt0) with
-        | None => f
-        | Some pdt =>
-            match
-              tree2dtree
-                (vertexes_of_pre_dtree pdt) (arcs_of_pre_dtree pdt)
-                (WF_pre_dtree_isa_tree f pdt _) with
-            | Some dt =>
-                if print_reachablity rd && print_dominators b dts &&
-                   print_dtree dt then
-                   match fix_temporary_fdef
-                            (SafePrimIter.iterate _ (opt_step dt dts rd)
-                               (dce_fdef f)) with
-                   | Some f' => f'
-                   | _ => f
-                   end
-                else f
-            | None => f
-            end
-        end
-    end
-| _, _ => f
-end.
-Next Obligation.
-  eapply init_create_pre_dtree_aux__WF_pre_dtree; eauto.
-    clear - Heq_anonymous.
-    destruct f; simpl in *.
-    destruct b; simpl in *; inv Heq_anonymous. auto.
-Qed.
-*)
 
 Parameter open_aa_db : unit -> bool.
 

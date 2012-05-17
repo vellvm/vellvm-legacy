@@ -427,7 +427,7 @@ let f3 := remove_fdef (getCmdLoc c) f2 in
 rename_fdef newid (getCmdLoc c) f3.
 
 Parameter print_reachablity : list l -> bool.
-Parameter print_dominators : list l -> AMap.t Dominators.t -> bool.
+Parameter print_dominators : list l -> (l -> ListSet.set l) -> bool.
 Parameter print_dtree : DTree -> bool.
 
 Variable TNAME: Type.

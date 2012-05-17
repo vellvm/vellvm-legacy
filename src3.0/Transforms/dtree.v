@@ -3,6 +3,7 @@ Require Import Lattice.
 Require Import Maps.
 Require Import ListSet.
 
+(*
 Program Fixpoint reachablity_analysis_aux (nvisited: list l) (succs : ATree.t ls)
   (curr: l) (acc: list l) {measure (List.length nvisited)%nat}
   : option (list l) :=
@@ -32,7 +33,6 @@ Next Obligation.
   apply remove_in_length; auto.
 Qed.
 
-(*
 Definition reachablity_analysis (f : fdef) : option (list l) :=
 match getEntryBlock f with
 | Some (block_intro root _ _ _) =>
@@ -60,56 +60,51 @@ match dts with
 | DT_cons dt0 dts0 => dtree_dom dt0 `union` dtrees_dom dts0
 end.
 
-Definition imm_domination (f:fdef) (l1 l2:l) : Prop :=
-strict_domination f l1 l2 /\
-forall l0, strict_domination f l0 l2 -> domination f l0 l1.
-
 Definition get_dtree_root (dt:DTree) : l :=
 match dt with
 | DT_node l0 _ => l0
 end.
 
 (* l1 >> l2, l1 strict dominates l2 *)
-Definition gt_sdom bd (res: AMap.t Dominators.t) (l1 l2:l) : bool :=
-match bound_dom bd (AMap.get l2 res) with
+Definition gt_sdom (res: l -> set l) (l1 l2:l) : bool :=
+match res l2 with
 | dts2 => in_dec l_dec l1 dts2
 end.
 
-Fixpoint find_min bd (res: AMap.t Dominators.t) (acc:l) (dts: set l): l :=
+Fixpoint find_min (res: l -> set l) (acc:l) (dts: set l): l :=
 match dts with
 | nil => acc
 | l0::dts' =>
-    if (gt_sdom bd res acc l0) then
-      find_min bd res l0 dts'
+    if (gt_sdom res acc l0) then
+      find_min res l0 dts'
     else
-      find_min bd res acc dts'
+      find_min res acc dts'
 end.
 
-Fixpoint insert_sort_sdom_iter bd (res: AMap.t Dominators.t) (l0:l)
+Fixpoint insert_sort_sdom_iter (res: l -> set l) (l0:l)
   (prefix suffix:list l) : list l :=
 match suffix with
 | nil => List.rev (l0 :: prefix)
 | l1::suffix' =>
-    if gt_sdom bd res l0 l1 then (List.rev (l0 :: prefix)) ++ suffix
-    else insert_sort_sdom_iter bd res l0 (l1::prefix) suffix'
+    if gt_sdom res l0 l1 then (List.rev (l0 :: prefix)) ++ suffix
+    else insert_sort_sdom_iter res l0 (l1::prefix) suffix'
 end.
 
-Fixpoint insert_sort_sdom bd (res: AMap.t Dominators.t) (data:list l)
-  (acc:list l) : list l :=
+Fixpoint insert_sort_sdom (res: l -> set l) (data:list l) (acc:list l): list l :=
 match data with
 | nil => acc
 | l1 :: data' =>
-    insert_sort_sdom bd res data' (insert_sort_sdom_iter bd res l1 nil acc)
+    insert_sort_sdom res data' (insert_sort_sdom_iter res l1 nil acc)
 end.
 
-Definition sort_sdom bd (res: AMap.t Dominators.t) (data:list l): list l :=
-insert_sort_sdom bd res data nil.
+Definition sort_sdom (res: l -> set l) (data:list l): list l :=
+insert_sort_sdom res data nil.
 
-Definition gt_dom_prop bd (res: AMap.t Dominators.t) (l1 l2:l) : Prop :=
-gt_sdom bd res l1 l2 = true \/ l1 = l2.
+Definition gt_dom_prop (res: l -> set l) (l1 l2:l) : Prop :=
+gt_sdom res l1 l2 = true \/ l1 = l2.
 
-Definition gt_sdom_prop bd (res: AMap.t Dominators.t) (l1 l2:l) : Prop :=
-gt_sdom bd res l1 l2 = true.
+Definition gt_sdom_prop (res: l -> set l) (l1 l2:l) : Prop :=
+gt_sdom res l1 l2 = true.
 
 Fixpoint remove_redundant (input: list l) : list l :=
 match input with
@@ -119,56 +114,56 @@ match input with
 | _ => input
 end.
 
-Fixpoint compute_sdom_chains_aux bd0 (res: AMap.t Dominators.t)
+Fixpoint compute_sdom_chains_aux (res: l -> set l)
   (bd: list l) (acc: list (l * list l)) : list (l * list l) :=
 match bd with
 | nil => acc
 | l0 :: bd' =>
-    match bound_dom bd0 (AMap.get l0 res) with
+    match res l0 with
     | dts0 =>
-        compute_sdom_chains_aux bd0 res bd'
-          ((l0, remove_redundant (sort_sdom bd0 res (l0 :: dts0)))::acc)
+        compute_sdom_chains_aux res bd'
+          ((l0, remove_redundant (sort_sdom res (l0 :: dts0)))::acc)
     end
 end.
 
-Definition compute_sdom_chains bd (res: AMap.t Dominators.t) rd
+Definition compute_sdom_chains (res: l -> set l) rd
   : list (l * list l) :=
-compute_sdom_chains_aux bd res rd nil.
+compute_sdom_chains_aux res rd nil.
 
-Fixpoint find_idom_aux bd (res: AMap.t Dominators.t) (acc:l) (dts: set l)
+Fixpoint find_idom_aux (res: l -> set l) (acc:l) (dts: set l)
   : option l :=
 match dts with
 | nil => Some acc
 | l0::dts' =>
-    match bound_dom bd (AMap.get l0 res), bound_dom bd (AMap.get acc res) with
+    match res l0, res acc with
     | dts1, dts2 =>
         if (in_dec l_dec l0 dts2)
         then (* acc << l0 *)
-          find_idom_aux bd res acc dts'
+          find_idom_aux res acc dts'
         else
           if (in_dec l_dec acc dts1)
           then (* l0 << acc *)
-            find_idom_aux bd res l0 dts'
+            find_idom_aux res l0 dts'
           else (* l0 and acc are incompariable *)
             None
     end
 end.
 
 (* We should prove that this function is not partial. *)
-Definition find_idom bd (res: AMap.t Dominators.t) (l0:l) : option l :=
-match bound_dom bd (AMap.get l0 res) with
-| l1::dts0 => find_idom_aux bd res l1 dts0
+Definition find_idom (res: l -> set l) (l0:l) : option l :=
+match res l0 with
+| l1::dts0 => find_idom_aux res l1 dts0
 | _ => None
 end.
 
-Fixpoint compute_idoms bd (res: AMap.t Dominators.t) (rd: list l)
+Fixpoint compute_idoms (res: l -> set l) (rd: list l)
   (acc: list (l * l)) : list (l * l) :=
 match rd with
 | nil => acc
 | l0 :: rd' =>
-    match find_idom bd res l0 with
-    | None => compute_idoms bd res rd' acc
-    | Some l1 => compute_idoms bd res rd' ((l1,l0)::acc)
+    match find_idom res l0 with
+    | None => compute_idoms res rd' acc
+    | Some l1 => compute_idoms res rd' ((l1,l0)::acc)
     end
 end.
 
@@ -226,9 +221,8 @@ end.
 Definition create_dtree (f: fdef) : option DTree :=
 match getEntryLabel f, reachablity_analysis f with
 | Some root, Some rd =>
-    let dt := dom_analyze f in
-    let b := bound_fdef f in
-    let chains := compute_sdom_chains b dt rd in
+    let dt := AlgDom.dom_query f in
+    let chains := compute_sdom_chains dt rd in
     Some (fold_left
       (fun acc elt => let '(_, chain):=elt in create_dtree_from_chain acc chain)
       chains (DT_node root DT_nil))
@@ -256,10 +250,9 @@ end.
 Definition wf_chain f dt (chain:list l) : Prop :=
 match chain with
 | entry :: _ :: _ =>
-   let b := bound_fdef f in
-   let res := (dom_analyze f) in
+   let res := (AlgDom.dom_query f) in
    entry `in` dtree_dom dt /\
-   Sorted (gt_sdom_prop b res) chain /\ NoDup chain
+   Sorted (gt_sdom_prop res) chain /\ NoDup chain
 | _ => True
 end.
 

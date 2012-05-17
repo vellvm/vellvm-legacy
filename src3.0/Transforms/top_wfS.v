@@ -665,17 +665,6 @@ End SingleModule.
 
 End TopWFS.
 
-Definition terminator_match (tmn1 tmn2: terminator) : Prop :=
-match tmn1, tmn2 with
-| insn_return id1 _ _, insn_return id2 _ _ => id1 = id2
-| insn_return_void id1, insn_return_void id2 => id1 = id2
-| insn_br id1 _ l11 l12, insn_br id2 _ l21 l22 => 
-    id1 = id2 /\ l11 = l21 /\ l12 = l22
-| insn_br_uncond id1 l1, insn_br_uncond id2 l2 => id1 = id2 /\ l1 = l2
-| insn_unreachable i1, insn_unreachable i2 => i1 = i2
-| _, _ => False
-end.
-
 Structure Pass := mkPass {
 btrans: block -> block;
 ftrans: fdef -> fdef;
@@ -702,19 +691,6 @@ match goal with
   assert (J:=pass.(btrans_eq_label) b);
   remember (btrans pass b) as R;
   destruct R as [l1 ? ? ?]; destruct b; simpl in *; subst l1
-end.
-
-Ltac terminator_match_tac :=
-match goal with
-| J : terminator_match ?t1 ?t2 |- _ =>
-  destruct t1; destruct t2; simpl in J; tinv J; auto;
-    match goal with
-    | J': ?id1 = _ /\ ?id2 = _ /\ ?id3 = _ |- _ =>
-      destruct J' as [? [? ?]]; subst id1 id2 id3; auto
-    | J': ?id1 = _ /\ ?id2 = _ |- _ =>
-      destruct J' as [? ?]; subst id1 id2; auto
-    | J' : ?id0 = _ |- _ => subst id0; auto
-    end
 end.
 
 Module TransCFG.
@@ -927,19 +903,8 @@ Proof.
   unfold blockStrictDominates. 
   btrans_eq_label_tac b1. 
   btrans_eq_label_tac b2. 
-  unfold dom_query, dom_analyze. destruct f as [fh bs]. 
-  case_eq (getEntryBlock (fdef_intro fh bs)).
-    intros b Hentry.
-    apply pres_getEntryBlock in Hentry; eauto.
-    btrans_eq_label_tac b. 
-    rewrite Hentry. ftrans_spec_tac. simpl.
-    rewrite <- pres_bound_blocks.
-    rewrite <- pres_successors_blocks. split; eauto.
-
-    intros Hentry.
-    apply pres_getEntryBlock_None in Hentry; eauto.
-    rewrite Hentry. ftrans_spec_tac. simpl.
-    rewrite <- pres_bound_blocks. split; auto.
+  apply AlgDom.pres_dom_query with (btrans:=pass.(btrans)); auto
+    using pass.(ftrans_spec), pass.(btrans_eq_label), pass.(btrans_eq_tmn).
 Qed.
 
 Lemma pres_blockDominates : forall f b1 b2,
@@ -950,37 +915,19 @@ Proof.
   unfold blockDominates.
   btrans_eq_label_tac b1. 
   btrans_eq_label_tac b2. 
-  unfold dom_query, dom_analyze. destruct f as [fh bs].
-  case_eq (getEntryBlock (fdef_intro fh bs)).
-    intros b Hentry.
-    apply pres_getEntryBlock in Hentry; eauto.
-    btrans_eq_label_tac b. 
-    rewrite Hentry. ftrans_spec_tac. simpl.
-    rewrite <- pres_bound_blocks.
-    rewrite <- pres_successors_blocks. split; eauto.
-
-    intros Hentry.
-    apply pres_getEntryBlock_None in Hentry; eauto.
-    rewrite Hentry. ftrans_spec_tac. simpl.
-    rewrite <- pres_bound_blocks. split; auto.
+  assert (G:=@AlgDom.pres_dom_query pass.(ftrans) pass.(btrans)
+             pass.(ftrans_spec) pass.(btrans_eq_label) pass.(btrans_eq_tmn)
+             f l5 l0).
+  tauto.
 Qed.
 
 Lemma pres_dom_analysis_is_successful : forall f,
-  dom_analysis_is_successful f <-> dom_analysis_is_successful (pass.(ftrans) f).
+  AlgDom.dom_analysis_is_successful f <-> 
+    AlgDom.dom_analysis_is_successful (pass.(ftrans) f).
 Proof.
-  unfold dom_analysis_is_successful.
-  destruct f as [fh bs]. 
-  case_eq (getEntryBlock (fdef_intro fh bs)).
-    intros b Hentry.
-    apply pres_getEntryBlock in Hentry; eauto.
-    btrans_eq_label_tac b. 
-    rewrite Hentry. ftrans_spec_tac. simpl.
-    rewrite <- pres_successors_blocks. split; eauto.
-
-    intros Hentry.
-    apply pres_getEntryBlock_None in Hentry; eauto.
-    rewrite Hentry. ftrans_spec_tac. 
-    split; auto.
+  intros.
+  apply AlgDom.pres_dom_analysis_is_successful with (btrans:=pass.(btrans)); 
+    auto using pass.(ftrans_spec), pass.(btrans_eq_label), pass.(btrans_eq_tmn).
 Qed.
 
 Lemma pres_lookupBlockViaLabelFromBlocks : forall l5 bs b,

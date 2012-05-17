@@ -1,6 +1,7 @@
 Require Import Ensembles.
 Require Import infrastructure.
 Require Import infrastructure_props.
+Require Import dom_set.
 Require Import analysis.
 Require Import typings.
 Require Import static.
@@ -546,14 +547,15 @@ Proof.
   destruct J as [Heq J]; subst.
   unfold inscope_of_tmn in Hinscope.
   unfold inscope_of_tmn. unfold inscope_of_cmd, inscope_of_id.
-  destruct F as [[f t i0 la va] bs].
+  destruct F as [fh bs].
 
-  assert (incl (dom_query (fdef_intro (fheader_intro f t i0 la va) bs) l')
-     (l3::(dom_query (fdef_intro (fheader_intro f t i0 la va) bs) l3))) as Hsub.
+  assert (incl (AlgDom.dom_query (fdef_intro fh bs) l')
+     (l3::(AlgDom.dom_query (fdef_intro fh bs) l3))) as Hsub.
     clear - HBinF Hsucc Huniq HwfF.
     eapply dom_successors; eauto.
 
-  assert (J1:=dom_query_in_bound (fheader_intro f t i0 la va) bs l').
+  assert (J1:=AlgDom.dom_query_in_bound fh bs l').
+  destruct fh as [f t i0 la va].
   apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
     getArgsIDs la)(fh:=fheader_intro f t i0 la va)(bs:=bs) (l0:=l') in J1.
   destruct J1 as [r J1].
@@ -1870,7 +1872,7 @@ Proof.
      assert (ps'=nil) as EQ.
        eapply entryBlock_has_no_phinodes with (s:=S); eauto.
      subst.
-     apply dom_entrypoint in H2.
+     apply AlgDom.dom_entrypoint in H2.
      destruct cs'.
      SCase "1.1".
        unfold inscope_of_tmn. rewrite H2. simpl.

@@ -332,7 +332,7 @@ Lemma valueDominates_value_in_scope__value_in_scope__at_beginning: forall
   (Hreach : isReachableFromEntry F' (block_intro l1 ps1 cs1 tmn1))  
   (Hvals : substable_values td gl F' v1 v2) ids2
   (contents' : ListSet.set atom)
-  (Heqdefs' : contents' = dom_query F' l1)
+  (Heqdefs' : contents' = AlgDom.dom_query F' l1)
   (Hinscope : (fold_left (inscope_of_block F' l1) contents'
     (ret (getPhiNodesIDs ps1 ++ getArgsIDsOfFdef F')) = ret ids2))
   (Hina : value_in_scope v1 ids2),
@@ -374,7 +374,7 @@ Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl S M lc l' ps' cs' lc' F tmn' b
   (ids0' : list atom)
   (HwfF : wf_fdef S M F) (HuniqF: uniqFdef F)
   (contents' : ListSet.set atom)
-  (Heqdefs' : contents' = dom_query F l')
+  (Heqdefs' : contents' = AlgDom.dom_query F l')
   (Hinscope : (fold_left (inscope_of_block F l') contents'
     (ret (getPhiNodesIDs ps' ++ getArgsIDsOfFdef F)) = ret ids0'))
   (Hinc : incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) t),
@@ -459,8 +459,8 @@ Proof.
   unfold inscope_of_tmn. unfold inscope_of_cmd, inscope_of_id.
   destruct F as [fh bs].
 
-  assert (incl (dom_query (fdef_intro fh bs) l')
-               (l3::(dom_query (fdef_intro fh bs) l3))) as Hsub.
+  assert (incl (AlgDom.dom_query (fdef_intro fh bs) l')
+               (l3::(AlgDom.dom_query (fdef_intro fh bs) l3))) as Hsub.
     clear - HBinF Hsucc HuniqF HwfF.
     eapply dom_successors; eauto.
 
@@ -468,7 +468,7 @@ Proof.
     as Hreach'.
     eapply isReachableFromEntry_successors in Hlkup; eauto.
 
-  assert (J1:=dom_query_in_bound fh bs l'). destruct fh as [f t i0 a v].
+  assert (J1:=AlgDom.dom_query_in_bound fh bs l'). destruct fh as [f t i0 a v].
   apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
     getArgsIDs a)(bs:=bs)(l0:=l') (fh:=fheader_intro f t i0 a v) in J1; auto.
   destruct J1 as [r J1].
@@ -982,7 +982,7 @@ Focus.
     assert (ps'=nil) as EQ.
       eapply entryBlock_has_no_phinodes with (s:=S); eauto.
     subst.
-    apply dom_entrypoint in H2.
+    apply AlgDom.dom_entrypoint in H2.
 
 Transparent inscope_of_tmn inscope_of_cmd.
 
@@ -1080,7 +1080,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
       eapply entryBlock_has_no_phinodes with (s:=S); eauto.        
     subst.
 Transparent inscope_of_tmn inscope_of_cmd.
-    apply dom_entrypoint in HeqR2.
+    apply AlgDom.dom_entrypoint in HeqR2.
     destruct cs0.
       unfold inscope_of_tmn.
       rewrite HeqR2. simpl.

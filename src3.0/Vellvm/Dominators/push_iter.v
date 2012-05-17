@@ -118,12 +118,12 @@ End Weak_Succ_Dataflow_Solver.
 Module LDoms := Doms (MergeLt).
 Module DomDS := Weak_Succ_Dataflow_Solver (PNodeSetMax) (LDoms).
 
-Require analysis.
+Require cfg.
 Require Import infrastructure.
 Import LLVMsyntax.
 
 Definition dom_analyze (f: fdef) : PMap.t LDoms.t :=
-  let asuccs := analysis.successors f in
+  let asuccs := cfg.successors f in
   match LLVMinfra.getEntryLabel f with
   | Some le =>
       let '(mkPO _ a2p) := dfs asuccs le 1%positive in
@@ -1235,7 +1235,7 @@ match odms with
 | None => in_cfg n
 end.
 
-(* transfer --> Dominators.add ? *)
+(* transfer --> Cfg.add ? *)
 
 Lemma add_member2: forall (n1 n2 : positive) dms
   (Hin: member n1 dms),
@@ -2188,26 +2188,29 @@ Proof.
       constructor; simpl; auto.
 Qed.
 
+Require dom_decl.
+Require reach.
+
 Section Main.
 
 Variable f:fdef.
-Definition asuccs := analysis.successors f.
+Definition asuccs := cfg.successors f.
 Variable PO: PostOrder.
 Variable psuccs: PTree.t (list positive).
 Variable ppreds: PTree.t (list positive).
 Hypothesis Hpsuccs: psuccs = asuccs_psuccs (PO_a2p PO) asuccs.
 Hypothesis Hppreds: ppreds = XPTree.make_predecessors psuccs.
 
-Hypothesis Hvertexes: analysis.vertexes_fdef f = dfs.vertexes asuccs.
-Hypothesis Harcs: analysis.arcs_fdef f = dfs.arcs asuccs.
+Hypothesis Hvertexes: cfg.vertexes_fdef f = dfs.vertexes asuccs.
+Hypothesis Harcs: cfg.arcs_fdef f = dfs.arcs asuccs.
 
 Variable le: l.
 Hypothesis Hentry: LLVMinfra.getEntryLabel f = Some le.
 
-Lemma le_in_cfg: XATree.in_cfg (analysis.successors f) le.
+Lemma le_in_cfg: XATree.in_cfg (cfg.successors f) le.
 Admitted. (* asuccs_psuccs *)
 
-Hypothesis Hdfs: dfs (analysis.successors f) le 1 = PO.
+Hypothesis Hdfs: dfs (cfg.successors f) le 1 = PO.
 
 Lemma a2p_domination: forall (l1 l2 : l) (p1 p2 : positive)
   (Hreach: forall a,
@@ -2216,10 +2219,10 @@ Lemma a2p_domination: forall (l1 l2 : l) (p1 p2 : positive)
   (Hget1: Some p1 = (PO_a2p PO) ! l1) (Hget2: Some p2 = (PO_a2p PO) ! l2) pe
   (Hget2: Some pe = (PO_a2p PO) ! le) 
   (Hdom: domination (asuccs_psuccs (PO_a2p PO) asuccs) pe p1 p2),
-  typings_props.domination f l1 l2.
+  cfg.domination f l1 l2.
 Proof.
   intros.
-  unfold typings_props.domination. 
+  unfold cfg.domination. 
   assert (Hentry':=Hentry).
   apply getEntryLabel__getEntryBlock in Hentry'.
   destruct Hentry' as [be [Hentry' EQ]]; subst le.
@@ -2238,36 +2241,36 @@ Proof.
 Qed.
 
 Lemma unreachable__get_a2p: forall l2,
-  ~ analysis.reachable f l2 <-> (PO_a2p PO) ! l2 = None.
+  ~ cfg.reachable f l2 <-> (PO_a2p PO) ! l2 = None.
 Proof.
   intros.
   apply dfs_unreachable_iff_get_none with (l0:=l2) in Hdfs; 
     auto using le_in_cfg.
   apply getEntryLabel__getEntryBlock in Hentry.
   destruct Hentry as [be [Hentry' EQ]]; subst. 
-  unfold analysis.reachable. rewrite Hentry'.
+  unfold cfg.reachable. rewrite Hentry'.
   unfold dfs.reachable in Hdfs. destruct be as [le ? ? ?].
   simpl in Hdfs.
   rewrite Hvertexes. rewrite Harcs. auto.
 Qed.
 
 Lemma reachable__get_a2p: forall l2,
-  analysis.reachable f l2 <-> exists p2, (PO_a2p PO) ! l2 = Some p2.
+  cfg.reachable f l2 <-> exists p2, (PO_a2p PO) ! l2 = Some p2.
 Proof.
   intros.
   apply dfs_reachable_iff_get_some with (l0:=l2) in Hdfs; 
     auto using le_in_cfg.
   apply getEntryLabel__getEntryBlock in Hentry.
   destruct Hentry as [be [Hentry' EQ]]; subst. 
-  unfold analysis.reachable. rewrite Hentry'.
+  unfold cfg.reachable. rewrite Hentry'.
   unfold dfs.reachable in Hdfs. destruct be as [le ? ? ?].
   simpl in Hdfs.
   rewrite Hvertexes. rewrite Harcs. auto.
 Qed.
 
 Lemma p2a_strict_domination: forall (l1 l2 : l)
-  (Hreach2: analysis.reachable f l2)
-  (Hsdom: typings_props.strict_domination f l1 l2),
+  (Hreach2: cfg.reachable f l2)
+  (Hsdom: cfg.strict_domination f l1 l2),
   exists p1, exists p2, exists pe, 
     strict_domination (asuccs_psuccs (PO_a2p PO) asuccs) pe p1 p2 /\
     (PO_a2p PO) ! l1 = Some p1 /\ (PO_a2p PO) ! l2 = Some p2 /\
@@ -2278,10 +2281,10 @@ Proof.
   apply getEntryLabel__getEntryBlock in Hentry'.
   destruct Hentry' as [be [Hentry' EQ]]; subst le.
   destruct be as [le ? ? ?]. simpl in *.
-  assert (analysis.reachable f l1) as Hreach1.
-    eapply typings_props.sdom_reachable; eauto.
-  assert (analysis.reachable f le) as Hreachle.
-    eapply analysis.reachable_entrypoint; eauto.
+  assert (cfg.reachable f l1) as Hreach1.
+    eapply dom_decl.DecDom.sdom_reachable; eauto.
+  assert (cfg.reachable f le) as Hreachle.
+    eapply reach.reachable_entrypoint; eauto.
   apply reachable__get_a2p in Hreach1.
   apply reachable__get_a2p in Hreach2.
   apply reachable__get_a2p in Hreachle.
@@ -2291,7 +2294,7 @@ Proof.
   exists p1. exists p2. exists pe.
   split.
   Case "1".
-    unfold typings_props.strict_domination, typings_props.domination,
+    unfold cfg.strict_domination, cfg.domination,
            strict_domination, domination in *.
     destruct Hsdom as [Hsdom Hneq]. 
     rewrite Hentry' in Hsdom. 
@@ -2339,7 +2342,7 @@ Hypothesis wf_order: forall n (Hneq: n <> pe),
   exists p, In p (ppreds ??? n) /\ (p > n)%positive.
 
 Lemma dom_is_sound : forall l1 l2 (Hadom: adom l1 l2),
-  typings_props.domination f l1 l2.
+  cfg.domination f l1 l2.
 Proof.
   unfold adom, dom_analyze.
   intros.
@@ -2366,19 +2369,19 @@ Proof.
   Case "2".
     symmetry in HeqR2.
     eapply unreachable__get_a2p in HeqR2.
-    apply typings_props.everything_dominates_unreachable_blocks; auto.
+    apply dom_decl.DecDom.everything_dominates_unreachable_blocks; auto.
     apply getEntryLabel__getEntryBlock in Hentry.
     destruct Hentry as [be [Hentry' EQ]]; subst. congruence.
 Qed.
 
 Lemma sdom_is_complete : forall l1 l2 
   (Hincfg: XATree.in_cfg asuccs l1 /\ XATree.in_cfg asuccs l2)
-  (Hdom: typings_props.strict_domination f l1 l2)
+  (Hdom: cfg.strict_domination f l1 l2)
   (Hok: pdom_analysis_is_successful psuccs pe),
   sadom l1 l2.
 Proof.
   intros.
-  destruct (analysis.reachable_dec f l2) as [Hreach | Hunreach].
+  destruct (reach.reachable_dec f l2) as [Hreach | Hunreach].
   Case "reach".
     apply p2a_strict_domination in Hdom; auto.
     destruct Hdom as [p1 [p2 [pe' [Hdom [J1 [J2 J3]]]]]].

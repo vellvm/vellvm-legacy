@@ -165,4 +165,8 @@
 ./Vellvm/Dominators/pull_iter.v
 ./Vellvm/Dominators/push_iter.v
 ./Vellvm/Dominators/cpdt_tactics.v
+./Vellvm/Dominators/dom_set.v
+./Vellvm/Dominators/cfg.v
+./Vellvm/Dominators/reach.v
+./Vellvm/Dominators/dom_decl.v
 

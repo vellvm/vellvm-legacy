@@ -2456,7 +2456,7 @@ Proof.
       assert (ps'=nil) as EQ.
         eapply entryBlock_has_no_phinodes with (s:=S); eauto.
       subst.
-      apply dom_entrypoint in H2.
+      apply AlgDom.dom_entrypoint in H2.
       eapply initLocals_preserves_wf_defs; eauto.
 
       destruct HwfM.

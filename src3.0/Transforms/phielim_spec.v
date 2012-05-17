@@ -365,7 +365,7 @@ Proof.
             as [blv [Hlkupblv [[[bv [Hlkbv Hdom]]|Hnreachblv]|?]]]; 
             try congruence.
           SSSSCase "bv doms blv". 
-            destruct (sdom_dec f (getBlockLabel bv) l0) as [Hsdom | Hnsdom].
+            destruct (DecDom.sdom_dec f (getBlockLabel bv) l0) as [Hsdom | Hnsdom].
             SSSSSCase "bv sdoms blv".
               apply fold_left__spec in H2.
               destruct H2 as [_ [H2 _]].
@@ -383,7 +383,7 @@ Proof.
                 solve_lookupBlockViaLabelFromFdef.
                 solve_in_list. auto.
             SSSSSCase "bv doesnt sdom blv".
-              eapply non_sdom__inv in Hnsdom; eauto 1.
+              eapply DecDom.non_sdom__inv in Hnsdom; eauto 1.
               destruct Hnsdom as [EQ | Hnsdom]; subst.
               SSSSSSCase "all incomings are self".
                 elimtype False.

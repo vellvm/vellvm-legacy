@@ -118,7 +118,7 @@ Require Import infrastructure.
 Import LLVMsyntax.
 
 Definition dom_analyze (f: fdef) : PMap.t LDoms.t :=
-  let asuccs := analysis.successors f in
+  let asuccs := cfg.successors f in
   match LLVMinfra.getEntryBlock f with
   | Some (block_intro le _ _ _) =>
       let 'mkPO _ a2p := dfs asuccs le 1%positive in

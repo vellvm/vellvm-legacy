@@ -1697,7 +1697,7 @@ Proof.
   match goal with
   | Hentry : getEntryBlock _ = _,
     Hnpred : has_no_predecessors _ _ = _,
-    Hsuccess: dom_analysis_is_successful _
+    Hsuccess: AlgDom.dom_analysis_is_successful _
     |- _ => 
      eapply (@TransCFG.pres_getEntryBlock (Subst id0 v0)) 
        in Hentry; eauto;

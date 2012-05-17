@@ -12,19 +12,19 @@ let dom_type = ref 0
 let slow_dom f =
   match LLVMinfra.getEntryBlock f with
     | Some b ->
-        let LLVMsyntax.Coq_block_intro (root, _, _, _) = b in
         (match Analysis.reachablity_analysis f with
           | Some rd ->
-             let b0 = Analysis.bound_fdef f in
-             let dts = Analysis.dom_analyze f in
-             let chains = compute_sdom_chains b0 dts rd in
-             let dt = List.fold_left 
-                        (fun acc elt ->
-                         let y,chain = elt in
-                         create_dtree_from_chain acc chain) 
-                        (DT_node (root, DT_nil)) chains in
-             ignore(print_dominators b0 dts);
-             ignore(print_dtree dt)
+             let b0 = Cfg.bound_fdef f in
+             let dts = Dom_set.AlgDom.dom_query f in
+             (* let LLVMsyntax.Coq_block_intro (root, _, _, _) = b in *)
+             (* let chains = compute_sdom_chains dts rd in *)
+             (* let dt = List.fold_left *)
+             (*            (fun acc elt -> *)
+             (*             let y,chain = elt in *)
+             (*             create_dtree_from_chain acc chain) *)
+             (*            (DT_node (root, DT_nil)) chains in *)
+             ignore(print_dominators b0 dts)
+             (* ignore(print_dtree dt) *)
           | None -> ())
      | None -> ()
 

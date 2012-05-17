@@ -1235,6 +1235,30 @@ end.
   | insn_unreachable _ => nil
   end.
 
+  Definition terminator_match (tmn1 tmn2: terminator) : Prop :=
+  match tmn1, tmn2 with
+  | insn_return id1 _ _, insn_return id2 _ _ => id1 = id2
+  | insn_return_void id1, insn_return_void id2 => id1 = id2
+  | insn_br id1 _ l11 l12, insn_br id2 _ l21 l22 => 
+      id1 = id2 /\ l11 = l21 /\ l12 = l22
+  | insn_br_uncond id1 l1, insn_br_uncond id2 l2 => id1 = id2 /\ l1 = l2
+  | insn_unreachable i1, insn_unreachable i2 => i1 = i2
+  | _, _ => False
+  end.
+
+Ltac terminator_match_tac :=
+match goal with
+| J : terminator_match ?t1 ?t2 |- _ =>
+  destruct t1; destruct t2; simpl in J; inversion J; subst; auto;
+    match goal with
+    | J': ?id1 = _ /\ ?id2 = _ /\ ?id3 = _ |- _ =>
+      destruct J' as [? [? ?]]; subst id1 id2 id3; auto
+    | J': ?id1 = _ /\ ?id2 = _ |- _ =>
+      destruct J' as [? ?]; subst id1 id2; auto
+    | J' : ?id0 = _ |- _ => subst id0; auto
+    end
+end.
+
 (**********************************)
 (* Classes. *)
 

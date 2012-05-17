@@ -10,6 +10,7 @@ Require Export Znumtheory.
 Require Export datatype_base.
 Require Import syntax.
 Require Import infrastructure.
+Require Export dom_set.
 Require Export analysis.
 Require Import typings.
 Require Import genericvalues.
