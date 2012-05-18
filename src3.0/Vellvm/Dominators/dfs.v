@@ -909,6 +909,16 @@ Lemma asuccs_psuccs_pres_order: forall ascs pscs aentry pentry a2p
   wf_porder pscs pentry.
 Admitted. (* asuccs_psuccs *)
  
+Lemma dfs_wf_porder: forall ascs aentry pinit po (Hdfs: dfs ascs aentry pinit = po)
+  pentry pscs (Htrans: asuccs_psuccs (PO_a2p po) ascs = pscs) 
+  (Hentry: (PO_a2p po) ! aentry = Some pentry),
+  wf_porder pscs pentry.
+Proof.
+  intros.
+  eapply asuccs_psuccs_pres_order; eauto.
+  eapply dfs_wf_order; eauto.
+Qed.
+
 End Order.
 
 (************************)

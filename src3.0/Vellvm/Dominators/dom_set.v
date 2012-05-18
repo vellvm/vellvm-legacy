@@ -103,7 +103,6 @@ Variable entry: l.
 Variable entrypoints: list (atom * DomDS.L.t).
 
 Hypothesis wf_entrypoints:
-  predecessors!!!entry = nil /\
   match bs with
   | block_intro l0 _ _ _ :: _ => l0 = entry
   | _ => False
@@ -115,7 +114,7 @@ Lemma dom_entry_start_state_in:
   In (n, v) entrypoints ->
   Dominators.eq (DomDS.start_state_in entrypoints)!!n v.
 Proof.
-  destruct wf_entrypoints as [_ [_ J]]. clear wf_entrypoints.
+  destruct wf_entrypoints as [_ J]. clear wf_entrypoints.
   destruct J as [v [Heq J]]; subst. simpl.
   intros.
   destruct H as [H | H]; inv H.
@@ -134,7 +133,7 @@ Lemma dom_nonentry_start_state_in:
   n <> entry ->
   Dominators.eq (DomDS.start_state_in entrypoints)!!n bot.
 Proof.
-  destruct wf_entrypoints as [_ [_ J]]. clear wf_entrypoints.
+  destruct wf_entrypoints as [_ J]. clear wf_entrypoints.
   destruct J as [v [Heq J]]; subst. simpl.
   intros.
   rewrite AMap.gi. rewrite AMap.gso; auto. rewrite AMap.gi.
@@ -163,7 +162,7 @@ Proof.
   apply dom_nonentry_start_state_in in Hneq.
   unfold DomDS.start_state. simpl.
   apply Dominators.member_eq with (x2:=bot); auto.
-  destruct wf_entrypoints as [_ [J _]]. unfold bot.
+  destruct wf_entrypoints as [J _]. unfold bot.
   destruct bs; tinv J.
   destruct b; subst. simpl. auto.
 Qed.
@@ -214,7 +213,7 @@ Proof.
     unfold transf, transfer.
     destruct (eq_atom_dec n entry); subst.
       apply Dominators.add_member1.
-      destruct wf_entrypoints as [_ [J _]].
+      destruct wf_entrypoints as [J _].
       destruct bs; tinv J.
       destruct b; subst. simpl. auto.
 
@@ -252,18 +251,9 @@ Qed.
 
 End EntryDomsOthers. End EntryDomsOthers.
 
-Definition wf_entrypoints f: Prop :=
-  match getEntryBlock f with
-  | Some (block_intro l0 _ _ _) => 
-      (XATree.make_predecessors (successors f))!!!l0 = nil
-  | _ => False
-  end.
-
 Section entry_doms_others.
 
 Variable f:fdef.
-
-Hypothesis wf_entrypoints: wf_entrypoints f.
 
 Lemma entry_doms_others: forall
   entry
@@ -297,7 +287,6 @@ Proof.
     destruct (t0 !! b); simpl; auto.
 
   Case "2".
-    split; auto.
     split; auto.
       exists Dominators.top.
       simpl.
@@ -516,7 +505,6 @@ Variable entry: l.
 Variable entrypoints: list (atom * DomDS.L.t).
 
 Hypothesis wf_entrypoints:
-  predecessors!!!entry = nil /\
   match bs with
   | block_intro l0 _ _ _ :: _ => l0 = entry
   | _ => False
@@ -546,7 +534,7 @@ Proof.
     exists V_nil. exists A_nil.
     split.
       constructor.
-      destruct wf_entrypoints as [_ [J _]].
+      destruct wf_entrypoints as [J _].
       destruct bs; tinv J.
       destruct b; subst.
       eapply entry_in_vertexes; simpl; eauto.
@@ -573,7 +561,7 @@ Proof.
     apply DWalk_to_dpath in H0; auto.
     destruct H0 as [vl0 [al0 Hp]].
     exists vl0. exists al0.
-    destruct wf_entrypoints as [_ [Heq _]]; subst.
+    destruct wf_entrypoints as [Heq _]; subst.
     split.
       apply D_path_isa_walk; auto.
       eapply DP_endx_ninV; eauto. congruence.
@@ -720,8 +708,6 @@ Section sdom_is_complete.
 
 Variable f:fdef.
 
-Hypothesis Hwf_entrypoints: wf_entrypoints f.
-
 Hypothesis branches_in_vertexes: forall p ps0 cs0 tmn0 l2
   (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
   (J4 : In l2 (successors_terminator tmn0)),
@@ -737,7 +723,7 @@ Lemma sdom_is_complete: forall
   In l' (dom_query f l3).
 Proof.
   intros. 
-  unfold wf_entrypoints, dom_analysis_is_successful, 
+  unfold dom_analysis_is_successful, 
          dom_query, dom_analyze in *. 
   destruct f as [fh bs].
   remember (getEntryBlock (fdef_intro fh bs)) as R.
@@ -773,7 +759,6 @@ Proof.
         Unfocus.
 
       SSCase "2".
-        split; auto.
         split.
           simpl in *.
           destruct bs; uniq_result; auto.
@@ -797,7 +782,6 @@ Variable entry: l.
 Variable entrypoints: list (atom * DomDS.L.t).
 
 Hypothesis wf_entrypoints:
-  predecessors!!!entry = nil /\
   match bs with
   | block_intro l0 _ _ _ :: _ => l0 = entry
   | _ => False
@@ -899,7 +883,7 @@ Proof.
         destruct J as [ps0 [cs0 [tmn0 [J1 J2]]]].
         contradict Hunreach.
         unfold reachable. 
-        destruct wf_entrypoints as [_ [J _]].
+        destruct wf_entrypoints as [J _].
         destruct bs as [|b ?]; tinv J. 
         destruct b as [l5 ? ? ?]. simpl. subst entry.
         unfold XATree.successors_list in Hin. simpl in Hin. rewrite ATree.gss in Hin.
@@ -939,12 +923,7 @@ Hypothesis branches_in_vertexes: forall p ps0 cs0 tmn0 l2
   (J4 : In l2 (successors_terminator tmn0)),
   vertexes_fdef f (index l2).
 
-Hypothesis wf_entrypoints:
-  match getEntryBlock f with
-  | Some (block_intro l0 _ _ _) => 
-      (XATree.make_predecessors (successors f))!!!l0 = nil
-  | _ => False
-  end.
+Hypothesis Hhasentry: getEntryBlock f <> None.
 
 Lemma dom_unreachable: forall
   (l3 : l) (l' : l) ps cs tmn
@@ -955,8 +934,7 @@ Lemma dom_unreachable: forall
   dom_query f l3 = bound_fdef f.
 Proof.
   intros.
-  case_eq (getEntryBlock f); 
-    try solve [intros EQ; rewrite EQ in wf_entrypoints; tauto].
+  case_eq (getEntryBlock f); try congruence.
   intros [l0 p c t] Hentry. 
   match goal with | H1: getEntryBlock _ = _ |- _ =>
     assert (J:=H1); apply dom_entrypoint in H1 end.
@@ -980,7 +958,6 @@ Proof.
         apply HeqR in n; auto.
         simpl. destruct t0 !! l3; tinv n. auto.
       SCase "2".
-        split; auto.
         split.
           simpl in J.
           destruct bs; uniq_result; auto.

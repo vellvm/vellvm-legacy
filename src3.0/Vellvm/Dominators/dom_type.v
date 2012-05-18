@@ -26,15 +26,7 @@ Axiom dom_entrypoint : forall f l0 ps cs tmn
   (Hentry : getEntryBlock f = Some (block_intro l0 ps cs tmn)),
   dom_query f l0 = nil.
 
-Definition wf_entrypoints f: Prop :=
-  match getEntryBlock f with
-  | Some (block_intro l0 _ _ _) => 
-      (XATree.make_predecessors (successors f))!!!l0 = nil
-  | _ => False
-  end.
-
-Axiom entry_doms_others: forall (f:fdef)
-  (Hwf_entrypoints: wf_entrypoints f) entry
+Axiom entry_doms_others: forall (f:fdef) entry
   (Hex: dom_analysis_is_successful f)
   (H: getEntryLabel f = Some entry),
   (forall b (H0: b <> entry /\ reachable f b),
@@ -52,7 +44,6 @@ Axiom dom_successors : forall
   incl contents' (l3 :: contents3).
 
 Axiom sdom_is_complete: forall (f:fdef)
-  (Hwf_entrypoints: wf_entrypoints f)
   (branches_in_vertexes: forall p ps0 cs0 tmn0 l2
     (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
     (J4 : In l2 (successors_terminator tmn0)),
@@ -70,7 +61,7 @@ Axiom dom_unreachable: forall (f:fdef)
     (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
     (J4 : In l2 (successors_terminator tmn0)),
     vertexes_fdef f (index l2))
-  (wf_entrypoints: wf_entrypoints f)
+  (Hhasentry: getEntryBlock f <> None)
   (l3 : l) (l' : l) ps cs tmn
   (Hsucc: dom_analysis_is_successful f)
   (HuniqF: uniqFdef f)

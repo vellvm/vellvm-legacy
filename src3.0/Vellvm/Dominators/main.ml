@@ -44,7 +44,7 @@ let pull_dom f =
   if (!Globalstates.print_dtree) then (ignore (print_doms dts))
 
 let push_dom f =
-  let dts = Push_iter.dom_analyze f in
+  let (dts, _) = Dom_list.dom_analyze f in
   if (!Globalstates.print_dtree) then (ignore (print_doms dts))
 
 let dom_product g =
