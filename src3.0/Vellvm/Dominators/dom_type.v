@@ -45,10 +45,6 @@ Axiom dom_successors : forall
   incl contents' (l3 :: contents3).
 
 Axiom sdom_is_complete: forall (f:fdef)
-  (branches_in_vertexes: forall p ps0 cs0 tmn0 l2
-    (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
-    (J4 : In l2 (successors_terminator tmn0)),
-    vertexes_fdef f (index l2))
   (l3 : l) (l' : l) ps cs tmn ps' cs' tmn'
   (HuniqF : uniqFdef f)
   (Hsucc: dom_analysis_is_successful f)
@@ -58,10 +54,6 @@ Axiom sdom_is_complete: forall (f:fdef)
   In l' (dom_query f l3).
 
 Axiom dom_unreachable: forall (f:fdef)
-  (branches_in_vertexes: forall p ps0 cs0 tmn0 l2
-    (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
-    (J4 : In l2 (successors_terminator tmn0)),
-    vertexes_fdef f (index l2))
   (Hhasentry: getEntryBlock f <> None)
   (l3 : l) (l' : l) ps cs tmn
   (Hsucc: dom_analysis_is_successful f)

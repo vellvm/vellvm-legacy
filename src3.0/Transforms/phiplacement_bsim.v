@@ -126,7 +126,7 @@ Proof.
   destruct (fdef_dec (PI_f pinfo) F1) as [ e | n]; try subst F1.
   SCase "F is tranformed".
     assert ((PI_newids pinfo) ! l3 <> None) as Hreach.
-      apply reachable_blk_has_newids; subst; simpl; auto.
+      eapply reachable_blk_has_newids; subst; simpl; eauto.
 
     remember ((PI_newids pinfo) ! l3) as R.
     destruct R as [[[lid pid] sid]|]; try congruence.
@@ -145,7 +145,7 @@ Proof.
     destruct b1 as [l0 ps0 cs0 tmn0].
     unfold phinodes_placement_block in Htblock.
     assert ((PI_newids pinfo) ! l0 <> None) as Hreach'.
-      apply reachable_blk_has_newids; subst; simpl; auto.
+      eapply reachable_blk_has_newids; subst; simpl; eauto.
     remember ((PI_newids pinfo) ! l0) as R1.
     destruct R1 as [[[lid' pid'] sid']|]; try congruence.
     assert (exists prd, exists prds, (PI_preds pinfo) ! l0 = Some (prd::prds))
@@ -346,7 +346,7 @@ Proof.
   destruct (fdef_dec (PI_f pinfo) F1) as [ e | n]; try subst F1.
   SCase "F is tranformed".
     assert ((PI_newids pinfo) ! l3 <> None) as Hreach.
-      apply reachable_blk_has_newids; subst; simpl; auto.
+      eapply reachable_blk_has_newids; subst; simpl; eauto.
 
     remember ((PI_newids pinfo) ! l3) as R.
     destruct R as [[[lid pid] sid]|]; try congruence.
@@ -365,7 +365,7 @@ Proof.
     destruct b1 as [l1 ps1 cs1 tmn1].
     unfold phinodes_placement_block in Htblock.
     assert ((PI_newids pinfo) ! l1 <> None) as Hreach'.
-      apply reachable_blk_has_newids; subst; simpl; auto.
+      eapply reachable_blk_has_newids; subst; simpl; eauto.
 
     remember ((PI_newids pinfo) ! l1) as R1.
     destruct R1 as [[[lid' pid'] sid']|]; try congruence.

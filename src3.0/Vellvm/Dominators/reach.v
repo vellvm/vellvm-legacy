@@ -13,7 +13,13 @@ Import LLVMsyntax.
 Import LLVMinfra.
 
 Lemma reachable_dec: forall (f:fdef) (l1:l), reachable f l1 \/ ~ reachable f l1.
-Proof. intros. tauto. Qed. (* classic logic *)
+Proof. 
+  unfold reachable.
+  intros. 
+  destruct (getEntryBlock f) as [[]|]. 
+    apply ACfg.reachable_dec.
+    right. intro H. inv H.
+Qed.
 
 Lemma reachable_entrypoint:
   forall (f:fdef) l0 ps cs tmn,

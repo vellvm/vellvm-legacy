@@ -149,7 +149,7 @@ Proof.
       elim_in_nil.
 
     eapply dom_unreachable in H; eauto 1.
-      apply blockInFdefB_in_vertexes in HBinF1.
+      apply blockInFdefB_in_bound_fdef in HBinF1.
       unfold vertexes_fdef in HBinF1.
       rewrite H.
       solve_in_dec.
@@ -556,7 +556,7 @@ Proof.
   unfold gt_sdom.
   intros.
   assert (J:=Hreach).
-  apply reachable__in_bound in Hreach.
+  apply reachable__in_bound in Hreach; eauto 2 using branches_in_bound_fdef.
   apply In_bound_fdef__blockInFdefB in Hreach.
   destruct Hreach as [ps [cs [tnn HBinF]]].
   destruct (in_dec l_dec a (AlgDom.dom_query f a)); simpl; auto.
@@ -657,7 +657,7 @@ Proof.
   assert (HBinF1: In l1 (bound_fdef f)).
     eapply in_gt_sdom__in_bound_fdef; eauto.
   assert (HBinF3: In l3 (bound_fdef f)).
-    eapply reachable__in_bound; eauto.
+    eapply reachable__in_bound; eauto 2 using branches_in_bound_fdef.
   unfold gt_dom_prop, gt_sdom in *.
   destruct (in_dec l_dec l1); inv H1.
   apply In_bound_fdef__blockInFdefB in HBinF1.

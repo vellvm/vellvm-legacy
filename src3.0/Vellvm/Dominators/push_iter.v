@@ -1239,6 +1239,9 @@ End Inequations. End Inequations.
 (***************************************************)
 
 Require Import Dipaths.
+Require Import cfg.
+
+Module PCfg := Cfg (PTree).
 
 Section Domination.
 
@@ -1351,46 +1354,6 @@ Proof.
   eapply member_transfer_inv; eauto.
 Qed.
 
-(* Vertex only allows Set, while TREE.elt is Type. We need to 
-   change to support both positive and atom *)
-Definition vertexes : V_set :=
-fun (v:Vertex) => let '(index n) := v in in_cfg n.
-
-Definition arcs : A_set :=
-fun (arc:Arc) =>
-  let '(A_ends (index n2) (index n1)) := arc in
-  In n2 (successors???n1).
-
-Definition reachable (n0:positive) : Prop :=
-  exists vl: V_list, exists al: A_list,
-    D_walk vertexes arcs (index n0) (index entrypoint) vl al.
-
-Lemma reachable_entrypoint: in_cfg entrypoint -> reachable entrypoint.
-Proof.
-  intros. exists V_nil. exists A_nil. apply DW_null; auto.
-Qed.
-
-Lemma reachable_dec: forall n, reachable n \/ ~ reachable n.
-Admitted. (* from analysis.v dec *)
-
-Lemma reachable_successors: forall n1 n2 (Hsc: In n2 (successors ??? n1))
-  (Hreach: reachable n1), reachable n2.
-Proof.
-  unfold reachable. intros.
-  destruct Hreach as [vl [al Hreach]].
-  exists (index n1::vl). exists (A_ends (index n2) (index n1)::al).
-  apply DW_step; auto.
-    eapply XPTree.in_succ__in_cfg; eauto.
-Qed. (* from analysis.v *)
-
-Definition domination (n1 n2:positive) : Prop :=
-  forall vl al,
-    D_walk vertexes arcs (index n2) (index entrypoint) vl al ->
-    (In (index n1) vl \/ n1 = n2).
-
-Definition strict_domination (n1 n2:positive) : Prop :=
-domination n1 n2 /\ n1 <> n2.
-
 End Domination.
 
 (***************************************************)
@@ -1455,12 +1418,13 @@ Qed.
 
 Lemma adom_is_sound : forall n1 n2 (Hincfg: in_cfg successors n1)
   (Hadom: adomination successors entrypoint n1 n2),
-  domination successors entrypoint n1 n2.
+  PCfg.domination successors entrypoint n1 n2.
 Proof.
   intros.
   intros vl al Hreach.
-  remember (vertexes successors) as A.
-  remember (arcs successors) as B.
+  remember (PCfg.vertexes successors) as A.
+  remember (PCfg.arcs successors) as B.
+  unfold PTree.elt in *.
   remember (index n2) as C.
   remember (index entrypoint) as D.
   generalize dependent n2.
@@ -1483,9 +1447,9 @@ Proof.
 Qed.
 
 Lemma sadom_is_sound : forall n1 n2 (Hincfg: in_cfg successors n1)
-  (Hreach : reachable successors entrypoint n2)
+  (Hreach : PCfg.reachable successors entrypoint n2)
   (Hsadom: strict_adomination successors entrypoint n1 n2),
-  strict_domination successors entrypoint n1 n2.
+  PCfg.strict_domination successors entrypoint n1 n2.
 Proof.
   intros. assert (Hadom:=Hsadom).
   apply sadom__adom in Hadom.
@@ -1515,7 +1479,7 @@ Proof.
 Qed.
 
 Lemma sadom_isnt_refl : forall n1 n2 (Hincfg: in_cfg successors n1)
-  (Hreach : reachable successors entrypoint n2)
+  (Hreach : PCfg.reachable successors entrypoint n2)
   (Hsadom: strict_adomination successors entrypoint n1 n2),
   n1 <> n2.
 Proof.
@@ -1525,13 +1489,14 @@ Proof.
 Qed.
 
 Lemma reachable_isnt_bot : forall n 
-  (Hreach : reachable successors entrypoint n),
+  (Hreach : PCfg.reachable successors entrypoint n),
   (pdom_analyze successors entrypoint) ?? n <> LDoms.bot.
 Proof.
   intros.
   destruct Hreach as [vl [al Hreach]].
-  remember (vertexes successors) as A.
-  remember (arcs successors) as B.
+  remember (PCfg.vertexes successors) as A.
+  remember (PCfg.arcs successors) as B.
+  unfold PTree.elt in *.
   remember (index n) as C.
   remember (index entrypoint) as D.
   generalize dependent n.
@@ -1736,13 +1701,10 @@ Definition predecessors := XPTree.make_predecessors successors.
 Hint Unfold predecessors.
 
 Definition non_sdomination (n1 n2:positive) : Prop :=
-  exists vl, exists al,
-    D_walk (vertexes successors) (arcs successors) 
-      (index n2) (index entrypoint) vl al /\
-    ~ In (index n1) vl.
+  PCfg.non_sdomination successors entrypoint n1 n2.
 
 Definition wf_doms (res: PMap.t LDoms.t) : Prop :=
-  forall n1 n2 (Hincfg: vertexes successors (index n1)) 
+  forall n1 n2 (Hincfg: PCfg.vertexes successors (index n1)) 
     (Hnotdom: ~ member successors n1 res??n2),
     non_sdomination n1 n2.
 
@@ -1766,18 +1728,12 @@ Qed.
 Hint Resolve positive_eq_dec: positive.
 
 Lemma non_sdomination_refl : forall n1
-  (Hneq: n1 <> entrypoint) (Hreach: reachable successors entrypoint n1),
+  (Hneq: n1 <> entrypoint) (Hreach: PCfg.reachable successors entrypoint n1),
   non_sdomination n1 n1.
 Proof.
-  unfold reachable, non_sdomination.
+  unfold reachable, non_sdomination. 
   intros.
-  destruct Hreach as [vl [al Hreach]].
-  apply DWalk_to_dpath in Hreach; auto with positive.
-  destruct Hreach as [vl0 [al0 Hp]].
-  exists vl0. exists al0.
-  split.
-    apply D_path_isa_walk; auto.
-    eapply DP_endx_ninV; eauto. congruence.
+  apply PCfg.non_sdomination_refl; auto with positive.
 Qed.
 
 Lemma propagate_succ_wf_doms: forall st p n out
@@ -1907,7 +1863,7 @@ Proof.
 Qed.
 
 Lemma sadom_is_complete: forall n1 n2 (Hincfg: in_cfg successors n1)
-  (Hsdom: strict_domination successors entrypoint n1 n2)
+  (Hsdom: PCfg.strict_domination successors entrypoint n1 n2)
   (Hok: pdom_analysis_is_successful successors entrypoint),
   strict_adomination successors entrypoint n1 n2.
 Proof.
@@ -1944,7 +1900,7 @@ Variable entrypoint: positive.
 Definition entrypoints := (entrypoint, LDoms.top) :: nil.
 
 Definition wf_doms (res: PMap.t LDoms.t) : Prop :=
-  forall n0 (Hunreach: ~ reachable successors entrypoint n0) 
+  forall n0 (Hunreach: ~ PCfg.reachable successors entrypoint n0) 
     (Hneq: n0 <> entrypoint),
     LDoms.eq res??n0 LDoms.bot.
 
@@ -1959,7 +1915,7 @@ Qed.
   the [step] function preserves it. *)
 
 Lemma propagate_succ_wf_doms: forall st n out
-  (Hp: ~ reachable successors entrypoint n -> 
+  (Hp: ~ PCfg.reachable successors entrypoint n -> 
        n <> entrypoint -> LDoms.eq out LDoms.bot)
   (Hwf: wf_doms st.(DomDS.st_in)),
   wf_doms (DomDS.propagate_succ st out n).(DomDS.st_in).
@@ -1980,7 +1936,7 @@ Qed.
 
 Lemma propagate_succ_list_wf_doms: forall scs st out
   (H: forall s, In s scs ->
-             ~ reachable successors entrypoint s -> s <> entrypoint ->
+             ~ PCfg.reachable successors entrypoint s -> s <> entrypoint ->
              LDoms.eq out LDoms.bot)
   (Hwf: wf_doms st.(DomDS.st_in)),
   wf_doms (DomDS.propagate_succ_list st out scs).(DomDS.st_in).
@@ -2007,9 +1963,9 @@ Proof.
   destruct st. simpl.
   apply propagate_succ_list_wf_doms; auto.
   intros s Hin Hunreach.
-  destruct (reachable_dec successors entrypoint n).
+  destruct (PCfg.reachable_dec successors entrypoint n).
   Case "1".
-    eapply reachable_successors with (n2:=s) in H; eauto.
+    apply PCfg.reachable_succ with (sc:=s) in H; auto.
     congruence.
   Case "2".
     apply GOOD in H. simpl in H.
@@ -2044,7 +2000,7 @@ Proof.
     apply start_wf_doms.
 Qed.
 
-Lemma dom_unreachable: forall n3 (Hunreach: ~ reachable successors entrypoint n3)
+Lemma dom_unreachable: forall n3 (Hunreach: ~ PCfg.reachable successors entrypoint n3)
   (Hok: pdom_analysis_is_successful successors entrypoint),
   LDoms.eq ((pdom_analyze successors entrypoint) ?? n3) LDoms.bot.
 Proof.
@@ -2052,7 +2008,7 @@ Proof.
   destruct (positive_eq_dec n3 entrypoint); subst.
   Case "1".
     contradict Hunreach. 
-    apply reachable_entrypoint; auto.    
+    apply PCfg.reachable_entry; auto.    
   Case "2".
     unfold strict_adomination, pdom_analysis_is_successful, pdom_analyze in *.
     remember (DomDS.fixpoint successors LDoms.transfer

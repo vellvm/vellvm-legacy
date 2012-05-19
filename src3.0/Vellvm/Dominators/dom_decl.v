@@ -21,7 +21,7 @@ Module DecDom.
 Lemma dom_tran: forall (f:fdef) (l1 l2 l3:l),
   domination f l1 l2 -> domination f l2 l3 -> domination f l1 l3.
 Proof.
-  unfold domination.
+  unfold domination. autounfold with cfg.
   intros.
   destruct (getEntryBlock f); tinv H.
   destruct b.
@@ -39,7 +39,9 @@ Proof.
     destruct Hw'' as [Hw'' | Hw'']; subst; auto.
     destruct (id_dec l1 l2); subst; auto.
     apply V_extract_spec in Hw''; try congruence.
-    simpl in Hw''. destruct Hw'' as [Hw'' | Hw'']; congruence.
+    simpl in Hw''. 
+    destruct Hw'' as [Hw'' | Hw'']; auto.
+      uniq_result. congruence.
 
     assert (Hw'':=Hw).
     apply H in Hw''.
@@ -148,7 +150,7 @@ Proof.
   assert (H':=H).
   apply J1 in H'.
   assert (In (index l1) vl) as Hin.
-    destruct H' as [H' | H']; subst; try congruence.
+    destruct H' as [H' | H']; subst; auto; congruence.
   apply DW_extract with (x:=index l1)(eq_a_dec:=eq_atom_dec) in H; 
     simpl; auto.
   destruct H as [al' H].
@@ -173,7 +175,7 @@ Lemma everything_dominates_unreachable_blocks :
   (Hentry: getEntryBlock f <> None),
   domination f l1 l2.
 Proof.
-  unfold reachable, domination.
+  unfold reachable, domination. autounfold with cfg.
   intros.
   destruct (getEntryBlock f); try congruence.
   destruct b.
@@ -200,7 +202,7 @@ Proof.
   unfold strict_domination in *.
   destruct Hsdom as [Hdom Hneq1].
   destruct Hsdom' as [Hdom' Hneq2].
-  unfold domination, reachable in *.
+  unfold domination, reachable in *. autounfold with cfg in *.
   destruct (getEntryBlock f); auto.
   destruct b as [l0 ? ? ?].
   destruct Hreach as [vl [al Hreach]].
@@ -248,7 +250,7 @@ Proof.
       destruct J as [J | J]; auto.
   destruct J as [J3 J4].
   apply Hdom' in J3.
-  destruct J3 as [Hin'' | Heq]; try congruence.
+  destruct J3 as [Hin'' | Heq]; try congruence; auto.
 
   Case "2".
   assert (exists vl:V_list, exists al:A_list,
@@ -275,7 +277,7 @@ Proof.
       destruct J as [J | J]; auto.
   destruct J as [J3 J4].
   apply Hdom in J3.
-  destruct J3 as [Hin'' | Heq]; try congruence.
+  destruct J3 as [Hin'' | Heq]; try congruence; auto.
 Qed.
 
 Lemma non_sdom__inv: forall f l1 l2 be (Hentry: getEntryBlock f = Some be)

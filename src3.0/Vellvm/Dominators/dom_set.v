@@ -505,11 +505,7 @@ Hypothesis wf_entrypoints:
   exists v, [(entry, v)] = entrypoints /\ Dominators.eq v top.
 
 Definition non_sdomination (l1 l2:l) : Prop :=
-  let vertexes := vertexes_fdef (fdef_intro fh bs) in
-  let arcs := arcs_fdef (fdef_intro fh bs) in
-  exists vl, exists al,
-    D_walk vertexes arcs (index l2) (index entry) vl al /\
-    ~ In (index l1) vl.
+  ACfg.non_sdomination (successors (fdef_intro fh bs)) entry l1 l2.
 
 Definition non_sdomination_prop (res: AMap.t DomDS.L.t) : Prop :=
   forall l1 l2,
@@ -545,37 +541,12 @@ Lemma non_sdomination_refl : forall l1,
   reachable (fdef_intro fh bs) l1 ->
   non_sdomination l1 l1.
 Proof.
-  unfold reachable, non_sdomination.
+  unfold reachable, non_sdomination. 
   intros.
-  destruct bs; simpl in *.
-    inv H0.
-    destruct b; simpl in *.
-    destruct H0 as [vl [al H0]].
-    apply DWalk_to_dpath in H0; auto.
-    destruct H0 as [vl0 [al0 Hp]].
-    exists vl0. exists al0.
-    destruct wf_entrypoints as [Heq _]; subst.
-    split.
-      apply D_path_isa_walk; auto.
-      eapply DP_endx_ninV; eauto. congruence.
+  destruct bs as [|[]]; simpl in *; try congruence.
+  destruct wf_entrypoints as [Heq _]; subst.
+  apply ACfg.non_sdomination_refl; auto.
 Qed.
-
-Hypothesis branches_in_vertexes: forall p ps0 cs0 tmn0 l2
-  (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) (fdef_intro fh bs))
-  (J4 : In l2 (successors_terminator tmn0)),
-  vertexes_fdef (fdef_intro fh bs) (index l2).
-(*
-          eapply wf_fdef__blockInFdefB__wf_block in J3; eauto.
-          inv J3. inv HwfF.
-          match goal with
-          | H12: wf_insn _ _ _ _ _ |- _ =>
-            eapply wf_tmn__in_successors in H12; eauto;
-            destruct H12 as [cs1 [ps1 [tmn1 H12]]]
-          end.
-          eapply blockInFdefB_in_vertexes; eauto.
-*)
-
-Hypothesis UniqF: uniqFdef (fdef_intro fh bs).
 
 Lemma propagate_succ_non_sdomination: forall st p n out
   (Hinpds: In p predecessors!!!n)
@@ -618,10 +589,8 @@ Proof.
         apply XATree.make_predecessors_correct' in Hinpds.
         change (successors_blocks bs) with (successors (fdef_intro fh bs))
           in Hinpds.
-        apply successors__blockInFdefB in Hinpds.
-        destruct Hinpds as [ps0 [cs0 [tmn0 [J3 J4]]]].
         constructor; eauto.
-          eapply successor_in_arcs; eauto.
+          eapply XATree.in_succ__in_cfg; eauto.
 
       SSCase "2".
           intro J. simpl in J.
@@ -701,11 +670,6 @@ Section sdom_is_complete.
 
 Variable f:fdef.
 
-Hypothesis branches_in_vertexes: forall p ps0 cs0 tmn0 l2
-  (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
-  (J4 : In l2 (successors_terminator tmn0)),
-  vertexes_fdef f (index l2).
-
 Lemma sdom_is_complete: forall
   (l3 : l) (l' : l) ps cs tmn ps' cs' tmn'
   (HuniqF : uniqFdef f)
@@ -737,6 +701,7 @@ Proof.
         SSSCase "1".
           unfold Dominators.member in H.
           destruct (t!!l3); auto.
+            apply blockInFdefB_in_bound_fdef in HBinF'. auto.
 
         SSSCase "2".
           apply HeqR0 with (l2:=l3) in J; auto.
@@ -834,11 +799,6 @@ Proof.
         intros J1 J2. eapply H; eauto.
 Qed.
 
-Hypothesis branches_in_vertexes: forall p ps0 cs0 tmn0 l2
-  (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) (fdef_intro fh bs))
-  (J4 : In l2 (successors_terminator tmn0)),
-  vertexes_fdef (fdef_intro fh bs) (index l2).
-
 Hypothesis UniqF: uniqFdef (fdef_intro fh bs).
 
 Lemma step_unreachable_doms:
@@ -863,6 +823,7 @@ Proof.
       destruct J as [ps0 [cs0 [tmn0 [J1 J2]]]].
       eapply DecRD.reachable_successors with (l1:=s) in H; eauto.
         congruence.
+        eapply XATree.in_succ__in_cfg; eauto.
 
     Case "unreach".
       apply GOOD in H. simpl in H.
@@ -878,17 +839,18 @@ Proof.
         unfold reachable. 
         destruct wf_entrypoints as [J _].
         destruct bs as [|b ?]; tinv J. 
-        destruct b as [l5 ? ? ?]. simpl. subst entry.
-        unfold XATree.successors_list in Hin. simpl in Hin. rewrite ATree.gss in Hin.
-        clear J.
+        destruct b as [l5 ? ? ?]. subst entry. 
+Local Opaque successors. 
+        simpl. clear J.
         exists (index l5::nil). exists (A_ends (index s) (index l5)::nil).
         constructor; eauto.
           constructor.
             eapply entry_in_vertexes; simpl; eauto.
-          eapply successor_in_arcs; eauto.
+          eapply XATree.in_succ__in_cfg; eauto.
       apply Dominators.eq_trans with (y:=Dominators.add (Dominators.bot) n).
         apply Dominators.add_eq; auto.
         apply Dominators.add_bot.
+Transparent successors.
 Qed.
 
 Theorem dom_unreachable_doms: forall res,
@@ -910,11 +872,6 @@ End UnreachableDoms. End UnreachableDoms.
 Section dom_unreachable.
 
 Variable f:fdef.
-
-Hypothesis branches_in_vertexes: forall p ps0 cs0 tmn0 l2
-  (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
-  (J4 : In l2 (successors_terminator tmn0)),
-  vertexes_fdef f (index l2).
 
 Hypothesis Hhasentry: getEntryBlock f <> None.
 
@@ -972,7 +929,7 @@ Lemma dom_is_sound : forall
   (Hin : In l' (l3::(dom_query f l3))),
   domination f l' l3.
 Proof.
-  unfold domination, strict_domination.
+  unfold domination. autounfold with cfg.
   intros. destruct f as [fh bs].
   remember (getEntryBlock (fdef_intro fh bs)) as R.
   destruct R; try congruence. clear Hhasentry.
@@ -981,8 +938,9 @@ Proof.
   generalize dependent ps.
   generalize dependent cs.
   generalize dependent tmn.
-  remember (vertexes_fdef (fdef_intro fh bs)) as Vs.
-  remember (arcs_fdef (fdef_intro fh bs)) as As.
+  remember (ACfg.vertexes (successors (fdef_intro fh bs))) as Vs.
+  remember (ACfg.arcs (successors (fdef_intro fh bs))) as As.
+  unfold ATree.elt, l in *.
   remember (index l3) as v0.
   remember (index l5) as v1.
   generalize dependent bs.

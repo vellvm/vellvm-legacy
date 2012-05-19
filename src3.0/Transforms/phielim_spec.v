@@ -167,7 +167,7 @@ Proof.
     inv Hpath2; try congruence.
 
     match goal with
-    | H4: arcs_fdef _ (A_ends _ ?y),
+    | H4: ACfg.arcs _ (A_ends _ ?y),
       H: D_path _ _ ?y _ _ _ |- _ => 
        rename H4 into Harc; destruct y as [ly];
        assert (Hwalk2:=H); apply D_path_isa_walk in Hwalk2
@@ -176,7 +176,7 @@ Proof.
     destruct Hwflist as [v2 Hinlist2].
 
     assert (reachable f ly) as Hreachy.
-      unfold reachable. fill_ctxhole. eauto.
+      unfold reachable, ACfg.reachable. fill_ctxhole. eauto.
 
     assert (Hinlist2':=Hinlist2).
     apply Hid in Hinlist2'; auto.
@@ -422,7 +422,8 @@ Proof.
                 end.
                 destruct y as [ly].
                 assert (reachable f ly) as Hreachy.
-                  unfold reachable. fill_ctxhole. destruct be. eauto.
+                  unfold reachable, ACfg.reachable. fill_ctxhole. 
+                  destruct be. eauto.
                 match goal with
                 | H4: arcs_fdef _ _ |- _ => rename H4 into Harc
                 end.
@@ -442,7 +443,7 @@ Proof.
                     as [by0 [bly0 [Hlkbly0 [Hlkby0 Hby0_dom_bly0]]]].
                   simpl in *. uniq_result.
                   lookupBlockViaLabelFromFdef_inv_tac.
-                  unfold domination in Hby0_dom_bly0.
+                  unfold domination, ACfg.domination in Hby0_dom_bly0.
                   rewrite Hentry in Hby0_dom_bly0.
                   destruct be as [le ? ? ?].
                   apply Hby0_dom_bly0 in Hwalk.
@@ -457,7 +458,7 @@ Proof.
                     as [by0 [bly0 [Hlkbly0 [Hlkby0 Hby0_dom_bly0]]]].
                   simpl in *. uniq_result.
                   lookupBlockViaLabelFromFdef_inv_tac.
-                  unfold domination in Hby0_dom_bly0.
+                  unfold domination, ACfg.domination in Hby0_dom_bly0.
                   rewrite Hentry in Hby0_dom_bly0.
                   destruct be as [le ? ? ?].
                   apply Hby0_dom_bly0 in Hwalk.

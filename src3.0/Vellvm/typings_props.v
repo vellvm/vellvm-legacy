@@ -752,6 +752,34 @@ Qed.
 
 Require Import Dipaths.
 
+Lemma branches_in_vertexes: forall (S : system) (M : module) (f : fdef)
+  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f) (p : l) (ps0 : phinodes)
+  (cs0 : cmds) (tmn0 : terminator) (l2 : l)
+  (HbInF : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
+  (Hinscs : In l2 (successors_terminator tmn0)),
+  vertexes_fdef f (index l2).
+Proof.
+  intros.
+  eapply wf_fdef__wf_tmn in HbInF; eauto.
+  eapply wf_tmn__in_successors in HbInF; eauto.
+  destruct HbInF as [cs1 [ps1 [tmn1 HbInF]]].
+  eapply blockInFdefB_in_vertexes; eauto.
+Qed.
+
+Lemma branches_in_bound_fdef: forall (S : system) (M : module) (f : fdef)
+  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f) (p : l) (ps0 : phinodes)
+  (cs0 : cmds) (tmn0 : terminator) (l2 : l)
+  (HbInF : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
+  (Hinscs : In l2 (successors_terminator tmn0)),
+  In l2 (bound_fdef f).
+Proof.
+  intros.
+  eapply wf_fdef__wf_tmn in HbInF; eauto.
+  eapply wf_tmn__in_successors in HbInF; eauto.
+  destruct HbInF as [cs1 [ps1 [tmn1 HbInF]]].
+  eapply blockInFdefB_in_bound_fdef; eauto.
+Qed.
+
 Lemma reachable_successors:
   forall S M f l0 cs ps tmn l1,
   uniqFdef f -> wf_fdef S M f ->
@@ -762,10 +790,22 @@ Lemma reachable_successors:
 Proof.
   intros S M f l0 cs ps tmn l1 HuniqF HwfF HbInF Hin.
   eapply DecRD.reachable_successors; eauto.
-    eapply wf_fdef__wf_tmn in HbInF; eauto.
-    eapply wf_tmn__in_successors in HbInF; eauto.
-    destruct HbInF as [cs1 [ps1 [tmn1 HbInF]]].
-    eapply blockInFdefB_in_vertexes; eauto.
+    eapply branches_in_vertexes; eauto.
+Qed.
+
+Lemma reachable__reachablity_analysis: forall S M f rd a
+  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) (Hdec: reachable f a)
+  (Halg: reachablity_analysis f = Some rd),
+  In a rd.
+Proof.
+  intros.
+  assert (Hinbnd:=Hdec).
+  apply reachable__in_bound in Hinbnd; eauto using branches_in_bound_fdef.
+  apply areachable_is_correct in Hdec; auto.
+  unfold reachablity_analysis in Halg.
+  inv_mbind. destruct b as [l0 ps0 cs0 tmn0]. inv_mbind.
+  unfold areachable in Hdec. rewrite <- HeqR0 in Hdec.
+  apply get_reachable_labels__spec; auto.
 Qed.
 
 Lemma reachablity_analysis__reachable: forall S M f rd a
@@ -809,20 +849,6 @@ Proof.
   apply get_reachable_labels__spec'' in Hin.
   unfold ReachDS.L.t in *.
   rewrite Hin in HeqR0. auto.
-Qed.
-
-Lemma branches_in_vertexes: forall (S : system) (M : module) (f : fdef)
-  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f) (p : l) (ps0 : phinodes)
-  (cs0 : cmds) (tmn0 : terminator) (l2 : l)
-  (HbInF : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
-  (Hinscs : In l2 (successors_terminator tmn0)),
-  vertexes_fdef f (index l2).
-Proof.
-  intros.
-  eapply wf_fdef__wf_tmn in HbInF; eauto.
-  eapply wf_tmn__in_successors in HbInF; eauto.
-  destruct HbInF as [cs1 [ps1 [tmn1 HbInF]]].
-  eapply blockInFdefB_in_vertexes; eauto.
 Qed.
 
 Lemma wf_fdef__dom_analysis_is_successful: forall S M f
@@ -1010,8 +1036,7 @@ Proof.
   Case "2".
     eapply dom_unreachable in H; eauto.
       rewrite H. 
-      apply blockInFdefB_in_vertexes in HBinF1.
-      unfold vertexes_fdef in HBinF1. auto.
+      apply blockInFdefB_in_bound_fdef in HBinF1; auto.
 
       intro J. rewrite J in H2. inv H2.
 Qed.
@@ -3753,7 +3778,7 @@ Proof.
   destruct Hwfops as [v1 Hwfops].
   exists v1. exists ly.
   split; auto.
-    unfold reachable.
+    unfold reachable. autounfold with cfg.
     rewrite Hentry.
     eauto.
 Qed.

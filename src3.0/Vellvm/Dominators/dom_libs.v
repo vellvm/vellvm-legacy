@@ -576,14 +576,14 @@ Module MergeLt <: MERGE.
 
   Lemma set_union_empty_eq_empty2: forall l1,
      set_eq (set_union positive_eq_dec l1 (empty_set _)) l1.
-  Admitted.
+  Admitted. (* set *)
 
   Lemma set_eq_union : forall l1 l2 l1' l2'
     (H : set_eq l1 l1')
     (H0 : set_eq l2 l2'),
     set_eq (set_union positive_eq_dec l1 l2)
       (set_union positive_eq_dec l1' l2').
-  Admitted.
+  Admitted. (* set *)
           
           apply set_eq_union; auto with atomset.
              apply set_inter_empty_eq_empty2.
@@ -638,7 +638,7 @@ Module MergeLt <: MERGE.
       Case "2".
         destruct_if.
           (* X < Y < Ysdms => ~ In X (Y::Ysdms) *)
-          admit.
+          admit. (* set *)
 
           clear HeqR.      
           eapply Hrec with (y:=(length Xsdms + S (length Ysdms))%nat) in Hmerge; 
@@ -656,7 +656,7 @@ Module MergeLt <: MERGE.
              rl1 \/ ((X :: Xsdms) /\ Ysdms) = 
              rl1 \/ (X :: (Xsdms /\ Ysdms)) = 
              rl1 \/ (X :: Xsdms /\ (Y :: Ysdms)) *)
-          admit.
+          admit. (* set *)
 
           (* ~ In X (Y::Ys) => ~ In X Ys 
              ~ In X Ys => (X :: Xs) /\ Ys = Xs /\ Ys
@@ -667,7 +667,7 @@ Module MergeLt <: MERGE.
              rl1 \/ (Xs /\ Ys) =
              rl1 \/ (Xs /\ (Y :: Ys))
           *)
-          admit.
+          admit. (* set *)
   Qed.
 
   Lemma merge_inter: forall Xsdms Ysdms rl changed

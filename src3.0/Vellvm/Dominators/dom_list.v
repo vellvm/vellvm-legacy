@@ -8,6 +8,7 @@ Require Import Metatheory.
 Require Import Program.Tactics.
 Require Import dom_libs.
 Require Import dfs.
+Require Import cfg.
 Require Import push_iter.
 
 (***************************************************)
@@ -39,20 +40,20 @@ Definition a2p_A_list (a2p:ATree.t positive) (aal: A_list) (pal : A_list) :=
 List.Forall2 (a2p_Arc a2p) aal pal.
 
 Lemma in_vertexes__get_a2p: forall a2p asuccs pv,
-  vertexes (asuccs_psuccs a2p asuccs) pv ->
+  PCfg.vertexes (asuccs_psuccs a2p asuccs) pv ->
   exists av, a2p_Vertex a2p av pv.
 Admitted. (* asuccs_psuccs *)
 
 Lemma a2p_vertexes: forall a2p asuccs pv av,
   a2p_Vertex a2p av pv ->
-  (vertexes (asuccs_psuccs a2p asuccs) pv <-> dfs.vertexes asuccs av).
+  (PCfg.vertexes (asuccs_psuccs a2p asuccs) pv <-> ACfg.vertexes asuccs av).
 Admitted. (* asuccs_psuccs *)
 
 Lemma a2p_arcs: forall a2p asuccs pv1 av1 pv2 av2,
   a2p_Vertex a2p av1 pv1 ->
   a2p_Vertex a2p av2 pv2 ->
-  (arcs (asuccs_psuccs a2p asuccs) (A_ends pv1 pv2) <->
-    dfs.arcs asuccs (A_ends av1 av2)).
+  (PCfg.arcs (asuccs_psuccs a2p asuccs) (A_ends pv1 pv2) <->
+    ACfg.arcs asuccs (A_ends av1 av2)).
 Admitted. (* asuccs_psuccs *)
 
 Lemma In__a2p_V_list: forall p pvl a avl a2p
@@ -67,11 +68,11 @@ Lemma get_a2p_in_a2p_cfg: forall (p : positive) a a2p (Hget: a2p ! a = Some p)
 Admitted. (* asuccs_psuccs *)
 
 Lemma a2p_D_walk: forall a2p asuccs pv1 pv2 (pvl : V_list) (pal : A_list) 
-  (Hwk: D_walk (vertexes (asuccs_psuccs a2p asuccs))
-               (arcs (asuccs_psuccs a2p asuccs)) 
+  (Hwk: D_walk (PCfg.vertexes (asuccs_psuccs a2p asuccs))
+               (PCfg.arcs (asuccs_psuccs a2p asuccs)) 
                pv1 pv2 pvl pal),
   exists avl, exists aal, exists av1, exists av2,
-    D_walk (dfs.vertexes asuccs) (dfs.arcs asuccs) av1 av2 avl aal /\
+    D_walk (ACfg.vertexes asuccs) (ACfg.arcs asuccs) av1 av2 avl aal /\
     a2p_Vertex a2p av1 pv1 /\ a2p_Vertex a2p av2 pv2 /\
     a2p_V_list a2p avl pvl /\ a2p_A_list a2p aal pal.
 Proof.
@@ -106,22 +107,22 @@ Proof.
       constructor; simpl; auto.
 Qed.
 
-Lemma p2a_D_walk: forall av1 av2 avl aal a2p asuccs
-  (Hreach: forall a, dfs.reachable asuccs av2 (index a) <-> 
+Lemma p2a_D_walk: forall av1 a2 avl aal a2p asuccs
+  (Hreach: forall a, ACfg.reachable asuccs a2 a <-> 
                      exists p, a2p ! a = Some p)
-  (Hwk: D_walk (dfs.vertexes asuccs) (dfs.arcs asuccs) av1 av2 avl aal),
+  (Hwk: D_walk (ACfg.vertexes asuccs) (ACfg.arcs asuccs) av1 (index a2) avl aal),
   exists pvl, exists pal, exists pv1, exists pv2,
-    D_walk (vertexes (asuccs_psuccs a2p asuccs))
-           (arcs (asuccs_psuccs a2p asuccs)) 
+    D_walk (PCfg.vertexes (asuccs_psuccs a2p asuccs))
+           (PCfg.arcs (asuccs_psuccs a2p asuccs)) 
            pv1 pv2 pvl pal /\
-    a2p_Vertex a2p av1 pv1 /\ a2p_Vertex a2p av2 pv2 /\
+    a2p_Vertex a2p av1 pv1 /\ a2p_Vertex a2p (index a2) pv2 /\
     a2p_V_list a2p avl pvl /\ a2p_A_list a2p aal pal.
 Proof.
   intros.
-  induction Hwk.
-    destruct x as [x]. 
-    assert (dfs.reachable asuccs (index x) (index x)) as Hr. 
-      apply reachable_entry; auto.
+  remember (index a2) as va2.
+  induction Hwk; subst.
+    assert (ACfg.reachable asuccs a2 a2) as Hr. 
+      apply ACfg.reachable_entry; auto.
     apply Hreach in Hr.
     destruct Hr as [p Hr].
     exists V_nil. exists A_nil.
@@ -135,11 +136,11 @@ Proof.
     split; constructor.
 
     destruct IHHwk as [avl [aal [av1 [av2 [J1 [J2 [J3 [J4 J5]]]]]]]]; auto.
-    destruct x as [x]. 
-    assert (dfs.reachable asuccs z (index x)) as Hr. 
-      destruct z as [z]. destruct y as [y].
-      eapply reachable_succ with (fr:=y); eauto.
-      unfold dfs.reachable. eauto.
+    destruct x as [x].
+    assert (ACfg.reachable asuccs a2 x) as Hr. 
+      destruct y as [y].
+      eapply ACfg.reachable_succ with (n:=y); eauto.
+      unfold ACfg.reachable. eauto.
     apply Hreach in Hr.
     destruct Hr as [p Hr].
     exists (av1::avl). exists (A_ends (index p) av1::aal).
@@ -156,7 +157,6 @@ Proof.
       constructor; auto.
       constructor; simpl; auto.
 Qed.
-
 
 Require Import dom_type.
 
@@ -215,20 +215,11 @@ Proof.
   destruct bs as [|[]]; simpl; intros; split; try solve [auto | congruence].
 Qed.
 
-Lemma in_parents__in_bound_fdef: forall f n 
-  (Hparents: In n (XATree.parents_of_tree (cfg.successors f))), 
-  In n (cfg.bound_fdef f).
-Proof.
-  destruct f.
-  intros.
-  apply cfg.in_parents__in_bound; auto.
-Qed.
-
 Lemma in_pparents__in_aparents: forall (a : atom) (p : positive) a2p
   (Hget : a2p ! a = Some p) asuccs
   (Heq : In p (XPTree.parents_of_tree (asuccs_psuccs a2p asuccs))),
   In a (XATree.parents_of_tree asuccs).
-Admitted.
+Admitted. (* asuccs_psuccs *)
 
 Lemma le_in_cfg: forall f le
   (Hentry: LLVMinfra.getEntryLabel f = Some le),
@@ -238,35 +229,16 @@ Admitted. (* asuccs_psuccs *)
 Lemma in_pcfg__in_bound_fdef: forall a p a2p (Hl2p : a2p ! a = Some p) f
   (Hin : in_cfg (asuccs_psuccs a2p (cfg.successors f)) p),
   ListSet.set_In a (cfg.bound_fdef f).
-Admitted.
+Admitted. (* asuccs_psuccs *)
 
 Lemma entry_in_pcfg: forall f a p a2p (Hentry: getEntryLabel f = Some a)
   (Hl2p : a2p ! a = Some p),
   in_cfg (asuccs_psuccs a2p (cfg.successors f)) p.
-Admitted.
-
-Lemma dfs_inj': forall scs entry pinit po 
-  (Hdfs: dfs scs entry pinit = po) (p1 p2:positive) a1 a2 (Hneq: a1 <> a2)
-  (Hget2 : (PO_a2p po) ! a2 = Some p1) (Hget1 : (PO_a2p po) ! a1 = Some p2),
-  p1 <> p2.
-Proof.
-  intros.
-  intros EQ. subst.
-  apply Hneq.
-  eapply Injective.dfs_inj; eauto.
-Qed.
+Admitted. (* asuccs_psuccs *)
 
 Lemma entry_in_cfg: forall entry f (Hentry: getEntryLabel f = Some entry),
   ListSet.set_In entry (cfg.bound_fdef f).
-Admitted.
-
-Lemma vertexes_conv: forall f,
-  cfg.vertexes_fdef f = dfs.vertexes (cfg.successors f).
-Admitted.
-
-Lemma arcs_conv: forall f,
-  cfg.arcs_fdef f = dfs.arcs (cfg.successors f).
-Admitted.
+Admitted. (* entry in cfg *)
 
 Section adom_pdom.
 
@@ -287,9 +259,8 @@ Proof.
   apply getEntryLabel__getEntryBlock in Hentry.
   destruct Hentry as [be [Hentry' EQ]]; subst. 
   unfold cfg.reachable. rewrite Hentry'.
-  unfold dfs.reachable in Hdfs. destruct be as [le ? ? ?].
-  simpl in Hdfs.
-  rewrite vertexes_conv. rewrite arcs_conv. auto.
+  unfold ACfg.reachable in Hdfs. destruct be as [le ? ? ?].
+  simpl in Hdfs. auto.
 Qed.
 
 Lemma reachable__get_a2p: forall l2,
@@ -301,18 +272,17 @@ Proof.
   apply getEntryLabel__getEntryBlock in Hentry.
   destruct Hentry as [be [Hentry' EQ]]; subst. 
   unfold cfg.reachable. rewrite Hentry'.
-  unfold dfs.reachable in Hdfs. destruct be as [le ? ? ?].
-  simpl in Hdfs.
-  rewrite vertexes_conv. rewrite arcs_conv. auto.
+  unfold ACfg.reachable in Hdfs. destruct be as [le ? ? ?].
+  simpl in Hdfs. auto.
 Qed.
 
 Lemma a2p_domination: forall (l1 l2 : l) (p1 p2 : positive)
   (Hreach: forall a,
-           dfs.reachable asuccs (index le) (index a) <->
+           ACfg.reachable asuccs le a <->
            exists p : positive, (PO_a2p PO) ! a = Some p)
   (Hget1: Some p1 = (PO_a2p PO) ! l1) (Hget2: Some p2 = (PO_a2p PO) ! l2) pe
   (Hget2: Some pe = (PO_a2p PO) ! le) 
-  (Hdom: domination (asuccs_psuccs (PO_a2p PO) asuccs) pe p1 p2),
+  (Hdom: PCfg.domination (asuccs_psuccs (PO_a2p PO) asuccs) pe p1 p2),
   cfg.domination f l1 l2.
 Proof.
   intros.
@@ -321,10 +291,8 @@ Proof.
   apply getEntryLabel__getEntryBlock in Hentry'.
   destruct Hentry' as [be [Hentry' EQ]]; subst le.
   rewrite Hentry'. destruct be as [le ? ? ?]. simpl in *.
-  unfold domination in Hdom.
+  unfold domination, PCfg.domination in Hdom. 
   intros vl al Hwk.
-  rewrite vertexes_conv in Hwk.
-  rewrite arcs_conv in Hwk.
   apply p2a_D_walk with (a2p:=PO_a2p PO) in Hwk; auto.
     destruct Hwk as [pvl [pal [[p1'] [[p2'] [Hwk [J1 [J2 [J3 J4]]]]]]]].
     simpl in J1, J2. symmetry_ctx. uniq_result.
@@ -340,7 +308,7 @@ Lemma p2a_strict_domination: forall (l1 l2 : l)
   (Hreach2: cfg.reachable f l2)
   (Hsdom: cfg.strict_domination f l1 l2),
   exists p1, exists p2, exists pe, 
-    strict_domination (asuccs_psuccs (PO_a2p PO) asuccs) pe p1 p2 /\
+    PCfg.strict_domination (asuccs_psuccs (PO_a2p PO) asuccs) pe p1 p2 /\
     (PO_a2p PO) ! l1 = Some p1 /\ (PO_a2p PO) ! l2 = Some p2 /\
     (PO_a2p PO) ! le = Some pe.
 Proof.
@@ -375,8 +343,6 @@ Proof.
       eapply Injective.dfs_inj in Hget2; eauto. subst.
       eapply Injective.dfs_inj in Hgetle; eauto. subst.
       unfold asuccs in Hwk.
-      rewrite <- vertexes_conv in Hwk.
-      rewrite <- arcs_conv in Hwk.
       apply Hsdom in Hwk.
       destruct Hwk as [Hin | Heq]; subst.
         eapply In__a2p_V_list in Hin; eauto.
@@ -391,45 +357,45 @@ Qed.
 End adom_pdom.
 
 Lemma p2a_reachable: forall a2p f pe p3 le l3
-  (Hreach: reachable (asuccs_psuccs a2p (cfg.successors f)) pe p3)
+  (Hreach: PCfg.reachable (asuccs_psuccs a2p (cfg.successors f)) pe p3)
   (Hentry: getEntryLabel f = Some le)
   (Hgete: a2p ! le = Some pe)
   (Hget3: a2p ! l3 = Some p3),
   cfg.reachable f l3.
-Admitted.
+Admitted. (* asuccs_psuccs *)
 
 Lemma a2p_reachable: forall a2p f pe p3 le l3
   (Hreach: cfg.reachable f l3)
   (Hentry: getEntryLabel f = Some le)
   (Hgete: a2p ! le = Some pe)
   (Hget3: a2p ! l3 = Some p3),
-  reachable (asuccs_psuccs a2p (cfg.successors f)) pe p3.
-Admitted.
+  PCfg.reachable (asuccs_psuccs a2p (cfg.successors f)) pe p3.
+Admitted. (* asuccs_psuccs *)
 
 Lemma areachable__preachable: forall le pe l3 p3 f a2p
   (Hpentry : a2p ! le = Some pe) (Hget3 : a2p ! l3 = Some p3)
-  (Hreach3 : dfs.reachable (cfg.successors f) (index le) (index l3)),
-  reachable (asuccs_psuccs a2p (cfg.successors f)) pe p3.
-Admitted.
+  (Hreach3 : ACfg.reachable (cfg.successors f) le l3),
+  PCfg.reachable (asuccs_psuccs a2p (cfg.successors f)) pe p3.
+Admitted. (* asuccs_psuccs *)
 
 Lemma preachable__qreachable: forall le pe l3 p3 f a2p
   (Hpentry : a2p ! le = Some pe) (Hget3 : a2p ! l3 = Some p3)
-  (Hreach3 : reachable (asuccs_psuccs a2p (cfg.successors f)) pe p3),
-  dfs.reachable (cfg.successors f) (index le) (index l3).
-Admitted.
+  (Hreach3 : PCfg.reachable (asuccs_psuccs a2p (cfg.successors f)) pe p3),
+  ACfg.reachable (cfg.successors f) le l3.
+Admitted. (* asuccs_psuccs *)
 
 Lemma in_asuccs__in_psuccs: forall l' l3 p3 p' f a2p
  (Hinscs : In l' (cfg.successors f) !!! l3)
  (Hget3 : a2p ! l3 = Some p3) (Hget' : a2p ! l' = Some p'),
  In p' (asuccs_psuccs a2p (cfg.successors f)) ??? p3.
-Admitted.
+Admitted. (* asuccs_psuccs *)
 
 Lemma reachable_isnt_bot: forall (l3 : l) f (res : PMap.t LDoms.t) 
   (a2p : ATree.t positive) (p3 : positive) (le : l) (pe : positive)
   (Hpentry : a2p ! le = Some pe)
   (H0 : pdom_analyze (asuccs_psuccs a2p (cfg.successors f)) pe = res)
   (Hget3 : a2p ! l3 = Some p3)
-  (Hreach3 : dfs.reachable (cfg.successors f) (index le) (index l3))
+  (Hreach3 : ACfg.reachable (cfg.successors f) le l3)
   (Hwf_porder : Order.wf_porder (asuccs_psuccs a2p (cfg.successors f)) pe),
   exists dts3 : list positive, res ?? p3 = Some dts3.
 Proof.
@@ -485,12 +451,12 @@ Definition ps2as (p2a: PTree.t l) (ps: list positive) : list l :=
 Lemma in_ps__in_ps2as: forall a p a2p (Hget: a2p ! a = Some p) ps
   (Hin : In p ps),
   ListSet.set_In a (ps2as (a2p_p2a a2p) ps).
-Admitted.
+Admitted. (* ps2as *)
 
 Lemma in_ps2as__in_ps: forall (a : atom) a2p ps
   (Hin : In a (ps2as (a2p_p2a a2p) ps)),
   exists p, a2p ! a = Some p /\ In p ps.
-Admitted.
+Admitted. (* ps2as *)
 
 Definition p2a_dom p2a bd (res: LDoms.t) : list atom :=
 match res with
@@ -593,7 +559,7 @@ Proof.
     SCase "1".
       unfold EntryDomsOthers.wf_doms in HeqR.
       assert (p <> pe) as Hneq.
-        eapply dfs_inj' with (p1:=p)(p2:=pe)(a1:=entry)(a2:=b) in Hdfs; 
+        eapply Injective.dfs_inj' with (p1:=p)(p2:=pe)(a1:=entry)(a2:=b) in Hdfs; 
           simpl; eauto.
       apply HeqR in Hneq.
       eapply pmember__aset_in; eauto.
@@ -701,14 +667,14 @@ Proof.
     SCase "l3 is reachable".
       intros p3 Hget3.
       rewrite Hget3 in *.
-      assert (dfs.reachable (cfg.successors (fdef_intro fh bs)) 
-                (index le) (index l3)) as Hreach3.
+      assert (ACfg.reachable (cfg.successors (fdef_intro fh bs)) le l3) 
+        as Hreach3.
         apply dfs_reachable_iff_get_some with (l0:=l3) in Hdfs; 
           auto using le_in_cfg.
         apply Hdfs. eauto.
-      assert (dfs.reachable (cfg.successors (fdef_intro fh bs)) 
-                (index le) (index l')) as Hreach'.
-        eapply reachable_succ; eauto.
+      assert (ACfg.reachable (cfg.successors (fdef_intro fh bs)) le l') 
+        as Hreach'.
+        eapply ACfg.reachable_succ; eauto.
       assert (exists p', a2p!l' = Some p') as Hget'.
         apply dfs_reachable_iff_get_some with (l0:=l') in Hdfs; 
           auto using le_in_cfg.
@@ -768,10 +734,6 @@ Section sdom_is_complete.
 Variable f:fdef.
 
 Lemma sdom_is_complete: forall
-  (branches_in_vertexes: forall p ps0 cs0 tmn0 l2
-    (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
-    (J4 : In l2 (successors_terminator tmn0)),
-    cfg.vertexes_fdef f (index l2)) (* useless???!!! *)
   (l3 : l) (l' : l) ps cs tmn ps' cs' tmn'
   (HuniqF : uniqFdef f)
   (Hsucc: dom_analysis_is_successful f)
@@ -798,7 +760,7 @@ Proof.
   Case "unreach".
     eapply unreachable__get_a2p in Hunreach; eauto.
     simpl in Hunreach. rewrite Hunreach. 
-    apply cfg.blockInFdefB_in_vertexes in HBinF'; auto.
+    apply cfg.blockInFdefB_in_bound_fdef in HBinF'; auto.
 Qed.
 
 End sdom_is_complete.
@@ -808,10 +770,6 @@ Section dom_unreachable.
 Variable f:fdef.
 
 Lemma dom_unreachable: forall
-  (branches_in_vertexes: forall p ps0 cs0 tmn0 l2
-    (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
-    (J4 : In l2 (successors_terminator tmn0)),
-    cfg.vertexes_fdef f (index l2)) (* useless? *)
   (Hhasentry: getEntryBlock f <> None) (* useless? *)
   (l3 : l) (l' : l) ps cs tmn
   (Hsucc: dom_analysis_is_successful f)

@@ -822,7 +822,7 @@ Lemma pres_vertexes_fdef: forall f,
 Proof.
   unfold vertexes_fdef.
   destruct f.  ftrans_spec_tac. simpl. intros.
-  rewrite <- pres_bound_blocks. auto.
+  rewrite <- pres_successors_blocks. auto.
 Qed.
 
 Lemma pres_arcs_fdef: forall f,
@@ -843,8 +843,7 @@ Proof.
     apply pres_getEntryBlock in Hentry; eauto.
     rewrite Hentry.
     btrans_eq_label_tac b.
-    rewrite <- pres_vertexes_fdef.
-    rewrite <- pres_arcs_fdef. auto.
+    rewrite <- pres_successors. auto.
 
     intro Hentry.
     apply pres_getEntryBlock_None in Hentry; eauto.

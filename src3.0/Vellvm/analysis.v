@@ -148,97 +148,6 @@ Proof.
   apply reachable_dec; auto.
 Qed.
 
-Lemma successors_predOfBlock : forall f l1 ps1 cs1 tmn1 l0 ps0 cs0 tmn0,
-  uniqFdef f ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
-  In l0 (successors_terminator tmn1) ->
-  In l1 (predOfBlock (block_intro l0 ps0 cs0 tmn0) (genBlockUseDef_fdef f)).
-Proof.
-  unfold predOfBlock.
-  destruct f as [f b].
-  destruct f as [fnattrs5 typ5 id5 args5 varg5].
-  intros.
-  destruct H as [H _].
-  generalize dependent l1.
-  generalize dependent ps1.
-  generalize dependent cs1.
-  generalize dependent tmn1.
-  generalize dependent l0.
-  generalize dependent ps0.
-  generalize dependent cs0.
-  generalize dependent tmn0.
-  induction b as [|a0 b]; intros; simpl in *.
-    inversion H0.
-
-    assert (G:=H). simpl_env in G.
-    apply uniqBlocks_inv in G.
-    destruct G as [G1 G2].
-    destruct a0 as [l5 p c t0]. simpl.
-    apply orb_prop in H0.
-    destruct H0 as [H0 | H0].
-      apply blockEqB_inv in H0.
-      inv H0.
-      destruct t0 as [i0 t0 v0|i0|i0 v0 l2 l3|i0 l2|i0]; auto.
-        apply IHb with (ps1:=p)(cs1:=c)(tmn1:=insn_return i0 t0 v0); auto.
-        apply IHb with (ps1:=p)(cs1:=c)(tmn1:=insn_return_void i0); auto.
-
-        simpl in H1.
-        destruct H1 as [H1 | [H1 | H1]]; subst.
-          assert (J:=@lookupAL_update_udb_eq (update_udb nil l5 l3) l5 l0).
-          destruct J as [ls0 [J1 J2]].
-          apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J1; auto.
-          destruct J1 as [ls1 [J1 J3]].
-          rewrite J1. apply J3; auto.
-
-          assert (J:=@lookupAL_update_udb_eq nil l5 l0).
-          destruct J as [ls0 [J J0]].
-          apply lookupAL_update_udb_spec with (l1:=l5)(l2:=l2) in J; auto.
-          destruct J as [ls1 [J J1]].
-          apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J; auto.
-          destruct J as [ls2 [J J2]].
-          rewrite J. apply J2. apply J1. auto.
-
-          inversion H1.
-        simpl in H1.
-        destruct H1 as [H1 | H1]; subst.
-          assert (J:=@lookupAL_update_udb_eq nil l5 l0).
-          destruct J as [ls0 [J J0]].
-          apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J; auto.
-          destruct J as [ls2 [J J2]].
-          rewrite J. apply J2. auto.
-
-          inversion H1.
-
-        apply IHb with (ps1:=p)(cs1:=c)(tmn1:=insn_unreachable i0); auto.
-
-      eapply IHb in H1; eauto.
-        remember (lookupAL (list l) (genBlockUseDef_blocks b nil) l0) as R.
-        destruct R as [l4|]; try solve [inversion H1].
-        destruct H as [J1 J2].
-        simpl in J1.
-        inv J1.
-        apply InBlocksB_In in H0.
-        destruct (eq_atom_dec l1 l5); subst.
-          contradict H0; auto.
-
-          clear - HeqR H1.
-          simpl.
-          assert (usedef_block_inc nil
-            (match t0 with
-             | insn_return _ _ _ => nil
-             | insn_return_void _ => nil
-             | insn_br _ _ l2 l3 => update_udb (update_udb nil l5 l3) l5 l2
-             | insn_br_uncond _ l2 => update_udb nil l5 l2
-             | insn_unreachable _ => nil
-             end)) as J.
-            intros x A J. inversion J.
-          apply genBlockUseDef_blocks_inc with (bs:=b) in J.
-          symmetry in HeqR.
-          apply J in HeqR.
-          destruct HeqR as [l2 [J1 J2]].
-          rewrite J1. apply J2 in H1; auto.
-Qed.
-
 Lemma areachable_successors:
   forall f l0 cs ps tmn l1,
   uniqFdef f ->
@@ -269,34 +178,6 @@ Proof.
   intros. apply AMap.gi.
 Qed.
 
-Lemma blockInFdefB__successors : forall a ps0 cs0 tmn0 f (Huniq: uniqFdef f),
-  blockInFdefB (block_intro a ps0 cs0 tmn0) f ->
-  (successors f) ! a = Some (successors_terminator tmn0).
-Proof.
-  destruct f as [[] bs]. simpl.
-  intros [J _].
-  unfold uniqBlocks in J.
-  destruct J as [J _].
-  induction bs as [|a1 bs]; simpl; intros.
-    congruence.
-
-    destruct a1 as [l0 ps1 cs1 tmn1].
-    apply orb_true_iff in H.
-    destruct H as [H | H].
-      apply blockEqB_inv in H. inv H.
-      rewrite ATree.gss. auto.
-
-      assert (J':=J). inv J'.
-      simpl in J. simpl_env in J.
-      apply IHbs in H3; auto.
-      apply InBlocksB_In in H.
-      apply infrastructure_props.NoDup_disjoint with (i0:=a) in J; auto.
-      destruct (id_dec l0 a); subst.
-        contradict J. simpl. auto.
-
-        rewrite ATree.gso; auto.
-Qed.
-
 Require Import Dipaths.
 
 Lemma areachable_is_correct:
@@ -305,13 +186,14 @@ Lemma areachable_is_correct:
   reachable f l0 ->
   (areachable f)!!l0.
 Proof.
-  unfold reachable.
+  unfold reachable. autounfold with cfg.
   intros.
   remember (getEntryBlock f) as R.
   destruct R; tinv H0.
   destruct b as [l1 p c t]. destruct H0 as [vl [al H0]].
-  remember (vertexes_fdef f) as Vs.
-  remember (arcs_fdef f) as As.
+  remember (ACfg.vertexes (successors f)) as Vs.
+  remember (ACfg.arcs (successors f)) as As.
+  unfold ATree.elt, l in *.
   remember (index l0) as v0.
   remember (index l1) as v1.
   generalize dependent f.
@@ -335,22 +217,6 @@ Proof.
     eapply areachable_successors; eauto.
 Qed.
 
-Lemma reachable__in_bound: forall f a (Hrd: reachable f a),
-  In a (bound_fdef f).
-Proof.
-  intros.
-  unfold reachable in Hrd.
-  match goal with
-  | H: match ?e with
-       | Some _ => _
-       | None => is_true false
-       end |- _ => remember e as R; destruct R; tinv H
-  end.
-  destruct b.
-  destruct Hrd as [vl [al Hrd]].
-  apply Dipaths.DW_endx_inv in Hrd. auto.
-Qed.
-
 Lemma get_reachable_labels__spec_aux: forall a (t:AMap.t bool)
   (Hin : t !! a) bnd acc (Hinbnd : In a bnd \/ In a acc),
   In a (get_reachable_labels bnd t acc).
@@ -372,26 +238,6 @@ Proof.
   intros.
   apply get_reachable_labels__spec_aux; simpl; auto.
 Qed.
-
-Lemma reachable__reachablity_analysis: forall f rd a
-  (Huniq: uniqFdef f) (Hdec: reachable f a)
-  (Halg: reachablity_analysis f = Some rd),
-  In a rd.
-Proof.
-  intros.
-  assert (Hinbnd:=Hdec).
-  apply reachable__in_bound in Hinbnd.
-  apply areachable_is_correct in Hdec; auto.
-  unfold reachablity_analysis in Halg.
-  inv_mbind. destruct b as [l0 ps0 cs0 tmn0]. inv_mbind.
-  unfold areachable in Hdec. rewrite <- HeqR0 in Hdec.
-  apply get_reachable_labels__spec; auto.
-Qed.
-
-Lemma arcs_fdef_inv : forall f a1 a2,
-  arcs_fdef f (A_ends (index a2) (index a1)) ->
-  In a2 ((successors f)!!!a1).
-Proof. auto. Qed.
 
 Ltac tinv H := try solve [inv H].
 Import AtomSet.
@@ -2122,27 +1968,6 @@ Proof.
   destruct b. auto.
 Qed.
 
-Lemma In_bound_fdef__blockInFdefB: forall f l3
-  (Hin: In l3 (bound_fdef f)),
-  exists ps, exists cs, exists tmn,
-    blockInFdefB (block_intro l3 ps cs tmn) f = true.
-Proof.
-  destruct f as [[] bs].
-  simpl. intros.
-  induction bs as [|[l0 ps0 cs0 tmn0]]; simpl in *.
-    tauto.
-
-    destruct Hin as [Hin | Hin]; subst.
-      exists ps0. exists cs0. exists tmn0.
-      apply orb_true_intro.
-      left. solve_refl.      
-
-      apply IHbs in Hin.
-      destruct Hin as [ps [cs [tmn Hin]]].
-      exists ps. exists cs. exists tmn.
-      apply orb_true_intro. auto.
-Qed.
-
 Lemma idDominates__inscope_of_cmd: forall l0 ps0 cs tmn0 F c2 id1
   (HBinFB : blockInFdefB (block_intro l0 ps0 cs tmn0) F = true)
   (Hin : In c2 cs) (HuniqF: uniqFdef F)
@@ -2190,19 +2015,6 @@ Proof.
   intro EQ. rewrite EQ in Hentry_dom. tauto.
 Qed.
 
-Lemma successors_predOfBlock': forall (f : fdef) b (Huniq : uniqFdef f) 
-  (l1 : atom)
-  (Hscs : In (getBlockLabel b) ((successors f) !!! l1)),
-  In l1 (predOfBlock b (genBlockUseDef_fdef f)).
-Proof.
-  intros.
-  destruct b as [l0 ps0 cs0 tmn0].
-  apply successors__blockInFdefB in Hscs.
-  destruct Hscs as [ps1 [cs1 [tmn1 [HBinF Hintmn]]]].
-  eapply successors_predOfBlock with (ps0:=ps0)(cs0:=cs0)(tmn0:=tmn0) 
-    in Hintmn; eauto.
-Qed.
-
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     list (value * l) -> Prop :=
 | wf_phi_operands_nil : wf_phi_operands f b id0 t0 nil
@@ -2218,15 +2030,6 @@ Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     wf_phi_operands f b id0 t0 vls ->
     wf_phi_operands f b id0 t0 ((value_const c1, l1) :: vls).
 
-Definition predecessors (f: fdef) : ATree.t ls :=
-XATree.make_predecessors (successors f).
-
-Definition has_no_predecessors (f: fdef) (b:block) : bool :=
-match (predecessors f) !!! (getBlockLabel b) with
-| nil => true
-| _ => false
-end.
-
 Definition check_list_value_l (f:fdef) (b:block) (vls: list (value * l)) :=
   let '(vs1,ls1) := List.split vls in
   let ls2 := (predecessors f) !!! (getBlockLabel b) in
@@ -2238,220 +2041,5 @@ Definition wf_phinode (f:fdef) (b:block) (p:phinode) :=
 let '(insn_phi id0 t0 vls0) := p in
 wf_phi_operands f b id0 t0 vls0 /\ check_list_value_l f b vls0.
 
-Lemma successors_predecessors_of_block : forall f l1 ps1 cs1 tmn1 l0,
-  uniqFdef f ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
-  In l0 (successors_terminator tmn1) ->
-  In l1 ((predecessors f) !!! l0).
-Proof.
-  unfold predecessors.
-  intros.
-  apply XATree.make_predecessors_correct; auto.
-  unfold XATree.successors_list.
-  erewrite blockInFdefB__successors; eauto.
-Qed.
-
-Lemma successors_predecessors_of_block': forall (f : fdef) b (Huniq : uniqFdef f) 
-  (l1 : atom)
-  (Hscs : In (getBlockLabel b) ((successors f) !!! l1)),
-  In l1 ((predecessors f) !!! (getBlockLabel b)).
-Proof.
-  intros.
-  destruct b as [l0 ps0 cs0 tmn0].
-  apply successors__blockInFdefB in Hscs.
-  destruct Hscs as [ps1 [cs1 [tmn1 [HBinF Hintmn]]]].
-  eapply successors_predecessors_of_block in Hintmn; eauto.
-Qed.
-
-Lemma has_no_predecessors_tinv: forall f b
-  (Hnpred: has_no_predecessors f b = true),
-  (predecessors f) !!! (getBlockLabel b) = nil.
-Proof.
-  unfold has_no_predecessors.
-  intros.
-  destruct (predecessors f) !!! (getBlockLabel b); tinv Hnpred; auto.
-Qed.
-
-Lemma successors__successors_terminator : forall scs a f
-  (H: Some scs = (successors f) ! a),
-  exists ps0, exists cs0, exists tmn0,
-    blockInFdefB (block_intro a ps0 cs0 tmn0) f /\
-    scs = successors_terminator tmn0.
-Proof.
-  destruct f as [fh bs]. simpl.
-  induction bs as [|a0 bs]; simpl; intro.
-    rewrite ATree.gempty in H. inv H.
-
-    destruct a0 as [l1 p c t].
-    destruct (id_dec l1 a); subst.
-      rewrite ATree.gss in H.
-      inv H.
-      exists p. exists c. exists t.
-      split; auto.
-        eapply orb_true_iff. left. apply blockEqB_refl.
-
-      rewrite ATree.gso in H; auto.
-      apply IHbs in H; auto.
-      destruct H as [ps0 [cs0 [tmn0 [J1 J2]]]].
-      exists ps0. exists cs0. exists tmn0.
-      split; auto.
-        eapply orb_true_iff; eauto.
-Qed.
-
-Definition predecessors_dom__uniq_prop 
-  (scs:ATree.t ls) (pds: ATree.t ls) : Prop :=
-(forall l1 l2, In l1 pds !!! l2 -> In l2 scs !!! l1) /\
-forall l0 (Huniq: forall l1, NoDup (scs !!! l1)), 
-  NoDup (pds !!! l0).
-
-Lemma predecessors_dom__uniq_aux_helper: forall m k (v:list atom)
-  (Herr : m ! k = merror)
-  (Huniq1 : forall l1, NoDup ((ATree.set k v m) !!! l1)),
-  NoDup v /\ forall l1, NoDup (m !!! l1).
-Proof.
-  intros.
-  split.
-    assert (J:=Huniq1 k).
-    unfold XATree.successors_list in J.
-    rewrite ATree.gsspec in J.
-    destruct (ATree.elt_eq k k); try congruence.
-
-    intros l0.
-    assert (J:=Huniq1 l0).
-    unfold XATree.successors_list in J.
-    rewrite ATree.gsspec in J.
-    unfold XATree.successors_list.
-    destruct (ATree.elt_eq l0 k); subst; auto.
-      rewrite Herr. auto.
-Qed.
-
-Lemma add_successors_dom__uniq: forall
-  (m : ATree.t (list atom))
-  (k : ATree.elt)
-  (l0 : atom)
-  (v2 v1 : list atom)
-  (a : ATree.t (list atom))
-  (H : forall l1 l2 : atom, 
-          In l1 a !!! l2 -> 
-          (l1 <> k -> In l2 m !!! l1) /\
-          (l1 = k -> In l2 v1))
-  (G1 : NoDup (v1++v2)) 
-  (J : NoDup a !!! l0),
-  NoDup (XATree.add_successors a k v2) !!! l0.
-Proof.
-  induction v2; simpl; intros; auto.
-    rewrite_env ((v1++[a])++v2) in G1.
-    apply IHv2 with (v1:=v1++[a]); clear IHv2; auto.
-    Case "1".
-      intros l1 l2 Hin.
-      unfold XATree.successors_list in Hin.
-      destruct (id_dec a l2); subst.
-      SCase "1.1".
-        rewrite ATree.gss in Hin.
-        destruct_in Hin.
-        SSCase "1.1.1".
-          split; intro; try congruence.
-            xsolve_in_list.
-
-        SSCase "1.1.2".
-          apply H in Hin.
-          destruct Hin as [Hin1 Hin2].
-          split; auto.
-            intros EQ; subst.
-            xsolve_in_list.
-
-      SCase "1.2".
-        rewrite ATree.gso in Hin; auto.
-        apply H in Hin.
-        destruct Hin as [Hin1 Hin2].
-        split; auto.
-          intros EQ; subst.
-          xsolve_in_list.
-
-    Case "2".
-      unfold XATree.successors_list in J.
-      unfold XATree.successors_list.
-      destruct (id_dec a l0); subst.
-      SCase "2.1".
-        rewrite ATree.gss.
-        unfold ATree.elt.
-        remember (a0 ! l0) as R.
-        destruct R; auto.
-          constructor; auto.
-            intro Hin.
-            assert (In k (a0 !!! l0)) as Hin'.
-              unfold XATree.successors_list.
-              rewrite <- HeqR. auto.
-            apply_clear H in Hin'.
-            destruct Hin' as [_ Hin'].
-            apply NoDup_inv in G1. destruct G1 as [G1 _].
-            eapply NoDup_disjoint in G1; simpl; eauto.
-
-      SCase "2.2".
-        rewrite ATree.gso; auto.
-Qed.
-
-Lemma predecessors_dom__uniq_aux: forall scs, 
-  predecessors_dom__uniq_prop scs (XATree.make_predecessors scs).
-Proof.
-  intros.
-  unfold XATree.make_predecessors.
-  apply ATree_Properties.fold_rec.
-  Case "1".
-    unfold predecessors_dom__uniq_prop. 
-    intros m m' a Heq [IH1 IH2].
-    split.
-    SCase "1.1".
-      intros l1 l2.
-      intros.
-      erewrite XATree.eq_eli__eq_successors_list; eauto.
-
-    SCase "1.2".
-      intros l0 Huniq.
-      apply IH2 with (l0:=l0).
-        intros l1.
-        assert (J:=Huniq l1).
-        erewrite XATree.eq_eli__eq_successors_list; eauto.
-
-  Case "2".
-    unfold predecessors_dom__uniq_prop.
-    unfold XATree.successors_list.
-    split; intros; repeat rewrite ATree.gempty.
-      tauto.
-      auto.
-
-  Case "3".
-    unfold predecessors_dom__uniq_prop.
-    intros m a k v Herr Hkh [IH1 IH2].
-    split.
-    SCase "3.1".
-      clear - IH1 Herr.
-      intros. eapply XATree.add_successors_correct''; eauto.
-
-    SCase "3.2".
-      intros l0 Huniq.
-      assert (G:=Huniq).
-      apply predecessors_dom__uniq_aux_helper in G; auto.
-      destruct G as [G1 G2].
-      apply IH2 with (l0:=l0) in G2; auto.
-        clear - G1 G2 IH1 Herr.
-        eapply add_successors_dom__uniq with (v1:=nil)(m:=m); eauto.
-          intros l1 l2 Hin.
-          split; auto.
-            intro EQ; subst.
-            apply IH1 in Hin.
-            unfold XATree.successors_list in Hin.
-            change l with ATree.elt in Hin.
-            rewrite Herr in Hin. tauto.
-Qed.
-
-Lemma make_predecessors_dom__uniq: forall scs l0
-  (Huniq: forall l1, NoDup (scs !!! l1)), 
-  NoDup ((XATree.make_predecessors scs) !!! l0).
-Proof.
-  intros.
-  assert (J:=predecessors_dom__uniq_aux scs).
-  unfold predecessors_dom__uniq_prop in J. destruct J; auto.
-Qed.
 
 

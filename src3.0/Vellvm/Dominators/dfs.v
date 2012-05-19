@@ -5,6 +5,8 @@ Require Import infrastructure_props.
 Require Import Metatheory.
 Require Import Program.Tactics.
 Require Import dom_libs.
+Require Import cfg.
+Require Import Dipaths.
 
 Ltac inv_mbind_app :=
   match goal with
@@ -923,48 +925,6 @@ End Order.
 
 (************************)
 
-Require Import Dipaths.
-
-Section VertexArc.
-
-Variable successors: ATree.t (list atom).
-
-Definition vertexes : V_set :=
-fun (v:Vertex) => let '(index n) := v in XATree.in_cfg successors n.
-
-Definition arcs : A_set :=
-fun (arc:Arc) =>
-  let '(A_ends (index n2) (index n1)) := arc in
-  In n2 (successors!!!n1).
-
-Definition reachable entry av : Prop :=
-  exists vl: V_list, exists al: A_list, D_walk vertexes arcs av entry vl al.
-
-Lemma reachable_succ: forall (entry : ATree.elt) 
-  (fr : l) (next : l) (H1 : reachable (index entry) (index fr))
-  (Hscs : In next successors !!! fr),
-  reachable (index entry) (index next).
-Proof.
-  intros.
-  destruct H1 as [vl [al Hwk]].
-  exists (index fr::vl). exists (A_ends (index next) (index fr)::al).
-  apply DW_step; auto.
-    apply XATree.in_succ__in_cfg with (p:=fr); auto.
-Qed.
-
-Lemma reachable_entry: forall (entry : ATree.elt) 
-  (Hincfg: XATree.in_cfg successors entry),
-  reachable (index entry) (index entry).
-Proof.
-  intros.
-  exists V_nil. exists A_nil. 
-  constructor; auto.
-Qed.
-
-End VertexArc.
-
-(************************)
-
 Module ReachableEntry. 
 
 Definition wf_stack entry (po:PostOrder) (stk: list Frame) : Prop :=
@@ -1369,7 +1329,7 @@ End ReachableSucc.
 Module NumberedAreReachable. 
 
 Definition frame_is_reachable entry (succs: ATree.t ls) (fr: Frame) := 
-  reachable succs (index entry) (index (Fr_name fr)).
+  ACfg.reachable succs entry (Fr_name fr).
 
 Hint Unfold frame_is_reachable. 
 
@@ -1378,7 +1338,7 @@ Definition frames_are_reachable entry (succs: ATree.t ls) (stk: list Frame) :=
 
 Definition wf_order entry succs po : Prop :=
   forall n (Hnn: (PO_a2p po) ! n <> None), 
-    reachable succs (index entry) (index n).
+    ACfg.reachable succs entry n.
 
 Definition wf_stack entry (succs: ATree.t ls) (po:PostOrder) 
   (stk: list Frame) : Prop :=
@@ -1404,7 +1364,7 @@ Proof.
             apply find_next_visit_in_scs_spec in HeqR.
             destruct_conjs. auto with coqlib.
           simpl.
-          eapply reachable_succ; eauto.
+          eapply ACfg.reachable_succ; eauto.
         constructor; auto.
 Qed.
 
@@ -1482,7 +1442,7 @@ Proof.
       intro x. auto.
   split.
     constructor; auto.
-      apply reachable_entry; auto.
+      apply ACfg.reachable_entry; auto.
     intros n Hnn. simpl in Hnn.
     rewrite ATree.gempty in Hnn. congruence.
 Qed.
@@ -1490,7 +1450,7 @@ Qed.
 Lemma dfs_wf: forall scs entry pinit po 
   (Hincfg: XATree.in_cfg scs entry)
   (Hdfs: dfs scs entry pinit = po) n (Hnn: (PO_a2p po) ! n <> None),
-  reachable scs (index entry) (index n).
+  ACfg.reachable scs entry n.
 Proof.
   intros until 2.
   eapply Inv.dfs_wf with 
@@ -1506,7 +1466,7 @@ End NumberedAreReachable.
 
 Lemma dfs_reachable_complete: forall scs entry pinit po 
   (Hdfs: dfs scs entry pinit = po) l0
-  (Hreach: reachable scs (index entry) (index l0)),
+  (Hreach: ACfg.reachable scs entry l0),
   (PO_a2p po) ! l0 <> None.
 Proof.
   unfold reachable.
@@ -1523,7 +1483,7 @@ Lemma dfs_reachable_sound: forall scs entry pinit po
   (Hincfg: XATree.in_cfg scs entry)
   (Hdfs: dfs scs entry pinit = po) l0
   (Hnn: (PO_a2p po) ! l0 <> None),
-  reachable scs (index entry) (index l0).
+  ACfg.reachable scs entry l0.
 Proof.
   intros.
   eapply NumberedAreReachable.dfs_wf; eauto.
@@ -1532,7 +1492,7 @@ Qed.
 Lemma dfs_unreachable_iff_get_none: forall scs entry pinit po 
   (Hdfs: dfs scs entry pinit = po) (Hincfg: XATree.in_cfg scs entry),
   forall l0, 
-  ~ reachable scs (index entry) (index l0) <-> (PO_a2p po) ! l0 = None.
+  ~ ACfg.reachable scs entry l0 <-> (PO_a2p po) ! l0 = None.
 Proof.
   intros.
   split; intro J.
@@ -1548,7 +1508,7 @@ Qed.
 Lemma dfs_reachable_iff_get_some: forall scs entry pinit po 
   (Hdfs: dfs scs entry pinit = po) (Hincfg: XATree.in_cfg scs entry),
   forall l0, 
-  reachable scs (index entry) (index l0) <-> exists p, (PO_a2p po) ! l0 = Some p.
+  ACfg.reachable scs entry l0 <-> exists p, (PO_a2p po) ! l0 = Some p.
 Proof.
   intros.
   split; intro J.
@@ -1702,6 +1662,17 @@ Proof.
   apply dfs_wf in Hdfs.
   destruct Hdfs as [_ J].
   eapply J; eauto.
+Qed.
+
+Lemma dfs_inj': forall scs entry pinit po 
+  (Hdfs: dfs scs entry pinit = po) (p1 p2:positive) a1 a2 (Hneq: a1 <> a2)
+  (Hget2 : (PO_a2p po) ! a2 = Some p1) (Hget1 : (PO_a2p po) ! a1 = Some p2),
+  p1 <> p2.
+Proof.
+  intros.
+  intros EQ. subst.
+  apply Hneq.
+  eapply dfs_inj; eauto.
 Qed.
 
 End Injective. 

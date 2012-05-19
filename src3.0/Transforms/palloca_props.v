@@ -885,7 +885,8 @@ Proof.
   eapply gen_fresh_ids__spec2_aux in H; eauto.
 Qed.
 
-Lemma reachable_blk_has_newids : forall pinfo l1 (Huniq: uniqFdef (PI_f pinfo)),
+Lemma reachable_blk_has_newids : forall S M pinfo l1 
+  (HwfF: wf_fdef S M (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo)),
   WF_PhiInfo pinfo ->
   reachable (PI_f pinfo) l1 ->
   (PI_newids pinfo) ! l1 <> merror.
