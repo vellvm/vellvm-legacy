@@ -868,7 +868,7 @@ Qed.
 Ltac solve_dom :=
 try solve [
   eauto 1 |
-  unfold AlgDom.getEntryBlock_inv; eapply getEntryBlock_inv'; eauto | 
+  unfold AlgDomProps.getEntryBlock_inv; eapply getEntryBlock_inv'; eauto | 
   eapply wf_fdef__non_entry; eauto |
   eapply branches_in_vertexes; eauto |
   eapply wf_fdef__wf_entry; eauto |
@@ -915,7 +915,7 @@ Lemma sdom_is_sound : forall
   (Hin : In l' (AlgDom.dom_query f l3)),
   strict_domination f l' l3.
 Proof. 
-  intros. eapply AlgDom.sdom_is_sound; solve_dom.
+  intros. eapply AlgDomProps.sdom_is_sound; solve_dom.
 Qed.
 
 Lemma sdom_isnt_refl : forall
@@ -925,7 +925,7 @@ Lemma sdom_isnt_refl : forall
   (Hin : In l' (AlgDom.dom_query f l3)),
   l' <> l3.
 Proof. 
-  intros. eapply AlgDom.sdom_isnt_refl; solve_dom.
+  intros. eapply AlgDomProps.sdom_isnt_refl; solve_dom.
 Qed.
 
 Lemma blockStrictDominates_isnt_refl : forall S M F1 block'
@@ -980,7 +980,7 @@ Lemma adom_acyclic: forall l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2 S M F
   (Hneq: l1 <> l2),
   False.
 Proof. 
-  intros. eapply AlgDom.adom_acyclic in Hneq; solve_dom.
+  intros. eapply AlgDomProps.adom_acyclic in Hneq; solve_dom.
 Qed.
 
 Lemma blockStrictDominates_trans : forall S M f b1 b2 b3

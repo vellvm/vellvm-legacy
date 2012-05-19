@@ -1524,6 +1524,45 @@ Proof.
   destruct Hsadom; auto.
 Qed.
 
+Lemma reachable_isnt_bot : forall n 
+  (Hreach : reachable successors entrypoint n),
+  (pdom_analyze successors entrypoint) ?? n <> LDoms.bot.
+Proof.
+  intros.
+  destruct Hreach as [vl [al Hreach]].
+  remember (vertexes successors) as A.
+  remember (arcs successors) as B.
+  remember (index n) as C.
+  remember (index entrypoint) as D.
+  generalize dependent n.
+  induction Hreach; intros; subst.
+  Case "base".
+    inversion HeqC; subst n.
+    rewrite adom_entrypoint. unfold LDoms.bot. congruence.
+
+  Case "ind".
+    destruct y as [p2].
+    assert (index p2 = index p2) as Hdom. auto.
+    apply_clear IHHreach in Hdom; auto.
+    unfold pdom_analyze in *.
+    case_eq (DomDS.fixpoint successors LDoms.transfer
+              ((entrypoint, LDoms.top) :: nil)).
+    SCase "1".
+      intros res Hfix.
+      rewrite Hfix in Hdom.
+      apply Inequations.fixpoint_solution with (n:=p2)(s:=n) in Hfix; auto.
+      unfold LDoms.bot in *.
+      destruct (res ?? p2); try congruence.
+      simpl in Hfix.
+      destruct (res ?? n); inv Hfix; congruence.
+
+    SCase "2".
+      intro Hfix.
+      rewrite PMap.gi. 
+      unfold LDoms.top, LDoms.bot.
+      congruence.
+Qed.
+
 End DomSound. End DomSound.
 
 (***************************************************)

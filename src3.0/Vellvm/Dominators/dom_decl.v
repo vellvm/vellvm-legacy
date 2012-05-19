@@ -8,7 +8,6 @@ Require Import Kildall.
 Require Import Iteration.
 Require Export cfg.
 Require Export reach.
-Require Import dom_type.
 Require Import Dipaths.
 
 Require Import syntax.

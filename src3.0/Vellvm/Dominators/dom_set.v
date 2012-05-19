@@ -448,13 +448,6 @@ Proof.
     rewrite AMap.gi. simpl. intros x Hin. inv Hin.
 Qed.
 
-Lemma in_bound_dom__in_bound_fdef: forall l' f l1
-  (Hin: In l' (dom_query f l1)),
-  In l' (bound_fdef f).
-Proof.
-  intros. destruct f. eapply dom_query_in_bound; eauto.
-Qed.
-
 Lemma dom_successors : forall
   (l3 : l) (l' : l) f
   (contents3 contents': ListSet.set atom)
@@ -1022,96 +1015,6 @@ Proof.
     destruct J as [J | J]; subst; eauto.
 Qed.
 
-Lemma sdom_is_sound : forall
-  (l3 : l) (l' : l) ps cs tmn
-  (Hreach : reachable f l3)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin : In l' (dom_query f l3)),
-  strict_domination f l' l3.
-Proof. 
-  intros.
-  eapply dom_is_sound with (l':=l') in HBinF; simpl; eauto.
-  split; auto.
-  destruct (id_dec l' l3); subst; auto.
-  unfold reachable, domination in *.
-  remember (getEntryBlock f) as R.
-  destruct R; try congruence.
-  destruct b as [l0 ? ? ?].
-  destruct Hreach as [vl [al Hreach]].
-  apply DWalk_to_dpath in Hreach; auto.
-  destruct Hreach as [vl0 [al0 Hp]].
-  destruct (id_dec l3 l0); subst.
-    symmetry in HeqR.
-    apply dom_entrypoint in HeqR.
-    rewrite HeqR in Hin. inv Hin.
-
-    inv Hp; try congruence.
-    destruct y as [a0].
-    assert (exists ps0, exists cs0, exists tmn0,
-      blockInFdefB (block_intro a0 ps0 cs0 tmn0) f /\
-      In l3 (successors_terminator tmn0)) as J.
-      eapply successors__blockInFdefB; eauto.
-    destruct J as [ps0 [cs0 [tmn0 [HBinF' Hinsucc]]]].
-    remember ((dom_analyze f) !! a0) as R0.
-   assert (In l3 (a0 :: (dom_query f a0))) as J.
-      assert (incl (dom_query f l3) (a0 :: (dom_query f a0))) as Hinc.
-        destruct f. eapply dom_successors; eauto.
-      simpl in Hin.
-      apply Hinc; auto.
-    eapply dom_is_sound in J; eauto.
-    unfold domination in J.
-    rewrite <- HeqR in J.
-    assert (Hw:=H).
-    apply D_path_isa_walk in Hw.
-    apply J in Hw.
-    destruct Hw as [Hw | Hw]; subst; auto.
-      apply H4 in Hw. inv Hw; try congruence.
-Qed.
-
-Lemma sdom_isnt_refl : forall
-  (l3 : l) (l' : l) ps cs tmn
-  (Hreach : reachable f l3)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin : In l' (dom_query f l3)),
-  l' <> l3.
-Proof. 
-  intros.
-  eapply sdom_is_sound in Hin; eauto.
-  destruct Hin; auto.
-Qed.
-
-Definition getEntryBlock_inv f := forall
-  (l3 : l)
-  (l' : l)
-  (ps : phinodes)
-  (cs : cmds)
-  (tmn : terminator)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hsucc : In l' (successors_terminator tmn)) a ps0 cs0 tmn0
-  (H : getEntryBlock f = Some (block_intro a ps0 cs0 tmn0)),
-  l' <> a.
-
-Lemma adom_acyclic: forall 
-  (HgetEntryBlock_inv : getEntryBlock_inv f)
-  l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2,
-  reachable f l2 ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
-  blockInFdefB (block_intro l2 ps2 cs2 tmn2) f = true ->
-  In l1 (dom_query f l2) ->
-  In l2 (dom_query f l1) ->
-  l1 <> l2 ->
-  False.
-Proof.
-  intros.
-  assert (strict_domination f l1 l2) as Hdom12.
-    eapply sdom_is_sound; eauto.
-  assert (strict_domination f l2 l1) as Hdom21.
-    eapply sdom_is_sound; eauto.
-      apply DecDom.sdom_reachable in Hdom12; auto.
-  eapply DecDom.dom_acyclic in Hdom12; eauto.
-  apply Hdom12. destruct Hdom21; auto.
-Qed.
-
 End sound_acyclic.
 
 Section pres_dom.
@@ -1211,3 +1114,5 @@ Qed.
 End pres_dom.
 
 End AlgDom.
+
+Module AlgDomProps := AlgDom_Properties (AlgDom).

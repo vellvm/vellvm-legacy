@@ -637,20 +637,13 @@ Proof.
     apply bs_bound. auto.
 Qed.
 
-Lemma in_bound_dom__in_bound_fdef: forall l' f l1
-  (Hin: In l' (AlgDom.dom_query f l1)),
-  In l' (bound_fdef f).
-Proof.
-  intros. destruct f. eapply AlgDom.dom_query_in_bound; eauto.
-Qed.
-
 Lemma in_gt_sdom__in_bound_fdef: forall f l1 l2
   (Hin: gt_sdom (AlgDom.dom_query f) l1 l2 = true),
   In l1 (bound_fdef f).
 Proof.
   unfold gt_sdom.
   intros. simpl_in_dec.
-  eapply in_bound_dom__in_bound_fdef; eauto.
+  eapply AlgDomProps.in_bound_dom__in_bound_fdef; eauto.
 Qed.
 
 Lemma gt_sdom_prop_trans1 : forall S M f l1 l2 l3
@@ -727,7 +720,7 @@ Proof.
             unfold gt_dom_prop, gt_sdom.
             left. solve_in_dec.
 
-            eapply in_bound_dom__in_bound_fdef; eauto.
+            eapply AlgDomProps.in_bound_dom__in_bound_fdef; eauto.
       split.
       SCase "2.1".
         apply remove_redundant_sorted; auto.
@@ -760,7 +753,7 @@ match goal with
             (?l1 :: AlgDom.dom_query ?f ?l1)) |-
   In ?b (bound_fdef ?f) =>
   apply sort_sdom_safe in H2;
-  destruct_in H2; eauto using in_bound_dom__in_bound_fdef
+  destruct_in H2; eauto using AlgDomProps.in_bound_dom__in_bound_fdef
 end.
 
           eapply gt_sdom_prop_trans1 with (l1:=a) in H6;
@@ -893,7 +886,7 @@ Proof.
   simpl in Hin.
   destruct Hin as [Hin | Hin]; subst.
     apply compute_sdom_chains__dom in H'; auto.
-    eapply in_bound_dom__in_bound_fdef; eauto.
+    eapply AlgDomProps.in_bound_dom__in_bound_fdef; eauto.
 Qed.
 
 Lemma entry_is_head_of_compute_sdom_chains: forall S M f 
