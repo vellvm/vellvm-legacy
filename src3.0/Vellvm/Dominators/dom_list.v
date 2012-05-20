@@ -10,18 +10,14 @@ Require Import dom_libs.
 Require Import dfs.
 Require Import cfg.
 Require Import push_iter.
+Require Import dom_decl.
 
 (***************************************************)
 
 Require Import Dipaths.
 Require Import infrastructure.
 Import LLVMsyntax.
-
-Lemma getEntryLabel__getEntryBlock: forall f le,
-  LLVMinfra.getEntryLabel f = Some le ->
-  exists be, LLVMinfra.getEntryBlock f = Some be /\ 
-             LLVMinfra.label_of_block be = le.
-Admitted. (* infra *)
+Import LLVMinfra.
 
 Definition a2p_Vertex (a2p:ATree.t positive) (av: Vertex) (pv : Vertex) :=
 let '(index a) := av in
@@ -39,126 +35,246 @@ a2p_Vertex a2p av1 pv1 /\ a2p_Vertex a2p av2 pv2.
 Definition a2p_A_list (a2p:ATree.t positive) (aal: A_list) (pal : A_list) :=
 List.Forall2 (a2p_Arc a2p) aal pal.
 
-Lemma in_vertexes__get_a2p: forall a2p asuccs pv,
-  PCfg.vertexes (asuccs_psuccs a2p asuccs) pv ->
+Lemma in_init__in_atolist_ptolist: forall a a2p ps acc (Hin: In a acc),
+  In a (fold_left (atolist_ptolist_fun a2p) ps acc).
+Proof.
+  induction ps as [|p ps]; simpl; intros; auto.
+    apply IHps.
+    unfold atolist_ptolist_fun. 
+    destruct (a2p ! p); simpl; auto.
+Qed.
+
+Lemma in_atolist_ptolist__incl: forall a a2p ps init1 init2 
+  (Hinc: incl init1 init2)
+  (Hin : In a (fold_left (atolist_ptolist_fun a2p) ps init1)),
+  In a (fold_left (atolist_ptolist_fun a2p) ps init2).
+Proof.
+  induction ps as [|p ps]; simpl; intros.
+    eauto with datatypes v62.
+
+    eapply IHps; eauto.
+      unfold atolist_ptolist_fun. 
+      destruct (a2p ! p); simpl; auto with datatypes v62.
+Qed.
+
+Lemma in_atolist__in_ptolist_aux: forall (a2p : ATree.t positive) a p 
+  (Hget : a2p ! a = Some p) atolist (Hinscs : In a atolist) ptolist init
+  (Heq: ptolist = fold_left (atolist_ptolist_fun a2p) atolist init),
+  In p ptolist.
+Proof.
+  unfold atolist_ptolist.
+  induction atolist; simpl; intros; subst.
+    tauto.
+
+    destruct Hinscs as [Hinscs | Hinscs]; subst; simpl.
+      unfold atolist_ptolist_fun.
+      rewrite Hget. 
+      apply in_init__in_atolist_ptolist; simpl; auto.
+
+      eapply IHatolist; eauto.
+Qed.
+
+Lemma in_atolist__in_ptolist: forall (a2p : ATree.t positive) a p 
+  (Hget : a2p ! a = Some p) atolist (Hinscs : In a atolist) ptolist
+  (Heq: ptolist = atolist_ptolist a2p atolist),
+  In p ptolist.
+Proof.
+  unfold atolist_ptolist.
+  intros.
+  eapply in_atolist__in_ptolist_aux; eauto.
+Qed.
+
+Lemma in_ptolist__in_atolist_aux: forall (a2p : ATree.t positive) p atolist init
+  (Hinscs : In p (fold_left (atolist_ptolist_fun a2p) atolist init)),
+  In p init \/ exists a, a2p ! a = Some p /\ In a atolist.
+Proof.
+  induction atolist; simpl; intros; auto.
+    apply IHatolist in Hinscs.
+    destruct Hinscs as [Hinscs | Hinscs].
+    Case "1".
+      unfold atolist_ptolist_fun in Hinscs.
+      case_eq (a2p ! a).
+        intros p0 Hget0.
+        rewrite Hget0 in Hinscs.
+        destruct_in Hinscs.
+          eauto.
+
+        intros Hget0.
+        rewrite Hget0 in Hinscs; auto.
+    Case "2".
+      destruct Hinscs as [a1 [J1 J2]].
+      eauto.
+Qed.
+
+Lemma in_ptolist__in_atolist: forall (a2p : ATree.t positive) p atolist
+  (Hinscs : In p (atolist_ptolist a2p atolist)),
+  exists a, a2p ! a = Some p /\ In a atolist.
+Proof.
+  unfold atolist_ptolist.
+  intros.
+  apply in_ptolist__in_atolist_aux in Hinscs.
+  destruct Hinscs as [Hinscs | Hinscs]; auto.
+    tauto.
+Qed.
+
+Lemma get_a2p__ptolist_atolist': forall a2p asuccs p3 ptodo 
+  (Hptodo: (asuccs_psuccs a2p asuccs) ? p3 = Some ptodo),
+  exists l3, exists atodo, 
+    a2p ! l3 = Some p3 /\ asuccs ! l3 = Some atodo /\ 
+    atolist_ptolist a2p atodo = ptodo.
+Proof.
+  intros a2p asuccs.
+  set (P := fun asuccs psuccs =>
+            forall p3 ptodo 
+              (Hptodo: psuccs ? p3 = Some ptodo),
+              exists l3, exists atodo, 
+                a2p ! l3 = Some p3 /\ asuccs ! l3 = Some atodo /\ 
+                atolist_ptolist a2p atodo = ptodo).
+  unfold asuccs_psuccs. 
+  apply ATree_Properties.fold_rec with (P := P).
+  Case "extensionality".
+  intros m m' a H.
+  unfold P; intros.
+  eapply H0 in Hptodo; eauto.
+  destruct Hptodo as [l3 [atodo [J1 [J2 J3]]]].
+  exists l3. exists atodo. rewrite <- H. eauto.
+  Case "base case".
+  intros a p. rewrite PTree.gempty. intros. congruence.
+  Case "inductive case".
+  intros m a0 k v Hnone Hget0 IH.
+  unfold P in *; intros. 
+  unfold asucc_psucc in Hptodo.
+  case_eq (a2p!k).
+  SCase "1".
+    intros p Hget. 
+    rewrite Hget in Hptodo.
+    rewrite PTree.gsspec in Hptodo.
+    destruct_if.
+    SSCase "1.1".
+      exists k. exists v.
+      rewrite ATree.gsspec.
+      split; auto.
+      destruct_if.
+        congruence.
+    SSCase "1.2".
+      apply IH in H0.
+      destruct H0 as [l3 [atodo [J1 [J2 J3]]]].
+      exists l3. exists atodo.
+      rewrite ATree.gsspec.
+      split; auto.
+      destruct_if.
+        uniq_result.
+  SCase "2".
+    intros Hget. 
+    rewrite Hget in Hptodo.
+    apply IH in Hptodo.
+    destruct Hptodo as [l3 [atodo [J1 [J2 J3]]]].
+    exists l3. exists atodo.
+    rewrite ATree.gsspec.
+    split; auto.
+    destruct_if.
+      congruence.
+Qed.
+
+Section asuccs_psuccs.
+
+Variable a2p: ATree.t positive.
+Variable asuccs: ATree.t (list l).
+Hypothesis Hinj: forall a1 a2 p (Hin1: a2p ! a1 = Some p) 
+                 (Hin2: a2p ! a2 = Some p), a1 = a2.
+
+Lemma get_a2p__atolist_ptolist: forall l3 p3 
+  (Hget3 : a2p ! l3 = Some p3) atodo (Hatodo: asuccs ! l3 = Some atodo),
+  (asuccs_psuccs a2p asuccs) ? p3 = Some (atolist_ptolist a2p atodo).
+Proof.
+  set (P := fun asuccs psuccs =>
+            forall (Hinj: forall a1 a2 p (Hin1: a2p ! a1 = Some p) 
+                          (Hin2: a2p ! a2 = Some p), a1 = a2)
+            l3 p3 
+            (Hget3 : a2p ! l3 = Some p3) atodo 
+            (Hatodo: asuccs ! l3 = Some atodo),
+            psuccs ? p3 = Some (atolist_ptolist a2p atodo)).
+  unfold asuccs_psuccs. 
+  revert Hinj.
+  apply ATree_Properties.fold_rec with (P := P).
+  Case "extensionality".
+  intros m m' a H.
+  unfold P; intros.
+  rewrite <- H in *.  
+  eapply H0; eauto.
+  Case "base case".
+  intros a p. rewrite ATree.gempty. intros. congruence.
+  Case "inductive case".
+  intros m a0 k v Hnone Hget0 IH.
+  unfold P in *; intros. 
+  rewrite ATree.gsspec in Hatodo.
+  unfold asucc_psucc. 
+  destruct (ATree.elt_eq l3 k); subst.
+    uniq_result.
+    rewrite Hget3.
+    rewrite PTree.gsspec.
+    destruct_if; auto. 
+      congruence.
+
+    assert (G:=Hatodo).
+    eapply IH in G; eauto. 
+    case_eq (a2p!k); auto.
+      intros p Hget. 
+      rewrite PTree.gsspec.
+      destruct_if; auto.
+        contradict n.
+        eapply Hinj; eauto.
+Qed.
+
+Lemma in_asuccs__in_psuccs: forall l' l3 p3 p'
+  (Hinscs : In l' asuccs !!! l3)
+  (Hget3 : a2p ! l3 = Some p3) (Hget' : a2p ! l' = Some p'),
+  In p' (asuccs_psuccs a2p asuccs) ??? p3.
+Proof.
+  intros.
+  assert (J:=Hinscs).
+  apply XATree.successors_list_spec in J.
+  destruct J as [scs [J1 J2]].
+  eapply get_a2p__atolist_ptolist in J1; eauto.
+  apply XPTree.successors_list_intro in J1. 
+  eapply in_atolist__in_ptolist; eauto.
+Qed.
+
+Lemma in_aparents__in_pparents: forall (a : atom) (p : positive)
+  (Hget : a2p ! a = Some p)
+  (Heq : In a (XATree.parents_of_tree asuccs)),
+  In p (XPTree.parents_of_tree (asuccs_psuccs a2p asuccs)).
+Proof.
+  intros.
+  apply XATree.parents_of_tree__in_successors in Heq.
+  apply XPTree.parents_of_tree__in_successors.
+  destruct Heq as [scs Heq].
+  eapply get_a2p__atolist_ptolist in Heq; eauto.
+Qed.
+
+Lemma in_vertexes__get_a2p: forall a2p asuccs pv
+  (Hincfg: PCfg.vertexes (asuccs_psuccs a2p asuccs) pv),
   exists av, a2p_Vertex a2p av pv.
-Admitted. (* asuccs_psuccs *)
-
-Lemma a2p_vertexes: forall a2p asuccs pv av,
-  a2p_Vertex a2p av pv ->
-  (PCfg.vertexes (asuccs_psuccs a2p asuccs) pv <-> ACfg.vertexes asuccs av).
-Admitted. (* asuccs_psuccs *)
-
-Lemma a2p_arcs: forall a2p asuccs pv1 av1 pv2 av2,
-  a2p_Vertex a2p av1 pv1 ->
-  a2p_Vertex a2p av2 pv2 ->
-  (PCfg.arcs (asuccs_psuccs a2p asuccs) (A_ends pv1 pv2) <->
-    ACfg.arcs asuccs (A_ends av1 av2)).
-Admitted. (* asuccs_psuccs *)
-
-Lemma In__a2p_V_list: forall p pvl a avl a2p
-  (J: a2p_V_list a2p avl pvl)
-  (Hget: a2p ! a = Some p), 
-  In (index p) pvl <-> In (index a) avl.
-Admitted. (* asuccs_psuccs *)
-
-Lemma get_a2p_in_a2p_cfg: forall (p : positive) a a2p (Hget: a2p ! a = Some p) 
-  asuccs,
-  in_cfg (asuccs_psuccs a2p asuccs) p.
-Admitted. (* asuccs_psuccs *)
-
-Lemma a2p_D_walk: forall a2p asuccs pv1 pv2 (pvl : V_list) (pal : A_list) 
-  (Hwk: D_walk (PCfg.vertexes (asuccs_psuccs a2p asuccs))
-               (PCfg.arcs (asuccs_psuccs a2p asuccs)) 
-               pv1 pv2 pvl pal),
-  exists avl, exists aal, exists av1, exists av2,
-    D_walk (ACfg.vertexes asuccs) (ACfg.arcs asuccs) av1 av2 avl aal /\
-    a2p_Vertex a2p av1 pv1 /\ a2p_Vertex a2p av2 pv2 /\
-    a2p_V_list a2p avl pvl /\ a2p_A_list a2p aal pal.
 Proof.
-  intros.
-  induction Hwk.
-    exists V_nil. exists A_nil.
-    assert (J:=H).
-    apply in_vertexes__get_a2p in J.
-    destruct J as [av J].
-    exists av. exists av.
-    split.
-      constructor. 
-        eapply a2p_vertexes; eauto.
-    split; auto.
-    split; auto.
-    split; constructor.
+  intros.  
+  destruct pv as [p].
+  destruct Hincfg as [Hincfg | Hincfg].
+    apply XPTree.parents_of_tree__in_successors in Hincfg.
+    destruct Hincfg as [scs Hincfg].
+    apply get_a2p__ptolist_atolist' in Hincfg.
+    destruct Hincfg as [a3 [? [? [? ?]]]].
+    exists (index a3). auto.
 
-    destruct IHHwk as [avl [aal [av1 [av2 [J1 [J2 [J3 [J4 J5]]]]]]]].
-    assert (J:=H).
-    apply in_vertexes__get_a2p in J.
-    destruct J as [av J].
-    exists (av1::avl). exists (A_ends av av1::aal).
-    exists av. exists av2.
-    split.
-      constructor; auto.
-        eapply a2p_vertexes; eauto.
-        eapply a2p_arcs; eauto.
-    split; auto.
-    split; auto.
-    split.
-      constructor; auto.
-      constructor; simpl; auto.
+    apply XPTree.children_of_tree__in_successors in Hincfg.
+    destruct Hincfg as [p0 [scs0 [J1 J2]]].
+    apply get_a2p__ptolist_atolist' in J1.
+    destruct J1 as [l3 [atodo [J1 [J3 J4]]]]; subst scs0.
+    apply in_ptolist__in_atolist in J2.
+    destruct J2 as [a' [J2 J4]].
+    exists (index a'). auto.
 Qed.
 
-Lemma p2a_D_walk: forall av1 a2 avl aal a2p asuccs
-  (Hreach: forall a, ACfg.reachable asuccs a2 a <-> 
-                     exists p, a2p ! a = Some p)
-  (Hwk: D_walk (ACfg.vertexes asuccs) (ACfg.arcs asuccs) av1 (index a2) avl aal),
-  exists pvl, exists pal, exists pv1, exists pv2,
-    D_walk (PCfg.vertexes (asuccs_psuccs a2p asuccs))
-           (PCfg.arcs (asuccs_psuccs a2p asuccs)) 
-           pv1 pv2 pvl pal /\
-    a2p_Vertex a2p av1 pv1 /\ a2p_Vertex a2p (index a2) pv2 /\
-    a2p_V_list a2p avl pvl /\ a2p_A_list a2p aal pal.
-Proof.
-  intros.
-  remember (index a2) as va2.
-  induction Hwk; subst.
-    assert (ACfg.reachable asuccs a2 a2) as Hr. 
-      apply ACfg.reachable_entry; auto.
-    apply Hreach in Hr.
-    destruct Hr as [p Hr].
-    exists V_nil. exists A_nil.
-    exists (index p). exists (index p).
-    split.
-      constructor. 
-        eapply a2p_vertexes; eauto. 
-          simpl. auto.
-    split; auto.
-    split; auto.
-    split; constructor.
-
-    destruct IHHwk as [avl [aal [av1 [av2 [J1 [J2 [J3 [J4 J5]]]]]]]]; auto.
-    destruct x as [x].
-    assert (ACfg.reachable asuccs a2 x) as Hr. 
-      destruct y as [y].
-      eapply ACfg.reachable_succ with (n:=y); eauto.
-      unfold ACfg.reachable. eauto.
-    apply Hreach in Hr.
-    destruct Hr as [p Hr].
-    exists (av1::avl). exists (A_ends (index p) av1::aal).
-    exists (index p). exists av2.
-    split.
-      constructor; auto.
-        eapply a2p_vertexes; eauto.
-          simpl. auto.
-        eapply a2p_arcs; eauto.
-          simpl. auto.
-    split; auto.
-    split; auto.
-    split.
-      constructor; auto.
-      constructor; simpl; auto.
-Qed.
-
-Require Import dom_type.
+End asuccs_psuccs.
 
 Ltac fill_holes_in_ctx :=
 let fill e H :=
@@ -195,50 +311,8 @@ repeat match goal with
 end.
 
 Import AtomSet.
-Import LLVMinfra.
 
-Lemma getEntryBlock__getEntryLabel: forall f be,
-  getEntryBlock f = Some be ->
-  getEntryLabel f = Some (label_of_block be).
-Proof.
-  destruct f as [? bs]. simpl.
-  destruct bs as [|[]]; simpl; intros.
-    congruence.
-    uniq_result. simpl. auto.
-Qed.
-
-Lemma getEntryBlock__getEntryLabel_none: forall f,
-  getEntryBlock f = None <->
-  getEntryLabel f = None.
-Proof.
-  destruct f as [? bs]. simpl.
-  destruct bs as [|[]]; simpl; intros; split; try solve [auto | congruence].
-Qed.
-
-Lemma in_pparents__in_aparents: forall (a : atom) (p : positive) a2p
-  (Hget : a2p ! a = Some p) asuccs
-  (Heq : In p (XPTree.parents_of_tree (asuccs_psuccs a2p asuccs))),
-  In a (XATree.parents_of_tree asuccs).
-Admitted. (* asuccs_psuccs *)
-
-Lemma le_in_cfg: forall f le
-  (Hentry: LLVMinfra.getEntryLabel f = Some le),
-  XATree.in_cfg (cfg.successors f) le.
-Admitted. (* asuccs_psuccs *)
-
-Lemma in_pcfg__in_bound_fdef: forall a p a2p (Hl2p : a2p ! a = Some p) f
-  (Hin : in_cfg (asuccs_psuccs a2p (cfg.successors f)) p),
-  ListSet.set_In a (cfg.bound_fdef f).
-Admitted. (* asuccs_psuccs *)
-
-Lemma entry_in_pcfg: forall f a p a2p (Hentry: getEntryLabel f = Some a)
-  (Hl2p : a2p ! a = Some p),
-  in_cfg (asuccs_psuccs a2p (cfg.successors f)) p.
-Admitted. (* asuccs_psuccs *)
-
-Lemma entry_in_cfg: forall entry f (Hentry: getEntryLabel f = Some entry),
-  ListSet.set_In entry (cfg.bound_fdef f).
-Admitted. (* entry in cfg *)
+Require Import dom_type.
 
 Section adom_pdom.
 
@@ -246,9 +320,281 @@ Variable f:fdef.
 Definition asuccs := cfg.successors f.
 Variable PO: PostOrder.
 Variable le: l.
-Hypothesis Hentry: LLVMinfra.getEntryLabel f = Some le.
+Hypothesis Hentry: getEntryLabel f = Some le.
 
-Hypothesis Hdfs: dfs (cfg.successors f) le 1 = PO.
+Hypothesis Hdfs: dfs (successors f) le 1 = PO.
+
+Lemma entry_in_a2p_cfg: forall (p : positive) a (Hget: (PO_a2p PO) ! a = Some p) 
+  (Hentry: getEntryLabel f = Some a),
+  in_cfg (asuccs_psuccs (PO_a2p PO) asuccs) p.
+Proof.
+  intros.
+  left.
+  eapply in_aparents__in_pparents; eauto using Injective.dfs_inj.
+  apply entry_in_parents; auto.
+Qed.
+
+Lemma get_a2p__ptolist_atolist: forall l3 p3
+  (Hget3 : (PO_a2p PO) ! l3 = Some p3) ptodo 
+  (Hptodo: (asuccs_psuccs (PO_a2p PO) asuccs) ? p3 = Some ptodo),
+  exists atodo, asuccs ! l3 = Some atodo /\ 
+                atolist_ptolist (PO_a2p PO)  atodo = ptodo.
+Proof.
+  intros.
+  apply get_a2p__ptolist_atolist' in Hptodo.
+  destruct Hptodo as [a2 [atodo [J1 [J2 J3]]]].
+  assert (l3 = a2) as EQ.
+    eapply Injective.dfs_inj; eauto.
+  subst. eauto.
+Qed.
+
+Lemma in_pparents__in_aparents: forall (a : atom) (p : positive)
+  (Hget : (PO_a2p PO) ! a = Some p)
+  (Heq : In p (XPTree.parents_of_tree (asuccs_psuccs (PO_a2p PO) asuccs))),
+  In a (XATree.parents_of_tree asuccs).
+Proof.
+  intros.
+  apply XPTree.parents_of_tree__in_successors in Heq.
+  apply XATree.parents_of_tree__in_successors.
+  destruct Heq as [scs Heq].
+  eapply get_a2p__ptolist_atolist in Heq; eauto.
+  destruct_conjs. eauto.
+Qed.
+
+Lemma in_psuccs__in_asuccs: forall l3 p3 p' 
+  (Hinscs : In p' (asuccs_psuccs (PO_a2p PO) asuccs) ??? p3)
+  (Hget3 : (PO_a2p PO) ! l3 = Some p3),
+  exists l',  (PO_a2p PO) ! l' = Some p' /\ In l' asuccs !!! l3.
+Proof.
+  intros.
+  assert (J:=Hinscs).
+  apply XPTree.successors_list_spec in J.
+  destruct J as [scs [J1 J2]].
+  eapply get_a2p__ptolist_atolist in J1; eauto.
+  destruct J1 as [atodo [J1 J3]]; subst.
+  apply in_ptolist__in_atolist in J2.
+  destruct J2 as [a [J2 J3]].
+  exists a.
+  split; auto.
+    eapply XATree.in_successors_list_intro; eauto.
+Qed.
+
+Lemma a2p_arcs: forall pv1 av1 pv2 av2
+  (Hget1: a2p_Vertex (PO_a2p PO) av1 pv1)
+  (Hget2: a2p_Vertex (PO_a2p PO) av2 pv2),
+  (PCfg.arcs (asuccs_psuccs (PO_a2p PO) (successors f)) (A_ends pv1 pv2) <->
+    ACfg.arcs (successors f) (A_ends av1 av2)).
+Proof.
+  intros.
+  destruct av1 as [a1]. destruct av2 as [a2].
+  destruct pv1 as [p1]. destruct pv2 as [p2].
+  simpl in *.
+  split; intros J.
+    eapply in_psuccs__in_asuccs in J; eauto.
+    destruct J as [a1' [J1 J2]].
+    assert (a1 = a1') as EQ. 
+      eapply Injective.dfs_inj; eauto.
+    subst a1'. auto.
+
+    eapply in_asuccs__in_psuccs in J; eauto using Injective.dfs_inj.
+Qed.
+
+Lemma get_a2p__in_pcfg: forall (a1: atom) (p1: positive) 
+  (Hget1 : (PO_a2p PO) ! a1 = Some p1),
+  XPTree.in_cfg (asuccs_psuccs (PO_a2p PO) (successors f)) p1.
+Proof.
+  intros.
+  destruct (eq_atom_dec le a1); try subst a1.
+    eapply entry_in_a2p_cfg; eauto.
+
+    assert (exists p1, (PO_a2p PO) ! a1 = Some p1) as Hreach1 by eauto.
+    eapply dfs_reachable_iff_get_some in Hreach1; eauto using le_in_cfg.
+    apply ACfg.reachable_pred in Hreach1; auto.
+    destruct Hreach1 as [a2 [Hinsc Hreach2]].
+    eapply dfs_reachable_iff_get_some in Hreach2; eauto using le_in_cfg.
+    destruct Hreach2 as [p2 Hget2].
+    eapply in_asuccs__in_psuccs in Hinsc; eauto using Injective.dfs_inj.
+    right.
+    apply XPTree.children_of_tree__in_successors.
+    exists p2. apply XPTree.successors_list_spec; auto.
+Qed.
+
+Lemma in_pchildren__in_acfg: forall (p : positive) (a : atom)
+  (Ha2p : (PO_a2p PO) ! a = Some p)
+  (Hin : In p
+          (PCfg.XTree.children_of_tree
+             (asuccs_psuccs (PO_a2p PO) (successors f)))),
+  XATree.in_cfg (successors f) a.
+Proof.
+  intros.
+  apply XPTree.children_of_tree__in_successors in Hin.
+  destruct Hin as [p0 [scs0 [J1 J2]]].
+  apply get_a2p__ptolist_atolist' in J1.
+  destruct J1 as [l3 [atodo [J1 [J3 J4]]]]; subst scs0.
+  apply in_ptolist__in_atolist in J2.
+  destruct J2 as [a' [J2 J4]].
+  simpl in Ha2p.
+  assert (a = a') as EQ. 
+    eapply Injective.dfs_inj; eauto.
+  subst a'.
+  eapply XATree.in_successors_list_intro in J3; eauto.
+  eapply XATree.in_succ__in_cfg; eauto.
+Qed.
+
+Lemma a2p_vertexes: forall pv av (Ha2p: a2p_Vertex (PO_a2p PO) av pv),
+  (PCfg.vertexes (asuccs_psuccs (PO_a2p PO) (successors f)) pv <-> 
+   ACfg.vertexes (successors f) av).
+Proof.
+  intros.
+  destruct pv as [p]. destruct av as [a].
+  split; intro J.
+    destruct J as [J | J].
+      left. eapply in_pparents__in_aparents; eauto.
+      eapply in_pchildren__in_acfg; eauto.
+
+    destruct J as [J | J].
+      left. eapply in_aparents__in_pparents; eauto using Injective.dfs_inj.  
+      eapply get_a2p__in_pcfg; eauto.
+Qed.
+
+Definition wf_porder pentry: Prop :=
+ forall n 
+   (Hincfg: XPTree.in_cfg (asuccs_psuccs (PO_a2p PO) asuccs) n) 
+   (Hneq: n <> pentry),
+   exists p, 
+     In p ((XPTree.make_predecessors (asuccs_psuccs (PO_a2p PO) asuccs)) ??? n) 
+       /\ (p > n)%positive.
+
+Lemma asuccs_psuccs_pres_order: forall pentry
+  (Hwf: Order.wf_aorder le asuccs (PO_a2p PO))
+  (Hentry: (PO_a2p PO) ! le = Some pentry),
+  wf_porder pentry.
+Proof.
+  intros.
+  intros p1 Hincfg Hnentry.
+  assert (exists av, a2p_Vertex (PO_a2p PO) av (index p1)) as Hget.
+    eapply in_vertexes__get_a2p; eauto.
+  destruct Hget as [[a1] Hget].
+  assert (G:=Hget).
+  apply a2p_vertexes in G; auto.
+  apply G in Hincfg.
+  assert (a1 <> le) as Hnentry'.
+    intro EQ. subst a1. simpl in Hget.
+    uniq_result. auto.
+  apply Hwf in Hnentry'.
+  assert (J:=Hget).
+  apply_clear Hnentry' in J.
+  destruct J as [a2 [p2 [J1 [J2 J3]]]].
+  apply XATree.make_predecessors_correct' in J1.
+  exists p2.
+  split; auto.
+    apply XPTree.make_predecessors_correct.
+    eapply in_asuccs__in_psuccs; eauto using Injective.dfs_inj.
+Qed.
+
+Lemma dfs_wf_porder: forall pentry 
+  (Hentry: (PO_a2p PO) ! le = Some pentry),
+  wf_porder pentry.
+Proof.
+  intros.
+  eapply asuccs_psuccs_pres_order; eauto.
+  eapply Order.dfs_wf_order; eauto.
+Qed.
+
+Lemma a2p_D_walk: forall pv1 pv2 (pvl : V_list) (pal : A_list) 
+  (Hwk: D_walk (PCfg.vertexes (asuccs_psuccs (PO_a2p PO) (successors f)))
+               (PCfg.arcs (asuccs_psuccs (PO_a2p PO) (successors f))) 
+               pv1 pv2 pvl pal),
+  exists avl, exists aal, exists av1, exists av2,
+    D_walk (ACfg.vertexes (successors f)) (ACfg.arcs (successors f)) 
+      av1 av2 avl aal /\
+    a2p_Vertex (PO_a2p PO) av1 pv1 /\ a2p_Vertex (PO_a2p PO) av2 pv2 /\
+    a2p_V_list (PO_a2p PO) avl pvl /\ a2p_A_list (PO_a2p PO) aal pal.
+Proof.
+  intros.
+  induction Hwk.
+    exists V_nil. exists A_nil.
+    assert (J:=H).
+    apply in_vertexes__get_a2p in J.
+    destruct J as [av J].
+    exists av. exists av.
+    split.
+      constructor. 
+        eapply a2p_vertexes; eauto.
+    split; auto.
+    split; auto.
+    split; constructor.
+
+    destruct IHHwk as [avl [aal [av1 [av2 [J1 [J2 [J3 [J4 J5]]]]]]]].
+    assert (J:=H).
+    apply in_vertexes__get_a2p in J.
+    destruct J as [av J].
+    exists (av1::avl). exists (A_ends av av1::aal).
+    exists av. exists av2.
+    split.
+      constructor; auto.
+        eapply a2p_vertexes; eauto.
+        eapply a2p_arcs; eauto.
+    split; auto.
+    split; auto.
+    split.
+      constructor; auto.
+      constructor; simpl; auto.
+Qed.
+
+Lemma p2a_D_walk: forall av1 a2 avl aal
+  (Hreach: forall a, ACfg.reachable asuccs a2 a <-> 
+                     exists p, (PO_a2p PO) ! a = Some p)
+  (Hwk: D_walk (ACfg.vertexes (successors f)) 
+               (ACfg.arcs (successors f)) av1 (index a2) avl aal),
+  exists pvl, exists pal, exists pv1, exists pv2,
+    D_walk (PCfg.vertexes (asuccs_psuccs (PO_a2p PO) (successors f)))
+           (PCfg.arcs (asuccs_psuccs (PO_a2p PO) (successors f))) 
+           pv1 pv2 pvl pal /\
+    a2p_Vertex (PO_a2p PO) av1 pv1 /\ a2p_Vertex (PO_a2p PO) (index a2) pv2 /\
+    a2p_V_list (PO_a2p PO) avl pvl /\ a2p_A_list (PO_a2p PO) aal pal.
+Proof.
+  intros.
+  remember (index a2) as va2.
+  induction Hwk.
+    subst x.
+    assert (ACfg.reachable asuccs a2 a2) as Hr. 
+      apply ACfg.reachable_entry; auto.
+    apply Hreach in Hr.
+    destruct Hr as [p Hr].
+    exists V_nil. exists A_nil.
+    exists (index p). exists (index p).
+    split.
+      constructor. 
+        eapply a2p_vertexes; eauto. 
+          simpl. auto.
+    split; auto.
+    split; auto.
+    split; constructor.
+
+    subst z.
+    destruct IHHwk as [avl [aal [av1 [av2 [J1 [J2 [J3 [J4 J5]]]]]]]]; auto.
+    destruct x as [x].
+    assert (ACfg.reachable asuccs a2 x) as Hr. 
+      destruct y as [y].
+      eapply ACfg.reachable_succ with (n:=y); eauto.
+      unfold ACfg.reachable. eauto.
+    apply Hreach in Hr.
+    destruct Hr as [p Hr].
+    exists (av1::avl). exists (A_ends (index p) av1::aal).
+    exists (index p). exists av2.
+    split.
+      constructor; auto.
+        eapply a2p_vertexes; eauto.
+          simpl. auto.
+        eapply a2p_arcs; eauto.
+          simpl. auto.
+    split; auto.
+    split; auto.
+    split.
+      constructor; auto.
+      constructor; simpl; auto.
+Qed.
 
 Lemma unreachable__get_a2p: forall l2,
   ~ cfg.reachable f l2 <-> (PO_a2p PO) ! l2 = None.
@@ -276,6 +622,31 @@ Proof.
   simpl in Hdfs. auto.
 Qed.
 
+Lemma In__a2p_V_list: forall p pvl a avl
+  (Hget: (PO_a2p PO) ! a = Some p) (J: a2p_V_list (PO_a2p PO) avl pvl), 
+  In (index p) pvl <-> In (index a) avl.
+Proof.
+  induction 2; intros.
+    split; eauto.
+
+    destruct x as [x]. destruct y as [y].
+    simpl in H.
+    simpl.
+    split; intro Hin.
+    Case "1".
+      destruct Hin as [Hin | Hin]; try tauto.
+        inversion Hin; subst y.
+        assert (a = x) as EQ.
+          eapply Injective.dfs_inj; eauto.
+        subst x.
+        auto.
+    Case "2".
+      destruct Hin as [Hin | Hin]; try tauto.
+        inversion Hin; subst x.
+        uniq_result.
+        auto.
+Qed.
+
 Lemma a2p_domination: forall (l1 l2 : l) (p1 p2 : positive)
   (Hreach: forall a,
            ACfg.reachable asuccs le a <->
@@ -293,16 +664,17 @@ Proof.
   rewrite Hentry'. destruct be as [le ? ? ?]. simpl in *.
   unfold domination, PCfg.domination in Hdom. 
   intros vl al Hwk.
-  apply p2a_D_walk with (a2p:=PO_a2p PO) in Hwk; auto.
+  apply p2a_D_walk in Hwk; auto.
     destruct Hwk as [pvl [pal [[p1'] [[p2'] [Hwk [J1 [J2 [J3 J4]]]]]]]].
-    simpl in J1, J2. symmetry_ctx. uniq_result.
+    simpl in J1, J2. symmetry_ctx. 
+    assert (p2 = p1') as EQ1. uniq_result. auto.
+    assert (pe = p2') as EQ2. uniq_result. auto.
+    subst p1' p2'.
     apply Hdom in Hwk.
-    destruct Hwk as [Hin | Heq]; subst.
+    destruct Hwk as [Hin | Heq]; try subst p1.
       eapply In__a2p_V_list in Hin; eauto.
       right. eapply Injective.dfs_inj; eauto.
 Qed.
-
-Require dom_decl.
 
 Lemma p2a_strict_domination: forall (l1 l2 : l)
   (Hreach2: cfg.reachable f l2)
@@ -318,7 +690,7 @@ Proof.
   destruct Hentry' as [be [Hentry' EQ]]; subst le.
   destruct be as [le ? ? ?]. simpl in *.
   assert (cfg.reachable f l1) as Hreach1.
-    eapply dom_decl.DecDom.sdom_reachable; eauto.
+    eapply DecDom.sdom_reachable; eauto.
   assert (cfg.reachable f le) as Hreachle.
     eapply reach.reachable_entrypoint; eauto.
   apply reachable__get_a2p in Hreach1.
@@ -340,11 +712,11 @@ Proof.
       apply a2p_D_walk in Hwk.
       destruct Hwk as [avl [aal [[a1] [[a2] [Hwk [J1 [J2 [J3 J4]]]]]]]].
       simpl in *.
-      eapply Injective.dfs_inj in Hget2; eauto. subst.
-      eapply Injective.dfs_inj in Hgetle; eauto. subst.
+      eapply Injective.dfs_inj in Hget2; eauto. subst a1.
+      eapply Injective.dfs_inj in Hgetle; eauto. subst a2.
       unfold asuccs in Hwk.
       apply Hsdom in Hwk.
-      destruct Hwk as [Hin | Heq]; subst.
+      destruct Hwk as [Hin | Heq]; try subst l2.
         eapply In__a2p_V_list in Hin; eauto.
         right. uniq_result. auto.
     SCase "1.2".
@@ -354,49 +726,62 @@ Proof.
     split; auto.
 Qed.
 
-End adom_pdom.
+Lemma areachable__preachable: forall pe l3 p3 
+  (Hpentry : (PO_a2p PO) ! le = Some pe) (Hget3 : (PO_a2p PO) ! l3 = Some p3)
+  (Hreach3 : ACfg.reachable asuccs le l3),
+  PCfg.reachable (asuccs_psuccs (PO_a2p PO) asuccs) pe p3.
+Proof.
+  unfold ACfg.reachable.
+  intros.
+  destruct Hreach3 as [vl [al Hreach3]].
+  unfold ATree.elt, l in *.
+  remember (index l3) as av3.
+  remember (index le) as ave.
+  generalize dependent l3.
+  generalize dependent p3.
+  induction Hreach3; intros.
+  Case "base".
+    subst x. inversion Heqav3; subst l3.
+    assert (pe = p3) as EQ. uniq_result. auto.
+    subst p3. apply PCfg.reachable_entry.
+    eapply entry_in_a2p_cfg; eauto.
+  Case "ind".
+    subst x z.
+    destruct y as [ay].
+    assert (ACfg.reachable asuccs le ay) as Hreachy.
+      unfold ACfg.reachable. eauto.
+    eapply dfs_reachable_iff_get_some in Hreachy; 
+      try solve [ eauto | apply le_in_cfg; auto].
+      destruct Hreachy as [py Hgety].
+      assert (Hreachy:=Hgety).
+      apply IHHreach3 in Hreachy; auto.
+      assert (PCfg.arcs (asuccs_psuccs (PO_a2p PO) asuccs)
+               (A_ends (index p3) (index py))) as Harcs.
+        eapply a2p_arcs with (av1:=index l3) (av2:=index ay); simpl; eauto.
+      eapply PCfg.reachable_succ; eauto.
+Qed.
 
-Lemma p2a_reachable: forall a2p f pe p3 le l3
-  (Hreach: PCfg.reachable (asuccs_psuccs a2p (cfg.successors f)) pe p3)
-  (Hentry: getEntryLabel f = Some le)
-  (Hgete: a2p ! le = Some pe)
-  (Hget3: a2p ! l3 = Some p3),
-  cfg.reachable f l3.
-Admitted. (* asuccs_psuccs *)
-
-Lemma a2p_reachable: forall a2p f pe p3 le l3
+Lemma a2p_reachable: forall pe p3 l3
   (Hreach: cfg.reachable f l3)
-  (Hentry: getEntryLabel f = Some le)
-  (Hgete: a2p ! le = Some pe)
-  (Hget3: a2p ! l3 = Some p3),
-  PCfg.reachable (asuccs_psuccs a2p (cfg.successors f)) pe p3.
-Admitted. (* asuccs_psuccs *)
+  (Hgete: (PO_a2p PO) ! le = Some pe)
+  (Hget3: (PO_a2p PO) ! l3 = Some p3),
+  PCfg.reachable (asuccs_psuccs (PO_a2p PO) asuccs) pe p3.
+Proof.
+  unfold cfg.reachable.
+  intros.
+  apply getEntryLabel__getEntryBlock in Hentry.
+  destruct Hentry as [[le' ? ? ?] [Hentry' Heq]]; simpl in Heq; subst le'.
+  rewrite Hentry' in Hreach. 
+  eapply areachable__preachable; eauto.
+Qed.
 
-Lemma areachable__preachable: forall le pe l3 p3 f a2p
-  (Hpentry : a2p ! le = Some pe) (Hget3 : a2p ! l3 = Some p3)
-  (Hreach3 : ACfg.reachable (cfg.successors f) le l3),
-  PCfg.reachable (asuccs_psuccs a2p (cfg.successors f)) pe p3.
-Admitted. (* asuccs_psuccs *)
-
-Lemma preachable__qreachable: forall le pe l3 p3 f a2p
-  (Hpentry : a2p ! le = Some pe) (Hget3 : a2p ! l3 = Some p3)
-  (Hreach3 : PCfg.reachable (asuccs_psuccs a2p (cfg.successors f)) pe p3),
-  ACfg.reachable (cfg.successors f) le l3.
-Admitted. (* asuccs_psuccs *)
-
-Lemma in_asuccs__in_psuccs: forall l' l3 p3 p' f a2p
- (Hinscs : In l' (cfg.successors f) !!! l3)
- (Hget3 : a2p ! l3 = Some p3) (Hget' : a2p ! l' = Some p'),
- In p' (asuccs_psuccs a2p (cfg.successors f)) ??? p3.
-Admitted. (* asuccs_psuccs *)
-
-Lemma reachable_isnt_bot: forall (l3 : l) f (res : PMap.t LDoms.t) 
-  (a2p : ATree.t positive) (p3 : positive) (le : l) (pe : positive)
-  (Hpentry : a2p ! le = Some pe)
-  (H0 : pdom_analyze (asuccs_psuccs a2p (cfg.successors f)) pe = res)
-  (Hget3 : a2p ! l3 = Some p3)
-  (Hreach3 : ACfg.reachable (cfg.successors f) le l3)
-  (Hwf_porder : Order.wf_porder (asuccs_psuccs a2p (cfg.successors f)) pe),
+Lemma reachable_isnt_bot: forall (l3 : l) (res : PMap.t LDoms.t) 
+  (p3 : positive) (pe : positive)
+  (Hpentry : (PO_a2p PO) ! le = Some pe)
+  (H0 : pdom_analyze (asuccs_psuccs (PO_a2p PO) asuccs) pe = res)
+  (Hget3 : (PO_a2p PO) ! l3 = Some p3)
+  (Hreach3 : ACfg.reachable asuccs le l3)
+  (Hwf_porder : wf_porder pe),
   exists dts3 : list positive, res ?? p3 = Some dts3.
 Proof.
   intros.
@@ -407,6 +792,77 @@ Proof.
 
     eapply areachable__preachable; eauto.      
 Qed.
+
+Lemma preachable__areachable: forall pe l3 p3
+  (Hpentry : (PO_a2p PO) ! le = Some pe) (Hget3 : (PO_a2p PO) ! l3 = Some p3)
+  (Hreach3 : PCfg.reachable (asuccs_psuccs (PO_a2p PO) asuccs) pe p3),
+  ACfg.reachable asuccs le l3.
+Proof.
+  unfold PCfg.reachable.
+  intros.
+  destruct Hreach3 as [vl [al Hreach3]].
+  unfold PTree.elt, l in *.
+  remember (index p3) as pv3.
+  remember (index pe) as pve.
+  generalize dependent l3.
+  generalize dependent p3.
+  induction Hreach3; intros.
+  Case "base".
+    subst x. 
+    inversion Heqpv3; subst pe.
+    assert (l3 = le) as EQ.
+      eapply Injective.dfs_inj; eauto.
+    subst.
+    apply ACfg.reachable_entry.
+      apply le_in_cfg; auto.
+  Case "ind".
+    subst x z.
+    destruct y as [py].
+    assert (exists avy, a2p_Vertex (PO_a2p PO) avy (index py)) as Hgety.
+      apply in_vertexes__get_a2p with (asuccs:=asuccs);auto.
+      simpl. simpl in H0. 
+      eapply XPTree.has_succ__in_cfg; eauto.
+    destruct Hgety as [[ay] Hgety]. simpl in Hgety.
+    assert (Hreachy:=Hgety).
+    apply IHHreach3 in Hreachy; auto.
+    assert (ACfg.arcs asuccs (A_ends (index l3) (index ay))) as Harcs.
+      eapply a2p_arcs with (pv1:=index p3) (pv2:=index py); simpl; eauto.
+    eapply ACfg.reachable_succ; eauto.
+Qed.
+
+Lemma p2a_reachable: forall pe p3 l3
+  (Hreach: PCfg.reachable (asuccs_psuccs (PO_a2p PO) asuccs) pe p3)
+  (Hgete: (PO_a2p PO) ! le = Some pe)
+  (Hget3: (PO_a2p PO) ! l3 = Some p3),
+  cfg.reachable f l3.
+Proof.
+  intros.
+  unfold cfg.reachable.
+  apply getEntryLabel__getEntryBlock in Hentry.
+  destruct Hentry as [be [Hentry' Heq]].
+  rewrite Hentry'.
+  destruct be as [le' ? ? ?]; simpl in Heq; subst le'.
+  eapply preachable__areachable; eauto.
+Qed.
+
+Lemma reachable_isnt_bot': forall (l3: l) (pe : positive)
+  (p2 : PTree.elt) (J2 : (PO_a2p PO) ! l3 = Some p2) 
+  (J3 : (PO_a2p PO) ! le = Some pe),
+  exists dts2 : list positive,
+    (pdom_analyze (asuccs_psuccs (PO_a2p PO) asuccs) pe) ?? p2 = Some dts2.
+Proof.
+  intros.
+  assert (Hwf_porder:=J3).
+  eapply dfs_wf_porder in Hwf_porder; eauto.
+  assert (Hreach_get:=@reachable__get_a2p l3).
+  assert (exists p3, (PO_a2p PO) ! l3 = Some p3) as Hget3' by eauto.
+  apply Hreach_get in Hget3'.
+  eapply a2p_reachable in Hget3'; eauto.
+  eapply preachable__areachable in Hget3'; eauto.
+  eapply reachable_isnt_bot in Hwf_porder; eauto.
+Qed.
+
+End adom_pdom.
 
 Definition dom_analyze (f: fdef) : PMap.t LDoms.t * ATree.t positive :=
   let asuccs := cfg.successors f in
@@ -422,8 +878,6 @@ Definition dom_analyze (f: fdef) : PMap.t LDoms.t * ATree.t positive :=
   end.
 
 Module AlgDom' : ALGDOM.
-
-Import LLVMsyntax.
 
 Definition dom_analysis_is_successful (f: fdef) : Prop :=
   let asuccs := cfg.successors f in
@@ -441,22 +895,164 @@ Definition dom_analysis_is_successful (f: fdef) : Prop :=
 Definition a2p_p2a (a2p:ATree.t positive) : PTree.t l :=
   ATree.fold (fun acc from to => PTree.set to from acc) a2p (PTree.empty l).
 
-Definition ps2as (p2a: PTree.t l) (ps: list positive) : list l :=
-  List.fold_left (fun acc p => 
-                  match p2a ? p with
-                  | Some a => a::acc
-                  | None => acc
-                  end) ps nil.
+Lemma a2p_p2a_spec2: forall a2p a p (Hget: (a2p_p2a a2p) ? p = Some a),
+  a2p ! a = Some p.
+Proof.
+  set (P := fun a2p p2a =>
+            forall a p (Hget: p2a ? p = Some a),
+            a2p ! a = Some p).
+  unfold a2p_p2a.
+  intros a2p.
+  apply ATree_Properties.fold_rec with (P := P).
+  Case "extensionality".
+  intros m m' a H.
+  unfold P; intros.
+  rewrite <- H. 
+  apply H0; auto.
+  Case "base case".
+  intros a p. rewrite PTree.gempty. intros. congruence.
+  Case "inductive case".
+  intros m a0 k v Hnone Hget0 IH.
+  unfold P in *; intros. 
+  rewrite PTree.gsspec in Hget.
+  rewrite ATree.gsspec.
+  destruct (ATree.elt_eq a k); subst.
+    destruct_if; auto.
+      apply IH in H0. congruence.
 
-Lemma in_ps__in_ps2as: forall a p a2p (Hget: a2p ! a = Some p) ps
-  (Hin : In p ps),
-  ListSet.set_In a (ps2as (a2p_p2a a2p) ps).
-Admitted. (* ps2as *)
+    destruct_if; auto.
+      congruence.
+Qed.
+
+Definition ps2as_fun p2a (acc: ls) (p:positive) :=
+  match p2a ? p with
+  | Some a => a::acc
+  | None => acc
+  end.
+
+Definition ps2as (p2a: PTree.t l) (ps: list positive) : list l :=
+  List.fold_left (ps2as_fun p2a) ps nil.
+
+
+Lemma in_init__in_ps2as: forall a p2a ps acc (Hin: In a acc),
+  In a (fold_left (ps2as_fun p2a) ps acc).
+Proof.
+  induction ps as [|p ps]; simpl; intros; auto.
+    apply IHps.
+    unfold ps2as_fun. 
+    destruct (p2a ? p); simpl; auto.
+Qed.
+
+Lemma in_ps2as__incl: forall a p2a ps init1 init2 (Hinc: incl init1 init2)
+  (Hin : In a (fold_left (ps2as_fun p2a) ps init1)),
+  In a (fold_left (ps2as_fun p2a) ps init2).
+Proof.
+  induction ps as [|p ps]; simpl; intros.
+    eauto with datatypes v62.
+
+    eapply IHps; eauto.
+      unfold ps2as_fun. 
+      destruct (p2a ? p); simpl; auto with datatypes v62.
+Qed.
+
+Lemma in_ps2as__in_ps_aux: forall (a : atom) (a2p : ATree.t positive) 
+  (ps : list positive) init
+  (Hin: In a (fold_left (ps2as_fun (a2p_p2a a2p)) ps init)),
+  In a init \/ exists p : positive, a2p ! a = Some p /\ In p ps.
+Proof.
+  induction ps as [|p ps]; simpl; intros; auto.
+    apply IHps in Hin.
+    destruct Hin as [Hin | Hin].
+    Case "1".
+      unfold ps2as_fun in Hin.
+      case_eq (a2p_p2a a2p) ? p.
+      SCase "1.1".
+        intros l0 Hsome.
+        rewrite Hsome in Hin. 
+        destruct_in Hin.
+        apply a2p_p2a_spec2 in Hsome. eauto.
+      SCase "1.2".
+        intros Hnone.
+        rewrite Hnone in Hin; auto.
+    Case "2".
+      destruct Hin as [p' [Hin1 Hin2]]; eauto.
+Qed.
 
 Lemma in_ps2as__in_ps: forall (a : atom) a2p ps
   (Hin : In a (ps2as (a2p_p2a a2p) ps)),
   exists p, a2p ! a = Some p /\ In p ps.
-Admitted. (* ps2as *)
+Proof.
+  unfold ps2as.
+  intros.
+  apply in_ps2as__in_ps_aux in Hin.
+  destruct Hin as [Hin | Hin]; tauto.
+Qed.
+
+Section in_ps__in_ps2as.
+
+Variable a2p: ATree.t positive.
+Hypothesis Hinj: forall a1 a2 p (Hin1: a2p ! a1 = Some p) 
+                 (Hin2: a2p ! a2 = Some p), a1 = a2.
+
+Lemma a2p_p2a_spec1: forall a p 
+  (Hget: a2p ! a = Some p),
+  (a2p_p2a a2p) ? p = Some a.
+Proof.
+  set (P := fun a2p p2a =>
+            forall
+            (Hinj: forall a1 a2 p (Hin1: a2p ! a1 = Some p) 
+                   (Hin2: a2p ! a2 = Some p), a1 = a2)
+            a p (Hget: a2p ! a = Some p),
+            p2a ? p = Some a).
+  unfold a2p_p2a.
+  revert Hinj.
+  apply ATree_Properties.fold_rec with (P := P).
+  Case "extensionality".
+  intros m m' a H.
+  unfold P; intros.
+  rewrite <- H in Hget. 
+  apply H0; auto.
+    intros.
+    rewrite H in Hin1, Hin2. eauto.
+  Case "base case".
+  intros a p. rewrite ATree.gempty. intros. congruence.
+  Case "inductive case".
+  intros m a0 k v Hnone Hget0 IH.
+  unfold P in *; intros. 
+  rewrite ATree.gsspec in Hget.
+  rewrite PTree.gsspec.
+  destruct (ATree.elt_eq a k); subst.
+    uniq_result.
+    destruct_if. 
+      congruence.
+
+    destruct_if. 
+      contradict n.
+      apply Hinj with (p:=v); rewrite ATree.gsspec; destruct_if; congruence.
+
+      apply IH; auto.
+        intros.
+        apply Hinj with (p:=p0);
+          rewrite ATree.gsspec; destruct_if; congruence.
+Qed.
+
+Lemma in_ps__in_ps2as: forall a p (Hget: a2p ! a = Some p) ps
+  (Hin : In p ps),
+  ListSet.set_In a (ps2as (a2p_p2a a2p) ps).
+Proof.
+  unfold ps2as.
+  induction ps; simpl; intros; auto.
+    destruct Hin as [Hin | Hin]; subst; simpl.
+      apply in_init__in_ps2as.
+      unfold ps2as_fun. 
+      erewrite a2p_p2a_spec1; simpl; eauto.
+      
+      apply IHps in Hin.
+      eapply in_ps2as__incl; eauto.
+        intros x Hinx. tauto.
+Qed.
+
+End in_ps__in_ps2as.
 
 Definition p2a_dom p2a bd (res: LDoms.t) : list atom :=
 match res with
@@ -520,18 +1116,6 @@ Proof.
   simpl. unfold ps2as. auto.
 Qed.
 
-Lemma pmember__aset_in: forall (f : fdef) a a2p p (Hl2p : a2p ! a = Some p)
-  dt (Hin : member (asuccs_psuccs a2p (cfg.successors f)) p dt),
-  ListSet.set_In a (p2a_dom (a2p_p2a a2p) (cfg.bound_fdef f) dt).
-Proof.
-  intros.
-  unfold member in Hin.
-  unfold p2a_dom.
-  destruct dt; simpl.
-    eapply in_ps__in_ps2as; eauto.
-    eapply in_pcfg__in_bound_fdef; eauto.
-Qed.
-
 Section entry_doms_others.
 
 Variable f:fdef.
@@ -562,29 +1146,20 @@ Proof.
         eapply Injective.dfs_inj' with (p1:=p)(p2:=pe)(a1:=entry)(a2:=b) in Hdfs; 
           simpl; eauto.
       apply HeqR in Hneq.
-      eapply pmember__aset_in; eauto.
+      unfold member in Hneq.
+      unfold p2a_dom.
+      destruct (t ?? p); simpl.
+        eapply in_ps__in_ps2as; eauto using Injective.dfs_inj.
+        apply entry_in_bound_fdef; auto.
     SCase "2".
-      eapply entry_in_pcfg; eauto.
+      eapply entry_in_a2p_cfg in Hdfs; eauto.
     SCase "3".
-      eapply Order.dfs_wf_porder in Hdfs; eauto.
+      eapply dfs_wf_porder in Hdfs; eauto.
   Case "2".
-    intros Hnone. apply entry_in_cfg; auto.
+    intros Hnone. apply entry_in_bound_fdef; auto.
 Qed.
 
 End entry_doms_others.
-
-Lemma dom_in_bound: forall successors le t
-  (Hfix: DomDS.fixpoint successors LDoms.transfer
-            ((le, LDoms.top) :: nil) = Some t),
-  forall l0 ns0 (Hget: t ?? l0 = Some ns0) n (Hin: In n ns0),
-    In n (XPTree.parents_of_tree successors).
-Proof.
-  intros.
-  apply DomsInParents.fixpoint_wf in Hfix; auto.
-  assert (J:=Hfix l0).
-  unfold DomsInParents.wf_dom in J.
-  rewrite Hget in J. auto.
-Qed.
 
 Lemma dom_query_in_bound': forall f l5, 
   incl (dom_query f l5) (cfg.bound_fdef f).
@@ -609,7 +1184,7 @@ Proof.
           apply in_parents__in_bound_fdef.
           apply in_ps2as__in_ps in Hin.
           destruct Hin as [p' [Hget' Hin]].
-          eapply dom_in_bound in Heq; eauto.
+          eapply dom_fix_in_bound in Heq; eauto.
           eapply in_pparents__in_aparents; eauto.
         SSSCase "1.1.1.2".
           intros Hget. auto with datatypes v62.
@@ -683,7 +1258,7 @@ Proof.
       rewrite Hget' in *.
       unfold bound_dom in *.
       assert (Hwf_porder:=Hdfs).
-      eapply Order.dfs_wf_porder in Hwf_porder; eauto.
+      eapply dfs_wf_porder in Hwf_porder; eauto.
       assert (exists dts3, res ?? p3 = Some dts3) as Hget3a.
         eapply reachable_isnt_bot in Hreach3; eauto.
       assert (exists dts', res ?? p' = Some dts') as Hget'a.
@@ -695,7 +1270,7 @@ Proof.
       assert (In p' 
                (asuccs_psuccs a2p (cfg.successors (fdef_intro fh bs))) ??? p3)
              as Hinscs'.
-        eapply in_asuccs__in_psuccs; eauto.
+        eapply in_asuccs__in_psuccs; eauto using Injective.dfs_inj.
       subst. simpl.
       intros a1 Hin. 
       apply in_ps2as__in_ps in Hin.
@@ -712,9 +1287,9 @@ Proof.
             eapply Injective.dfs_inj; eauto.
           subst. simpl. auto.
         SSSCase "1.2".
-          simpl. right. eapply in_ps__in_ps2as; eauto.
+          simpl. right. eapply in_ps__in_ps2as; eauto using Injective.dfs_inj.
       SSCase "2".
-        eapply get_a2p_in_a2p_cfg; eauto.  
+        left. eapply pdom_in_bound; eauto.
       SSCase "3".
         unfold strict_adomination. simpl.
         rewrite Hget'a. simpl. auto.
@@ -748,15 +1323,25 @@ Proof.
   Case "reach".
     eapply p2a_strict_domination in Hsdom; eauto.
     destruct Hsdom as [p1 [p2 [pe' [Hsdom [J1 [J2 J3]]]]]].
-    simpl in J3. rewrite J3 in Hl2p. inversion Hl2p; subst pe.
-    apply DomComplete.sadom_is_complete in Hsdom; eauto using get_a2p_in_a2p_cfg.
+    simpl in J3. rewrite J3 in Hl2p. inversion Hl2p; subst pe'.
+    apply DomComplete.sadom_is_complete in Hsdom; eauto using entry_in_a2p_cfg.
     SCase "1".
       unfold strict_adomination in Hsdom.
       simpl in J1, J2, Hsdom.
-      eapply pmember__aset_in in Hsdom; eauto.
-      rewrite J2. auto. 
+      rewrite J2. 
+      assert (exists dts2, 
+               (pdom_analyze (asuccs_psuccs PO_a2p (asuccs f)) pe) ?? p2=
+                 Some dts2) as Hdts2_some.
+        eapply reachable_isnt_bot' in Hdfs; eauto.
+      destruct Hdts2_some as [dts2 Hdts2_some]. unfold asuccs in *.
+      rewrite Hdts2_some in *. simpl in Hsdom.
+      eapply in_ps__in_ps2as; eauto using Injective.dfs_inj.
     SCase "2".
-      eapply Order.dfs_wf_porder in Hdfs; eauto.
+      eapply dfs_wf_porder in Hdfs; eauto.
+    SCase "3". 
+      apply blockInFdefB_in_vertexes in HBinF'.
+      eapply get_a2p__in_pcfg; eauto.
+
   Case "unreach".
     eapply unreachable__get_a2p in Hunreach; eauto.
     simpl in Hunreach. rewrite Hunreach. 
@@ -787,7 +1372,7 @@ Proof.
     case_eq ((pdom_analyze (asuccs_psuccs PO_a2p (cfg.successors f)) pe) ?? p3);
       try solve [intros l0 Hsome; rewrite Hsome in Hsucc; inv Hsucc | auto].
   Case "2".
-    eapply entry_in_pcfg; eauto.
+    eapply entry_in_a2p_cfg in Hdfs; eauto.
   Case "3".
     intro J. apply Hunreach. eapply p2a_reachable; eauto.
 Qed.
@@ -827,16 +1412,11 @@ Proof.
     intros p3 Hget3.
     rewrite Hget3 in Hin.
     assert (wf_porder:=Hdfs).
-    eapply Order.dfs_wf_porder in wf_porder; eauto.
+    eapply dfs_wf_porder in wf_porder; eauto.
     assert (exists dts3, 
              (pdom_analyze (asuccs_psuccs a2p (cfg.successors f)) pe) ?? p3 =
                Some dts3) as Hdts3_some.
-      eapply reachable__get_a2p with (l2:=l3) in Hdfs; eauto.
-      assert (exists p3, a2p ! l3 = Some p3) as Hget3'. eauto.
-      apply Hdfs in Hget3'.
-      eapply a2p_reachable in Hget3'; eauto.
-      eapply preachable__qreachable in Hget3'; eauto.
-      eapply reachable_isnt_bot in wf_porder; eauto.
+      eapply reachable_isnt_bot' in Hdfs; eauto.
     destruct Hdts3_some as [dts3 Hdts3_some].
     rewrite Hdts3_some in Hin. simpl in Hin.
     assert (exists p', a2p ! l' = Some p') as Hget'. 
@@ -852,9 +1432,17 @@ Proof.
         eapply dfs_reachable_iff_get_some in Hdfs; 
           eauto using le_in_cfg.
     SSCase "2".
-      eapply get_a2p_in_a2p_cfg; eauto.
+      destruct Hin as [Hin | Hin]; subst.
+        apply blockInFdefB_in_vertexes in HBinF.
+        eapply get_a2p__in_pcfg; eauto.
+         
+        left. 
+        eapply pdom_in_bound; eauto.
+          apply in_ps2as__in_ps in Hin.
+          destruct_conjs. uniq_result. auto.
+
     SSCase "3".
-      simpl. unfold adomination.
+      simpl. unfold adomination, asuccs.
       rewrite Hdts3_some. simpl.
       destruct Hin as [Hin | Hin]; subst.
         uniq_result. auto.
@@ -864,7 +1452,7 @@ Proof.
     intros Hget3.
     eapply unreachable__get_a2p with (l2:=l3) in Hdfs; eauto.
     apply Hdfs in Hget3.
-    apply dom_decl.DecDom.everything_dominates_unreachable_blocks; auto.
+    apply DecDom.everything_dominates_unreachable_blocks; auto.
 Qed.
 
 End sound_acyclic.

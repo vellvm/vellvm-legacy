@@ -561,6 +561,45 @@ Module MergeLt <: MERGE.
     set_eq (set_union positive_eq_dec rl1
            (set_inter positive_eq_dec Xsdms Ysdms)) rl2.
 
+  Lemma set_union_empty_eq_empty2: forall l1,
+    set_eq (set_union positive_eq_dec l1 (empty_set _)) l1.
+  Proof.
+    intros.
+    split; intros x Hin.
+      apply set_union_elim in Hin.
+      destruct Hin as [Hin | Hin]; auto.
+        tauto.
+
+      apply set_union_intro; auto.
+  Qed.
+
+  Lemma set_eq_union : forall l1 l2 l1' l2'
+    (H : set_eq l1 l1')
+    (H0 : set_eq l2 l2'),
+    set_eq (set_union positive_eq_dec l1 l2)
+      (set_union positive_eq_dec l1' l2').
+  Proof.
+    intros.
+    destruct H as [J1 J2].
+    destruct H0 as [J3 J4].
+    split; intros x Hin;
+      apply set_union_elim in Hin;
+      apply set_union_intro;
+      destruct Hin as [Hin | Hin]; auto with datatypes v62.
+  Qed.
+          
+  Lemma set_union_empty_eq_empty1: forall l1,
+    set_eq (set_union positive_eq_dec (empty_set _) l1) l1.
+  Proof.
+    intros.
+    split; intros x Hin.
+      apply set_union_elim in Hin.
+      destruct Hin as [Hin | Hin]; auto.
+        tauto.
+
+      apply set_union_intro; auto.
+  Qed.
+
   Lemma merge_aux_inter_aux: forall n, merge_aux_inter_prop n.
   Proof.
     intro n.
@@ -573,18 +612,6 @@ Module MergeLt <: MERGE.
       compute in Hmerge. uniq_result. simpl. auto with atomset.
       compute in Hmerge. uniq_result. simpl.
         apply set_eq_trans with (y:=set_union positive_eq_dec rl2 nil).
-
-  Lemma set_union_empty_eq_empty2: forall l1,
-     set_eq (set_union positive_eq_dec l1 (empty_set _)) l1.
-  Admitted. (* set *)
-
-  Lemma set_eq_union : forall l1 l2 l1' l2'
-    (H : set_eq l1 l1')
-    (H0 : set_eq l2 l2'),
-    set_eq (set_union positive_eq_dec l1 l2)
-      (set_union positive_eq_dec l1' l2').
-  Admitted. (* set *)
-          
           apply set_eq_union; auto with atomset.
              apply set_inter_empty_eq_empty2.
           apply set_union_empty_eq_empty2.
@@ -637,9 +664,32 @@ Module MergeLt <: MERGE.
 
       Case "2".
         destruct_if.
+        SCase "2.1".
           (* X < Y < Ysdms => ~ In X (Y::Ysdms) *)
-          admit. (* set *)
+          destruct_if.
+            rewrite Pcompare_refl in HeqCmp. congruence.
 
+Lemma lt_Forall_lt__Forall_lt: forall Xd Yd Ysdms  
+  (HeqCmp : Lt = (Xd ?= Yd)%positive Eq) (H: Forall (Plt Yd) Ysdms),
+  Forall (Plt Xd) Ysdms.
+Proof.
+  induction 2; simpl; auto.
+    constructor; auto.
+      eapply Plt_trans; eauto.
+Admitted.
+
+Lemma Forall_lt__notin: forall Xd Ysdms (H : Forall (Plt Xd) Ysdms),
+  set_mem positive_eq_dec Xd Ysdms = false.
+Proof.
+  induction 1; simpl; auto.
+    destruct_if.
+      apply Plt_ne in H. congruence.
+Qed.
+
+          rewrite Forall_lt__notin in H0; eauto using lt_Forall_lt__Forall_lt.
+            congruence.
+
+        SCase "2.2".
           clear HeqR.      
           eapply Hrec with (y:=(length Xsdms + S (length Ysdms))%nat) in Hmerge; 
             try solve [eauto | simpl; omega | constructor; auto].
@@ -648,6 +698,7 @@ Module MergeLt <: MERGE.
         eapply Hrec with (y:=(S (length Xsdms) + (length Ysdms))%nat) in Hmerge; 
           try solve [eauto | simpl; omega | constructor; auto].
         destruct_if.
+        SCase "3.1".
           (* X > Y, In X (Y::Ysdms) => In X Ysdms 
              In X Ysdms => (X :: Xsdms) /\ Ysdms = X ++ (Xsdms /\ Ysdms)
              X > Y, Xsdms > X => ~ In Y Xsdms
@@ -656,8 +707,16 @@ Module MergeLt <: MERGE.
              rl1 \/ ((X :: Xsdms) /\ Ysdms) = 
              rl1 \/ (X :: (Xsdms /\ Ysdms)) = 
              rl1 \/ (X :: Xsdms /\ (Y :: Ysdms)) *)
-          admit. (* set *)
+          assert (set_mem positive_eq_dec Xd Ysdms = true) as XinYsdms.
+            destruct_if; auto.
+            rewrite Pcompare_refl in HeqCmp. congruence.
 
+Lemma set_union_eq_right: forall x y z (Heq: set_eq y z),
+  set_eq (set_union positive_eq_dec x y) (set_union positive_eq_dec x z).
+Admitted.          
+          admit.
+
+        SCase "3.2".
           (* ~ In X (Y::Ys) => ~ In X Ys 
              ~ In X Ys => (X :: Xs) /\ Ys = Xs /\ Ys
              X > Y, Xs > X => ~ In Y Xs
@@ -682,7 +741,10 @@ Module MergeLt <: MERGE.
     symmetry in HeqR.
     apply_clear J in HeqR; auto.
     rewrite rev_involutive.
-    admit. (* nil \/ x = x *)
+    simpl in HeqR.
+    eapply set_eq_trans; eauto.
+      apply set_eq_sym.
+      apply set_union_empty_eq_empty1.
   Qed.
 
 End MergeLt.
@@ -1058,27 +1120,22 @@ End Doms.
 Require Import syntax.
 Import LLVMsyntax.
 
-Fixpoint asucc_psucc_aux (mapping: ATree.t positive)  
-                         (pred: PTree.t (list positive))
-                         (pfrom: positive) (tolist: list l)
-                         {struct tolist} : (PTree.t (list positive)) :=
-  match tolist with
-  | nil => pred
-  | to :: rem =>
-    match ATree.get to mapping with
-    | Some pto => 
-        asucc_psucc_aux mapping 
-          (PTree.set pfrom (pto :: pred ??? pfrom) pred) pfrom rem
-    | _ => pred
-    end
-  end.
+Definition atolist_ptolist_fun (a2p:ATree.t positive) :=
+  fun acc ato => 
+   match ATree.get ato a2p with
+   | Some pto => pto::acc 
+   | _ => acc
+   end.
 
-Definition asucc_psucc (mapping: ATree.t positive)  
+Definition atolist_ptolist (a2p: ATree.t positive) (tolist: list l): list positive :=
+  List.fold_left (atolist_ptolist_fun a2p) tolist nil.
+
+Definition asucc_psucc (a2p: ATree.t positive)  
                        (pred: PTree.t (list positive))
                        (from: l) (tolist: list l)
                        : PTree.t (list positive) :=
-  match ATree.get from mapping with
-  | Some pfrom => asucc_psucc_aux mapping pred pfrom tolist
+  match ATree.get from a2p with
+  | Some pfrom => PTree.set pfrom (atolist_ptolist a2p tolist) pred
   | _ => pred
   end.
 
@@ -1086,32 +1143,4 @@ Definition asuccs_psuccs (mapping: ATree.t positive) (succs: ATree.t ls)
   : PTree.t (list positive) :=
   ATree.fold (asucc_psucc mapping) succs (PTree.empty (list positive)).
 
-Fixpoint psucc_asucc_aux (mapping: PTree.t l)  
-                         (pred: ATree.t (list l))
-                         (afrom: l) (tolist: list positive)
-                         {struct tolist} : (ATree.t (list l)) :=
-  match tolist with
-  | nil => pred
-  | to :: rem =>
-    match PTree.get to mapping with
-    | Some ato => 
-        psucc_asucc_aux mapping 
-          (ATree.set afrom (ato :: pred !!! afrom) pred) 
-            afrom rem
-    | _ => pred
-    end
-  end.
-
-Definition psucc_asucc (mapping: PTree.t l)  
-                       (pred: ATree.t (list l))
-                       (from: positive) (tolist: list positive)
-                       : ATree.t (list l) :=
-  match PTree.get from mapping with
-  | Some afrom => psucc_asucc_aux mapping pred afrom tolist
-  | _ => pred
-  end.
-
-Definition psuccs_asuccs (mapping: PTree.t l) (succs: PTree.t (list positive))  
-  : ATree.t (list l) :=
-  PTree.fold (psucc_asucc mapping) succs (ATree.empty (list l)).
 

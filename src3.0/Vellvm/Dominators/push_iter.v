@@ -473,7 +473,7 @@ Variable entrypoint: positive.
 Definition entrypoints := (entrypoint, LDoms.top) :: nil.
 
 Lemma entrypoints_wf_state: forall
-  (wf_order: forall n (Hneq: n <> entrypoint),
+  (wf_order: forall n (Hneq: n <> entrypoint) (Hincfg: in_cfg n),
     exists p, In p (predecessors ??? n) /\ (p > n)%positive),
   wf_state (DomDS.mkstate (DomDS.start_state_in entrypoints) 
                           (PNodeSetMax.initial successors)).
@@ -751,7 +751,8 @@ Definition entrypoints := (entrypoint, LDoms.top) :: nil.
 
 Definition predecessors := XPTree.make_predecessors successors.
 
-Hypothesis wf_order: forall n (Hneq: n <> entrypoint),
+Hypothesis wf_order: forall n (Hneq: n <> entrypoint) 
+  (Hincfg: XPTree.in_cfg successors n),
   exists p, In p (predecessors ??? n) /\ (p > n)%positive.
 
 Lemma entrypoints_wf_doms:
@@ -945,7 +946,8 @@ Definition entrypoints := (entrypoint, LDoms.top) :: nil.
 
 Definition predecessors := XPTree.make_predecessors successors.
 
-Hypothesis wf_order: forall n (Hneq: n <> entrypoint),
+Hypothesis wf_order: forall n (Hneq: n <> entrypoint)
+  (Hincfg: XPTree.in_cfg successors n),
   exists p, In p (predecessors ??? n) /\ (p > n)%positive.
 
 Lemma entrypoints_wf_doms:
@@ -1156,7 +1158,8 @@ Qed.
 
 Definition predecessors := XPTree.make_predecessors successors.
 
-Hypothesis wf_order: forall n (Hneq: n <> entrypoint),
+Hypothesis wf_order: forall n (Hneq: n <> entrypoint)
+  (Hincfg: XPTree.in_cfg successors n),
   exists p, In p (predecessors ??? n) /\ (p > n)%positive.
 
 Theorem fixpoint_solution:
@@ -1299,15 +1302,12 @@ Proof.
     simpl in *. auto with sublist.
 Qed.
 
-Lemma in_cfg_dec: forall n, in_cfg n \/ ~ in_cfg n.
-Admitted. (* dec *)
-
 Lemma member_dec: forall n x,
   member n x \/ ~ member n x.
 Proof.
   destruct x as [x|]; simpl.
     destruct (List.In_dec positive_eq_dec n x); auto.
-    apply in_cfg_dec.
+    apply XPTree.in_cfg_dec; auto using positive_eq_dec.
 Qed.
 
 Lemma ge_elim : forall a (Hin: in_cfg a) x y 
@@ -1381,7 +1381,8 @@ Qed.
 
 Definition predecessors := XPTree.make_predecessors successors.
 
-Hypothesis wf_order: forall n (Hneq: n <> entrypoint),
+Hypothesis wf_order: forall n (Hincfg: XPTree.in_cfg successors n) 
+  (Hneq: n <> entrypoint),
   exists p, In p (predecessors ??? n) /\ (p > n)%positive.
 
 Lemma sadom_adom_successors: forall n1 n2 p2 (Hsc : In n2 successors ??? p2)
@@ -1661,7 +1662,8 @@ Proof.
       apply add_member2; auto.
 Qed.
 
-Hypothesis wf_order: forall n (Hneq: n <> entrypoint),
+Hypothesis wf_order: forall n (Hneq: n <> entrypoint)
+  (Hincfg: XPTree.in_cfg successors n),
   exists p, In p (predecessors ??? n) /\ (p > n)%positive.
 
 Theorem fixpoint_wf_doms: forall res,
@@ -1838,7 +1840,8 @@ Proof.
     apply XPTree.make_predecessors_correct.
 Qed.
 
-Hypothesis wf_order: forall n (Hneq: n <> entrypoint),
+Hypothesis wf_order: forall n (Hneq: n <> entrypoint)
+  (Hincfg: XPTree.in_cfg successors n),
   exists p, In p (predecessors ??? n) /\ (p > n)%positive.
 
 Theorem fixpoint_wf: forall res,
@@ -2133,6 +2136,34 @@ Proof.
 Qed.
 
 End DomsInParents. End DomsInParents.
+
+Lemma dom_fix_in_bound: forall successors le t
+  (Hfix: DomDS.fixpoint successors LDoms.transfer
+            ((le, LDoms.top) :: nil) = Some t),
+  forall l0 ns0 (Hget: t ?? l0 = Some ns0) n (Hin: In n ns0),
+    In n (XPTree.parents_of_tree successors).
+Proof.
+  intros.
+  apply DomsInParents.fixpoint_wf in Hfix; auto.
+  assert (J:=Hfix l0).
+  unfold DomsInParents.wf_dom in J.
+  rewrite Hget in J. auto.
+Qed.
+
+Lemma pdom_in_bound: forall psuccs pe p dts
+  (Hdom: (pdom_analyze psuccs pe) ?? p = Some dts) dt
+  (Hin: In dt dts),
+  In dt (XPTree.parents_of_tree psuccs).
+Proof.
+  unfold pdom_analyze.
+  intros.
+  case_eq (DomDS.fixpoint psuccs LDoms.transfer ((pe, LDoms.top) :: nil)).
+    intros res Hfix. rewrite Hfix in Hdom.
+    eapply dom_fix_in_bound; eauto.
+
+    intros Hfix. rewrite Hfix in Hdom.
+    rewrite PMap.gi in Hdom. inv Hdom. tauto.
+Qed.
 
 (*
 (** ** Preservation of a property over solutions *)

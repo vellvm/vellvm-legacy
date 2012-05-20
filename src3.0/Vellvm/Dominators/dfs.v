@@ -900,27 +900,6 @@ Proof.
                 find_next_visit_in_stk__wf_stack, entry_wf_stack.
 Qed.
 
-Definition wf_porder scs (entry:positive): Prop :=
- forall n (Hneq: n <> entry),
-   exists p, In p ((XPTree.make_predecessors scs) ??? n) /\ 
-   (p > n)%positive.
-
-Lemma asuccs_psuccs_pres_order: forall ascs pscs aentry pentry a2p
-  (Htrans: asuccs_psuccs a2p ascs = pscs) (Hwf: wf_aorder aentry ascs a2p)
-  (Hentry: a2p ! aentry = Some pentry),
-  wf_porder pscs pentry.
-Admitted. (* asuccs_psuccs *)
- 
-Lemma dfs_wf_porder: forall ascs aentry pinit po (Hdfs: dfs ascs aentry pinit = po)
-  pentry pscs (Htrans: asuccs_psuccs (PO_a2p po) ascs = pscs) 
-  (Hentry: (PO_a2p po) ! aentry = Some pentry),
-  wf_porder pscs pentry.
-Proof.
-  intros.
-  eapply asuccs_psuccs_pres_order; eauto.
-  eapply dfs_wf_order; eauto.
-Qed.
-
 End Order.
 
 (************************)

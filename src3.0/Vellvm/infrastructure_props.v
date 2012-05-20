@@ -6239,3 +6239,31 @@ match goal with
   eapply IngetCmdsIDs__lookupCmdViaIDFromFdef; eauto
 end.
 
+Lemma getEntryLabel__getEntryBlock: forall f le
+  (Hentry: getEntryLabel f = Some le),
+  exists be, getEntryBlock f = Some be /\ 
+             label_of_block be = le.
+Proof.
+  intros.
+  destruct f as [fh [|[]]]; inv Hentry.
+  simpl. eauto.
+Qed.
+
+Lemma getEntryBlock__getEntryLabel: forall f be,
+  getEntryBlock f = Some be ->
+  getEntryLabel f = Some (label_of_block be).
+Proof.
+  destruct f as [? bs]. simpl.
+  destruct bs as [|[]]; simpl; intros.
+    congruence.
+    uniq_result. simpl. auto.
+Qed.
+
+Lemma getEntryBlock__getEntryLabel_none: forall f,
+  getEntryBlock f = None <->
+  getEntryLabel f = None.
+Proof.
+  destruct f as [? bs]. simpl.
+  destruct bs as [|[]]; simpl; intros; split; try solve [auto | congruence].
+Qed.
+

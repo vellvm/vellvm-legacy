@@ -57,6 +57,19 @@ Lemma reachable_dec: forall n,
   reachable n \/ ~ reachable n.
 Proof. intros. tauto. Qed. (* classic logic *)
 
+Lemma reachable_pred: forall n 
+  (Hreach: reachable n) (Hneq: n <> entry),
+  exists p, In n (XTree.successors_list successors p) /\ reachable p.
+Proof.
+  intros.
+  destruct Hreach as [vl [al Hreach]].
+  inv Hreach; try congruence.
+  destruct y as [y].
+  exists y. 
+  unfold reachable.
+  split; eauto.
+Qed.
+
 Definition domination (n1 n2:T.elt) : Prop :=
   forall vl al,
     D_walk vertexes arcs (index n2) (index entry) vl al ->
@@ -759,3 +772,37 @@ Proof.
   assert (J:=predecessors_dom__uniq_aux scs).
   unfold predecessors_dom__uniq_prop in J. destruct J; auto.
 Qed.
+
+Lemma entry_in_parents: forall (f : fdef) (a : atom) 
+  (Hentry : getEntryLabel f = Some a),
+  In a (XATree.parents_of_tree (successors f)).
+Proof.
+  intros.
+  destruct f as [? [|[]]]; inv Hentry. 
+  simpl.
+  apply ACfg.XTree.parents_of_tree__in_successors.
+  rewrite ATree.gss. eauto.
+Qed.
+
+Lemma entry_in_bound_fdef: forall entry f (Hentry: getEntryLabel f = Some entry),
+  ListSet.set_In entry (bound_fdef f).
+Proof.
+  intros.
+  apply getEntryLabel__getEntryBlock in Hentry.
+  destruct Hentry as [[le' ? ? ?] [Hentry Heq]].
+  simpl in Heq. subst.
+  apply entryBlockInFdef in Hentry.
+  eapply blockInFdefB_in_bound_fdef; eauto.
+Qed.
+
+Lemma le_in_cfg: forall f le
+  (Hentry: getEntryLabel f = Some le),
+  XATree.in_cfg (successors f) le.
+Proof.
+  intros.
+  apply getEntryLabel__getEntryBlock in Hentry.
+  destruct Hentry as [[le' ? ? ?] [Hentry Heq]].
+  simpl in Heq. subst.
+  eapply entry_in_vertexes; eauto.
+Qed.
+
