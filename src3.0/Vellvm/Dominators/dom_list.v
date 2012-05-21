@@ -704,24 +704,20 @@ Proof.
   Case "1".
     unfold cfg.strict_domination, cfg.domination,
            strict_domination, domination in *.
-    destruct Hsdom as [Hsdom Hneq]. 
     rewrite Hentry' in Hsdom. 
+    intros vl al Hwk.
+    apply a2p_D_walk in Hwk.
+    destruct Hwk as [avl [aal [[a1] [[a2] [Hwk [J1 [J2 [J3 J4]]]]]]]].
+    simpl in *.
+    eapply Injective.dfs_inj in Hget2; eauto. subst a1.
+    eapply Injective.dfs_inj in Hgetle; eauto. subst a2.
+    apply Hsdom in Hwk.
+    destruct Hwk as [Hin Hneq].
     split.
-    SCase "1.1".
-      intros vl al Hwk.
-      apply a2p_D_walk in Hwk.
-      destruct Hwk as [avl [aal [[a1] [[a2] [Hwk [J1 [J2 [J3 J4]]]]]]]].
-      simpl in *.
-      eapply Injective.dfs_inj in Hget2; eauto. subst a1.
-      eapply Injective.dfs_inj in Hgetle; eauto. subst a2.
-      unfold asuccs in Hwk.
-      apply Hsdom in Hwk.
-      destruct Hwk as [Hin | Heq]; try subst l2.
-        eapply In__a2p_V_list in Hin; eauto.
-        right. uniq_result. auto.
-    SCase "1.2".
-      intro EQ. subst.
-      eapply Injective.dfs_inj in Hget2; eauto.
+      eapply In__a2p_V_list in Hin; eauto.
+
+      intro EQ. subst. apply Hneq.
+      eapply Injective.dfs_inj in Hget1; eauto.
   Case "2".
     split; auto.
 Qed.

@@ -58,15 +58,15 @@ Proof.
       assert (domination f l1 l2) as Hdom12.
         eapply dom_is_sound; simpl; eauto.
       assert (strict_domination f l1 l3) as Hsdom13.
-        split; auto.
-          eapply DecDom.dom_tran; eauto.
+        apply DecDom.dom_sdom; auto.
+        eapply DecDom.dom_tran; eauto.
       eapply sdom_is_complete in Hsdom13; eauto 1.
         solve_in_dec.
         elim_in_nil.
 
     SCase "l1=l2".
       assert (strict_domination f l2 l3) as Hsdom23.
-        split; auto.
+        apply DecDom.dom_sdom; auto.
       eapply sdom_is_complete in Hsdom23; eauto 1.
         solve_in_dec.
         elim_in_nil.
@@ -516,7 +516,8 @@ Proof.
   destruct Hreach as [ps [cs [tnn HBinF]]].
   destruct (in_dec l_dec a (AlgDom.dom_query f a)); simpl; auto.
   eapply sdom_is_sound with (l':=a) in HBinF; eauto 1.
-    destruct HBinF. congruence.
+    apply DecDom.sdom_isnt_refl in HBinF; auto.
+      congruence.
 Qed.
 
 Lemma compute_sdom_chains_aux__dom : forall res l0 chain0 rd acc,

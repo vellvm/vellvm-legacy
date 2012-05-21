@@ -707,12 +707,10 @@ Proof.
           apply HeqR0 with (l2:=l3) in J; auto.
             unfold DomComplete.non_sdomination in J.
             destruct J as [vl [al [J1 J2]]].
-            unfold strict_domination in Hsdom.
-            destruct Hsdom as [Hdom Hneq].
-            unfold domination in Hdom.
-            simpl in Hdom.
-            destruct bs as [|[]]; inv HeqR.
-            apply Hdom in J1.
+            unfold strict_domination in Hsdom. autounfold with cfg in Hsdom.
+            rewrite <- HeqR in Hsdom.
+            simpl in Hsdom.
+            apply Hsdom in J1.
             destruct J1; subst; congruence.
         Unfocus.
 
@@ -720,7 +718,6 @@ Proof.
         split.
           simpl in *.
           destruct bs; uniq_result; auto.
-            congruence.
 
           exists Dominators.top. 
           split; auto. simpl. apply set_eq_refl.

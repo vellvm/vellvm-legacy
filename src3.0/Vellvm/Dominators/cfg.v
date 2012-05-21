@@ -76,7 +76,9 @@ Definition domination (n1 n2:T.elt) : Prop :=
     (In (index n1) vl \/ n1 = n2).
 
 Definition strict_domination (n1 n2:T.elt) : Prop :=
-domination n1 n2 /\ n1 <> n2.
+  forall vl al,
+    D_walk vertexes arcs (index n2) (index entry) vl al ->
+    (In (index n1) vl /\ n1 <> n2).
 
 Definition non_sdomination (n1 n2:T.elt) : Prop :=
   exists vl, exists al,
@@ -148,10 +150,15 @@ match getEntryBlock f with
 | _ => False
 end.
 
-Hint Unfold ACfg.domination ACfg.reachable ACfg.non_sdomination: cfg.
-
 Definition strict_domination (f:fdef) (l1 l2:l) : Prop :=
-domination f l1 l2 /\ l1 <> l2.
+match getEntryBlock f with
+| Some (block_intro entry _ _ _) =>
+  ACfg.strict_domination (successors f) entry l1 l2
+| _ => False
+end.
+
+Hint Unfold ACfg.domination ACfg.reachable ACfg.non_sdomination
+            ACfg.strict_domination: cfg.
 
 Definition imm_domination (f:fdef) (l1 l2:l) : Prop :=
 strict_domination f l1 l2 /\
@@ -805,4 +812,3 @@ Proof.
   simpl in Heq. subst.
   eapply entry_in_vertexes; eauto.
 Qed.
-

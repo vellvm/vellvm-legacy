@@ -371,7 +371,7 @@ Proof.
               destruct H2 as [_ [H2 _]].
               eapply H2 with (b1:=bv)(l1:=getBlockLabel bv); eauto 1.
                 assert (getBlockLabel bv <> l0) as Hneq'.
-                  destruct Hsdom; auto.
+                  apply DecDom.sdom_isnt_refl in Hsdom; auto.
                 apply lookupBlockViaIDFromFdef__blockInFdefB in Hlkbv; auto.
                 destruct bv.
                 eapply sdom_is_complete in Hsdom; eauto 1.
@@ -384,7 +384,10 @@ Proof.
                 solve_in_list. auto.
             SSSSSCase "bv doesnt sdom blv".
               eapply DecDom.non_sdom__inv in Hnsdom; eauto 1.
-              destruct Hnsdom as [EQ | Hnsdom]; subst.
+              destruct Hnsdom as [vl1 [al1 [Hwalk Hnsdom]]].
+              assert (getBlockLabel bv = l0 \/ ~ In (index (getBlockLabel bv)) vl1) as K.
+                clear - Hnsdom. tauto.
+              destruct K as [EQ | Hnotonwalk]; subst.
               SSSSSSCase "all incomings are self".
                 elimtype False.
                 eapply selfrelf_phi_cannot_be_in_reachable_blocks 
@@ -409,7 +412,6 @@ Proof.
                         destruct HBinF as [EQ1 [EQ2 EQ3]]; subst. auto.
 
               SSSSSSCase "ex a non-sdom walk".
-                destruct Hnsdom as [vl1 [al1 [Hwalk Hnotonwalk]]].
                 apply DWalk_to_dpath' in Hwalk; auto.
                 (* consider a simple path from entry to l0, which doesnt
                    contain vid's block *)

@@ -1430,35 +1430,40 @@ Proof.
 Qed.
 
 Lemma sadom_is_sound : forall n1 n2 (Hincfg: in_cfg successors n1)
-  (Hreach : PCfg.reachable successors entrypoint n2)
   (Hsadom: strict_adomination successors entrypoint n1 n2),
   PCfg.strict_domination successors entrypoint n1 n2.
 Proof.
   intros. assert (Hadom:=Hsadom).
   apply sadom__adom in Hadom.
   apply adom_is_sound in Hadom; auto.
-  split; auto.
-  destruct (positive_eq_dec n1 n2); subst; auto.
-  unfold reachable, domination in *.
-  destruct Hreach as [vl [al Hreach]].
+  intros vl al Hreach.
+  assert (Hw':=Hreach).
   apply DWalk_to_dpath in Hreach; auto using positive_eq_dec.
   destruct Hreach as [vl0 [al0 Hp]].
-  destruct (positive_eq_dec n2 entrypoint); subst.
-    unfold strict_adomination in Hsadom.
-    rewrite adom_entrypoint in Hsadom.
-    inv Hsadom.
-
-    inv Hp; try congruence.
-    destruct y as [p2].
-    assert (adomination successors entrypoint n2 p2) as J.
-      eapply sadom_adom_successors; eauto.
-    eapply adom_is_sound in J; eauto.
-    unfold domination in J.
-    assert (Hw:=H).
-    apply D_path_isa_walk in Hw.
-    apply J in Hw.
-    destruct Hw as [Hw | Hw]; subst; auto.
-      apply H4 in Hw. inv Hw; try congruence.
+  destruct (positive_eq_dec n1 n2); subst.
+  Case "n1=n2".
+    unfold PCfg.domination in *.
+    destruct (positive_eq_dec n2 entrypoint); subst.
+    SCase "n2=entry".
+      unfold strict_adomination in Hsadom.
+      rewrite adom_entrypoint in Hsadom.
+      inv Hsadom.
+    SCase "n2<>entry".
+      inv Hp; try congruence.
+      destruct y as [p2].
+      assert (adomination successors entrypoint n2 p2) as J.
+        eapply sadom_adom_successors; eauto.
+      eapply adom_is_sound in J; eauto.
+      unfold domination in J.
+      assert (Hw:=H).
+      apply D_path_isa_walk in Hw.
+      apply J in Hw.
+      destruct Hw as [Hw | Hw]; subst; auto.
+        apply H4 in Hw. inv Hw; try congruence.
+        elimtype False. auto.
+  Case "n1<>n2".
+    apply Hadom in Hw'.
+    split; auto. destruct Hw'; subst; auto. congruence.
 Qed.
 
 Lemma sadom_isnt_refl : forall n1 n2 (Hincfg: in_cfg successors n1)
@@ -1468,7 +1473,8 @@ Lemma sadom_isnt_refl : forall n1 n2 (Hincfg: in_cfg successors n1)
 Proof.
   intros.
   eapply sadom_is_sound in Hsadom; eauto.
-  destruct Hsadom; auto.
+  destruct Hreach as [vl [al Hreach]].
+  apply Hsadom in Hreach. tauto.
 Qed.
 
 Lemma reachable_isnt_bot : forall n 
@@ -1867,10 +1873,7 @@ Proof.
       unfold non_sdomination in Hincfg.
       destruct Hincfg as [vl [al [J1 J2]]].
       unfold strict_domination in Hsdom.
-      destruct Hsdom as [Hdom Hneq].
-      unfold domination in Hdom.
-      simpl in Hdom.
-      apply Hdom in J1.
+      apply Hsdom in J1.
       destruct J1; subst; congruence.
 Qed.
 

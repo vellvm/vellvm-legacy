@@ -1065,14 +1065,14 @@ Proof.
         eapply dom_is_sound; eauto.
           simpl. auto.
       assert (strict_domination f l0 l2) as Hsdom13.
-        split; auto.
-          eapply DecDom.dom_tran; eauto.
+        apply DecDom.dom_sdom; auto.
+        eapply DecDom.dom_tran; eauto.
       eapply sdom_is_complete in Hsdom13; eauto.
         intro J. rewrite J in H2. inv H2.
 
     SCase "l0=l1".
       assert (strict_domination f l1 l2) as Hsdom12.
-        split; auto.
+        apply DecDom.dom_sdom; auto.
       eapply sdom_is_complete in Hsdom12; eauto.
         intro J. rewrite J in H2. inv H2.
 Qed.
@@ -2013,7 +2013,7 @@ Proof.
   assert (strict_domination F l0 l') as Hdom12.
     eapply sdom_is_sound; eauto.
       rewrite <- Heqdefs'. simpl. auto.
-  destruct Hdom12; auto.
+  eapply DecDom.sdom_isnt_refl; eauto.
 Qed.
 
 Lemma wf_fdef__wf_insn_base' : forall S M F id1 instr
@@ -3835,8 +3835,7 @@ Proof.
         simpl. solve_in_list.
     inv EQ.
     eapply sdom_is_sound with (l':=l0) in HBinF; eauto.
-      destruct HBinF. congruence.
-
+      apply DecDom.sdom_isnt_refl in HBinF; auto.
       apply ListSet.set_diff_elim1 in J1; auto.
 Qed.
 

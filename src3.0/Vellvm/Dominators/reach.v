@@ -12,6 +12,14 @@ Require Import infrastructure_props.
 Import LLVMsyntax.
 Import LLVMinfra.
 
+Lemma reachable_has_entry: forall f l1 (Hrd: reachable f l1),
+  getEntryBlock f <> None.
+Proof.
+  intros.
+  unfold reachable in Hrd.
+  intro EQ. rewrite EQ in Hrd. inv Hrd.
+Qed.
+
 Lemma reachable_dec: forall (f:fdef) (l1:l), reachable f l1 \/ ~ reachable f l1.
 Proof. 
   unfold reachable.

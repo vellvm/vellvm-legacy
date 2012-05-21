@@ -103,66 +103,77 @@ Proof.
   intros. destruct f. eapply adom.dom_query_in_bound; eauto.
 Qed.
 
-Section sound_acyclic.
+Section sound.
 
 Variable f : fdef.
 Hypothesis Hhasentry: getEntryBlock f <> None.
 
 Lemma sdom_is_sound : forall
   (l3 : l) (l' : l) ps cs tmn
-  (Hreach : reachable f l3)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hin : In l' (adom.dom_query f l3)),
   strict_domination f l' l3.
 Proof. 
   intros.
   eapply adom.dom_is_sound with (l':=l') in HBinF; simpl; eauto.
-  split; auto.
-  destruct (id_dec l' l3); subst; auto.
-  unfold reachable, domination in *.
+  unfold strict_domination, domination in *.
   remember (getEntryBlock f) as R.
   destruct R; try congruence.
   destruct b as [l0 ? ? ?].
-  destruct Hreach as [vl [al Hreach]].
+  intros vl al Hreach.
+  assert (Hw':=Hreach).
   apply DWalk_to_dpath in Hreach; auto.
   destruct Hreach as [vl0 [al0 Hp]].
-  destruct (id_dec l3 l0); subst.
-    symmetry in HeqR.
-    apply adom.dom_entrypoint in HeqR.
-    rewrite HeqR in Hin. inv Hin.
-
-    inv Hp; try congruence.
-    destruct y as [a0].
-    assert (exists ps0, exists cs0, exists tmn0,
-      blockInFdefB (block_intro a0 ps0 cs0 tmn0) f /\
-      In l3 (successors_terminator tmn0)) as J.
-      eapply successors__blockInFdefB; eauto.
-    destruct J as [ps0 [cs0 [tmn0 [HBinF' Hinsucc]]]].
-    assert (In l3 (a0 :: (adom.dom_query f a0))) as J.
-      assert (incl (adom.dom_query f l3) (a0 :: (adom.dom_query f a0))) as Hinc.
-        destruct f. eapply adom.dom_successors; eauto.
-      simpl in Hin.
-      apply Hinc; auto.
-    eapply adom.dom_is_sound in J; try solve [eauto 1 | congruence].
-    unfold domination in J.
-    rewrite <- HeqR in J.
-    assert (Hw:=H).
-    apply D_path_isa_walk in Hw.
-    apply J in Hw.
-    destruct Hw as [Hw | Hw]; subst; auto.
-      apply H4 in Hw. inv Hw; try congruence.
+  destruct (id_dec l' l3); subst.
+  Case "l'=l3".
+    destruct (id_dec l3 l0); subst.
+    SCase "l3=l0".
+      symmetry in HeqR.
+      apply adom.dom_entrypoint in HeqR.
+      rewrite HeqR in Hin. inv Hin.
+    SCase "l3<>l0".   
+      inv Hp; try congruence.
+      destruct y as [a0].
+      assert (exists ps0, exists cs0, exists tmn0,
+        blockInFdefB (block_intro a0 ps0 cs0 tmn0) f /\
+        In l3 (successors_terminator tmn0)) as J.
+        eapply successors__blockInFdefB; eauto.
+      destruct J as [ps0 [cs0 [tmn0 [HBinF' Hinsucc]]]].
+      assert (In l3 (a0 :: (adom.dom_query f a0))) as J.
+        assert (incl (adom.dom_query f l3) (a0 :: (adom.dom_query f a0))) as Hinc.
+          destruct f. eapply adom.dom_successors; eauto.
+        simpl in Hin.
+        apply Hinc; auto.
+      eapply adom.dom_is_sound in J; try solve [eauto 1 | congruence].
+      unfold domination in J.
+      rewrite <- HeqR in J.
+      assert (Hw:=H).
+      apply D_path_isa_walk in Hw.
+      apply J in Hw.
+      destruct Hw as [Hw | Hw]; subst; auto.
+        apply H4 in Hw. inv Hw; try congruence.
+        elimtype False. auto.
+  Case "l'<>l3".
+    apply HBinF in Hw'.
+    split; auto. destruct Hw'; subst; auto. congruence.
 Qed. 
 
+End sound.
+
 Lemma sdom_isnt_refl : forall
-  (l3 : l) (l' : l) ps cs tmn
+  f (l3 : l) (l' : l) ps cs tmn
   (Hreach : reachable f l3)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hin : In l' (adom.dom_query f l3)),
   l' <> l3.
 Proof. 
   intros.
-  eapply sdom_is_sound in Hin; eauto.
-  destruct Hin; auto.
+  eapply sdom_is_sound in Hin; eauto using reachable_has_entry.
+  unfold strict_domination, reachable in *.
+  autounfold with cfg in *.
+  destruct (getEntryBlock f) as [[]|]; try congruence.
+  destruct Hreach as [vl [al Hreach]].
+  apply Hin in Hreach. tauto.
 Qed. 
 
 Definition getEntryBlock_inv f := forall
@@ -176,7 +187,7 @@ Definition getEntryBlock_inv f := forall
   (H : getEntryBlock f = Some (block_intro a ps0 cs0 tmn0)),
   l' <> a.
 
-Lemma adom_acyclic: forall 
+Lemma adom_acyclic: forall f
   (HgetEntryBlock_inv : getEntryBlock_inv f)
   l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2,
   reachable f l2 ->
@@ -189,14 +200,11 @@ Lemma adom_acyclic: forall
 Proof.
   intros.
   assert (strict_domination f l1 l2) as Hdom12.
-    eapply sdom_is_sound; eauto.
+    eapply sdom_is_sound; eauto using reachable_has_entry.
   assert (strict_domination f l2 l1) as Hdom21.
-    eapply sdom_is_sound; eauto.
-      apply DecDom.sdom_reachable in Hdom12; auto.
+    eapply sdom_is_sound; eauto using reachable_has_entry.
   eapply DecDom.dom_acyclic in Hdom12; eauto.
-  apply Hdom12. destruct Hdom21; auto.
+  apply Hdom12. apply DecDom.sdom_dom; auto.
 Qed.
-
-End sound_acyclic.
 
 End AlgDom_Properties.
