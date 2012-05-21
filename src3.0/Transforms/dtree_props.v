@@ -5,51 +5,6 @@ Require Import ListSet.
 Require Import dtree.
 Require Import Sorted.
 
-Lemma sorted_append: forall A (R:A -> A -> Prop) a (l1:list A),
-  (forall a1 l1',
-    l1 = l1'++a1::nil -> R a1 a) ->
-  Sorted R l1 -> Sorted R (l1 ++ a :: nil).
-Proof.
-  induction l1; intros; simpl; auto.
-    inv H0.
-    constructor; auto.
-      apply IHl1; auto.
-        intros. subst.
-        apply H with (l1'0:=a0 :: l1'); auto.
-      inv H4; simpl; auto.
-      constructor.
-        apply H with (l1':=nil); auto.
-Qed.
-
-Lemma HdRel_insert: forall A (R:A -> A -> Prop) a a0 l2 l1
-  (H : forall (a1 : A) (l1' : list A), a :: l1 = l1' ++ a1 :: nil -> R a1 a0)
-  (H5 : HdRel R a (l1 ++ l2)),
-  HdRel R a (l1 ++ a0 :: l2).
-Proof.
-  induction l1; simpl; intros.
-    constructor.
-      apply H with (l1':=nil); auto.
-    inv H5. constructor; auto.
-Qed.
-
-Lemma sorted_insert: forall A (R:A -> A -> Prop) (l2 l1:list A) a,
-  (forall a1 l1', l1 = l1'++a1::nil -> R a1 a) ->
-  (forall a2 l2', l2 = a2::l2' -> R a a2) ->
-  Sorted R (l1 ++ l2) -> Sorted R (l1 ++ a :: l2).
-Proof.
-  induction l1; simpl; intros.
-    constructor; auto.
-      destruct l2; constructor.
-        eapply H0; eauto.
-
-    inv H1.
-    constructor.
-      apply IHl1; auto.
-        intros. subst.
-        apply H with (l1'0:=a::l1'); eauto.
-        apply HdRel_insert; auto.
-Qed.
-
 Ltac simpl_in_dec :=
   match goal with
   | H: @eq bool (@proj_sumbool _ _  (@in_dec _ ?dec ?a ?s)) true |- _ =>
@@ -562,44 +517,6 @@ Proof.
   destruct (in_dec l_dec a (AlgDom.dom_query f a)); simpl; auto.
   eapply sdom_is_sound with (l':=a) in HBinF; eauto 1.
     destruct HBinF. congruence.
-Qed.
-
-Lemma Sorted_HdRel__Forall: forall A (R : A -> A -> Prop) l0 (H0 : Sorted R l0),
-  forall a : A,
-  (forall x y z : A,
-   In x (a :: l0) ->
-   In y (a :: l0) -> In z (a :: l0) -> R x y -> R y z -> R x z) ->
-  HdRel R a l0 -> Forall (R a) l0.
-Proof.
-  induction l0; simpl; intros.
-    apply Forall_forall.
-    intros. inv H2.
-
-    apply Forall_forall.
-    intros.
-    simpl in H2.
-    inv H1.
-    destruct H2 as [H2 | H2]; subst; auto.
-    inv H0.
-    apply IHl0 in H6; auto.
-      eapply Forall_forall in H6; eauto.
-      apply H with (y:=a); auto.
-
-      intros.
-      eapply H with (y:=y); simpl; eauto.
-Qed.
-
-Lemma strict_Sorted_StronglySorted : forall A (R:A -> A -> Prop) data,
-  (forall x y z,
-     In x data -> In y data -> In z data ->
-     R x y -> R y z -> R x z) ->
-  Sorted R data -> StronglySorted R data.
-Proof.
-  intros.
-  induction H0; constructor.
-    apply IHSorted.
-      intros. eapply H with (y:=y); simpl; eauto.
-      apply Sorted_HdRel__Forall in H; auto.
 Qed.
 
 Lemma compute_sdom_chains_aux__dom : forall res l0 chain0 rd acc,

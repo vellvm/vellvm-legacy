@@ -1,6 +1,6 @@
-Require Export Coqlib.
-Require Export Metatheory.
-Require Export Maps.
+Require Import Coqlib.
+Require Import Metatheory.
+Require Import Maps.
 Require Import infrastructure_props.
 Require Import Program.Tactics.
 
@@ -44,6 +44,14 @@ Proof.
   apply Sorted_StronglySorted; auto.
    unfold Relations_1.Transitive.
    eauto with positive.
+Qed.
+
+Lemma Forall_lt__notin: forall Xd Ysdms (H : Forall (Plt Xd) Ysdms),
+  ListSet.set_mem positive_eq_dec Xd Ysdms = false.
+Proof.
+  induction 1; simpl; auto.
+    destruct_if.
+      apply Plt_ne in H. congruence.
 Qed.
 
 Ltac Peqb_eq_tac :=
@@ -561,45 +569,6 @@ Module MergeLt <: MERGE.
     set_eq (set_union positive_eq_dec rl1
            (set_inter positive_eq_dec Xsdms Ysdms)) rl2.
 
-  Lemma set_union_empty_eq_empty2: forall l1,
-    set_eq (set_union positive_eq_dec l1 (empty_set _)) l1.
-  Proof.
-    intros.
-    split; intros x Hin.
-      apply set_union_elim in Hin.
-      destruct Hin as [Hin | Hin]; auto.
-        tauto.
-
-      apply set_union_intro; auto.
-  Qed.
-
-  Lemma set_eq_union : forall l1 l2 l1' l2'
-    (H : set_eq l1 l1')
-    (H0 : set_eq l2 l2'),
-    set_eq (set_union positive_eq_dec l1 l2)
-      (set_union positive_eq_dec l1' l2').
-  Proof.
-    intros.
-    destruct H as [J1 J2].
-    destruct H0 as [J3 J4].
-    split; intros x Hin;
-      apply set_union_elim in Hin;
-      apply set_union_intro;
-      destruct Hin as [Hin | Hin]; auto with datatypes v62.
-  Qed.
-          
-  Lemma set_union_empty_eq_empty1: forall l1,
-    set_eq (set_union positive_eq_dec (empty_set _) l1) l1.
-  Proof.
-    intros.
-    split; intros x Hin.
-      apply set_union_elim in Hin.
-      destruct Hin as [Hin | Hin]; auto.
-        tauto.
-
-      apply set_union_intro; auto.
-  Qed.
-
   Lemma merge_aux_inter_aux: forall n, merge_aux_inter_prop n.
   Proof.
     intro n.
@@ -619,7 +588,7 @@ Module MergeLt <: MERGE.
       inv Hsortx. inv Hsorty.
       revert Hmerge. unfold_merge_aux. intro.
       remember ((Xd ?= Yd)%positive Eq) as Cmp.
-      destruct Cmp; subst.
+      destruct Cmp; subst; symmetry in HeqCmp.
       Case "1".
         uniq_result'.
         destruct_if.
@@ -667,27 +636,12 @@ Module MergeLt <: MERGE.
         SCase "2.1".
           (* X < Y < Ysdms => ~ In X (Y::Ysdms) *)
           destruct_if.
+          SSCase "2.1.1".
             rewrite Pcompare_refl in HeqCmp. congruence.
-
-Lemma lt_Forall_lt__Forall_lt: forall Xd Yd Ysdms  
-  (HeqCmp : Lt = (Xd ?= Yd)%positive Eq) (H: Forall (Plt Yd) Ysdms),
-  Forall (Plt Xd) Ysdms.
-Proof.
-  induction 2; simpl; auto.
-    constructor; auto.
-      eapply Plt_trans; eauto.
-Admitted.
-
-Lemma Forall_lt__notin: forall Xd Ysdms (H : Forall (Plt Xd) Ysdms),
-  set_mem positive_eq_dec Xd Ysdms = false.
-Proof.
-  induction 1; simpl; auto.
-    destruct_if.
-      apply Plt_ne in H. congruence.
-Qed.
-
-          rewrite Forall_lt__notin in H0; eauto using lt_Forall_lt__Forall_lt.
-            congruence.
+          SSCase "2.1.2".
+            apply ZC2 in HeqCmp.
+            rewrite Forall_lt__notin in H0; eauto using order_lt_order.
+              congruence.
 
         SCase "2.2".
           clear HeqR.      
@@ -710,11 +664,32 @@ Qed.
           assert (set_mem positive_eq_dec Xd Ysdms = true) as XinYsdms.
             destruct_if; auto.
             rewrite Pcompare_refl in HeqCmp. congruence.
+          clear HeqR.
+          eapply set_eq_trans; eauto.
+          apply set_union_eq_right.
+          simpl_env.
+          apply set_eq_trans with 
+            (y:=[Xd] ++ 
+                set_inter positive_eq_dec Xsdms Ysdms).
+          SSCase "1".
+            apply set_eq_app; auto with atomset.
+            assert (J1:=set_inter_union_distr_r positive_eq_dec [Yd] Ysdms Xsdms).
+            eapply set_eq_trans; eauto.
+            clear J1.
+            assert (~ In Yd (Xsdms)) as Hnotin.
+              apply set_mem_complete1 with (Aeq_dec:=positive_eq_dec); auto.
+              apply Forall_lt__notin; eauto using order_lt_order.
+            rewrite_env (Yd::nil).
+            rewrite set_inter_notin_r; auto.
+            apply set_union_empty_eq_empty1.
 
-Lemma set_union_eq_right: forall x y z (Heq: set_eq y z),
-  set_eq (set_union positive_eq_dec x y) (set_union positive_eq_dec x z).
-Admitted.          
-          admit.
+          SSCase "2".
+            assert (J1:=set_inter_prefix positive_eq_dec Xsdms Ysdms [Xd]).
+            eapply set_eq_trans; eauto.
+            clear J1.
+            apply set_inter_drop_incl; auto.
+              apply set_mem_correct1 in XinYsdms. 
+              apply in_incl; auto.
 
         SCase "3.2".
           (* ~ In X (Y::Ys) => ~ In X Ys 
@@ -726,7 +701,22 @@ Admitted.
              rl1 \/ (Xs /\ Ys) =
              rl1 \/ (Xs /\ (Y :: Ys))
           *)
-          admit. (* set *)
+          eapply set_eq_trans; eauto.
+          apply set_union_eq_right.
+          simpl_env.
+          apply set_eq_trans with 
+            (y:=set_inter positive_eq_dec Xsdms Ysdms).
+          SSCase "1".
+            rewrite_env (Yd::nil).
+            apply set_inter_drop_notin_r.
+              apply set_mem_complete1 with (Aeq_dec:=positive_eq_dec); auto.
+              apply Forall_lt__notin; eauto using order_lt_order.
+          SSCase "2".
+            apply set_eq_sym. 
+            rewrite_env (Xd::nil).
+            apply set_inter_drop_notin_l.
+              destruct_if.              
+              apply set_mem_complete1 with (Aeq_dec:=positive_eq_dec); auto.
   Qed.
 
   Lemma merge_inter: forall Xsdms Ysdms rl changed
@@ -1113,6 +1103,14 @@ Module Doms (MG:MERGE) <: LATTICEELT.
 
       intros Hgety. subst.
       caseEq x; intros; subst; simpl in *; try congruence.
+  Qed.
+
+  Lemma add_mono: forall p x y,
+    ge x y -> ge (transfer p x) (transfer p y).
+  Proof.
+    unfold transfer. intros.
+    destruct x as [x|]; destruct y as [y|]; auto.
+      simpl in *. auto with sublist.
   Qed.
 
 End Doms.

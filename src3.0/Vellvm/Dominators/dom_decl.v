@@ -6,8 +6,8 @@ Require Import Maps.
 Require Import Lattice.
 Require Import Kildall.
 Require Import Iteration.
-Require Export cfg.
-Require Export reach.
+Require Import cfg.
+Require Import reach.
 Require Import Dipaths.
 
 Require Import syntax.

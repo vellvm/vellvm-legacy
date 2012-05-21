@@ -1,6 +1,6 @@
-Require Export Coqlib.
-Require Export Iteration.
-Require Export Maps.
+Require Import Coqlib.
+Require Import Iteration.
+Require Import Maps.
 Require Import syntax.
 Require Import infrastructure_props.
 Require Import Metatheory.

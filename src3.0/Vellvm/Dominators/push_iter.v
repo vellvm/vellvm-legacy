@@ -1,22 +1,12 @@
-Require Export Coqlib.
-Require Export Iteration.
-Require Export Maps.
+Require Import Coqlib.
+Require Import Iteration.
+Require Import Maps.
 Require Import syntax.
 Require Import infrastructure_props.
 Require Import Metatheory.
 Require Import Program.Tactics.
 Require Import dom_libs.
 Require Import dfs.
-
-Lemma sublist_cons': forall X (x:X) l1 l2 (H : sublist l1 l2),
-  sublist (x :: l1) (x :: l2).
-Proof.
-  intros.
-  simpl_env.
-  apply sublist_app; auto. constructor. constructor.
-Qed.
-
-Hint Resolve sublist_cons' sublist_In: sublist.
 
 Module Weak_Succ_Dataflow_Solver (NS: PNODE_SET) (L: LATTICEELT).
 
@@ -1292,14 +1282,6 @@ Lemma add_member1: forall n x (Hin: in_cfg n),
   member n (LDoms.transfer n x).
 Proof.
   destruct x as [x|]; simpl; intros; auto.
-Qed.
-
-Lemma LDoms_add_mono: forall p x y,
-  LDoms.ge x y -> LDoms.ge (LDoms.transfer p x) (LDoms.transfer p y).
-Proof.
-  unfold LDoms.transfer. intros.
-  destruct x as [x|]; destruct y as [y|]; auto.
-    simpl in *. auto with sublist.
 Qed.
 
 Lemma member_dec: forall n x,
