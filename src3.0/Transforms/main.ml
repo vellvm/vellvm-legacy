@@ -5,6 +5,7 @@ open Arg
 
 let nullpass = ref false
 let mem2reg = ref true
+let does_remove_lifetime = ref false
 
 let main in_filename =
   (* Read bitcode [in_filename] into LLVM module [im] *)
@@ -28,7 +29,12 @@ let main in_filename =
   else
     (if !mem2reg then 
       (* GVN [coqim], output [coqom]  *)
-      let coqom = Mem2reg.run coqim in
+      let coqim' = 
+        if !does_remove_lifetime then 
+          Transforms_aux.remove_lifetime_from_module coqim 
+        else coqim
+      in
+      let coqom = Mem2reg.run coqim' in
       (* Print [coqom] *)
       (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
       (* Translate [coqom] to a *.ll file *)
@@ -52,6 +58,7 @@ let argspec = [
   ("-mem2reg", Set mem2reg, "mem2reg (pipelined by default)");
   ("-composed", Clear Globalstates.does_macro_m2r, "composed mem2reg");
   ("-prune", Set Globalstates.does_dead_phi_elim, "pruned");
+  ("-remove-lifetime", Set does_remove_lifetime, "remove lifetime intrinsics");
   ("-no-stld-elim", Clear Globalstates.does_stld_elim, "do not remove st/ld pairs");
   ("-maximal", Clear Globalstates.does_phi_elim, "maximal");
 ]
