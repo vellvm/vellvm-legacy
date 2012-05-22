@@ -11,6 +11,7 @@ Require Import dfs.
 Require Import cfg.
 Require Import push_iter.
 Require Import dom_decl.
+Require Import dom_list_tree.
 
 (***************************************************)
 
@@ -860,6 +861,14 @@ Qed.
 
 End adom_pdom.
 
+Definition get_reachable_nodes (bd:list l) (a2p:ATree.t positive) 
+  : list positive :=
+fold_left (fun acc a =>  
+           match a2p ! a with
+           | Some p => p::acc
+           | None => acc
+           end) bd nil.
+
 Definition dom_analyze (f: fdef) : PMap.t LDoms.t * ATree.t positive :=
   let asuccs := cfg.successors f in
   match LLVMinfra.getEntryLabel f with
@@ -871,6 +880,19 @@ Definition dom_analyze (f: fdef) : PMap.t LDoms.t * ATree.t positive :=
       | None => (PMap.init LDoms.top, ATree.empty _)
       end
   | None => (PMap.init LDoms.top, ATree.empty _)
+  end.
+
+Definition create_dom_tree (f: fdef) (dts:PMap.t LDoms.t) (a2p:ATree.t positive)
+  : option DTree :=
+  match LLVMinfra.getEntryLabel f with
+  | Some le =>
+      match ATree.get le a2p with
+      | Some pe => 
+          let res := fun p:positive => PMap.get p dts in
+          Some (create_dtree pe (get_reachable_nodes (bound_fdef f) a2p) res)
+      | None => None
+      end
+  | None => None
   end.
 
 Module AlgDom' : ALGDOM.

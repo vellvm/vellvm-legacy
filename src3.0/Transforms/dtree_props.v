@@ -1323,3 +1323,228 @@ Proof.
       simpl in J. destruct (id_dec p0 l0); tinv J.
 Qed.
 
+Fixpoint disjoint_dtrees (dts: DTrees): Prop :=
+match dts with
+| DT_nil => True
+| DT_cons dt dts' => AtomSetImpl.disjoint (dtree_dom dt) (dtrees_dom dts') /\
+                     disjoint_dtrees dts'
+end.
+
+Inductive uniq_dtree : DTree -> Prop :=
+| U_DT_node : forall p dts
+            (Hnotin: p `notin` dtrees_dom dts) 
+            (Hdisj: disjoint_dtrees dts)
+            (Hwfdts: uniq_dtrees dts),
+            uniq_dtree (DT_node p dts)
+with uniq_dtrees : DTrees -> Prop :=
+| U_DT_nil : uniq_dtrees DT_nil
+| U_DT_cons : forall dt dts (Hwfdt: uniq_dtree dt) (Hwfdts: uniq_dtrees dts),
+                 uniq_dtrees (DT_cons dt dts)
+.
+
+Fixpoint get_dtrees_roots dts : atoms :=
+match dts with
+| DT_nil => empty
+| DT_cons dt' dts' => {{get_dtree_root dt'}} `union` get_dtrees_roots dts' 
+end.
+
+Fixpoint disjoint_dtrees_roots dts : Prop :=
+match dts with
+| DT_nil => True
+| DT_cons dt' dts' => get_dtree_root dt' `notin` get_dtrees_roots dts' /\
+                      disjoint_dtrees_roots dts'
+end.
+
+Inductive disjoint_children_dtree : DTree -> Prop :=
+| Dj_DT_node : forall p dts             
+               (Hwfdts: disjoint_children_dtrees dts),
+               disjoint_children_dtree (DT_node p dts)
+with disjoint_children_dtrees : DTrees -> Prop :=
+| Dj_DT_nil : disjoint_children_dtrees DT_nil
+| Dj_DT_cons : forall dt dts (Hwfdt: disjoint_children_dtree dt) 
+               (Hwfdts: disjoint_children_dtrees dts)
+               (Hdisj: disjoint_dtrees_roots (DT_cons dt dts)),
+               disjoint_children_dtrees (DT_cons dt dts)
+.
+
+Definition dtree_is_sound (dt:DTree) (idom: l -> l -> Prop): Prop :=
+  forall p ch (Hedge: is_dtree_edge dt p ch),
+    exists chain, is_chain_edge chain p ch /\ 
+    Sorted idom chain /\ NoDup chain.
+
+Definition dtrees_is_sound (dts:DTrees) (idom:l -> l -> Prop) : Prop :=
+  forall p ch (Hedge: is_dtrees_edge dts p ch),
+    exists chain, is_chain_edge chain p ch /\ 
+    Sorted idom chain /\ NoDup chain.
+
+Require Import Dipaths.
+
+Definition dvertexes (dt: DTree) : V_set := 
+fun (v:Vertex) => let '(index n) := v in n `in` dtree_dom dt.
+
+Definition darcs (dt: DTree) : A_set := 
+fun (arc:Arc) =>
+  let '(A_ends (index n2) (index n1)) := arc in
+  is_dtree_edge dt n1 n2.
+
+Definition dtree_walk (dt: DTree) (n:l) : Prop :=
+  exists vl, exists al, 
+    D_walk (dvertexes dt) (darcs dt) (index n) (index (get_dtree_root dt)) vl al.
+
+Lemma in_dtree_dom__is_dtree_walk: forall dt l0 (Hin: l0 `in` dtree_dom dt),
+  dtree_walk dt l0.
+Admitted.
+
+Fixpoint in_children dt dts : Prop :=
+match dts with
+| DT_nil => False
+| DT_cons dt' dts' => dt = dt' \/ in_children dt dts'
+end.
+
+Lemma in_dtrees_dom__is_dtree_walk: forall dts l0 (Hin: l0 `in` dtrees_dom dts),
+  exists dt, in_children dt dts /\ dtree_walk dt l0.
+Admitted.
+
+Lemma in_children__in_children_roots: forall dt dts (Hin: in_children dt dts),
+  in_children_roots (get_dtree_root dt) dts.
+Admitted.
+
+Lemma dtree_child_walk__dtree_walk: forall res l1 l2 dts dt 
+  (Hp : dtree_is_sound (DT_node l1 dts) res) (Hinch : in_children dt dts)
+  (Hwk : dtree_walk dt l2),
+  dtree_walk (DT_node l1 dts) l1.
+Admitted.
+
+Lemma DT_node_is_sound_inv: forall res l0 dts
+  (Hp : dtree_is_sound (DT_node l0 dts) res),
+  dtrees_is_sound dts res.
+Proof.
+  intros.
+  unfold dtree_is_sound, dtrees_is_sound in *.
+  intros. apply Hp. simpl.
+  destruct_if. destruct_if. reflexivity.
+Qed.
+
+Lemma dtree_walk__sdom: forall idom dt l1 (Hin: dtree_walk dt l1)
+  (Hsound: dtree_is_sound dt idom),
+  idom (get_dtree_root dt) l1.
+Admitted.
+
+Lemma DT_cons_is_sound_inv: forall idom dt dts
+  (Hp : dtrees_is_sound (DT_cons dt dts) idom),
+  dtree_is_sound dt idom /\ dtrees_is_sound dts idom.
+Admitted.
+
+Fixpoint idom_children (idom:l -> l -> Prop) (p:l) (dts:DTrees) : Prop :=
+match dts with
+| DT_nil => True
+| DT_cons dt dts' => idom p (get_dtree_root dt) /\ 
+                     idom_children idom p dts'
+end.
+
+Section Foo.
+
+Variable f:fdef.
+Definition idom := imm_domination f.
+Definition sdom := strict_domination f.
+
+Definition create_dtree__uniq_dtree_prop (dt:DTree) :=
+  forall (Hp: dtree_is_sound dt idom) (Hdj: disjoint_children_dtree dt), 
+    uniq_dtree dt.
+
+Definition create_dtree__uniq_dtrees_prop (dts:DTrees) :=
+  forall (Hp: dtrees_is_sound dts idom) (Hdj: disjoint_children_dtrees dts)
+    (Hidom: exists p, idom_children idom p dts),
+    uniq_dtrees dts /\ disjoint_dtrees dts.
+
+Lemma create_dtree__uniq_dtree_mutrec :
+  (forall dt, create_dtree__uniq_dtree_prop dt) *
+  (forall dts, create_dtree__uniq_dtrees_prop dts).
+Proof.
+  apply dtree_mutrec;
+    unfold create_dtree__uniq_dtree_prop, create_dtree__uniq_dtrees_prop;
+    simpl; intros.
+  Case "DT_node".
+    assert (dtrees_is_sound d idom) as Hp'.
+      apply DT_node_is_sound_inv in Hp; auto.
+    inv Hdj.
+    assert (exists p : l, idom_children idom p d) as Hsdom.
+      admit.
+    constructor; try solve [eapply H; eauto].
+    SCase "1".
+      destruct (AtomSetProperties.In_dec l0 (dtrees_dom d)) as [Hin | Hnotin]; 
+        auto.  
+      elimtype False.
+      apply in_dtrees_dom__is_dtree_walk in Hin.
+      destruct Hin as [dt [Hinch Hwk]].
+      eapply dtree_child_walk__dtree_walk in Hwk; eauto.
+      eapply dtree_walk__sdom in Hwk; eauto.
+
+      admit. (* sdom_isnt_refl *)
+  Case "DT_nil".
+    split; auto.
+      constructor.
+  Case "DT_cons".
+    inv Hdj.
+    assert (Hp':=Hp).
+    apply DT_cons_is_sound_inv in Hp'.   
+    destruct Hp' as [Hp1 Hps2]. 
+    assert (Hsd1:=Hp1). assert (Hsds2:=Hps2).
+    destruct Hidom as [p [Hidom1 Hidoms2]].
+    apply_clear H0 in Hps2; eauto. destruct Hps2 as [Huniqs Hdisjs].
+    apply_clear H in Hp1. 
+    split.
+    SCase "uniq".
+      constructor; eauto.
+    SCase "disjoint".
+      split; auto.
+        intros x; split; intros Hinx; try fsetdec.
+        elimtype False.
+        apply AtomSetFacts.inter_iff in Hinx.
+        destruct Hinx as [Hin1 Hin2].
+        apply in_dtree_dom__is_dtree_walk in Hin1.
+        apply in_dtrees_dom__is_dtree_walk in Hin2.
+        destruct Hdisj as [Hnotin _].
+        destruct Hin2 as [dt [Hinchs Hwk2]].
+        assert (idom p (get_dtree_root dt)) as Hsdom2.
+          admit.
+        eapply dtree_walk__sdom in Hin1; eauto.
+        assert (dtree_is_sound dt idom) as Hsd2.
+          admit.
+        eapply dtree_walk__sdom in Hwk2; eauto.
+        assert (get_dtree_root d <> get_dtree_root dt) as Hneq.
+          admit.
+        assert (sdom (get_dtree_root d) (get_dtree_root dt) \/
+                sdom (get_dtree_root dt) (get_dtree_root d)) as Hdec.
+          admit. (* order *)
+        clear - Hidom1 Hsdom2 Hdec Hneq.
+        destruct Hsdom2 as [Hsdom2 Him2].
+        destruct Hidom1 as [Hsdom1 Him1].
+        destruct Hdec as [Hsdom | Hsdom].
+          eapply Him2 in Hsdom. 
+          clear - Hsdom Hsdom1.
+          admit. (* cycle *)
+        
+          eapply Him1 in Hsdom. 
+          clear - Hsdom Hsdom2.
+          admit. (* cycle *)
+Qed.
+
+Inductive wf_dtree : DTree -> Prop :=
+| Wf_DT_node : forall p dts
+               (Huniq: uniq_dtree (DT_node p dts))
+               (Hwfdts: wf_dtrees dts)
+               (Hidom: idom_children idom p dts),
+               wf_dtree (DT_node p dts)
+with wf_dtrees : DTrees -> Prop :=
+| Wf_DT_nil : wf_dtrees DT_nil
+| Wf_DT_cons : forall dt dts 
+               (Hdisj: disjoint_dtrees_roots (DT_cons dt dts))
+               (Hwfdt: wf_dtree dt) 
+               (Hwfdts: wf_dtrees dts),
+               wf_dtrees (DT_cons dt dts)
+.
+
+End Foo.
+
+

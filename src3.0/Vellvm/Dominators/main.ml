@@ -6,8 +6,10 @@ open Camlcoq
 open Maps
 open Transforms_aux
 open Dtree
+open Arg
 
 let dom_type = ref 0
+let gen_dtree = ref true
 
 let slow_dom f =
   match LLVMinfra.getEntryBlock f with
@@ -16,15 +18,18 @@ let slow_dom f =
           | Some rd ->
              let b0 = Cfg.bound_fdef f in
              let dts = Dom_set.AlgDom.dom_query f in
-             (* let LLVMsyntax.Coq_block_intro (root, _, _, _) = b in *)
-             (* let chains = compute_sdom_chains dts rd in *)
-             (* let dt = List.fold_left *)
-             (*            (fun acc elt -> *)
-             (*             let y,chain = elt in *)
-             (*             create_dtree_from_chain acc chain) *)
-             (*            (DT_node (root, DT_nil)) chains in *)
-             ignore(print_dominators b0 dts)
-             (* ignore(print_dtree dt) *)
+             ignore(print_dominators b0 dts);
+             if !gen_dtree then
+               begin
+                 let LLVMsyntax.Coq_block_intro (root, _, _, _) = b in
+                 let chains = compute_sdom_chains dts rd in
+                 let dt = List.fold_left
+                            (fun acc elt ->
+                             let y,chain = elt in
+                             create_dtree_from_chain acc chain)
+                            (DT_node (root, DT_nil)) chains in
+                 ignore(print_dtree dt)
+               end
           | None -> ())
      | None -> ()
 
@@ -43,9 +48,34 @@ let pull_dom f =
   let dts = Pull_iter.dom_analyze f in
   if (!Globalstates.print_dtree) then (ignore (print_doms dts))
 
+let string_of_intent (n:int) : String.t = String.make n (Char.chr 95)
+
+let rec pp_print_pdtree (dt:Dom_list_tree.coq_DTree) (n:int) : unit = 
+  match dt with
+    | Dom_list_tree.DT_node (l0, dts) -> 
+        eprintf "%s%ld\n" (string_of_intent n) (camlint_of_positive l0);
+        pp_print_pdtrees dts (n+1) 
+and pp_print_pdtrees (dts:Dom_list_tree.coq_DTrees) (n:int) : unit =
+  match dts with
+    | Dom_list_tree.DT_nil -> ()
+    | Dom_list_tree.DT_cons (dt, dts') -> 
+        pp_print_pdtree dt n;
+        pp_print_pdtrees dts' n
+
+let print_pdtree (dt:Dom_list_tree.coq_DTree) : unit = 
+  if !Globalstates.print_dtree then 
+     (eprintf "DT:\n";
+      pp_print_pdtree dt 0;
+      eprintf "\n";
+      flush_all ())
+
 let push_dom f =
-  let (dts, _) = Dom_list.dom_analyze f in
-  if (!Globalstates.print_dtree) then (ignore (print_doms dts))
+  let (dts, a2p) = Dom_list.dom_analyze f in 
+  if (!Globalstates.print_dtree) then (ignore (print_doms dts));
+  if !gen_dtree then
+    match Dom_list.create_dom_tree f dts a2p with
+      | None -> ()
+      | Some dt -> if (!Globalstates.print_dtree) then print_pdtree dt
 
 let dom_product g =
   match g with
@@ -80,34 +110,48 @@ let main in_filename =
   SlotTracker.dispose ist;
   dispose_module im
 
+let argspec = [
+  ("-d", Set Globalstates.print_dtree, "debug. Default=false");
+  ("-type", Set_int dom_type, "0:push; 1:pull; 2:slow; others:llvm. Default=0");
+  ("-notree", Set gen_dtree, "Do not generate dom-tree explicitly. Default=true");
+]
+
+let worklist = ref []
+
 let () = 
-  match Sys.argv with
-  | [| _; in_filename |] -> 
-       main in_filename
-  | [| _; "-pull-dom"; in_filename |] -> 
-       dom_type := 1;
-       main in_filename
-  | [| _; "-slow-dom"; in_filename |] -> 
-       dom_type := 2;
-       main in_filename
-  | [| _; "-llvm-dom"; in_filename |] -> 
-       dom_type := 3;
-       Globalstates.gen_llvm_dtree := true;
-       main in_filename
-  | [| _; "-dpush-dom" ; in_filename |] -> 
-       Globalstates.print_dtree := true; 
-       main in_filename
-  | [| _; "-dpull-dom" ; in_filename |] -> 
-       dom_type := 1;
-       Globalstates.print_dtree := true; 
-       main in_filename
-  | [| _; "-dslow-dom"; in_filename |] -> 
-       dom_type := 2;
-       Globalstates.print_dtree := true; 
-       main in_filename
-  | [| _; "-dllvm-dom"; in_filename |] -> 
-       dom_type := 3;
-       Globalstates.print_dtree := true; 
-       Globalstates.gen_llvm_dtree := true;
-       main in_filename
-  | _ -> main "input.bc"
+  Arg.parse argspec (fun f -> worklist := f :: !worklist) "dom-analysis \n";
+  match !worklist with
+  | [] -> main "input.bc"
+  | filename::_ -> main filename
+
+(* let () =  *)
+(*   match Sys.argv with *)
+(*   | [| _; in_filename |] ->  *)
+(*        main in_filename *)
+(*   | [| _; "-pull-dom"; in_filename |] ->  *)
+(*        dom_type := 1; *)
+(*        main in_filename *)
+(*   | [| _; "-slow-dom"; in_filename |] ->  *)
+(*        dom_type := 2; *)
+(*        main in_filename *)
+(*   | [| _; "-llvm-dom"; in_filename |] ->  *)
+(*        dom_type := 3; *)
+(*        Globalstates.gen_llvm_dtree := true; *)
+(*        main in_filename *)
+(*   | [| _; "-dpush-dom" ; in_filename |] ->  *)
+(*        Globalstates.print_dtree := true;  *)
+(*        main in_filename *)
+(*   | [| _; "-dpull-dom" ; in_filename |] ->  *)
+(*        dom_type := 1; *)
+(*        Globalstates.print_dtree := true;  *)
+(*        main in_filename *)
+(*   | [| _; "-dslow-dom"; in_filename |] ->  *)
+(*        dom_type := 2; *)
+(*        Globalstates.print_dtree := true;  *)
+(*        main in_filename *)
+(*   | [| _; "-dllvm-dom"; in_filename |] ->  *)
+(*        dom_type := 3; *)
+(*        Globalstates.print_dtree := true;  *)
+(*        Globalstates.gen_llvm_dtree := true; *)
+(*        main in_filename *)
+(*   | _ -> main "input.bc" *)

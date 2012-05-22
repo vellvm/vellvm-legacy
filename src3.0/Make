@@ -170,4 +170,5 @@
 ./Vellvm/Dominators/reach.v
 ./Vellvm/Dominators/dom_decl.v
 ./Vellvm/Dominators/dom_list.v
+./Vellvm/Dominators/dom_list_tree.v
 

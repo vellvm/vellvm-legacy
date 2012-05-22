@@ -37,11 +37,11 @@ Compiling ()
 
   if [[ $DEBUG != "debug" ]]; then
     echo -e "Push RPO"; time $DOM $1
-    echo -e "Pull RPO"; time $DOM -pull-dom $1
-    echo -e "Slow"; time $DOM -slow-dom $1
-    echo -e "LLVM"; time $DOM -llvm-dom $1
+    echo -e "Pull RPO"; time $DOM -type 1 $1
+    echo -e "Slow"; time $DOM -type 2 $1
+    echo -e "LLVM"; time $DOM -type 3 $1
   else
-    echo -e "Push RPO"; time $DOM -dpush-dom $1
+    echo -e "Push RPO"; time $DOM -d $1
   fi
 }
 
@@ -68,8 +68,8 @@ Worstcase()
   echo -e $2": \c" ;
   opt -lowerswitch $1 -f -o lower.bc
   echo -e "Push RPO"; time $DOM lower.bc
-  echo -e "Pull RPO"; time $DOM -pull-dom lower.bc
-  echo -e "LLVM"; time $DOM -llvm-dom lower.bc
+  echo -e "Pull RPO"; time $DOM -type 1 lower.bc
+  echo -e "LLVM"; time $DOM -type 3 lower.bc
 }
 
 if [[ $DEBUG != "debug" ]]; then
