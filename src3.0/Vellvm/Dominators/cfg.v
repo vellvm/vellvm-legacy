@@ -85,11 +85,16 @@ Definition non_sdomination (n1 n2:T.elt) : Prop :=
     D_walk vertexes arcs (index n2) (index entry) vl al /\
     ~ In (index n1) vl.
 
+Definition imm_domination (n1 n2:T.elt) : Prop :=
+  strict_domination n1 n2 /\
+  forall n0, strict_domination n0 n2 -> domination n0 n1.
+
+Hypothesis Hdec: forall x y : T.elt, {x = y} + {x <> y}.
+
 Lemma non_sdomination_refl : forall 
-  (Hdec: forall x y : T.elt, {x = y} + {x <> y})
-  l1 (Hneq: l1 <> entry)
-  (Hreach: reachable l1),
-  non_sdomination l1 l1.
+  n1 (Hneq: n1 <> entry)
+  (Hreach: reachable n1),
+  non_sdomination n1 n1.
 Proof.
   unfold reachable, non_sdomination.
   intros.
@@ -100,6 +105,270 @@ Proof.
     split.
       apply D_path_isa_walk; auto.
       eapply DP_endx_ninV; eauto. congruence.
+Qed.
+
+Lemma sdom_isnt_refl: forall n1 n2 (Hreach: reachable n2)
+  (Hdom12 : strict_domination n1 n2),
+  n1 <> n2.
+Proof.
+  intros.
+  destruct Hreach as [vl [al Hreach]].
+  apply Hdom12 in Hreach. 
+  tauto.
+Qed.
+
+Lemma dom_is_refl: forall n1, domination n1 n1.
+Proof. unfold domination. auto. Qed.
+
+Lemma dom_tran: forall n1 n2 n3
+  (H: domination n1 n2) (H0: domination n2 n3), domination n1 n3.
+Proof.
+  intros.
+  intros vl al Hw.
+  destruct (Hdec n1 n3); auto.
+  left.
+  assert (Hw':=Hw).
+  apply H0 in Hw'.
+  destruct Hw' as [Hw' | Hw']; subst.
+    apply DW_extract with (x:=index n2)(eq_a_dec:=Hdec) in Hw; 
+      simpl; auto.
+    destruct Hw as [al' Hw].
+    assert (Hw'':=Hw).
+    apply H in Hw''.
+    destruct Hw'' as [Hw'' | Hw'']; subst; auto.
+    destruct (Hdec n1 n2); subst; auto.
+    apply V_extract_spec in Hw''; try congruence.
+    simpl in Hw''. 
+    destruct Hw'' as [Hw'' | Hw'']; auto.
+      uniq_result. congruence.
+
+    assert (Hw'':=Hw).
+    apply H in Hw''.
+    destruct Hw'' as [Hw'' | Hw'']; subst; congruence.
+Qed.
+
+Lemma everything_dominates_unreachable_blocks :
+  forall n1 n2 (Hreach: ~ reachable n2),
+  domination n1 n2.
+Proof.
+  unfold reachable. 
+  intros. intros vl al Hreach'.
+  contradict Hreach. eauto.
+Qed.
+
+Lemma everything_sdominates_unreachable_blocks :
+  forall n1 n2 (Hreach: ~ reachable n2),
+  strict_domination n1 n2.
+Proof.
+  unfold reachable. 
+  intros.
+  intros vl al Hreach'.
+  contradict Hreach. eauto.
+Qed.
+
+Lemma sdom_reachable : forall n1 n2
+  (H: reachable n2) (H0: strict_domination n1 n2), reachable n1.
+Proof.
+  intros.
+  destruct H as [vl [al H]].
+  assert (H':=H).
+  apply H0 in H'. destruct H' as [J1 J2].
+  apply DW_extract with (x:=index n1)(eq_a_dec:=Hdec) in H; 
+    simpl; auto.
+  destruct H as [al' H].
+  exists (V_extract Hdec (index n1) (index n2 :: vl)). exists al'.
+  auto.
+Qed.
+
+Lemma dom_reachable : forall n1 n2
+  (H: reachable n2) (H0: domination n1 n2), reachable n1.
+Proof.
+  intros.
+  destruct H as [vl [al H]].
+  assert (H':=H).
+  apply H0 in H'.
+  apply DW_extract with (x:=index n1)(eq_a_dec:=Hdec) in H; simpl; auto.
+    destruct H as [al' H].
+    exists (V_extract Hdec (index n1) (index n2 :: vl)). exists al'. auto.
+
+    destruct H' as [H' | H']; subst; auto.
+Qed.
+
+Lemma sdom_dom: forall n1 n2
+  (H: strict_domination n1 n2), domination n1 n2.
+Proof.
+  intros.
+  intros vl al H0. apply H in H0. destruct H0; auto.
+Qed.
+
+Lemma dom_sdom: forall n1 n2
+  (H: domination n1 n2) (H0: n1 <> n2), strict_domination n1 n2.
+Proof.
+  intros.
+  intros vl al H1. apply H in H1.
+  destruct H1 as [H1 | H1]; subst; auto.
+    congruence.
+Qed.
+
+Section dom_acyclic_tran.
+
+Hypothesis entry_has_no_preds : forall a0
+  (Hin: In entry (XTree.successors_list successors a0)),
+  False.
+
+Lemma dom_acyclic: forall n1 n2
+  (H: reachable n2) (H0: strict_domination n1 n2),
+  ~ domination n2 n1.
+Proof.
+  intros. 
+  destruct H as [vl [al Hw]].
+  apply DWalk_to_dpath in Hw; auto.
+  destruct Hw as [vl0 [al0 Hp]].
+  assert (Hw:=Hp).
+  apply D_path_isa_walk in Hw.
+  assert (Hw':=Hw).
+  apply H0 in Hw'.
+  destruct Hw' as [J1 J2].
+  intros J.
+  apply DW_extract with (x:=index n1)(eq_a_dec:=Hdec) in Hw; simpl; auto.
+  destruct Hw as [al' Hw].
+  assert (Hw'':=Hw).
+  apply J in Hw''.
+  destruct Hw'' as [Hw'' | Hw'']; subst; auto.
+  apply V_extract_spec' in Hw''; try congruence.
+  inv Hp.
+    inv Hw''.
+
+    simpl in Hw''.
+    destruct Hw'' as [Hw'' | Hw'']; subst; try congruence.
+    apply H5 in Hw''. inv Hw''.
+    destruct y as [a0]. eauto.
+Qed.
+
+Lemma sdom_tran1: forall n1 n2 n3
+  (H: strict_domination n1 n2) (H0: domination n2 n3), strict_domination n1 n3.
+Proof.
+  intros.
+  destruct (Hdec n1 n3); subst.
+    destruct (@reachable_dec n3).
+      eapply dom_acyclic in H; eauto.
+        contradict H; auto.
+        apply dom_reachable in H0; auto.
+
+      apply everything_sdominates_unreachable_blocks; auto.
+
+    apply sdom_dom in H.
+    apply dom_sdom; eauto using dom_tran.
+Qed.
+
+Lemma sdom_tran2: forall n1 n2 n3
+  (H: domination n1 n2) (H0: strict_domination n2 n3), strict_domination n1 n3.
+Proof.
+  intros.
+  destruct (Hdec n1 n3); subst.
+    destruct (@reachable_dec n3).
+      eapply dom_acyclic in H0; eauto.
+      contradict H0; auto.
+
+      apply everything_sdominates_unreachable_blocks; auto.
+
+    apply sdom_dom in H0.
+    apply dom_sdom; eauto using dom_tran.
+Qed.
+
+Lemma sdom_tran: forall n1 n2 n3
+  (H: strict_domination n1 n2) (H0: strict_domination n2 n3),
+  strict_domination n1 n3.
+Proof.
+  intros. apply sdom_dom in H0. eapply sdom_tran1; eauto.
+Qed.
+
+End dom_acyclic_tran.
+
+Lemma sdom_dec : forall n1 n2,
+  strict_domination n1 n2 \/ ~ strict_domination n1 n2.
+Proof. intros. tauto. Qed. (* classic logic *)
+
+Import Classical_Pred_Type.
+
+Lemma non_sdom__inv: forall n1 n2
+  (Hnsdom: ~ strict_domination n1 n2),
+  exists vl, exists al, D_walk vertexes arcs
+    (index n2) (index entry) vl al /\
+    ~ (In (index n1) vl /\ n1 <> n2).
+Proof.
+  intros.
+  apply not_all_ex_not in Hnsdom. 
+  destruct Hnsdom as [vl Hnsdom].
+  apply not_all_ex_not in Hnsdom. 
+  destruct Hnsdom as [al Hnsdom].
+  exists vl. exists al.
+  tauto.
+Qed.
+
+Lemma sdom_ordered : forall n1 n2 n3
+  (Hneq: n1 <> n2) (Hreach: reachable n3)
+  (Hsdom: strict_domination n1 n3)
+  (Hsdom': strict_domination n2 n3),
+  strict_domination n1 n2 \/ strict_domination n2 n1.
+Proof.
+  intros.
+  destruct (sdom_dec n1 n2) as [|Hnsdom12]; auto.
+  destruct (sdom_dec n2 n1) as [|Hnsdom21]; auto.
+  contradict Hsdom. intro Hsdom.
+  destruct Hreach as [vl [al Hreach]].
+  assert (Hw:=Hreach).
+  apply Hsdom in Hw.
+  destruct Hw as [Hin Hneq13].
+  assert (Hw:=Hreach).
+  apply Hsdom' in Hw.
+  destruct Hw as [Hin' Heq23].
+
+  (* on Hw, we need to figuire the closest one to l3 in l1 and l2,
+     suppose l1 is, then we split hw at l1, so l2 cannot be in the part
+     from l3 to l1.
+  *)
+  assert (Hw:=Hreach).
+  assert (vl <> V_nil) as Hnqnil.
+    destruct vl; auto.
+      intro J. inv J.
+  apply DW_cut with (x:=index n1) (w:=index n2) in Hw; try congruence;
+    simpl; auto.
+  destruct Hw as [al1 [al2 [vl1 [vl2
+    [[J1 [J2 [J3 [J4 J5]]]]|[J1 [J2 [J3 [J4 J5]]]]]]]]]; subst.
+  Case "1".
+  eapply non_sdom__inv in Hnsdom21; eauto.
+  destruct Hnsdom21 as [vl1' [al1' [J1' J2']]].
+
+  assert ((D_walk vertexes arcs (index n3) (index entry)
+    (vl1++vl1') (al1++al1') * ~ In (index n2) (vl1++vl1'))%type) as J.
+    split.
+      eapply DWalk_append; eauto.
+
+      clear - J2' J5 Hneq.
+      intro J. apply in_app_or in J.
+      simpl in *.
+      destruct J as [J | J]; auto.
+  destruct J as [J3 J4].
+  apply Hsdom' in J3.
+  destruct J3 as [Hin'' Heq]; auto.
+
+  Case "2".
+  eapply non_sdom__inv in Hnsdom12; eauto.
+  destruct Hnsdom12 as [vl2' [al2' [J1' J2']]].
+
+  assert ((D_walk vertexes arcs (index n3) (index entry)
+    (vl1++vl2') (al1++al2') * ~ In (index n1) (vl1++vl2'))%type) as J.
+    split.
+      eapply DWalk_append; eauto.
+
+      clear - J2' J5 Hneq.
+      intro J. apply in_app_or in J.
+      simpl in *.
+      destruct J as [J | J]; auto.
+  destruct J as [J3 J4].
+  apply Hsdom in J3.
+  destruct J3 as [Hin'' Heq]; auto.
 Qed.
 
 End Cfg. End Cfg.

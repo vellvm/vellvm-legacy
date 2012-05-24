@@ -646,7 +646,7 @@ Hypothesis Hnopred: (XPTree.make_predecessors psuccs) ??? pe = nil.
 
 Lemma create_dtree__wf_dtree: forall p0 ch0,
   is_dtree_edge dt p0 ch0 = true <-> 
-    (IdomSorted.imm_domination psuccs pe p0 ch0 /\ PCfg.reachable psuccs pe ch0).
+    (PCfg.imm_domination psuccs pe p0 ch0 /\ PCfg.reachable psuccs pe ch0).
 Proof.
   intros.
   assert (J:=Hdtree).
@@ -658,7 +658,7 @@ Proof.
     destruct J as [l0 [chain0 [Hin Hedge]]].
     apply compute_sdom_chains_spec in Hin.    
     destruct Hin as [dts0 [Hin Heq]]; subst chain0.
-    assert (Sorted (IdomSorted.imm_domination psuccs pe) (rev (l0::dts0))) 
+    assert (Sorted (PCfg.imm_domination psuccs pe) (rev (l0::dts0))) 
       as Hsort.
       subst. apply IdomSorted.dom__imm_sorted; auto.
     split.
@@ -692,6 +692,7 @@ Proof.
       subst dts.
       apply IdomSorted.entry__at_last in J1; try congruence; auto.
       destruct J1 as [dts' J1].
+      unfold PTree.elt in *.
       rewrite J1.
       rewrite_env ((ch0 :: dts') ++ pe :: nil).
       rewrite rev_unit.

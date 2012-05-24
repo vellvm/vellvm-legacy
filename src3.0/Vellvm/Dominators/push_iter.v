@@ -2218,7 +2218,7 @@ Proof.
     assert (PCfg.strict_domination asuccs entrypoint p n) as Hsdom.
       apply DomSound.sadom_is_sound; auto.
         unfold strict_adomination. rewrite Hdom. auto.
-    admit. (* lower *)
+    eapply PCfg.sdom_reachable; eauto using positive_eq_dec.
 
     intro Eq. subst. tauto.
 Qed.
@@ -2351,6 +2351,38 @@ Proof.
     rewrite Hnopred in H1. tauto.
 Qed.
 
+Lemma Pgt_irrefl: forall p, ~ (p>p)%positive.
+Proof.
+  intros. intros J.
+  apply ZC1 in J.
+  contradict J. apply Plt_irrefl.
+Qed.
+
+Lemma Pgt_neq: forall p1 p2, (p1>p2)%positive -> p1 <> p2.
+Proof.
+  intros. intro EQ. subst.
+  eapply Pgt_irrefl; eauto.
+Qed.
+
+Lemma Plt_neq: forall p1 p2, (p1<p2)%positive -> p1 <> p2.
+Proof.
+  intros. intro EQ. subst.
+  eapply Plt_irrefl; eauto.
+Qed.
+
+Hint Resolve Pgt_irrefl Pgt_neq Plt_neq: positive.
+
+Lemma cons_last: forall A (hd:A) tl, 
+  exists pre, exists last, hd::tl = pre++[last].
+Proof.
+  intros.
+  assert (hd::tl <> nil) as Hnnil.
+    congruence.
+  apply exists_last in Hnnil.
+  destruct Hnnil as [? [? ?]].
+  eauto.
+Qed.
+
 Module IdomSorted. Section IdomSorted.
 
 Variable successors: PTree.t (list positive).
@@ -2386,7 +2418,13 @@ Proof.
           clear IHForall.
           assert (PCfg.strict_domination successors entrypoint a x \/ 
                   PCfg.strict_domination successors entrypoint x a) as Horder.
-            admit. (*lowed sdom*)
+            assert (PCfg.strict_domination successors entrypoint a n) 
+              as Hsdom_an.
+              apply Hpn; auto with datatypes v62.
+            assert (PCfg.strict_domination successors entrypoint x n) 
+              as Hsdom_xn.
+              apply Hpn; auto with datatypes v62.
+            eapply PCfg.sdom_ordered; eauto using positive_eq_dec with positive.
           destruct Horder as [Hsdom_ax | Hsdom_xa]; auto.
           elimtype False.
           apply DomComplete.sadom_is_complete in Hsdom_xa; auto.
@@ -2467,7 +2505,8 @@ Proof.
           unfold strict_adomination, pdom_analyze. rewrite Hfix.
           rewrite Hdom. auto.
       split; auto.
-      split. admit. (*lowed sdom*)
+      split. 
+        eapply PCfg.sdom_reachable; eauto using positive_eq_dec.
         apply DomsInParents.fixpoint_wf in Hfix.
           assert (J:=Hfix n). rewrite Hdom in J. simpl in J.
           left. eauto with datatypes v62.
@@ -2504,27 +2543,36 @@ Proof.
       unfold strict_adomination. rewrite Hdom. simpl. auto.
 Qed.
 
-Definition imm_domination (l1 l2:positive) : Prop :=
-PCfg.strict_domination successors entrypoint l1 l2 /\
-forall l0, PCfg.strict_domination successors entrypoint l0 l2 -> 
-           PCfg.domination successors entrypoint l0 l1.
+Hypothesis Hnopred: (XPTree.make_predecessors successors) ??? entrypoint = nil.
+
+Lemma Hnopres': forall (a0 : PTree.elt)
+  (Hin: In entrypoint (PCfg.XTree.successors_list successors a0)), False.
+Proof.
+  intros. apply XPTree.make_predecessors_correct in Hin. 
+  rewrite Hnopred in Hin. tauto.
+Qed.
 
 Lemma sdom_sorted__imm_sorted: forall n dts dts0
   (Hcomplete: forall n' 
-              (Hsdom: PCfg.strict_domination successors entrypoint n' n),
-              In n' (dts0++dts))
+                (Hsdom: PCfg.strict_domination successors entrypoint n' n),
+                In n' (dts0++dts))
+  (Hsound : forall dt (Hin: In dt (dts0++dts)),
+              PCfg.reachable successors entrypoint dt)
   (Hsdsort : StronglySorted (PCfg.strict_domination successors entrypoint)
               (dts0++dts++[n])),
-  Sorted imm_domination (dts++[n]).
+  Sorted (PCfg.imm_domination successors entrypoint) (dts++[n]).
 Proof.
   induction dts as [|a dts]; simpl; intros.
+  Case "base".
     constructor; auto.
-
+  Case "ind".
     constructor.
+    SCase "IH".
       simpl_env in Hsdsort.
       apply IHdts with (dts0:=dts0++[a]); simpl_env; auto.
-
+    SCase "Main".
       destruct dts as [|b dts]; constructor.
+      SSCase "1".
         assert (J:=Hsdsort).
         apply StronglySorted_split in J.      
         destruct J as [J1 J2].
@@ -2533,13 +2581,14 @@ Proof.
           intros l0 Hsdom.
           apply Hcomplete in Hsdom.
           destruct_in Hsdom.
+          SSSCase "1.1".
             apply StronglySorted__R_front_back with (a1:=l0)(a2:=a) in Hsdsort; 
               simpl; auto.
-            admit. (* lower *)
-
+            eapply PCfg.sdom_dom; eauto using positive_eq_dec.
+          SSSCase "1.2".
             destruct_in Hsdom; subst; try tauto.
-            admit. (* lower *)
-
+            eapply PCfg.dom_is_refl; eauto using positive_eq_dec.
+      SSCase "2".
         assert (J:=Hsdsort).
         apply StronglySorted_split in J.      
         destruct J as [J1 J2].
@@ -2550,18 +2599,24 @@ Proof.
             rewrite_env ((dts0++a::(b::dts)) ++ [n]) in Hsdsort.
             apply StronglySorted__R_front_back with (a1:=b)(a2:=n) in Hsdsort; 
               simpl; auto with datatypes v62.
-            admit. (* lower *)
+            eapply PCfg.sdom_tran; eauto using positive_eq_dec, Hnopres'.
           apply Hcomplete in Hsdom'.
           destruct_in Hsdom'.
+          SSSCase "2.1".
             apply StronglySorted__R_front_back with (a1:=l0)(a2:=a) in Hsdsort; 
-              simpl; auto.
-            admit. (* lower *)
+              simpl; auto. 
+            eapply PCfg.sdom_dom; eauto using positive_eq_dec.
+          SSSCase "2.2".
             destruct_in Hsdom'.
-              admit. (* lower *)
-
+            SSSSCase "2.2.1".
+              eapply PCfg.dom_is_refl; eauto using positive_eq_dec.
+            SSSSCase "2.2.2".
               destruct Hsdom'; subst.
-                admit. (* lower *)
-                
+              SSSSSCase "2.2.2.1".
+                eapply PCfg.sdom_isnt_refl in Hsdom; eauto using positive_eq_dec.
+                  congruence.
+                  apply Hsound; auto with datatypes v62.
+              SSSSSCase "2.2.2.2".
                 assert (PCfg.strict_domination successors entrypoint b l0) 
                   as Hsdom''.
                  rewrite_env ((dts0++[a]++[b])++(dts ++ [n])) in Hsdsort.
@@ -2569,12 +2624,17 @@ Proof.
                    simpl; auto.
                    apply in_or_app. simpl. auto.
                    xsolve_in_list.
-                admit. (* lower *)
+                assert (PCfg.strict_domination successors entrypoint l0 l0) as 
+                  Hsdom0.
+                  eapply PCfg.sdom_tran; eauto using positive_eq_dec, Hnopres'.
+                eapply PCfg.sdom_isnt_refl in Hsdom0; eauto using positive_eq_dec.
+                  congruence.
+                  apply Hsound; auto with datatypes v62.
 Qed.
 
 Lemma dom__imm_sorted: forall n dts
   (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts),
-  Sorted imm_domination (rev (n::dts)).
+  Sorted (PCfg.imm_domination successors entrypoint) (rev (n::dts)).
 Proof.
   intros.
   assert (Hsdsort:=Hdom).
@@ -2583,11 +2643,13 @@ Proof.
   intros.
   case_eq (DomDS.fixpoint successors LDoms.transfer 
             ((entrypoint, LDoms.top) :: nil)).
+  Case "1".
     intros res Hfix. rewrite Hfix in Hdom.    
     assert (pdom_analysis_is_successful successors entrypoint) as Hok.
       unfold pdom_analysis_is_successful. rewrite Hfix. auto.    
     simpl.
     apply sdom_sorted__imm_sorted with (dts0:=nil); simpl; auto.
+    SCase "1.1".
       intros n' Hsdom.
       apply DomComplete.sadom_is_complete in Hsdom; auto.
          unfold strict_adomination, pdom_analyze in Hsdom.
@@ -2595,14 +2657,20 @@ Proof.
          apply in_rev in Hsdom; auto.
 
          admit. (* can we remove this? since we know n is reachable! *)
+    SCase "1.2".
+      intros dt Hin. apply in_rev in Hin.
+      eapply DomsInParents.in_dom__reachable with (dts:=dts); 
+         try solve [congruence | eauto with datatypes v62].
+        unfold pdom_analyze. rewrite Hfix. eauto.
 
+  Case "2".
     intros Hfix. rewrite Hfix in Hdom.
     rewrite PMap.gi in Hdom. inv Hdom. simpl. 
       constructor; auto.
 Qed.
 
 Lemma imm_dom__at_head: forall im n
-  (Hidom: imm_domination im n) 
+  (Hidom: PCfg.imm_domination successors entrypoint im n) 
   (Hok: pdom_analysis_is_successful successors entrypoint)
   (Hreach: PCfg.reachable successors entrypoint n),
   exists dts, 
@@ -2618,6 +2686,7 @@ Proof.
   apply dom__sdom_sorted in Hsort.
   destruct Hidom as [Hsdom Hmin].
   apply DomComplete.sadom_is_complete in Hsdom; auto.
+  Case "1".
     unfold pdom_analysis_is_successful in Hok.
     unfold strict_adomination, pdom_analyze in *.
     case_eq (DomDS.fixpoint successors LDoms.transfer
@@ -2636,23 +2705,15 @@ Proof.
     apply StronglySorted__R_front_back with (a1:=im)(a2:=a) in Hsort; 
       simpl; auto with datatypes v62.
     apply Hmin in J.
-    admit. (* lower *)
-
+    assert (PCfg.reachable successors entrypoint a) as Hreacha.
+      eapply DomsInParents.in_dom__reachable with (dts:=a::dts); 
+         try solve [congruence | eauto with datatypes v62].
+      unfold pdom_analyze. rewrite Heq'. eauto.
+    eapply PCfg.dom_acyclic in Hsort; eauto using positive_eq_dec, Hnopres'.
+      tauto.
+  Case "2".
     admit. (* can we remove this *)
 Qed.
-
-Lemma cons_last: forall A (hd:A) tl, 
-  exists pre, exists last, hd::tl = pre++[last].
-Proof.
-  intros.
-  assert (hd::tl <> nil) as Hnnil.
-    congruence.
-  apply exists_last in Hnnil.
-  destruct Hnnil as [? [? ?]].
-  eauto.
-Qed.
-
-Hypothesis Hnopred: (XPTree.make_predecessors successors) ??? entrypoint = nil.
 
 Lemma entry__at_last: forall dts n
   (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts)
