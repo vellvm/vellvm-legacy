@@ -1316,6 +1316,20 @@ match DomDS.fixpoint successors LDoms.transfer
 | Some _ => True
 end.
 
+Lemma nonempty__pdom_analysis_is_successful: forall n dts
+  (Hdom : pdom_analyze ?? n = Some dts)
+  (Hnonempty : dts <> nil),
+  pdom_analysis_is_successful.
+Proof.
+  unfold pdom_analyze, pdom_analysis_is_successful.
+  intros.
+  case_eq (DomDS.fixpoint successors LDoms.transfer 
+              ((entrypoint, LDoms.top) :: nil)); auto.
+  intros Heq.
+  rewrite Heq in Hdom.
+  rewrite PMap.gi in Hdom. inv Hdom. tauto.
+Qed.
+
 Definition adomination (n1 n2:positive) : Prop :=
 member n1 (LDoms.transfer n2 (pdom_analyze ?? n2)).
 
@@ -1675,6 +1689,27 @@ Proof.
       apply start_wf_doms.
 Qed.
 
+Lemma entrypoint_in_nonempty: forall n dts
+  (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts)
+  (Hnonempty: dts <> nil),
+  In entrypoint dts.
+Proof.
+  intros.
+  destruct (positive_eq_dec n entrypoint) as [Heq | Hneq]; subst.
+    rewrite DomSound.adom_entrypoint in Hdom.
+    congruence.
+
+    unfold pdom_analyze in *.
+    caseEq (DomDS.fixpoint successors LDoms.transfer
+             ((entrypoint, LDoms.top) :: nil)).
+      intros res H. rewrite H in Hdom.
+      apply fixpoint_wf_doms in H.
+      apply H in Hneq. rewrite Hdom in Hneq. simpl in Hneq. auto.
+ 
+      intros H. rewrite H in Hdom.
+      rewrite PMap.gi in Hdom. inv Hdom. congruence.
+Qed.
+
 End EntryDomsOthers. End EntryDomsOthers.
 
 (***************************************************)
@@ -2006,6 +2041,19 @@ Proof.
     eapply fixpoint_wf in HeqR; eauto.
 Qed.
 
+Lemma nonempty_is_reachable: forall n dts
+  (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts)
+  (Hnonempty: dts <> nil),
+  PCfg.reachable successors entrypoint n.
+Proof.
+  intros.
+  destruct (PCfg.reachable_dec successors entrypoint n) as [H|H]; auto.
+    apply UnreachableDoms.dom_unreachable in H; auto.
+    rewrite Hdom in H. inv H.
+
+    eapply nonempty__pdom_analysis_is_successful; eauto.
+Qed.
+
 End UnreachableDoms. End UnreachableDoms.
 
 Module DomsInParents. Section DomsInParents.
@@ -2120,6 +2168,61 @@ Proof.
     apply start_wf_doms.
 Qed.
 
+Lemma dom_in_parants: forall (dts : list positive) n
+  (Hdom : (pdom_analyze asuccs entrypoint) ?? n = Some dts)
+  (p : positive) (Hinp : In p dts),
+  In p (XPTree.parents_of_tree asuccs).
+Proof.
+  unfold pdom_analyze  in *.
+  intros.
+  case_eq (DomDS.fixpoint asuccs LDoms.transfer
+             ((entrypoint, LDoms.top) :: nil)).
+    intros res Heq.
+    rewrite Heq in Hdom.
+    apply fixpoint_wf in Heq.
+    assert (J:=Heq n). rewrite Hdom in J.
+    simpl in J.
+    eauto with datatypes v62.
+
+    intros Heq.
+    rewrite Heq in Hdom.
+    rewrite PMap.gi in Hdom. inv Hdom. inv Hinp.
+Qed.
+
+Lemma dom_in_cfg: forall (dts : list positive) n
+  (Hdom : (pdom_analyze asuccs entrypoint) ?? n = Some dts)
+  (p : positive) (Hinp : In p dts),
+  XPTree.in_cfg asuccs p.
+Proof.
+  intros. left. eapply dom_in_parants; eauto.
+Qed.
+
+Definition predecessors := XPTree.make_predecessors asuccs.
+
+Hypothesis wf_order: forall n (Hincfg: XPTree.in_cfg asuccs n) 
+  (Hneq: n <> entrypoint),
+  exists p, In p (predecessors ??? n) /\ (p > n)%positive.
+
+Lemma in_dom__reachable: forall
+  (Hinentry: in_cfg asuccs entrypoint)
+  (dts : list positive) n
+  (Hdom : (pdom_analyze asuccs entrypoint) ?? n = Some dts)
+  (p : positive) (Hinp : In p dts),
+  PCfg.reachable asuccs entrypoint p.
+Proof.
+  intros. 
+  assert (Hincfg:=Hdom).
+  eapply DomsInParents.dom_in_cfg in Hincfg; eauto.
+  assert (Hreach:=Hdom).
+  apply UnreachableDoms.nonempty_is_reachable in Hreach; auto.
+    assert (PCfg.strict_domination asuccs entrypoint p n) as Hsdom.
+      apply DomSound.sadom_is_sound; auto.
+        unfold strict_adomination. rewrite Hdom. auto.
+    admit. (* lower *)
+
+    intro Eq. subst. tauto.
+Qed.
+
 End DomsInParents. End DomsInParents.
 
 Lemma dom_fix_in_bound: forall successors le t
@@ -2149,6 +2252,436 @@ Proof.
     intros Hfix. rewrite Hfix in Hdom.
     rewrite PMap.gi in Hdom. inv Hdom. tauto.
 Qed.
+
+Require Import dom_decl.
+
+Lemma Plt_Sorted__rev_Pgt_Sorted: forall dts (Hsort : Sorted Plt dts),
+  Sorted Pgt (rev dts).
+Proof.
+  induction 1; simpl; auto.
+    apply sorted_append; auto.
+      intros.
+      rewrite <- rev_involutive in H at 1.
+      rewrite H0 in H. rewrite rev_unit in H. inv H. 
+      apply ZC2 in H2. auto.
+Qed.
+
+Lemma Pgt_Sorted__StronglySorted: forall l1 (Hsort: Sorted Pgt l1), 
+  StronglySorted Pgt l1.
+Proof.
+  intros.
+  apply Sorted_StronglySorted; auto.
+   unfold Relations_1.Transitive.
+   apply Pgt_trans.
+Qed.
+
+Lemma Forall_split: forall A (R:A->Prop) ls2 ls1
+  (Hst: Forall R (ls1++ls2)),
+  Forall R ls1 /\ Forall R ls2.
+Proof.
+  induction ls1; simpl; intros.
+    split; auto. 
+
+    inv Hst. 
+    split; try tauto. 
+      constructor; try tauto.     
+Qed.
+
+Lemma StronglySorted_split: forall A (R:A->A->Prop) ls2 ls1
+  (Hst: StronglySorted R (ls1++ls2)),
+  StronglySorted R ls1 /\ StronglySorted R ls2.
+Proof.
+  induction ls1; simpl; intros.
+    split; auto. 
+      constructor.
+
+    inv Hst. 
+    apply Forall_split in H2.
+    split; try tauto. 
+      constructor; try tauto.
+Qed.
+
+Lemma StronglySorted__R_front_back: forall A (R:A->A->Prop) ls2 ls1
+  (Hst: StronglySorted R (ls1++ls2)) a1 a2 (Hin1: In a1 ls1) (Hin2: In a2 ls2),
+  R a1 a2.
+Proof.
+  induction ls1; simpl; intros.
+    tauto.
+
+    inv Hst.
+    destruct Hin1 as [Hin1 | Hin1]; subst; eauto.
+      eapply Forall_forall in H2; eauto with datatypes v62.
+Qed.
+
+Lemma Forall_rev_cons: forall A n (R:A->Prop) (Hp: R n) ls1 (H1: Forall R ls1),
+  Forall R (ls1 ++ [n]).
+Proof.
+  induction 2; simpl; intros; constructor; auto.
+Qed.
+
+Lemma StronglySorted_rev_cons: forall A (R:A->A->Prop) n ls1 
+  (Hst: StronglySorted R ls1) (Hp: Forall (fun a => R a n) ls1),
+  StronglySorted R (ls1++[n]).
+Proof.
+  induction ls1; simpl; intros.
+    constructor; auto.
+
+    inv Hst. inv Hp.
+    constructor; auto.
+      apply Forall_rev_cons; auto. 
+Qed.
+
+Lemma noone_sdom_entry: forall successors entrypoint n
+  (Hincfg: in_cfg successors entrypoint)
+  (Hnopred: (XPTree.make_predecessors successors) ??? entrypoint = nil)
+  (Hsdom : PCfg.strict_domination successors entrypoint n entrypoint),
+  False.
+Proof.
+  intros.
+  assert (Hreach:=PCfg.reachable_entry successors entrypoint Hincfg).
+  destruct Hreach as [vl [al Hreach]].
+  assert (Hw:=Hreach).
+  apply Hsdom in Hw.
+  inv Hreach.
+    tauto.
+
+    simpl in H1. 
+    destruct y.
+    apply XPTree.make_predecessors_correct in H1.
+    rewrite Hnopred in H1. tauto.
+Qed.
+
+Module IdomSorted. Section IdomSorted.
+
+Variable successors: PTree.t (list positive).
+Variable entrypoint: positive.
+Definition entrypoints := (entrypoint, LDoms.top) :: nil.
+Definition predecessors := XPTree.make_predecessors successors.
+Hypothesis wf_entrypoints: in_cfg successors entrypoint.
+
+Hypothesis wf_order: forall n (Hneq: n <> entrypoint)
+  (Hincfg: XPTree.in_cfg successors n),
+  exists p, In p (predecessors ??? n) /\ (p > n)%positive.
+
+Lemma Forall_Pgt__Forall_sdom: forall (n : positive) (res : PMap.t LDoms.t)
+  (Hfix : DomDS.fixpoint successors LDoms.transfer
+           ((entrypoint, LDoms.top) :: nil) = Some res)
+  (Hreach : PCfg.reachable successors entrypoint n)
+  (Hsort : SortedDoms.wf_doms res) 
+  (a : positive)
+  (l : list positive)
+  (Hsortn : StronglySorted Pgt l)
+  (H : Forall (Pgt a) l)
+  (Hpn : forall dt : positive,
+         In dt (a :: l) ->
+         PCfg.strict_domination successors entrypoint dt n /\
+         PCfg.reachable successors entrypoint dt /\ in_cfg successors dt),
+  Forall (PCfg.strict_domination successors entrypoint a) l.
+Proof.
+  intros.
+  assert (pdom_analysis_is_successful successors entrypoint) as Hok.
+    unfold pdom_analysis_is_successful. rewrite Hfix. auto.    
+      induction H; auto.
+        constructor.
+          clear IHForall.
+          assert (PCfg.strict_domination successors entrypoint a x \/ 
+                  PCfg.strict_domination successors entrypoint x a) as Horder.
+            admit. (*lowed sdom*)
+          destruct Horder as [Hsdom_ax | Hsdom_xa]; auto.
+          elimtype False.
+          apply DomComplete.sadom_is_complete in Hsdom_xa; auto.
+             unfold strict_adomination, pdom_analyze in Hsdom_xa.
+             rewrite Hfix in Hsdom_xa.
+             assert (Hsorta:=Hsort a).
+             remember (res ?? a) as R.
+             destruct R; simpl in Hsdom_xa.
+               apply Plt_Sorted__StronglySorted in Hsorta.
+               inv Hsorta.
+               eapply Forall_forall in H4; eauto.
+               inv H4. rewrite H in H2. congruence.
+    
+               assert (PCfg.reachable successors entrypoint a) as Hreacha. 
+                 apply Hpn. simpl. auto.
+               apply DomSound.reachable_isnt_bot in Hreacha; auto.
+               unfold pdom_analyze in Hreacha.
+               rewrite Hfix in Hreacha. rewrite <- HeqR in Hreacha. auto.
+    
+             apply Hpn. simpl. auto.
+    
+          apply IHForall.            
+            apply StronglySorted_inv in Hsortn. tauto.
+            intros. apply Hpn. destruct_in H1; simpl; auto.
+Qed.
+
+Lemma Pgt_sorted__sdom_sorted: forall (n : positive) (dts : list positive)
+  (res : PMap.t LDoms.t)
+  (Hfix : DomDS.fixpoint successors LDoms.transfer
+           ((entrypoint, LDoms.top) :: nil) = Some res)
+  (Hreach : PCfg.reachable successors entrypoint n)
+  (Hsort : SortedDoms.wf_doms res)
+  (Hsortn : StronglySorted Pgt dts)
+  (Hpn : forall dt : positive,
+         In dt dts ->
+         PCfg.strict_domination successors entrypoint dt n /\
+         PCfg.reachable successors entrypoint dt /\ in_cfg successors dt),
+  (StronglySorted (PCfg.strict_domination successors entrypoint) dts).
+Proof.
+  intros.  
+  induction Hsortn.
+    constructor.
+    
+    constructor.
+      apply IHHsortn. 
+        intros. apply Hpn. simpl. auto.
+      eapply Forall_Pgt__Forall_sdom; eauto.      
+Qed.
+
+Lemma dom__sdom_sorted_aux: forall n dts
+  (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts),
+  StronglySorted (PCfg.strict_domination successors entrypoint) (rev dts).
+Proof.
+  unfold pdom_analyze.
+  intros.
+  case_eq (DomDS.fixpoint successors LDoms.transfer 
+            ((entrypoint, LDoms.top) :: nil)).
+    intros res Hfix. rewrite Hfix in Hdom.    
+    assert (pdom_analysis_is_successful successors entrypoint) as Hok.
+      unfold pdom_analysis_is_successful. rewrite Hfix. auto.    
+
+    assert (PCfg.reachable successors entrypoint n) as Hreach.
+      destruct (PCfg.reachable_dec successors entrypoint n) as [H|H]; auto.
+      apply UnreachableDoms.dom_unreachable in H; auto.
+        unfold pdom_analyze in H. rewrite Hfix in H. rewrite Hdom in H. inv H.
+
+    assert (forall dt, In dt (rev dts) ->
+                       PCfg.strict_domination successors entrypoint dt n /\
+                       PCfg.reachable successors entrypoint dt /\
+                       in_cfg successors dt) as Hpn.
+      intros dt Hin. apply in_rev in Hin.
+      assert (PCfg.strict_domination successors entrypoint dt n) as Hsound.
+        apply DomSound.sadom_is_sound; auto.
+          apply DomsInParents.fixpoint_wf in Hfix.
+            assert (J:=Hfix n). rewrite Hdom in J. simpl in J.
+            left. eauto with datatypes v62.
+
+          unfold strict_adomination, pdom_analyze. rewrite Hfix.
+          rewrite Hdom. auto.
+      split; auto.
+      split. admit. (*lowed sdom*)
+        apply DomsInParents.fixpoint_wf in Hfix.
+          assert (J:=Hfix n). rewrite Hdom in J. simpl in J.
+          left. eauto with datatypes v62.
+
+    assert (Hsort:=Hfix).
+    apply SortedDoms.fixpoint_wf in Hsort; auto.
+    assert (Hsortn:=Hsort).
+    apply SortedDoms.wf_doms__wf_dom with (n:=n) in Hsortn.
+    rewrite Hdom in Hsortn. simpl in Hsortn.
+    apply Plt_Sorted__rev_Pgt_Sorted in Hsortn.
+    apply Pgt_Sorted__StronglySorted in Hsortn.
+
+    eapply Pgt_sorted__sdom_sorted; eauto.
+              
+    intros Hfix. rewrite Hfix in Hdom.
+    rewrite PMap.gi in Hdom. inv Hdom. simpl. constructor.
+Qed.
+
+Lemma dom__sdom_sorted: forall n dts
+  (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts),
+  StronglySorted (PCfg.strict_domination successors entrypoint) 
+    (rev (n::dts)).
+Proof.
+  intros.
+  assert (J:=Hdom).
+  apply dom__sdom_sorted_aux in J.
+  simpl.
+  apply StronglySorted_rev_cons; auto.
+    apply Forall_forall.
+    intros x Hinx. apply in_rev in Hinx.
+    apply DomSound.sadom_is_sound; auto.
+      eapply DomsInParents.dom_in_cfg; eauto.
+
+      unfold strict_adomination. rewrite Hdom. simpl. auto.
+Qed.
+
+Definition imm_domination (l1 l2:positive) : Prop :=
+PCfg.strict_domination successors entrypoint l1 l2 /\
+forall l0, PCfg.strict_domination successors entrypoint l0 l2 -> 
+           PCfg.domination successors entrypoint l0 l1.
+
+Lemma sdom_sorted__imm_sorted: forall n dts dts0
+  (Hcomplete: forall n' 
+              (Hsdom: PCfg.strict_domination successors entrypoint n' n),
+              In n' (dts0++dts))
+  (Hsdsort : StronglySorted (PCfg.strict_domination successors entrypoint)
+              (dts0++dts++[n])),
+  Sorted imm_domination (dts++[n]).
+Proof.
+  induction dts as [|a dts]; simpl; intros.
+    constructor; auto.
+
+    constructor.
+      simpl_env in Hsdsort.
+      apply IHdts with (dts0:=dts0++[a]); simpl_env; auto.
+
+      destruct dts as [|b dts]; constructor.
+        assert (J:=Hsdsort).
+        apply StronglySorted_split in J.      
+        destruct J as [J1 J2].
+        inv J2. inv H2.
+        split; auto.
+          intros l0 Hsdom.
+          apply Hcomplete in Hsdom.
+          destruct_in Hsdom.
+            apply StronglySorted__R_front_back with (a1:=l0)(a2:=a) in Hsdsort; 
+              simpl; auto.
+            admit. (* lower *)
+
+            destruct_in Hsdom; subst; try tauto.
+            admit. (* lower *)
+
+        assert (J:=Hsdsort).
+        apply StronglySorted_split in J.      
+        destruct J as [J1 J2].
+        inv J2. inv H2.
+        split; auto.
+          intros l0 Hsdom.
+          assert (PCfg.strict_domination successors entrypoint l0 n) as Hsdom'.
+            rewrite_env ((dts0++a::(b::dts)) ++ [n]) in Hsdsort.
+            apply StronglySorted__R_front_back with (a1:=b)(a2:=n) in Hsdsort; 
+              simpl; auto with datatypes v62.
+            admit. (* lower *)
+          apply Hcomplete in Hsdom'.
+          destruct_in Hsdom'.
+            apply StronglySorted__R_front_back with (a1:=l0)(a2:=a) in Hsdsort; 
+              simpl; auto.
+            admit. (* lower *)
+            destruct_in Hsdom'.
+              admit. (* lower *)
+
+              destruct Hsdom'; subst.
+                admit. (* lower *)
+                
+                assert (PCfg.strict_domination successors entrypoint b l0) 
+                  as Hsdom''.
+                 rewrite_env ((dts0++[a]++[b])++(dts ++ [n])) in Hsdsort.
+                 apply StronglySorted__R_front_back with (a1:=b)(a2:=l0) in Hsdsort; 
+                   simpl; auto.
+                   apply in_or_app. simpl. auto.
+                   xsolve_in_list.
+                admit. (* lower *)
+Qed.
+
+Lemma dom__imm_sorted: forall n dts
+  (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts),
+  Sorted imm_domination (rev (n::dts)).
+Proof.
+  intros.
+  assert (Hsdsort:=Hdom).
+  apply dom__sdom_sorted in Hsdsort.
+  unfold pdom_analyze in Hdom.
+  intros.
+  case_eq (DomDS.fixpoint successors LDoms.transfer 
+            ((entrypoint, LDoms.top) :: nil)).
+    intros res Hfix. rewrite Hfix in Hdom.    
+    assert (pdom_analysis_is_successful successors entrypoint) as Hok.
+      unfold pdom_analysis_is_successful. rewrite Hfix. auto.    
+    simpl.
+    apply sdom_sorted__imm_sorted with (dts0:=nil); simpl; auto.
+      intros n' Hsdom.
+      apply DomComplete.sadom_is_complete in Hsdom; auto.
+         unfold strict_adomination, pdom_analyze in Hsdom.
+         rewrite Hfix in Hsdom. rewrite Hdom in Hsdom. simpl in Hsdom.
+         apply in_rev in Hsdom; auto.
+
+         admit. (* can we remove this? since we know n is reachable! *)
+
+    intros Hfix. rewrite Hfix in Hdom.
+    rewrite PMap.gi in Hdom. inv Hdom. simpl. 
+      constructor; auto.
+Qed.
+
+Lemma imm_dom__at_head: forall im n
+  (Hidom: imm_domination im n) 
+  (Hok: pdom_analysis_is_successful successors entrypoint)
+  (Hreach: PCfg.reachable successors entrypoint n),
+  exists dts, 
+    (pdom_analyze successors entrypoint) ?? n = Some (im::dts).
+Proof.
+  intros.
+  apply DomSound.reachable_isnt_bot in Hreach; auto.
+  case_eq ((pdom_analyze successors entrypoint) ?? n);
+    try solve [intro Heq; rewrite Heq in Hreach;  
+               unfold LDoms.bot in Hreach; congruence].
+  intros dts Heq.
+  assert (Hsort:=Heq).
+  apply dom__sdom_sorted in Hsort.
+  destruct Hidom as [Hsdom Hmin].
+  apply DomComplete.sadom_is_complete in Hsdom; auto.
+    unfold pdom_analysis_is_successful in Hok.
+    unfold strict_adomination, pdom_analyze in *.
+    case_eq (DomDS.fixpoint successors LDoms.transfer
+              ((entrypoint, LDoms.top) :: nil));
+    try solve [intro Heq'; rewrite Heq' in Hok; tauto].
+    intros res Heq'.
+    rewrite Heq' in *. rewrite Heq in *. simpl in Hsdom.
+    destruct dts as [|a dts]; try tauto.
+    destruct_in Hsdom; subst; eauto.
+    simpl in Hsort. 
+    assert (J:=Hsort).
+    apply StronglySorted__R_front_back with (a1:=a)(a2:=n) in J; 
+      simpl; auto with datatypes v62.
+    simpl_env in Hsort.
+    apply in_rev in Hsdom.
+    apply StronglySorted__R_front_back with (a1:=im)(a2:=a) in Hsort; 
+      simpl; auto with datatypes v62.
+    apply Hmin in J.
+    admit. (* lower *)
+
+    admit. (* can we remove this *)
+Qed.
+
+Lemma cons_last: forall A (hd:A) tl, 
+  exists pre, exists last, hd::tl = pre++[last].
+Proof.
+  intros.
+  assert (hd::tl <> nil) as Hnnil.
+    congruence.
+  apply exists_last in Hnnil.
+  destruct Hnnil as [? [? ?]].
+  eauto.
+Qed.
+
+Hypothesis Hnopred: (XPTree.make_predecessors successors) ??? entrypoint = nil.
+
+Lemma entry__at_last: forall dts n
+  (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts)
+  (Hnnil: dts <> nil),
+  exists dts', dts = dts'++[entrypoint].
+Proof.
+  intros.
+  assert (J:=Hdom).
+  apply EntryDomsOthers.entrypoint_in_nonempty in J; auto.
+  assert (Hsort:=Hdom).
+  apply dom__sdom_sorted in Hsort.
+  simpl in Hsort.
+  destruct dts as [|hd dts]; try congruence.
+  destruct (cons_last _ hd dts) as [pre [last J']]. 
+  rewrite J' in *. 
+  rewrite_env (rev (pre ++ last :: nil)) in Hsort.
+  rewrite rev_unit in Hsort.
+  simpl_env in Hsort.
+  destruct (positive_eq_dec last entrypoint); subst; eauto.
+  elimtype False.
+  destruct_in J. 
+    apply in_rev in J.
+    apply StronglySorted__R_front_back with (a1:=last)(a2:=entrypoint) in Hsort; 
+      simpl; auto with datatypes v62.
+      apply noone_sdom_entry in Hsort; auto.
+    destruct_in J.
+Qed.
+
+End IdomSorted. End IdomSorted.
 
 (*
 (** ** Preservation of a property over solutions *)
