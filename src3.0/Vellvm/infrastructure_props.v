@@ -3135,6 +3135,14 @@ Proof.
       intro J. apply H. apply in_rev; auto.
 Qed.
 
+Lemma rev_non_nil: forall A (ls1:list A),
+  ls1 <> nil <-> rev ls1 <> nil.
+Proof.
+  induction ls1; simpl.
+    split; auto.  
+    split; intro J; auto with datatypes v62.      
+Qed.
+
 Lemma inGetBlockIDs__lookupBlockViaIDFromFdef: forall id1 b f,
   uniqFdef f -> In id1 (getBlockIDs b) -> blockInFdefB b f = true ->
   lookupBlockViaIDFromFdef f id1 = Some b.

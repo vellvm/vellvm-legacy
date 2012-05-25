@@ -5,7 +5,8 @@ Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
 Require Import primitives.
-Require Import dtree.
+Require Import dom_tree.
+Require Import dom_set_tree.
 Require Import iter_pass.
 
 (*********************************************************************)
@@ -597,9 +598,9 @@ match getEntryBlock f, reachablity_analysis f with
           fold_left
             (fun acc elt =>
              let '(_, chain):=elt in
-             create_dtree_from_chain acc chain)
+             create_dtree_from_chain eq_atom_dec acc chain)
             chains (DT_node root DT_nil) in
-        if print_dominators b dts && print_dtree dt then
+        if print_dominators b dts && print_adtree dt then
            SafePrimIter.iterate _ (mem2reg_fdef_step dt rd) (f, nil)
         else (f, nil)
     in

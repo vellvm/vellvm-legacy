@@ -19,7 +19,7 @@ Import LLVMinfra.
 Module DecDom.
 
 Ltac unfold_cfg f :=
-  unfold reachable, strict_domination, domination;
+  unfold imm_domination, reachable, strict_domination, domination;
   intros;
   remember (getEntryBlock f) as R;
   destruct R as [[]|]; try congruence.
@@ -148,6 +148,31 @@ Lemma sdom_tran: forall (l1 l2 l3:l),
   strict_domination f l1 l3.
 Proof.
   intros. apply sdom_dom in H0. eapply sdom_tran1; eauto.
+Qed.
+
+Lemma idom_isnt_refl: forall l1 l2 (Hreach: reachable f l2)
+  (Hdom12 : imm_domination f l1 l2),
+  l1 <> l2.
+Proof.
+  unfold_cfg f.
+  eapply ACfg.idom_isnt_refl; eauto.
+Qed.
+
+Lemma idom_sdom: forall l1 l2 (Hdom12 : imm_domination f l1 l2),
+  strict_domination f l1 l2.
+Proof.
+  intros. destruct Hdom12. auto.
+Qed.
+
+Lemma idom_injective: forall p l1 l2
+  (Hidom1 : imm_domination f p l1) (Hidom2 : imm_domination f p l2)
+  (Hrd1 : reachable f l1) (Hrd2 : reachable f l2)
+  (Hneq : l1 <> l2)
+  (Hdec : strict_domination f l1 l2 \/ strict_domination f l2 l1),
+  False.
+Proof.
+  unfold_cfg f.
+  eapply ACfg.idom_injective in Hdec; eauto using entry_has_no_preds.
 Qed.
 
 End dom_acyclic_tran.

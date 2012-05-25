@@ -9,6 +9,39 @@ Require Import Program.Tactics.
 Require Import syntax.
 Require Import infrastructure.
 Require Import infrastructure_props.
+Require Import Relations.Relation_Operators.
+Require Import Relations.Operators_Properties.
+
+Lemma step_clos_refl_trans_1n__clos_trans_1n: forall A (R:A->A->Prop) y z
+  (Hclos: clos_refl_trans_1n A R y z) x (Hrel: R x y),
+  clos_trans_1n A R x z.
+Proof.
+  induction 1; simpl; intros.
+    econstructor; eauto.
+    apply Relation_Operators.t1n_trans with (y:=x); auto.
+Qed.
+
+Lemma step_clos_refl_trans__clos_trans: forall A (R:A->A->Prop) y z
+  (Hclos: clos_refl_trans A R y z) x (Hrel: R x y),
+  clos_trans A R x z.
+Proof.
+  intros.
+  apply clos_t1n_trans.
+  apply clos_rt_rt1n_iff in Hclos.
+  eapply step_clos_refl_trans_1n__clos_trans_1n; eauto.
+Qed.
+
+Lemma clos_refl_trans__eq_or_clos_trans: forall A (R:A->A->Prop) x y
+  (Hclos: clos_refl_trans A R x y),
+  x = y \/ clos_trans A R x y.
+Proof.
+  induction 1; simpl; intros; auto.
+    right. econstructor; eauto.
+    destruct IHHclos1 as [EQ1 | IHHclos1]; subst.
+      destruct IHHclos2 as [EQ2 | IHHclos2]; subst; auto.
+      destruct IHHclos2 as [EQ2 | IHHclos2]; subst; auto.
+        right. eapply t_trans; eauto.
+Qed.
 
 Module Cfg (T:TREE).
 
@@ -210,6 +243,12 @@ Proof.
     congruence.
 Qed.
 
+Lemma idom_sdom: forall l1 l2 (Hdom12 : imm_domination l1 l2),
+  strict_domination l1 l2.
+Proof.
+  intros. destruct Hdom12. auto.
+Qed.
+
 Section dom_acyclic_tran.
 
 Hypothesis entry_has_no_preds : forall a0
@@ -281,6 +320,43 @@ Lemma sdom_tran: forall n1 n2 n3
   strict_domination n1 n3.
 Proof.
   intros. apply sdom_dom in H0. eapply sdom_tran1; eauto.
+Qed.
+
+Lemma idom_injective: forall p l1 l2
+  (Hidom1 : imm_domination p l1) (Hidom2 : imm_domination p l2)
+  (Hrd1 : reachable l1) (Hrd2 : reachable l2)
+  (Hneq : l1 <> l2)
+  (Hdec0 : strict_domination l1 l2 \/ strict_domination l2 l1),
+  False.
+Proof.
+  intros.
+  destruct Hidom2 as [Hsdom2 Him2].
+  destruct Hidom1 as [Hsdom1 Him1].
+  destruct Hdec0 as [Hsdom | Hsdom].
+    eapply Him2 in Hsdom. 
+    apply dom_acyclic in Hsdom1; auto.
+        
+    eapply Him1 in Hsdom. 
+    apply dom_acyclic in Hsdom2; auto.
+Qed.
+
+Lemma clos_trans_idom__sdom: forall a b 
+  (H: clos_trans T.elt imm_domination a b), 
+  strict_domination a b.
+Proof.
+  intros.
+  apply clos_trans_t1n in H.
+  induction H; eauto using idom_sdom, sdom_tran.
+Qed.
+
+Lemma idom_clos_refl_trans_idom__sdom: forall a b c 
+  (H': imm_domination a b)
+  (H: clos_refl_trans T.elt imm_domination b c), 
+  strict_domination a c.
+Proof.
+  intros.
+  apply clos_trans_idom__sdom.
+  eapply step_clos_refl_trans__clos_trans; eauto.
 Qed.
 
 End dom_acyclic_tran.
@@ -370,6 +446,46 @@ Proof.
   apply Hsdom in J3.
   destruct J3 as [Hin'' Heq]; auto.
 Qed.
+
+Lemma idom_isnt_refl: forall l1 l2 (Hreach: reachable l2)
+  (Hdom12 : imm_domination l1 l2),
+  l1 <> l2.
+Proof.
+  intros.
+  destruct Hdom12.
+  eapply sdom_isnt_refl; eauto.
+Qed.
+
+Section rt_idom__sdom_ordered.
+
+Hypothesis entry_has_no_preds : forall a0
+  (Hin: In entry (XTree.successors_list successors a0)),
+  False.
+
+Lemma rt_idom__sdom_ordered: forall x y z
+  (Hrt1 : clos_refl_trans T.elt imm_domination y x)
+  (Hrt2 : clos_refl_trans T.elt imm_domination z x)
+  (Hneq : y <> z)
+  (Hreachx : reachable x),
+  strict_domination y z \/ strict_domination z y.
+Proof.
+  intros.
+  apply clos_refl_trans__eq_or_clos_trans in Hrt1.
+  apply clos_refl_trans__eq_or_clos_trans in Hrt2.
+  destruct Hrt1 as [EQ1 | Ht1].
+    destruct Hrt2 as [EQ2 | Ht2].
+      congruence.
+      subst. right.
+      eapply clos_trans_idom__sdom; eauto.
+    destruct Hrt2 as [EQ2 | Hwk2].
+      subst. left.
+      eapply clos_trans_idom__sdom; eauto.
+  
+      apply sdom_ordered with (n3:=x); 
+        eauto using idom_sdom, clos_trans_idom__sdom.
+Qed.
+
+End rt_idom__sdom_ordered.
 
 End Cfg. End Cfg.
 

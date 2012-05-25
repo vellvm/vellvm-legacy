@@ -2041,6 +2041,21 @@ Proof.
     eapply fixpoint_wf in HeqR; eauto.
 Qed.
 
+Lemma fixpoint_reachable: forall n res dts
+  (Hfix: DomDS.fixpoint successors LDoms.transfer entrypoints = Some res)
+  (Hdom: res ?? n = Some dts),
+  PCfg.reachable successors entrypoint n.
+Proof.
+  intros.
+  destruct (positive_eq_dec n entrypoint); subst.
+    apply PCfg.reachable_entry; auto.
+    destruct (PCfg.reachable_dec successors entrypoint n) as [H|H]; auto.
+      apply fixpoint_wf in Hfix.
+      assert (J:=Hfix n). 
+      apply J in H; auto.
+      rewrite Hdom in H. inv H.
+Qed.
+
 Lemma nonempty_is_reachable: forall n dts
   (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts)
   (Hnonempty: dts <> nil),
@@ -2387,9 +2402,28 @@ Module IdomSorted. Section IdomSorted.
 
 Variable successors: PTree.t (list positive).
 Variable entrypoint: positive.
+Hypothesis wf_entrypoints: in_cfg successors entrypoint.
+
+Lemma reachable_is_in_cfg: forall n (Hreach: PCfg.reachable successors entrypoint n), 
+  in_cfg successors n.
+Proof.
+  intros.
+  destruct Hreach as [vl [al Hreach]].
+  apply DW_endx_inv in Hreach; auto.
+Qed.
+
+Lemma sdom_of_reachable_is_in_cfg: forall n1 n2 
+  (Hreach: PCfg.reachable successors entrypoint n2)
+  (Hsdom: PCfg.strict_domination successors entrypoint n1 n2),
+  in_cfg successors n1.
+Proof.
+  intros.
+  apply PCfg.sdom_reachable in Hsdom; auto using positive_eq_dec.
+  apply reachable_is_in_cfg; auto.
+Qed.
+
 Definition entrypoints := (entrypoint, LDoms.top) :: nil.
 Definition predecessors := XPTree.make_predecessors successors.
-Hypothesis wf_entrypoints: in_cfg successors entrypoint.
 
 Hypothesis wf_order: forall n (Hneq: n <> entrypoint)
   (Hincfg: XPTree.in_cfg successors n),
@@ -2652,11 +2686,12 @@ Proof.
     SCase "1.1".
       intros n' Hsdom.
       apply DomComplete.sadom_is_complete in Hsdom; auto.
-         unfold strict_adomination, pdom_analyze in Hsdom.
-         rewrite Hfix in Hsdom. rewrite Hdom in Hsdom. simpl in Hsdom.
-         apply in_rev in Hsdom; auto.
+        unfold strict_adomination, pdom_analyze in Hsdom.
+        rewrite Hfix in Hsdom. rewrite Hdom in Hsdom. simpl in Hsdom.
+        apply in_rev in Hsdom; auto.
 
-         admit. (* can we remove this? since we know n is reachable! *)
+        eapply UnreachableDoms.fixpoint_reachable in Hfix; eauto.
+        eapply sdom_of_reachable_is_in_cfg; eauto.
     SCase "1.2".
       intros dt Hin. apply in_rev in Hin.
       eapply DomsInParents.in_dom__reachable with (dts:=dts); 
@@ -2677,10 +2712,11 @@ Lemma imm_dom__at_head: forall im n
     (pdom_analyze successors entrypoint) ?? n = Some (im::dts).
 Proof.
   intros.
-  apply DomSound.reachable_isnt_bot in Hreach; auto.
+  assert (Hnonbot := Hreach).
+  apply DomSound.reachable_isnt_bot in Hnonbot; auto.
   case_eq ((pdom_analyze successors entrypoint) ?? n);
-    try solve [intro Heq; rewrite Heq in Hreach;  
-               unfold LDoms.bot in Hreach; congruence].
+    try solve [intro Heq; rewrite Heq in Hnonbot;  
+               unfold LDoms.bot in Hnonbot; congruence].
   intros dts Heq.
   assert (Hsort:=Heq).
   apply dom__sdom_sorted in Hsort.
@@ -2712,7 +2748,7 @@ Proof.
     eapply PCfg.dom_acyclic in Hsort; eauto using positive_eq_dec, Hnopres'.
       tauto.
   Case "2".
-    admit. (* can we remove this *)
+    eapply sdom_of_reachable_is_in_cfg; eauto.
 Qed.
 
 Lemma entry__at_last: forall dts n

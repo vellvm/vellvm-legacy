@@ -1,9 +1,145 @@
-Require Import vellvm.
-Require Import Lattice.
+Require Import Coqlib.
 Require Import Maps.
+Require Import syntax.
+Require Import infrastructure.
+Require Import infrastructure_props.
+Require Import Metatheory.
+Require Import Program.Tactics.
+Require Import dom_tree.
+Require Import Lattice.
 Require Import ListSet.
-Require Import dtree.
+Require Import dom_set.
 Require Import Sorted.
+Require Import typings_props.
+Require Import typings.
+Require Import analysis.
+Import LLVMsyntax.
+Import LLVMinfra.
+Import LLVMtypings.
+
+Fixpoint dtree_dom (dt: DTree) : atoms :=
+match dt with
+| DT_node l0 dts0 => {{l0}} `union` dtrees_dom dts0
+end
+with dtrees_dom (dts: DTrees) : atoms :=
+match dts with
+| DT_nil => empty
+| DT_cons dt0 dts0 => dtree_dom dt0 `union` dtrees_dom dts0
+end.
+
+(* l1 >> l2, l1 strict dominates l2 *)
+Definition gt_sdom (res: l -> set l) (l1 l2:l) : bool :=
+match res l2 with
+| dts2 => in_dec l_dec l1 dts2
+end.
+
+Fixpoint find_min (res: l -> set l) (acc:l) (dts: set l): l :=
+match dts with
+| nil => acc
+| l0::dts' =>
+    if (gt_sdom res acc l0) then
+      find_min res l0 dts'
+    else
+      find_min res acc dts'
+end.
+
+Fixpoint insert_sort_sdom_iter (res: l -> set l) (l0:l)
+  (prefix suffix:list l) : list l :=
+match suffix with
+| nil => List.rev (l0 :: prefix)
+| l1::suffix' =>
+    if gt_sdom res l0 l1 then (List.rev (l0 :: prefix)) ++ suffix
+    else insert_sort_sdom_iter res l0 (l1::prefix) suffix'
+end.
+
+Fixpoint insert_sort_sdom (res: l -> set l) (data:list l) (acc:list l): list l :=
+match data with
+| nil => acc
+| l1 :: data' =>
+    insert_sort_sdom res data' (insert_sort_sdom_iter res l1 nil acc)
+end.
+
+Definition sort_sdom (res: l -> set l) (data:list l): list l :=
+insert_sort_sdom res data nil.
+
+Definition gt_dom_prop (res: l -> set l) (l1 l2:l) : Prop :=
+gt_sdom res l1 l2 = true \/ l1 = l2.
+
+Definition gt_sdom_prop (res: l -> set l) (l1 l2:l) : Prop :=
+gt_sdom res l1 l2 = true.
+
+Fixpoint remove_redundant (input: list l) : list l :=
+match input with
+| a :: ((b :: _) as input') =>
+    if (l_dec a b) then remove_redundant input'
+    else a :: remove_redundant input'
+| _ => input
+end.
+
+Fixpoint compute_sdom_chains_aux (res: l -> set l)
+  (bd: list l) (acc: list (l * list l)) : list (l * list l) :=
+match bd with
+| nil => acc
+| l0 :: bd' =>
+    match res l0 with
+    | dts0 =>
+        compute_sdom_chains_aux res bd'
+          ((l0, remove_redundant (sort_sdom res (l0 :: dts0)))::acc)
+    end
+end.
+
+Definition compute_sdom_chains (res: l -> set l) rd
+  : list (l * list l) :=
+compute_sdom_chains_aux res rd nil.
+
+Fixpoint find_idom_aux (res: l -> set l) (acc:l) (dts: set l)
+  : option l :=
+match dts with
+| nil => Some acc
+| l0::dts' =>
+    match res l0, res acc with
+    | dts1, dts2 =>
+        if (in_dec l_dec l0 dts2)
+        then (* acc << l0 *)
+          find_idom_aux res acc dts'
+        else
+          if (in_dec l_dec acc dts1)
+          then (* l0 << acc *)
+            find_idom_aux res l0 dts'
+          else (* l0 and acc are incompariable *)
+            None
+    end
+end.
+
+(* We should prove that this function is not partial. *)
+Definition find_idom (res: l -> set l) (l0:l) : option l :=
+match res l0 with
+| l1::dts0 => find_idom_aux res l1 dts0
+| _ => None
+end.
+
+Fixpoint compute_idoms (res: l -> set l) (rd: list l)
+  (acc: list (l * l)) : list (l * l) :=
+match rd with
+| nil => acc
+| l0 :: rd' =>
+    match find_idom res l0 with
+    | None => compute_idoms res rd' acc
+    | Some l1 => compute_idoms res rd' ((l1,l0)::acc)
+    end
+end.
+
+Definition create_dtree (f: fdef) : option DTree :=
+match getEntryLabel f, reachablity_analysis f with
+| Some root, Some rd =>
+    let dt := AlgDom.dom_query f in
+    let chains := compute_sdom_chains dt rd in
+    Some (fold_left
+      (fun acc elt => 
+       let '(_, chain):=elt in create_dtree_from_chain eq_atom_dec acc chain)
+      chains (DT_node root DT_nil))
+| _, _ => None
+end.
 
 Ltac simpl_in_dec :=
   match goal with
@@ -756,7 +892,7 @@ Proof.
 Qed.
 
 Lemma gt_sdom_prop_entry: forall f l1 entry
-  (H: getEntryLabel f = ret entry)
+  (H: getEntryLabel f = Some entry)
   (H4: gt_sdom_prop (AlgDom.dom_query f) l1 entry),
   False.
 Proof.
@@ -855,6 +991,15 @@ Proof.
         eapply gt_sdom_prop_trans with (l2:=y); eauto.
 Qed.
 
+Definition wf_chain f dt (chain:list l) : Prop :=
+match chain with
+| entry :: _ :: _ =>
+   let res := (AlgDom.dom_query f) in
+   entry = get_dtree_root dt /\
+   Sorted (gt_sdom_prop res) chain /\ NoDup chain
+| _ => True
+end.
+
 Lemma compute_sdom_chains__wf_chain: forall S M f 
   (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) l0 chain0 entry rd,
   getEntryLabel f = Some entry ->
@@ -876,227 +1021,92 @@ Proof.
       intros. eapply reachablity_analysis__reachable; eauto.
 Qed.
 
-Lemma dtrees_insert__in_children_roots: forall ch p0 ch0 dts,
-  in_children_roots ch dts = in_children_roots ch (dtrees_insert dts p0 ch0).
+Lemma create_dtree__wf_dtree: forall f dt,
+  create_dtree f = Some dt ->
+  match getEntryLabel f, reachablity_analysis f with
+  | Some root, Some rd =>
+      let dt' := AlgDom.dom_query f in
+      let chains := compute_sdom_chains dt' rd in
+      forall p0 ch0,
+        (is_dtree_edge eq_atom_dec dt p0 ch0 ->
+         exists l0, exists chain0,
+           In (l0, chain0) chains /\ is_chain_edge chain0 p0 ch0) /\
+        ((exists l0, exists chain0,
+           In (l0, chain0) chains /\
+           chain_connects_dtree (DT_node root DT_nil) chain0 /\
+           is_chain_edge chain0 p0 ch0) -> is_dtree_edge eq_atom_dec dt p0 ch0)
+  | _, _ => False
+  end.
 Proof.
-  induction dts; simpl; auto.
-    rewrite <- IHdts.
-    destruct d. simpl.
-    destruct (l_dec l0 ch); subst.
-      destruct (id_dec p0 ch); subst.
-        destruct (in_children_roots ch0 d);
-          destruct (l_dec ch ch); auto; try congruence.
-        destruct (l_dec ch ch); auto; try congruence.
-      destruct (id_dec p0 l0); subst.
-        destruct (in_children_roots ch0 d);
-          destruct (l_dec l0 ch); auto; try congruence.
-        destruct (l_dec l0 ch); auto; try congruence.
+  unfold create_dtree.
+  intros.
+  remember (getEntryLabel f) as R.
+  destruct R; tinv H.
+  remember (reachablity_analysis f) as R.
+  destruct R; inv H.
+  intros.
+  destruct (fold_left_create_dtree_from_chain__is_dtree_edge__is_chain_edge
+    eq_atom_dec p0 ch0 (compute_sdom_chains (AlgDom.dom_query f) l1)
+    (DT_node l0 DT_nil)) as [J1 J2].
+  split; intros J; auto.
+    apply J1 in J.
+    destruct J as [J | J]; auto.
+      simpl in J. destruct (eq_atom_dec p0 l0); tinv J.
+    apply J2. right. auto.
 Qed.
 
-Definition dtree_insert__is_dtree_edge_prop (dt:DTree) :=
-forall p ch p0 ch0,
-  is_dtree_edge (dtree_insert dt p ch) p0 ch0 <->
-  is_dtree_edge dt p0 ch0 \/ (p `in` dtree_dom dt /\ p = p0 /\ ch = ch0).
+Definition in_dtree_dom__in_dtree_insert_dom_prop (dt:DTree) :=
+forall i0 p ch tl,
+  i0 `in` (dtree_dom dt) -> 
+  i0 `in` (dtree_dom (dtree_insert eq_atom_dec dt p ch tl)).
 
-Definition dtrees_insert__is_dtrees_edge_prop (dts:DTrees) :=
-forall p ch p0 ch0,
-  is_dtrees_edge (dtrees_insert dts p ch) p0 ch0 <->
-  is_dtrees_edge dts p0 ch0 \/ (p `in` dtrees_dom dts /\ p = p0 /\ ch = ch0).
+Definition in_dtrees_dom__in_dtrees_insert_dom_prop (dts:DTrees) :=
+forall i0 ch tl,
+  i0 `in` (dtrees_dom dts) -> 
+  i0 `in` (dtrees_dom (dtrees_insert eq_atom_dec dts ch tl)).
 
-Lemma dtree_insert__is_dtree_edge_mutrec :
-  (forall dt, dtree_insert__is_dtree_edge_prop dt) *
-  (forall dts, dtrees_insert__is_dtrees_edge_prop dts).
+Lemma in_dtree_dom__in_dtree_insert_dom_mutrec :
+  (forall dt, in_dtree_dom__in_dtree_insert_dom_prop dt) *
+  (forall dts, in_dtrees_dom__in_dtrees_insert_dom_prop dts).
 Proof.
   apply dtree_mutrec;
-    unfold dtree_insert__is_dtree_edge_prop, dtrees_insert__is_dtrees_edge_prop;
+    unfold in_dtree_dom__in_dtree_insert_dom_prop,
+           in_dtrees_dom__in_dtrees_insert_dom_prop;
     simpl; intros.
-
-  Case "1".
-    destruct (id_dec p l0); subst.
-    SCase "1.1".
-      destruct (id_dec p0 l0); subst.
-      SSCase "1.1.1".
-        remember (in_children_roots ch d) as R.
-        destruct R; simpl.
-        SSSCase "1.1.1.1".
-          destruct (id_dec l0 l0); try congruence.
-          split; intro J; auto.
-            destruct J as [J | [J1 [J2 J3]]]; subst; auto.
-            rewrite <- HeqR. reflexivity.
-
-        SSSCase "1.1.1.2".
-          destruct (id_dec l0 l0); try congruence.
-          destruct (l_dec ch ch0); subst.
-          SSSSCase "1.1.1.2.1".
-            split; auto.
-              intros. reflexivity.
-          SSSSCase "1.1.1.2.2".
-            destruct (in_children_roots ch0 d).
-              split; auto.
-                intros.
-                destruct H0 as [H0 | [J1 J2]]; subst; auto; try congruence.
-              destruct (id_dec l0 ch); subst.
-                split; intros.
-                  apply orb_true_iff in H0.
-                  destruct H0; auto; try congruence.
-
-                  apply orb_true_iff.
-                  destruct H0 as [H0 | [J1 [J2 J3]]]; subst; auto.
-                split; intros.
-                  apply orb_true_iff in H0.
-                  destruct H0; auto; try congruence.
-
-                  apply orb_true_iff.
-                  destruct H0 as [H0 | [J1 [J2 J3]]]; subst; auto.
-      SSCase "1.1.2".
-        remember (in_children_roots ch d) as R.
-        destruct R; simpl.
-        SSSCase "1.1.2.1".
-          destruct (id_dec p0 l0); try congruence.
-          split; intro J; auto.
-            destruct J as [J | [J1 [J2 J3]]]; subst; auto.
-              congruence.
-        SSSCase "1.1.2.2".
-          destruct (id_dec p0 l0); try congruence.
-          destruct (l_dec p0 ch); subst.
-          SSSSCase "1.1.2.2.1".
-            destruct (id_dec ch ch); try congruence.
-            split; intros.
-              apply orb_true_iff in H0.
-              destruct H0; auto; try congruence.
-
-              apply orb_true_iff.
-              destruct H0 as [H0 | [J1 [J2 J3]]]; subst; auto.
-
-          SSSSCase "1.1.2.2.2".
-            destruct (id_dec p0 ch); subst; try congruence.
-            split; intros.
-              apply orb_true_iff in H0.
-              destruct H0; auto; try congruence.
-
-              apply orb_true_iff.
-              destruct H0 as [H0 | [J1 [J2 J3]]]; subst; auto.
-
-    SCase "1.2".
-      simpl.
-      rewrite <- dtrees_insert__in_children_roots.
-      destruct (id_dec p0 l0); subst.
-      SSCase "1.2.1".
-        remember (in_children_roots ch0 d) as R.
-        destruct R; simpl.
-        SSSCase "1.2.1.1".
-          split; intro J; auto.
-            reflexivity.
-        SSSCase "1.2.1.2".
-          split; intro J.
-            apply H in J.
-            destruct J as [J | [J1 [J2 J3]]]; subst; auto.
-
-            apply H.
-            destruct J as [J | [J1 [J2 J3]]]; subst; auto.
-              congruence.
-      SSCase "1.2.2".
-        split; intro J; auto.
-          apply H in J.
-          destruct J as [J | [J1 [J2 J3]]]; subst; auto.
-
-          apply H.
-          destruct J as [J | [J1 [J2 J3]]]; subst; auto.
-            right. fsetdec.
-
-  Case "2".
-    split; intros J.
-       congruence.
-       destruct J as [J | [J1 [J2 J3]]]; subst; auto.
-         fsetdec.
-
-  Case "3".
-    split; intros J.
-      apply orb_true_iff in J.
-      destruct J as [J | J].
-        apply H in J.
-        destruct J as [J | [J1 [J2 J3]]]; subst.
-          left. apply orb_true_iff. auto.
-          right. fsetdec.
-
-        apply H0 in J.
-        destruct J as [J | [J1 [J2 J3]]]; subst.
-          left. apply orb_true_iff. auto.
-          right. fsetdec.
-
-      apply orb_true_iff.
-      destruct J as [J | [J1 [J2 J3]]]; subst.
-        apply orb_true_iff in J.
-        destruct J as [J | J].
-          left. apply H; auto.
-          right. apply H0; auto.
-
-        assert (p0 `in` (dtree_dom d) \/ p0 `in` (dtrees_dom d0)) as J.
-          fsetdec.
-        destruct J as [J | J].
-          left. apply H; auto.
-          right. apply H0; auto.
-Qed.
-
-Lemma dtree_insert__is_dtree_edge : forall p ch p0 ch0 dt ,
-  is_dtree_edge (dtree_insert dt p ch) p0 ch0 <->
-  is_dtree_edge dt p0 ch0 \/ (p `in` dtree_dom dt /\ p = p0 /\ ch = ch0).
-Proof.
-  destruct (dtree_insert__is_dtree_edge_mutrec).
-  unfold dtree_insert__is_dtree_edge_prop in *.
-  eauto.
-Qed.
-
-Definition dtree_insert__in_dtree_dom_prop (dt:DTree) :=
-forall p ch,
-  p `in` dtree_dom dt -> is_dtree_edge (dtree_insert dt p ch) p ch.
-
-Definition dtrees_insert__in_dtrees_dom_prop (dts:DTrees) :=
-forall p ch,
-  p `in` dtrees_dom dts ->is_dtrees_edge (dtrees_insert dts p ch) p ch.
-
-Lemma dtree_insert__in_dtree_dom_mutrec :
-  (forall dt, dtree_insert__in_dtree_dom_prop dt) *
-  (forall dts, dtrees_insert__in_dtrees_dom_prop dts).
-Proof.
-  apply dtree_mutrec;
-    unfold dtree_insert__in_dtree_dom_prop,
-           dtrees_insert__in_dtrees_dom_prop;
-    simpl; intros.
-
-  destruct (id_dec p l0); subst; simpl.
-    remember (in_children_roots ch d) as R.
-    destruct R; simpl.
-      rewrite <- HeqR.
-      destruct (id_dec l0 l0); try congruence.
-
-      rewrite <- HeqR.
-      destruct (id_dec l0 l0); try congruence.
-      destruct (l_dec ch ch); try congruence.
-
-    destruct (id_dec p l0); subst; try congruence.
-      apply H.
-      assert (p = l0 \/ p `in` dtrees_dom d) as J.
-        clear - H0. fsetdec.
-      destruct J as [J | J]; subst; auto; try congruence.
-
+  Case "DT_node".
+  destruct (eq_atom_dec p a); subst; simpl; auto.
+    apply AtomSetFacts.union_iff in H0.
+    apply AtomSetFacts.union_iff. 
+    destruct H0; auto.
+  Case "DT_nil".
   contradict H. auto.
-
-  assert (p `in` (dtree_dom d) \/ p `in` (dtrees_dom d0)) as J.
-    fsetdec.
-  apply orb_true_iff.
-    destruct J as [J | J].
-      left. apply H; auto.
-      right. apply H0; auto.
+  Case "DT_cons".
+  apply AtomSetFacts.union_iff in H1.
+  destruct d as [l0 ?].
+  destruct_if; simpl.
+    SCase "1".
+    destruct tl; simpl.
+      SSCase "1.1".
+      apply AtomSetFacts.union_iff. 
+      destruct H1 as [H1 | H1]; auto.
+      SSCase "1.2".
+      apply AtomSetFacts.union_iff. 
+      destruct H1 as [H1 | H1]; auto.
+        left. apply H; auto.
+    SCase "2".
+    apply AtomSetFacts.union_iff. 
+    destruct H1 as [H1 | H1]; auto.
 Qed.
 
-Lemma dtree_insert__in_dtree_dom: forall dt p ch,
-  p `in` dtree_dom dt -> is_dtree_edge (dtree_insert dt p ch) p ch.
+Lemma in_dtree_dom__in_dtree_insert_dom: forall dt i0 p ch tl,
+  i0 `in` (dtree_dom dt) -> 
+  i0 `in` (dtree_dom (dtree_insert eq_atom_dec dt p ch tl)).
 Proof.
-  destruct dtree_insert__in_dtree_dom_mutrec as [H _].
-  unfold dtree_insert__in_dtree_dom_prop in H. auto.
+  destruct in_dtree_dom__in_dtree_insert_dom_mutrec as [H _].
+  unfold in_dtree_dom__in_dtree_insert_dom_prop in H. auto.
 Qed.
 
+(*
 Definition is_dtree_edge__in_dtree_dom_prop (dt:DTree) :=
 forall p ch, is_dtree_edge dt p ch ->
   p `in` dtree_dom dt /\ ch `in` dtree_dom dt.
@@ -1158,393 +1168,4 @@ Proof.
   eapply is_dtree_edge__in_dtree_dom.
   eapply dtree_insert__in_dtree_dom; eauto.
 Qed.
-
-Lemma create_dtree_from_chain__is_dtree_edge__is_chain_edge:
-  forall p0 ch0 chain dt,
-  (is_dtree_edge (create_dtree_from_chain dt chain) p0 ch0 ->
-   is_dtree_edge dt p0 ch0 \/is_chain_edge chain p0 ch0) /\
-  (is_dtree_edge dt p0 ch0 \/
-   (chain_connects_dtree dt chain /\ is_chain_edge chain p0 ch0) ->
-   is_dtree_edge (create_dtree_from_chain dt chain) p0 ch0).
-Proof.
-  induction chain; simpl; intros.
-    split; intros; tauto.
-
-    destruct chain.
-      tauto.
-
-      split; intros.
-        apply IHchain in H.
-        destruct H as [H | H]; auto.
-        apply dtree_insert__is_dtree_edge in H.
-        destruct H as [H | [H [H1 H2]]]; subst; auto.
-
-        apply IHchain.
-        destruct H as [H | [H [[H1 H2] | H1]]]; subst.
-          left. apply dtree_insert__is_dtree_edge; auto.
-          left. apply dtree_insert__is_dtree_edge; auto.
-          right. split; auto.
-            destruct chain; simpl in *; auto.
-            apply dtree_insert__ch_in_dtree_dom; auto.
-Qed.
-
-Definition dtree_insert__in_dtree_dom_prop' (dt:DTree) :=
-forall i0 p ch,
-  i0 `in` dtree_dom dt -> i0 `in` dtree_dom (dtree_insert dt p ch).
-
-Definition dtrees_insert__in_dtrees_dom_prop' (dts:DTrees) :=
-forall i0 p ch,
-  i0 `in` dtrees_dom dts -> i0 `in` dtrees_dom (dtrees_insert dts p ch).
-
-Lemma dtree_insert__in_dtree_dom_mutrec' :
-  (forall dt, dtree_insert__in_dtree_dom_prop' dt) *
-  (forall dts, dtrees_insert__in_dtrees_dom_prop' dts).
-Proof.
-  apply dtree_mutrec;
-    unfold dtree_insert__in_dtree_dom_prop',
-           dtrees_insert__in_dtrees_dom_prop';
-    simpl; intros.
-
-  destruct (id_dec p l0); subst; simpl.
-    remember (in_children_roots ch d) as R.
-    destruct R; simpl.
-      fsetdec.
-      fsetdec.
-
-    assert (i0 = l0 \/ i0 `in` dtrees_dom d) as J.
-      clear - H0. fsetdec.
-    destruct J as [J | J]; subst; auto; try congruence.
-
-  contradict H. auto.
-
-  assert (i0 `in` (dtree_dom d) \/ i0 `in` (dtrees_dom d0)) as J.
-    fsetdec.
-  destruct J as [J | J]; eauto.
-Qed.
-
-Lemma dtree_insert__in_dtree_dom': forall dt i0 p ch,
-  i0 `in` dtree_dom dt -> i0 `in` dtree_dom (dtree_insert dt p ch).
-Proof.
-  destruct dtree_insert__in_dtree_dom_mutrec' as [H _].
-  unfold dtree_insert__in_dtree_dom_prop' in H. auto.
-Qed.
-
-Lemma create_dtree_from_chain__chain_connects_dtree: forall chain0 chain dt,
-  chain_connects_dtree dt chain0 ->
-  chain_connects_dtree (create_dtree_from_chain dt chain) chain0.
-Proof.
-  induction chain; simpl; intros; auto.
-    destruct chain; auto.
-    apply IHchain.
-    destruct chain0; simpl in *; intros; auto.
-    destruct chain0; auto.
-    eapply dtree_insert__in_dtree_dom'; eauto.
-Qed.
-
-Lemma fold_left_create_dtree_from_chain__is_dtree_edge__is_chain_edge:
-  forall p0 ch0 chains dt,
-  (is_dtree_edge
-    (fold_left
-      (fun (acc : DTree) (elt : l * list id) =>
-       let '(_, chain) := elt in create_dtree_from_chain acc chain)
-     chains dt) p0 ch0 ->
-  (is_dtree_edge dt p0 ch0 \/
-   exists l0, exists chain0,
-     In (l0, chain0) chains /\ is_chain_edge chain0 p0 ch0)) /\
-  ((is_dtree_edge dt p0 ch0 \/
-   exists l0, exists chain0,
-     In (l0, chain0) chains /\ chain_connects_dtree dt chain0 /\
-     is_chain_edge chain0 p0 ch0) ->
-   is_dtree_edge
-    (fold_left
-      (fun (acc : DTree) (elt : l * list id) =>
-       let '(_, chain) := elt in create_dtree_from_chain acc chain)
-     chains dt) p0 ch0).
-Proof.
-  induction chains; simpl; intros.
-    split; intro J; auto.
-      destruct J as [H | [l0 [chn0 [J1 J2]]]]; auto.
-        inv J1.
-
-    destruct a.
-    destruct (IHchains (create_dtree_from_chain dt l1)) as [J1 J2].
-    clear IHchains.
-    split; intros J.
-      apply J1 in J.
-      destruct J as [J | [l2 [chain2 [J3 J4]]]].
-        apply create_dtree_from_chain__is_dtree_edge__is_chain_edge in J.
-        destruct J as [J | J]; auto.
-          right. exists l0. exists l1. auto.
-        right. exists l2. exists chain2. auto.
-
-      apply J2.
-      destruct J as [J | [l2 [chain2 [J3 [J4 J5]]]]].
-        left.
-        apply create_dtree_from_chain__is_dtree_edge__is_chain_edge; auto.
-
-        destruct J3 as [J3 | J3].
-          inv J3. left.
-          apply create_dtree_from_chain__is_dtree_edge__is_chain_edge; auto.
-
-          right. exists l2. exists chain2. split; auto. split; auto.
-            apply create_dtree_from_chain__chain_connects_dtree; auto.
-Qed.
-
-Lemma create_dtree__wf_dtree: forall f dt,
-  create_dtree f = Some dt ->
-  match getEntryLabel f, reachablity_analysis f with
-  | Some root, Some rd =>
-      let dt' := AlgDom.dom_query f in
-      let chains := compute_sdom_chains dt' rd in
-      forall p0 ch0,
-        (is_dtree_edge dt p0 ch0 ->
-         exists l0, exists chain0,
-           In (l0, chain0) chains /\ is_chain_edge chain0 p0 ch0) /\
-        ((exists l0, exists chain0,
-           In (l0, chain0) chains /\
-           chain_connects_dtree (DT_node root DT_nil) chain0 /\
-           is_chain_edge chain0 p0 ch0) -> is_dtree_edge dt p0 ch0)
-  | _, _ => False
-  end.
-Proof.
-  unfold create_dtree.
-  intros.
-  remember (getEntryLabel f) as R.
-  destruct R; tinv H.
-  remember (reachablity_analysis f) as R.
-  destruct R; inv H.
-  intros.
-  destruct (@fold_left_create_dtree_from_chain__is_dtree_edge__is_chain_edge
-    p0 ch0 (compute_sdom_chains (AlgDom.dom_query f) l1)
-    (DT_node l0 DT_nil)) as [J1 J2].
-  split; intros J; auto.
-    apply J1 in J.
-    destruct J as [J | J]; auto.
-      simpl in J. destruct (id_dec p0 l0); tinv J.
-Qed.
-
-Fixpoint disjoint_dtrees (dts: DTrees): Prop :=
-match dts with
-| DT_nil => True
-| DT_cons dt dts' => AtomSetImpl.disjoint (dtree_dom dt) (dtrees_dom dts') /\
-                     disjoint_dtrees dts'
-end.
-
-Inductive uniq_dtree : DTree -> Prop :=
-| U_DT_node : forall p dts
-            (Hnotin: p `notin` dtrees_dom dts) 
-            (Hdisj: disjoint_dtrees dts)
-            (Hwfdts: uniq_dtrees dts),
-            uniq_dtree (DT_node p dts)
-with uniq_dtrees : DTrees -> Prop :=
-| U_DT_nil : uniq_dtrees DT_nil
-| U_DT_cons : forall dt dts (Hwfdt: uniq_dtree dt) (Hwfdts: uniq_dtrees dts),
-                 uniq_dtrees (DT_cons dt dts)
-.
-
-Fixpoint get_dtrees_roots dts : atoms :=
-match dts with
-| DT_nil => empty
-| DT_cons dt' dts' => {{get_dtree_root dt'}} `union` get_dtrees_roots dts' 
-end.
-
-Fixpoint disjoint_dtrees_roots dts : Prop :=
-match dts with
-| DT_nil => True
-| DT_cons dt' dts' => get_dtree_root dt' `notin` get_dtrees_roots dts' /\
-                      disjoint_dtrees_roots dts'
-end.
-
-Inductive disjoint_children_dtree : DTree -> Prop :=
-| Dj_DT_node : forall p dts             
-               (Hwfdts: disjoint_children_dtrees dts),
-               disjoint_children_dtree (DT_node p dts)
-with disjoint_children_dtrees : DTrees -> Prop :=
-| Dj_DT_nil : disjoint_children_dtrees DT_nil
-| Dj_DT_cons : forall dt dts (Hwfdt: disjoint_children_dtree dt) 
-               (Hwfdts: disjoint_children_dtrees dts)
-               (Hdisj: disjoint_dtrees_roots (DT_cons dt dts)),
-               disjoint_children_dtrees (DT_cons dt dts)
-.
-
-Definition dtree_is_sound (dt:DTree) (idom: l -> l -> Prop): Prop :=
-  forall p ch (Hedge: is_dtree_edge dt p ch),
-    exists chain, is_chain_edge chain p ch /\ 
-    Sorted idom chain /\ NoDup chain.
-
-Definition dtrees_is_sound (dts:DTrees) (idom:l -> l -> Prop) : Prop :=
-  forall p ch (Hedge: is_dtrees_edge dts p ch),
-    exists chain, is_chain_edge chain p ch /\ 
-    Sorted idom chain /\ NoDup chain.
-
-Require Import Dipaths.
-
-Definition dvertexes (dt: DTree) : V_set := 
-fun (v:Vertex) => let '(index n) := v in n `in` dtree_dom dt.
-
-Definition darcs (dt: DTree) : A_set := 
-fun (arc:Arc) =>
-  let '(A_ends (index n2) (index n1)) := arc in
-  is_dtree_edge dt n1 n2.
-
-Definition dtree_walk (dt: DTree) (n:l) : Prop :=
-  exists vl, exists al, 
-    D_walk (dvertexes dt) (darcs dt) (index n) (index (get_dtree_root dt)) vl al.
-
-Lemma in_dtree_dom__is_dtree_walk: forall dt l0 (Hin: l0 `in` dtree_dom dt),
-  dtree_walk dt l0.
-Admitted.
-
-Fixpoint in_children dt dts : Prop :=
-match dts with
-| DT_nil => False
-| DT_cons dt' dts' => dt = dt' \/ in_children dt dts'
-end.
-
-Lemma in_dtrees_dom__is_dtree_walk: forall dts l0 (Hin: l0 `in` dtrees_dom dts),
-  exists dt, in_children dt dts /\ dtree_walk dt l0.
-Admitted.
-
-Lemma in_children__in_children_roots: forall dt dts (Hin: in_children dt dts),
-  in_children_roots (get_dtree_root dt) dts.
-Admitted.
-
-Lemma dtree_child_walk__dtree_walk: forall res l1 l2 dts dt 
-  (Hp : dtree_is_sound (DT_node l1 dts) res) (Hinch : in_children dt dts)
-  (Hwk : dtree_walk dt l2),
-  dtree_walk (DT_node l1 dts) l1.
-Admitted.
-
-Lemma DT_node_is_sound_inv: forall res l0 dts
-  (Hp : dtree_is_sound (DT_node l0 dts) res),
-  dtrees_is_sound dts res.
-Proof.
-  intros.
-  unfold dtree_is_sound, dtrees_is_sound in *.
-  intros. apply Hp. simpl.
-  destruct_if. destruct_if. reflexivity.
-Qed.
-
-Lemma dtree_walk__sdom: forall idom dt l1 (Hin: dtree_walk dt l1)
-  (Hsound: dtree_is_sound dt idom),
-  idom (get_dtree_root dt) l1.
-Admitted.
-
-Lemma DT_cons_is_sound_inv: forall idom dt dts
-  (Hp : dtrees_is_sound (DT_cons dt dts) idom),
-  dtree_is_sound dt idom /\ dtrees_is_sound dts idom.
-Admitted.
-
-Fixpoint idom_children (idom:l -> l -> Prop) (p:l) (dts:DTrees) : Prop :=
-match dts with
-| DT_nil => True
-| DT_cons dt dts' => idom p (get_dtree_root dt) /\ 
-                     idom_children idom p dts'
-end.
-
-Section Foo.
-
-Variable f:fdef.
-Definition idom := imm_domination f.
-Definition sdom := strict_domination f.
-
-Definition create_dtree__uniq_dtree_prop (dt:DTree) :=
-  forall (Hp: dtree_is_sound dt idom) (Hdj: disjoint_children_dtree dt), 
-    uniq_dtree dt.
-
-Definition create_dtree__uniq_dtrees_prop (dts:DTrees) :=
-  forall (Hp: dtrees_is_sound dts idom) (Hdj: disjoint_children_dtrees dts)
-    (Hidom: exists p, idom_children idom p dts),
-    uniq_dtrees dts /\ disjoint_dtrees dts.
-
-Lemma create_dtree__uniq_dtree_mutrec :
-  (forall dt, create_dtree__uniq_dtree_prop dt) *
-  (forall dts, create_dtree__uniq_dtrees_prop dts).
-Proof.
-  apply dtree_mutrec;
-    unfold create_dtree__uniq_dtree_prop, create_dtree__uniq_dtrees_prop;
-    simpl; intros.
-  Case "DT_node".
-    assert (dtrees_is_sound d idom) as Hp'.
-      apply DT_node_is_sound_inv in Hp; auto.
-    inv Hdj.
-    assert (exists p : l, idom_children idom p d) as Hsdom.
-      admit.
-    constructor; try solve [eapply H; eauto].
-    SCase "1".
-      destruct (AtomSetProperties.In_dec l0 (dtrees_dom d)) as [Hin | Hnotin]; 
-        auto.  
-      elimtype False.
-      apply in_dtrees_dom__is_dtree_walk in Hin.
-      destruct Hin as [dt [Hinch Hwk]].
-      eapply dtree_child_walk__dtree_walk in Hwk; eauto.
-      eapply dtree_walk__sdom in Hwk; eauto.
-
-      admit. (* sdom_isnt_refl *)
-  Case "DT_nil".
-    split; auto.
-      constructor.
-  Case "DT_cons".
-    inv Hdj.
-    assert (Hp':=Hp).
-    apply DT_cons_is_sound_inv in Hp'.   
-    destruct Hp' as [Hp1 Hps2]. 
-    assert (Hsd1:=Hp1). assert (Hsds2:=Hps2).
-    destruct Hidom as [p [Hidom1 Hidoms2]].
-    apply_clear H0 in Hps2; eauto. destruct Hps2 as [Huniqs Hdisjs].
-    apply_clear H in Hp1. 
-    split.
-    SCase "uniq".
-      constructor; eauto.
-    SCase "disjoint".
-      split; auto.
-        intros x; split; intros Hinx; try fsetdec.
-        elimtype False.
-        apply AtomSetFacts.inter_iff in Hinx.
-        destruct Hinx as [Hin1 Hin2].
-        apply in_dtree_dom__is_dtree_walk in Hin1.
-        apply in_dtrees_dom__is_dtree_walk in Hin2.
-        destruct Hdisj as [Hnotin _].
-        destruct Hin2 as [dt [Hinchs Hwk2]].
-        assert (idom p (get_dtree_root dt)) as Hsdom2.
-          admit.
-        eapply dtree_walk__sdom in Hin1; eauto.
-        assert (dtree_is_sound dt idom) as Hsd2.
-          admit.
-        eapply dtree_walk__sdom in Hwk2; eauto.
-        assert (get_dtree_root d <> get_dtree_root dt) as Hneq.
-          admit.
-        assert (sdom (get_dtree_root d) (get_dtree_root dt) \/
-                sdom (get_dtree_root dt) (get_dtree_root d)) as Hdec.
-          admit. (* order *)
-        clear - Hidom1 Hsdom2 Hdec Hneq.
-        destruct Hsdom2 as [Hsdom2 Him2].
-        destruct Hidom1 as [Hsdom1 Him1].
-        destruct Hdec as [Hsdom | Hsdom].
-          eapply Him2 in Hsdom. 
-          clear - Hsdom Hsdom1.
-          admit. (* cycle *)
-        
-          eapply Him1 in Hsdom. 
-          clear - Hsdom Hsdom2.
-          admit. (* cycle *)
-Qed.
-
-Inductive wf_dtree : DTree -> Prop :=
-| Wf_DT_node : forall p dts
-               (Huniq: uniq_dtree (DT_node p dts))
-               (Hwfdts: wf_dtrees dts)
-               (Hidom: idom_children idom p dts),
-               wf_dtree (DT_node p dts)
-with wf_dtrees : DTrees -> Prop :=
-| Wf_DT_nil : wf_dtrees DT_nil
-| Wf_DT_cons : forall dt dts 
-               (Hdisj: disjoint_dtrees_roots (DT_cons dt dts))
-               (Hwfdt: wf_dtree dt) 
-               (Hwfdts: wf_dtrees dts),
-               wf_dtrees (DT_cons dt dts)
-.
-
-End Foo.
-
-
+*)

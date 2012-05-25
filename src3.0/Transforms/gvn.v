@@ -4,7 +4,8 @@ Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
-Require Import dtree.
+Require Import dom_tree.
+Require Import dom_set_tree.
 Require Import primitives.
 
 Definition cmds_from_block (f:fdef) (lbl:l) : option cmds :=
@@ -722,10 +723,10 @@ match getEntryBlock f, reachablity_analysis f with
       fold_left
       (fun acc elt =>
         let '(_, chain):=elt in
-        create_dtree_from_chain acc chain)
+        create_dtree_from_chain eq_atom_dec acc chain)
       chains (DT_node root DT_nil) in
     if print_reachablity rd && print_dominators b dts &&
-       print_dtree dt && read_aa_from_fun (getFdefID f) then
+       print_adtree dt && read_aa_from_fun (getFdefID f) then
        match fix_temporary_fdef
                (SafePrimIter.iterate _ (opt_step dt dts rd)
                  (dce_fdef f)) with

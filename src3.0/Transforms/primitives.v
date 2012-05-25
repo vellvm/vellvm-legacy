@@ -1,7 +1,7 @@
 Require Import vellvm.
 Require Import Lattice.
 Require Import Maps.
-Require Import dtree.
+Require Import dom_tree.
 Require Import trans_tactic.
 
 Definition subst_value (id':id) (v':value) (v:value) : value :=
@@ -428,7 +428,7 @@ rename_fdef newid (getCmdLoc c) f3.
 
 Parameter print_reachablity : list l -> bool.
 Parameter print_dominators : list l -> (l -> ListSet.set l) -> bool.
-Parameter print_dtree : DTree -> bool.
+Parameter print_adtree: @DTree atom -> bool.
 
 Variable TNAME: Type.
 Parameter init_expected_name : unit -> TNAME.

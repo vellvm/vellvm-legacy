@@ -11,6 +11,7 @@ Require Import dfs.
 Require Import cfg.
 Require Import push_iter.
 Require Import dom_decl.
+Require Import dom_tree.
 Require Import dom_list_tree.
 
 (***************************************************)

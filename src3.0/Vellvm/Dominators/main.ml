@@ -5,7 +5,6 @@ open Infrastructure
 open Camlcoq
 open Maps
 open Transforms_aux
-open Dtree
 open Arg
 
 let dom_type = ref 0
@@ -22,13 +21,14 @@ let slow_dom f =
              if !gen_dtree then
                begin
                  let LLVMsyntax.Coq_block_intro (root, _, _, _) = b in
-                 let chains = compute_sdom_chains dts rd in
+                 let chains = Dom_set_tree.compute_sdom_chains dts rd in
                  let dt = List.fold_left
                             (fun acc elt ->
                              let y,chain = elt in
-                             create_dtree_from_chain acc chain)
-                            (DT_node (root, DT_nil)) chains in
-                 ignore(print_dtree dt)
+                             Dom_tree.create_dtree_from_chain 
+                               MetatheoryAtom.AtomImpl.eq_atom_dec acc chain)
+                             (Dom_tree.DT_node (root, Dom_tree.DT_nil)) chains in
+                 ignore(print_dtree (fun a->a) dt)
                end
           | None -> ())
      | None -> ()
@@ -48,34 +48,16 @@ let pull_dom f =
   let dts = Pull_iter.dom_analyze f in
   if (!Globalstates.print_dtree) then (ignore (print_doms dts))
 
-let string_of_intent (n:int) : String.t = String.make n (Char.chr 95)
-
-let rec pp_print_pdtree (dt:Dom_list_tree.coq_DTree) (n:int) : unit = 
-  match dt with
-    | Dom_list_tree.DT_node (l0, dts) -> 
-        eprintf "%s%ld\n" (string_of_intent n) (camlint_of_positive l0);
-        pp_print_pdtrees dts (n+1) 
-and pp_print_pdtrees (dts:Dom_list_tree.coq_DTrees) (n:int) : unit =
-  match dts with
-    | Dom_list_tree.DT_nil -> ()
-    | Dom_list_tree.DT_cons (dt, dts') -> 
-        pp_print_pdtree dt n;
-        pp_print_pdtrees dts' n
-
-let print_pdtree (dt:Dom_list_tree.coq_DTree) : unit = 
-  if !Globalstates.print_dtree then 
-     (eprintf "DT:\n";
-      pp_print_pdtree dt 0;
-      eprintf "\n";
-      flush_all ())
-
 let push_dom f =
   let (dts, a2p) = Dom_list.dom_analyze f in 
   if (!Globalstates.print_dtree) then (ignore (print_doms dts));
   if !gen_dtree then
     match Dom_list.create_dom_tree f dts a2p with
       | None -> ()
-      | Some dt -> if (!Globalstates.print_dtree) then print_pdtree dt
+      | Some dt -> 
+          if (!Globalstates.print_dtree) 
+          then ignore (print_dtree 
+                         (fun a -> sprintf "%ld" (camlint_of_positive a)) dt)
 
 let dom_product g =
   match g with
