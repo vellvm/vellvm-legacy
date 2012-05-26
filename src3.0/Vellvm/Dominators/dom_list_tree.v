@@ -27,10 +27,7 @@ compute_sdom_chains_aux res rd nil.
 Definition create_dtree (pe:positive) (rd:list positive) 
   (res: positive -> LDoms.t) : DTree :=
 let chains := compute_sdom_chains res rd in
-fold_left 
-  (fun acc elt => 
-   let '(_, chain):=elt in create_dtree_from_chain positive_eq_dec acc chain)
-  chains (DT_node pe DT_nil).
+create_dtree_from_chains positive_eq_dec pe chains.
 
 Lemma create_dtree__wf_dtree_aux: forall pe rd res dt,
   create_dtree pe rd res = dt ->
@@ -47,14 +44,7 @@ Lemma create_dtree__wf_dtree_aux: forall pe rd res dt,
 Proof.
   unfold create_dtree.
   intros. subst.
-  destruct (fold_left_create_dtree_from_chain__is_dtree_edge__is_chain_edge
-    positive_eq_dec p0 ch0 (compute_sdom_chains res rd) 
-    (DT_node pe DT_nil)) 
-    as [J1 J2].
-  split; intros J; auto.
-    apply J1 in J.
-    destruct J as [J | J]; auto.
-      simpl in J. destruct (positive_eq_dec p0 pe); tinv J.
+  apply create_dtree_from_chains__is_dtree_edge__is_chain_edge.
 Qed.
 
 Lemma compute_sdom_chains_aux_spec: forall 
@@ -65,31 +55,47 @@ Lemma compute_sdom_chains_aux_spec: forall
          res l0 = Some dts0 /\
          chain0 = rev (l0 :: dts0))
   (H2: In (l0, chain0) (compute_sdom_chains_aux res bd acc)),
-  exists dts0,
+  (exists dts0,
     res l0 = Some dts0 /\
-    chain0 = rev (l0 :: dts0).
+    chain0 = rev (l0 :: dts0)) /\ (In l0 bd \/ In (l0, chain0) acc).
 Proof.
   induction bd; intros; eauto.
     simpl in H2.
     remember (res a) as R.
-    destruct R; eauto.
-    apply IHbd in H2; auto.
-    intros. 
-    destruct_in Hin; eauto.
-    inv Hin. 
-    exists l. split; auto. 
+    destruct R.
+    Case "1".
+      apply IHbd in H2.
+      SCase "1.1".
+        destruct H2 as [J1 J2].
+        split; auto.
+          simpl. 
+          destruct J2 as [J2 | J2]; auto.
+          destruct_in J2; auto.
+          inv J2. auto.
+      SCase "1.s".
+        intros. 
+        destruct_in Hin; eauto.
+        inv Hin. 
+        exists l. split; auto. 
+    Case "2".
+      apply IHbd in H2; auto.
+      destruct H2 as [J1 J2].
+      split; auto.
+        simpl. 
+        destruct J2 as [J2 | J2]; auto.
 Qed.
 
 Lemma compute_sdom_chains_spec: forall res rd l0 chain,
   In (l0, chain) (compute_sdom_chains res rd) ->
-  exists dts0,
+  (exists dts0,
     res l0 = Some dts0 /\
-    chain = rev (l0 :: dts0).
+    chain = rev (l0 :: dts0)) /\ In l0 rd.
 Proof.
   intros.
   unfold compute_sdom_chains in H.
-  eapply compute_sdom_chains_aux_spec in H; eauto.
-  simpl. intros. tauto.
+  apply compute_sdom_chains_aux_spec in H.
+    destruct H as [H1 [H2 | H2]]; tauto.
+    simpl. intros. tauto.
 Qed.
 
 Lemma compute_sdom_chains_aux_spec': forall res l0 dts0 rd acc
@@ -116,6 +122,15 @@ Proof.
   apply compute_sdom_chains_aux_spec'; auto.
 Qed.
 
+Lemma create_dtree__disjoint_children_dtree: forall pe rd res,
+  disjoint_children_dtree positive_eq_dec (create_dtree pe rd res).
+Proof.
+  unfold create_dtree. intros.
+  apply create_dtree_from_chains__disjoint_children_dtree.
+Qed.
+
+Require Import cfg.
+
 Section create_dtree__wf_dtree.
 
 Variable dts: PMap.t LDoms.t.
@@ -125,7 +140,7 @@ Hypothesis Hanalyze: pdom_analyze psuccs pe = dts.
 Variable res: positive -> LDoms.t.
 Hypothesis Hquery: res = fun p:positive => PMap.get p dts.
 Variable rd: list positive.
-Hypothesis Hreach: forall p, PCfg.reachable psuccs pe p -> List.In p rd.
+Hypothesis Hreach: forall p, PCfg.reachable psuccs pe p <-> List.In p rd.
 Variable dt: @DTree positive.
 Hypothesis Hdtree: create_dtree pe rd res = dt.
 Hypothesis wf_entrypoints: in_cfg psuccs pe.
@@ -137,7 +152,7 @@ Hypothesis wf_order: forall n (Hneq: n <> pe)
 Hypothesis Hok: pdom_analysis_is_successful psuccs pe.
 Hypothesis Hnopred: (XPTree.make_predecessors psuccs) ??? pe = nil.
 
-Lemma create_dtree__wf_dtree: forall p0 ch0,
+Lemma dtree_edge_iff_idom: forall p0 ch0,
   is_dtree_edge positive_eq_dec dt p0 ch0 = true <-> 
     (PCfg.imm_domination psuccs pe p0 ch0 /\ PCfg.reachable psuccs pe ch0).
 Proof.
@@ -150,7 +165,7 @@ Proof.
     apply Hdtree1 in J.
     destruct J as [l0 [chain0 [Hin Hedge]]].
     apply compute_sdom_chains_spec in Hin.    
-    destruct Hin as [dts0 [Hin Heq]]; subst chain0.
+    destruct Hin as [[dts0 [Hin Heq]] ?]; subst chain0.
     assert (Sorted (PCfg.imm_domination psuccs pe) (rev (l0::dts0))) 
       as Hsort.
       subst. apply IdomSorted.dom__imm_sorted; auto.
@@ -180,6 +195,7 @@ Proof.
     split.
     SCase "2.1".
       apply compute_sdom_chains_spec'; subst; auto.
+        apply Hreach; auto.
     split.
     SCase "2.2".
       subst dts.
@@ -197,8 +213,52 @@ Proof.
       apply is_chain_edge_tail; simpl; auto.
 Qed.
 
+Lemma create_dtree___reachable_dtree:
+  PDProps.reachable_dtree psuccs pe dt.
+Proof.
+  subst dt.
+  unfold create_dtree.
+  apply PDProps.create_dtree_from_chains__reachable_dtree; auto.
+    apply Forall_forall.
+    intros [x xs] Hinx.
+    apply compute_sdom_chains_spec in Hinx.
+    destruct Hinx as [[dts0 [Hget Heq]] Hinrd]. 
+    simpl.
+    intros p Hinp. subst.
+    simpl in Hinp.
+    destruct_in Hinp.
+      apply in_rev in Hinp.
+      eapply DomsInParents.in_dom__reachable; eauto.
+    
+      destruct_in Hinp.
+      apply Hreach; auto.
+Qed.
+
+Lemma create_dtree__wf_dtree: PDProps.wf_dtree psuccs pe positive_eq_dec dt.
+Proof.
+  apply PDProps.create_dtree__wf_dtree; eauto using XPTree.no_preds__notin_succs.
+  Case "1".
+    intros p ch Hedge.
+    assert (J:=Hdtree).
+    apply create_dtree__wf_dtree_aux with (p0:=p)(ch0:=ch) in J; auto.
+    destruct J as [Hdtree1 _].
+    apply_clear Hdtree1 in Hedge.
+    destruct Hedge as [l0 [chain0 [Hin Hedge]]].
+    exists chain0.
+    split; auto.
+      apply compute_sdom_chains_spec in Hin.    
+      destruct Hin as [[dts0 [Hin Heq]] ?]; subst chain0.
+      subst. apply IdomSorted.dom__imm_sorted; auto.
+  Case "2".
+    subst dt. apply create_dtree__disjoint_children_dtree.
+  Case "3".
+    apply create_dtree___reachable_dtree.
+Qed.
+
 End create_dtree__wf_dtree.
 
+
+(*
 Module PositiveDT <: UsualDecidableType with Definition t := positive.
 
   Definition t := positive.
@@ -288,3 +348,4 @@ Proof.
   unfold in_dtree_dom__in_dtree_insert_dom_prop in H. auto.
 Qed.
 
+*)

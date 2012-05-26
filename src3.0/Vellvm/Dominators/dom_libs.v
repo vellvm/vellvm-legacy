@@ -4,62 +4,6 @@ Require Import Maps.
 Require Import infrastructure_props.
 Require Import Program.Tactics.
 
-Lemma Pnlt__Pgt_Peq : forall n m: positive, 
-  ~ ((n < m)%positive) -> (n > m)%positive \/ (n = m)%positive.
-Proof.
-  unfold BinPos.Plt, Pgt.
-  intros.
-  remember ((n ?= m)%positive Eq) as R.
-  destruct R; try solve [congruence | auto].
-    symmetry in HeqR.
-    apply Pcompare_Eq_eq in HeqR. auto.
-Qed.
-
-Lemma Pgt_trans : forall (n m p : positive)
-  (H1: (n > m)%positive) (H2: (m > p)%positive), (n > p)%positive.
-Proof.
-  unfold Pgt; intros.
-  apply ZC2. apply ZC1 in H1. apply ZC1 in H2.
-  eapply Plt_trans; eauto.
-Qed.
-
-Lemma Plt_succ: forall (x: positive), (x < (Psucc x))%positive.
-Proof. apply Pcompare_p_Sp. Qed.
-
-Hint Resolve Plt_lt_succ Plt_succ Plt_trans: positive.
-
-Lemma order_lt_order: forall p x (Horder : (p > x)%positive) l0
-  (Horder : Forall (Plt p) l0),
-  Forall (Plt x) l0.
-Proof.
-  induction 2; simpl; intros; constructor; auto.
-    eapply Plt_trans; eauto.
-    apply ZC1. auto.
-Qed.
-
-Lemma Plt_Sorted__StronglySorted: forall l1 (Hsort: Sorted Plt l1), 
-  StronglySorted Plt l1.
-Proof.
-  intros.
-  apply Sorted_StronglySorted; auto.
-   unfold Relations_1.Transitive.
-   eauto with positive.
-Qed.
-
-Lemma Forall_lt__notin: forall Xd Ysdms (H : Forall (Plt Xd) Ysdms),
-  ListSet.set_mem positive_eq_dec Xd Ysdms = false.
-Proof.
-  induction 1; simpl; auto.
-    destruct_if.
-      apply Plt_ne in H. congruence.
-Qed.
-
-Ltac Peqb_eq_tac :=
-repeat match goal with
-| H: Peqb _ _ = true |- _ => eapply Peqb_eq in H; subst
-| |- Peqb _ _ = true => eapply Peqb_eq
-end.
-
 Module Type PNODE_SET.
 
   Variable t: Type.

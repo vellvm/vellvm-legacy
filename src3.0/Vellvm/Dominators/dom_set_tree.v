@@ -134,10 +134,7 @@ match getEntryLabel f, reachablity_analysis f with
 | Some root, Some rd =>
     let dt := AlgDom.dom_query f in
     let chains := compute_sdom_chains dt rd in
-    Some (fold_left
-      (fun acc elt => 
-       let '(_, chain):=elt in create_dtree_from_chain eq_atom_dec acc chain)
-      chains (DT_node root DT_nil))
+    Some (create_dtree_from_chains eq_atom_dec root chains)
 | _, _ => None
 end.
 
@@ -1045,14 +1042,7 @@ Proof.
   remember (reachablity_analysis f) as R.
   destruct R; inv H.
   intros.
-  destruct (fold_left_create_dtree_from_chain__is_dtree_edge__is_chain_edge
-    eq_atom_dec p0 ch0 (compute_sdom_chains (AlgDom.dom_query f) l1)
-    (DT_node l0 DT_nil)) as [J1 J2].
-  split; intros J; auto.
-    apply J1 in J.
-    destruct J as [J | J]; auto.
-      simpl in J. destruct (eq_atom_dec p0 l0); tinv J.
-    apply J2. right. auto.
+  apply create_dtree_from_chains__is_dtree_edge__is_chain_edge.
 Qed.
 
 Definition in_dtree_dom__in_dtree_insert_dom_prop (dt:DTree) :=

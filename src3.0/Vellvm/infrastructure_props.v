@@ -3143,6 +3143,17 @@ Proof.
     split; intro J; auto with datatypes v62.      
 Qed.
 
+Lemma cons_last: forall A (hd:A) tl, 
+  exists pre, exists last, hd::tl = pre++[last].
+Proof.
+  intros.
+  assert (hd::tl <> nil) as Hnnil.
+    congruence.
+  apply exists_last in Hnnil.
+  destruct Hnnil as [? [? ?]].
+  eauto.
+Qed.
+
 Lemma inGetBlockIDs__lookupBlockViaIDFromFdef: forall id1 b f,
   uniqFdef f -> In id1 (getBlockIDs b) -> blockInFdefB b f = true ->
   lookupBlockViaIDFromFdef f id1 = Some b.

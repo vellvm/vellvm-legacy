@@ -879,6 +879,18 @@ Proof.
     congruence.
 Qed.
 
+Lemma entry_no_preds: forall (S : system) (M : module) (f : fdef)
+  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f) le 
+  (Hentry: getEntryLabel f = Some le),
+  (XATree.make_predecessors (successors f)) !!! le = nil.
+Proof.
+  intros.
+  apply wf_fdef__wf_entry in HwfF; auto.
+  apply getEntryLabel__getEntryBlock in Hentry.
+  destruct Hentry as [[le' ? ? ?] [Hentry' EQ]]; 
+    simpl in EQ; subst le'; rewrite Hentry' in HwfF; auto.
+Qed.
+
 Lemma getEntryBlock_inv': forall (S : system) (M : module) (f : fdef)
   (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f),
   forall (l3 l' : l) (ps : phinodes) (cs : cmds) (tmn : terminator),

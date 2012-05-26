@@ -490,6 +490,7 @@ End rt_idom__sdom_ordered.
 End Cfg. End Cfg.
 
 Module ACfg := Cfg(ATree).
+Module PCfg := Cfg (PTree).
 
 Import LLVMsyntax.
 Import LLVMinfra.

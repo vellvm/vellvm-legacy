@@ -1234,8 +1234,6 @@ End Inequations. End Inequations.
 Require Import Dipaths.
 Require Import cfg.
 
-Module PCfg := Cfg (PTree).
-
 Section Domination.
 
 Variable successors: PTree.t (list positive).
@@ -2270,82 +2268,6 @@ Qed.
 
 Require Import dom_decl.
 
-Lemma Plt_Sorted__rev_Pgt_Sorted: forall dts (Hsort : Sorted Plt dts),
-  Sorted Pgt (rev dts).
-Proof.
-  induction 1; simpl; auto.
-    apply sorted_append; auto.
-      intros.
-      rewrite <- rev_involutive in H at 1.
-      rewrite H0 in H. rewrite rev_unit in H. inv H. 
-      apply ZC2 in H2. auto.
-Qed.
-
-Lemma Pgt_Sorted__StronglySorted: forall l1 (Hsort: Sorted Pgt l1), 
-  StronglySorted Pgt l1.
-Proof.
-  intros.
-  apply Sorted_StronglySorted; auto.
-   unfold Relations_1.Transitive.
-   apply Pgt_trans.
-Qed.
-
-Lemma Forall_split: forall A (R:A->Prop) ls2 ls1
-  (Hst: Forall R (ls1++ls2)),
-  Forall R ls1 /\ Forall R ls2.
-Proof.
-  induction ls1; simpl; intros.
-    split; auto. 
-
-    inv Hst. 
-    split; try tauto. 
-      constructor; try tauto.     
-Qed.
-
-Lemma StronglySorted_split: forall A (R:A->A->Prop) ls2 ls1
-  (Hst: StronglySorted R (ls1++ls2)),
-  StronglySorted R ls1 /\ StronglySorted R ls2.
-Proof.
-  induction ls1; simpl; intros.
-    split; auto. 
-      constructor.
-
-    inv Hst. 
-    apply Forall_split in H2.
-    split; try tauto. 
-      constructor; try tauto.
-Qed.
-
-Lemma StronglySorted__R_front_back: forall A (R:A->A->Prop) ls2 ls1
-  (Hst: StronglySorted R (ls1++ls2)) a1 a2 (Hin1: In a1 ls1) (Hin2: In a2 ls2),
-  R a1 a2.
-Proof.
-  induction ls1; simpl; intros.
-    tauto.
-
-    inv Hst.
-    destruct Hin1 as [Hin1 | Hin1]; subst; eauto.
-      eapply Forall_forall in H2; eauto with datatypes v62.
-Qed.
-
-Lemma Forall_rev_cons: forall A n (R:A->Prop) (Hp: R n) ls1 (H1: Forall R ls1),
-  Forall R (ls1 ++ [n]).
-Proof.
-  induction 2; simpl; intros; constructor; auto.
-Qed.
-
-Lemma StronglySorted_rev_cons: forall A (R:A->A->Prop) n ls1 
-  (Hst: StronglySorted R ls1) (Hp: Forall (fun a => R a n) ls1),
-  StronglySorted R (ls1++[n]).
-Proof.
-  induction ls1; simpl; intros.
-    constructor; auto.
-
-    inv Hst. inv Hp.
-    constructor; auto.
-      apply Forall_rev_cons; auto. 
-Qed.
-
 Lemma noone_sdom_entry: forall successors entrypoint n
   (Hincfg: in_cfg successors entrypoint)
   (Hnopred: (XPTree.make_predecessors successors) ??? entrypoint = nil)
@@ -2364,38 +2286,6 @@ Proof.
     destruct y.
     apply XPTree.make_predecessors_correct in H1.
     rewrite Hnopred in H1. tauto.
-Qed.
-
-Lemma Pgt_irrefl: forall p, ~ (p>p)%positive.
-Proof.
-  intros. intros J.
-  apply ZC1 in J.
-  contradict J. apply Plt_irrefl.
-Qed.
-
-Lemma Pgt_neq: forall p1 p2, (p1>p2)%positive -> p1 <> p2.
-Proof.
-  intros. intro EQ. subst.
-  eapply Pgt_irrefl; eauto.
-Qed.
-
-Lemma Plt_neq: forall p1 p2, (p1<p2)%positive -> p1 <> p2.
-Proof.
-  intros. intro EQ. subst.
-  eapply Plt_irrefl; eauto.
-Qed.
-
-Hint Resolve Pgt_irrefl Pgt_neq Plt_neq: positive.
-
-Lemma cons_last: forall A (hd:A) tl, 
-  exists pre, exists last, hd::tl = pre++[last].
-Proof.
-  intros.
-  assert (hd::tl <> nil) as Hnnil.
-    congruence.
-  apply exists_last in Hnnil.
-  destruct Hnnil as [? [? ?]].
-  eauto.
 Qed.
 
 Module IdomSorted. Section IdomSorted.
@@ -2579,13 +2469,6 @@ Qed.
 
 Hypothesis Hnopred: (XPTree.make_predecessors successors) ??? entrypoint = nil.
 
-Lemma Hnopres': forall (a0 : PTree.elt)
-  (Hin: In entrypoint (PCfg.XTree.successors_list successors a0)), False.
-Proof.
-  intros. apply XPTree.make_predecessors_correct in Hin. 
-  rewrite Hnopred in Hin. tauto.
-Qed.
-
 Lemma sdom_sorted__imm_sorted: forall n dts dts0
   (Hcomplete: forall n' 
                 (Hsdom: PCfg.strict_domination successors entrypoint n' n),
@@ -2633,7 +2516,8 @@ Proof.
             rewrite_env ((dts0++a::(b::dts)) ++ [n]) in Hsdsort.
             apply StronglySorted__R_front_back with (a1:=b)(a2:=n) in Hsdsort; 
               simpl; auto with datatypes v62.
-            eapply PCfg.sdom_tran; eauto using positive_eq_dec, Hnopres'.
+            eapply PCfg.sdom_tran; 
+              eauto using positive_eq_dec, XPTree.no_preds__notin_succs.
           apply Hcomplete in Hsdom'.
           destruct_in Hsdom'.
           SSSCase "2.1".
@@ -2660,7 +2544,8 @@ Proof.
                    xsolve_in_list.
                 assert (PCfg.strict_domination successors entrypoint l0 l0) as 
                   Hsdom0.
-                  eapply PCfg.sdom_tran; eauto using positive_eq_dec, Hnopres'.
+                  eapply PCfg.sdom_tran; 
+                    eauto using positive_eq_dec, XPTree.no_preds__notin_succs.
                 eapply PCfg.sdom_isnt_refl in Hsdom0; eauto using positive_eq_dec.
                   congruence.
                   apply Hsound; auto with datatypes v62.
@@ -2745,7 +2630,8 @@ Proof.
       eapply DomsInParents.in_dom__reachable with (dts:=a::dts); 
          try solve [congruence | eauto with datatypes v62].
       unfold pdom_analyze. rewrite Heq'. eauto.
-    eapply PCfg.dom_acyclic in Hsort; eauto using positive_eq_dec, Hnopres'.
+    eapply PCfg.dom_acyclic in Hsort;
+      eauto using positive_eq_dec, XPTree.no_preds__notin_succs.
       tauto.
   Case "2".
     eapply sdom_of_reachable_is_in_cfg; eauto.

@@ -10,7 +10,7 @@ Require Import cfg.
 Require Import dom_decl.
 Require Import reach.
 Require Import Dipaths.
-
+Require Import dom_tree.
 Require Import syntax.
 Require Import infrastructure.
 Require Import infrastructure_props.
@@ -208,3 +208,38 @@ Proof.
 Qed.
 
 End AlgDom_Properties.
+
+Module Type ALGDOM_WITH_TREE.
+
+Include Type ALGDOM.
+
+Parameter create_dom_tree : fdef -> option (@DTree l).
+
+Axiom dtree_edge_iff_idom: forall (f:fdef)
+  (Hok: dom_analysis_is_successful f)
+  (dt: @DTree l)
+  (Hcreate: create_dom_tree f = Some dt)
+  (le:l) (Hentry: getEntryLabel f = Some le)
+  (Hnopreds: (XATree.make_predecessors (successors f)) !!! le = nil)
+  (Hwfcfg: forall (p : l) (ps0 : phinodes) (cs0 : cmds) 
+                  (tmn0 : terminator) (l2 : l),
+           blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
+           In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f)),
+  forall p0 ch0,
+    is_dtree_edge eq_atom_dec dt p0 ch0 = true <-> 
+      (imm_domination f p0 ch0 /\ reachable f ch0).
+
+Axiom create_dom_tree__wf_dtree: forall (f:fdef)
+  (Hok: dom_analysis_is_successful f)
+  (dt: @DTree l)
+  (Hcreate: create_dom_tree f = Some dt)
+  (le:l) (Hentry: getEntryLabel f = Some le)
+  (Hnopreds: (XATree.make_predecessors (successors f)) !!! le = nil)
+  (Hwfcfg: forall (p : l) (ps0 : phinodes) (cs0 : cmds) 
+                  (tmn0 : terminator) (l2 : l),
+           blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
+           In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f)),
+  ADProps.wf_dtree (successors f) le eq_atom_dec dt.
+
+End ALGDOM_WITH_TREE.
+

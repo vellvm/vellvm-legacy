@@ -9,28 +9,23 @@ open Arg
 
 let dom_type = ref 0
 let gen_dtree = ref true
+let only_pdtree = ref false
 
 let slow_dom f =
   match LLVMinfra.getEntryBlock f with
     | Some b ->
-        (match Analysis.reachablity_analysis f with
-          | Some rd ->
-             let b0 = Cfg.bound_fdef f in
-             let dts = Dom_set.AlgDom.dom_query f in
-             ignore(print_dominators b0 dts);
-             if !gen_dtree then
-               begin
-                 let LLVMsyntax.Coq_block_intro (root, _, _, _) = b in
-                 let chains = Dom_set_tree.compute_sdom_chains dts rd in
-                 let dt = List.fold_left
-                            (fun acc elt ->
-                             let y,chain = elt in
-                             Dom_tree.create_dtree_from_chain 
-                               MetatheoryAtom.AtomImpl.eq_atom_dec acc chain)
-                             (Dom_tree.DT_node (root, Dom_tree.DT_nil)) chains in
-                 ignore(print_dtree (fun a->a) dt)
-               end
-          | None -> ())
+       let b0 = Cfg.bound_fdef f in
+       let dts = Dom_set.AlgDom.dom_query f in
+       ignore(print_dominators b0 dts);
+       if !gen_dtree then
+           (match Analysis.reachablity_analysis f with
+            | Some rd ->
+               let LLVMsyntax.Coq_block_intro (root, _, _, _) = b in
+               let chains = Dom_set_tree.compute_sdom_chains dts rd in
+               let dt = Dom_tree.create_dtree_from_chains 
+                          MetatheoryAtom.AtomImpl.eq_atom_dec root chains in
+               ignore (print_dtree (fun a->a) dt)
+           | None -> ())
      | None -> ()
 
 let print_doms (dms: Push_iter.LDoms.t PMap.t) =
@@ -50,14 +45,30 @@ let pull_dom f =
 
 let push_dom f =
   let (dts, a2p) = Dom_list.dom_analyze f in 
+  if (!Globalstates.print_dtree) then (ignore (print_doms dts))
+
+let push_adtree f =
+  match Dom_list.AlgDom'.create_dom_tree f with
+  | Some dt -> if (!Globalstates.print_dtree) 
+               then ignore (print_dtree (fun a -> a) dt)
+  | None -> ()
+
+let push_pdtree f =
+  let (dts, a2p) = Dom_list.dom_analyze f in 
   if (!Globalstates.print_dtree) then (ignore (print_doms dts));
-  if !gen_dtree then
-    match Dom_list.create_dom_tree f dts a2p with
-      | None -> ()
-      | Some dt -> 
+  match LLVMinfra.getEntryLabel f with
+  | Some le ->
+     (match ATree.get le a2p with
+      | Some pe -> 
+          let res = fun p -> PMap.get p dts in
+          let pdt = Dom_list_tree.create_dtree pe 
+                      (Dom_list.get_reachable_nodes (Cfg.bound_fdef f) a2p) 
+                      res in
           if (!Globalstates.print_dtree) 
           then ignore (print_dtree 
-                         (fun a -> sprintf "%ld" (camlint_of_positive a)) dt)
+                         (fun a -> sprintf "%ld" (camlint_of_positive a)) pdt)
+      | None -> ())
+  | None -> ()
 
 let dom_product g =
   match g with
@@ -66,7 +77,9 @@ let dom_product g =
         (LLVMsyntax.Coq_fheader_intro (_, _, fid, _, _), _) as f) -> 
       (if (!Globalstates.print_dtree) then eprintf "Dom %s:\n" fid);
       (match !dom_type with
-	| 0 -> push_dom f 
+	| 0 -> if !gen_dtree then 
+                 (if !only_pdtree then push_pdtree f else push_adtree f)
+               else push_dom f 
 	| 1 -> pull_dom f 
 	| 2 -> slow_dom f      
 	| _ -> ())
@@ -96,6 +109,7 @@ let argspec = [
   ("-d", Set Globalstates.print_dtree, "debug. Default=false");
   ("-type", Set_int dom_type, "0:push; 1:pull; 2:slow; others:llvm. Default=0");
   ("-notree", Set gen_dtree, "Do not generate dom-tree explicitly. Default=true");
+  ("-only-pdtree", Set only_pdtree, "Only generate positive dtree. Default=false");
 ]
 
 let worklist = ref []
