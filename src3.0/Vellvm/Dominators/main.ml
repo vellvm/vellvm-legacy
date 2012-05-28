@@ -108,7 +108,7 @@ let main in_filename =
 let argspec = [
   ("-d", Set Globalstates.print_dtree, "debug. Default=false");
   ("-type", Set_int dom_type, "0:push; 1:pull; 2:slow; others:llvm. Default=0");
-  ("-notree", Set gen_dtree, "Do not generate dom-tree explicitly. Default=true");
+  ("-notree", Clear gen_dtree, "Do not generate dom-tree explicitly. Default=true");
   ("-only-pdtree", Set only_pdtree, "Only generate positive dtree. Default=false");
 ]
 
