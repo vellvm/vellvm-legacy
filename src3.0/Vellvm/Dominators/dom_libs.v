@@ -3,6 +3,7 @@ Require Import Metatheory.
 Require Import Maps.
 Require Import infrastructure_props.
 Require Import Program.Tactics.
+Require Import Program.Equality.
 
 Module Type PNODE_SET.
 
@@ -28,7 +29,7 @@ End PNODE_SET.
 Require Import FSets.
 Require Import FSetAVL.
 Require Import Ordered.
-
+(* Require Import FSets.FSetPositive. *)
 Module PositiveSet := FSetAVL.Make(OrderedPositive).
 Module PositiveSetFacts := FSetFacts.Facts(PositiveSet).
 
@@ -84,7 +85,7 @@ Module PNodeSetMax <: PNODE_SET.
     (* base case *)
     intros. rewrite PTree.gempty in H. congruence.
     (* inductive case *)
-    intros. rewrite PTree.gsspec in H2. rewrite add_spec.
+    intros. rewrite PTree.gsspec in H2. apply add_spec.
     destruct (peq n k). auto. eauto.
   Qed.
 
@@ -135,7 +136,7 @@ Module PNodeSetMax <: PNODE_SET.
     (* base case *)
     intros. apply PositiveSet.empty_1 in H. tauto.
     (* inductive case *)
-    intros. rewrite PTree.gsspec. rewrite add_spec in H2.
+    intros. rewrite PTree.gsspec. apply add_spec in H2.
     destruct (peq n k); eauto.
       destruct H2 as [H2 | H2]; subst.
         congruence.
@@ -196,7 +197,7 @@ Module PNodeSetMin <: PNODE_SET.
     (* base case *)
     intros. rewrite PTree.gempty in H. congruence.
     (* inductive case *)
-    intros. rewrite PTree.gsspec in H2. rewrite add_spec.
+    intros. rewrite PTree.gsspec in H2. apply add_spec.
     destruct (peq n k). auto. eauto.
   Qed.
 End PNodeSetMin.
@@ -214,7 +215,7 @@ Module Type MERGE.
   Hypothesis merge_spec: forall Xsdms Ysdms rl changed 
     (Hmerge: merge Xsdms Ysdms = (rl, changed)),
     sublist rl Xsdms /\ sublist rl Ysdms /\
-    (changed = false -> rl = Xsdms).
+    (changed = false <-> rl = Xsdms).
   Hypothesis merge_commut: forall Xsdms Ysdms rl changed rl' changed'
     (Hmerge: merge Xsdms Ysdms = (rl, changed))
     (Hmerge': merge Ysdms Xsdms = (rl', changed')),
@@ -311,7 +312,8 @@ Module MergeLt <: MERGE.
     exists rl3, rl2 = rl3 ++ rl1 /\ 
                 sublist (List.rev rl3) Xsdms /\
                 sublist (List.rev rl3) Ysdms /\
-                (changed2 = false -> (List.rev rl3) = Xsdms) /\
+                (changed2 = false -> List.rev rl3 = Xsdms) /\
+                (List.rev rl3 = Xsdms -> changed2 = changed1) /\
                 (changed1 = true -> changed2 = true).
 
   Ltac fold_merge_aux :=
@@ -354,25 +356,27 @@ Module MergeLt <: MERGE.
       destruct Cmp; subst.
         apply Hrec with (y:=(length Xsdms + length Ysdms)%nat) in Hmerge; 
           try solve [simpl; omega].
-        destruct Hmerge as [rl3 [J1 [J2 [J3 [J4 J5]]]]].
+        destruct Hmerge as [rl3 [J1 [J2 [J3 [J4 [J5 J6]]]]]].
         subst.
         exists (rl3++[Xd]). simpl_env.
         rewrite rev_app_distr. simpl. 
         uniq_result'.
         repeat (split; try solve [auto | constructor; auto]).
-          crush.
+          intro J. apply J4 in J. f_equal; auto.
+          intro J. inv J. auto.
         
         apply Hrec with (y:=(length Xsdms + S (length Ysdms))%nat) in Hmerge; 
            try solve [simpl; omega].
-        destruct Hmerge as [rl3 [J1 [J2 [J3 [J4 J5]]]]].
+        destruct Hmerge as [rl3 [J1 [J2 [J3 [J4 [J5 J6]]]]]].
         subst.
         exists rl3. 
         repeat (split; try solve [auto | constructor; auto]).
-          crush.
+          intro J. assert (J':=J). apply J4 in J. apply J5 in J. congruence.
+          intro J. rewrite J in J2. apply sublist_cons_false in J2. tauto.
         
         apply Hrec with (y:=(S (length Xsdms) + length Ysdms)%nat) in Hmerge; 
            try solve [simpl; omega].
-        destruct Hmerge as [rl3 [J1 [J2 [J3 [J4 J5]]]]].
+        destruct Hmerge as [rl3 [J1 [J2 [J3 [J4 [J5 J6]]]]]].
         subst.
         exists rl3. 
         repeat (split; try solve [auto | constructor; auto]).
@@ -384,6 +388,7 @@ Module MergeLt <: MERGE.
                 sublist (List.rev rl3) Xsdms /\
                 sublist (List.rev rl3) Ysdms /\
                 (changed2 = false -> (List.rev rl3) = Xsdms) /\
+                (List.rev rl3 = Xsdms -> changed2 = changed1) /\
                 (changed1 = true -> changed2 = true).
   Proof.
     intros.
@@ -399,7 +404,7 @@ Module MergeLt <: MERGE.
   Lemma merge_spec: forall Xsdms Ysdms rl changed 
     (Hmerge: merge Xsdms Ysdms = (rl, changed)),
     sublist rl Xsdms /\ sublist rl Ysdms /\
-    (changed = false -> rl = Xsdms).
+    (changed = false <-> rl = Xsdms).
   Proof.
     unfold merge.
     intros.
@@ -807,6 +812,9 @@ Proof.
   unfold in_incr; intros. apply L.ge_trans with in2??n; auto.
 Qed.
 
+Definition eq bd (in1 in2: PMap.t L.t) : Prop :=
+  forall n (Hin: In n bd), L.eq in2??n in1??n.
+
 End LATTICEELT_MAP.
 
 Module Doms (MG:MERGE) <: LATTICEELT.
@@ -1041,11 +1049,32 @@ Module Doms (MG:MERGE) <: LATTICEELT.
         destruct_let. uniq_result.
         symmetry in HeqR.
         apply MG.merge_spec in HeqR. 
-        destruct_conjs. f_equal. rewrite H1; auto.
+        destruct_conjs. f_equal. symmetry. apply H1; auto.
 
         intros. subst. simpl in Hlub. congruence.
 
       intros Hgety. subst.
+      caseEq x; intros; subst; simpl in *; try congruence.
+  Qed.
+
+  Lemma lub_changed_neq_left: forall x y r (Hlub: lub x y = (r, true)),
+    x <> r.
+  Proof.
+    intros.
+    caseEq y.
+      intros Ysdms Hgety. subst.
+      caseEq x; simpl.
+        intros Xsdms Hgetx. subst.
+        simpl in *.
+        destruct_let. uniq_result.
+        symmetry in HeqR.
+        apply MG.merge_spec in HeqR. 
+        destruct_conjs. intro J. inv J.
+        assert (l=l) as EQ. auto.
+        apply H1 in EQ. congruence.
+
+        intros. subst. simpl in Hlub. congruence.
+       intros Hgety. subst.
       caseEq x; intros; subst; simpl in *; try congruence.
   Qed.
 
@@ -1056,6 +1085,13 @@ Module Doms (MG:MERGE) <: LATTICEELT.
     destruct x as [x|]; destruct y as [y|]; auto.
       simpl in *. auto with sublist.
   Qed.
+
+  Definition gt (x y: t) : Prop :=
+  match x, y with
+  | Some _, None => True
+  | Some x', Some y' => sublist x' y' /\ exists a, In a y' /\ ~ In a x'
+  | _, _ => False
+  end.
 
 End Doms.
 
