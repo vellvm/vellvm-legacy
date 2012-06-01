@@ -423,6 +423,8 @@ Qed.
 
 End WorklistProps. End WorklistProps.
 
+(*******************************************************************)
+
 Module InitOrder. Section InitOrder.
 
 Variable successors: PTree.t (list positive).
