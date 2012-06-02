@@ -135,8 +135,8 @@ Section create_dtree__wf_dtree.
 
 Variable dts: PMap.t LDoms.t.
 Variable psuccs: PTree.t (list positive).
-Variable pe: positive.
-Hypothesis Hanalyze: pdom_analyze psuccs pe = dts.
+Variable pe ni: positive.
+Hypothesis Hanalyze: pdom_analyze psuccs pe ni = dts.
 Variable res: positive -> LDoms.t.
 Hypothesis Hquery: res = fun p:positive => PMap.get p dts.
 Variable rd: list positive.
@@ -149,7 +149,7 @@ Definition predecessors := XPTree.make_predecessors psuccs.
 Hypothesis wf_order: forall n (Hneq: n <> pe)
   (Hincfg: XPTree.in_cfg psuccs n),
   exists p, In p (predecessors ??? n) /\ (p > n)%positive.
-Hypothesis Hok: pdom_analysis_is_successful psuccs pe.
+Hypothesis Hok: (ni >= Termination.num_iters psuccs)%positive.
 Hypothesis Hnopred: (XPTree.make_predecessors psuccs) ??? pe = nil.
 
 Lemma dtree_edge_iff_idom: forall p0 ch0,
@@ -168,7 +168,7 @@ Proof.
     destruct Hin as [[dts0 [Hin Heq]] ?]; subst chain0.
     assert (Sorted (PCfg.imm_domination psuccs pe) (rev (l0::dts0))) 
       as Hsort.
-      subst. apply IdomSorted.dom__imm_sorted; auto.
+      subst. eapply IdomSorted.dom__imm_sorted; eauto.
     split.
     SCase "1.1".
       eapply chain_edge_sorted; eauto.
@@ -179,16 +179,16 @@ Proof.
       apply rev_non_nil in Hnnil.      
       subst dts res.
       assert (Hreach0:=Hin).
-      apply UnreachableDoms.nonempty_is_reachable in Hreach0; auto.
+      apply PDomProps.nonempty_is_reachable in Hreach0; auto.
       destruct_in Hin2.
         apply in_rev in Hin2.
-        eapply DomsInParents.in_dom__reachable; eauto.
+        eapply PDomProps.in_dom__reachable; eauto.
 
         destruct_in Hin2.
   Case "2".
     apply Hdtree2.
     destruct J as [J1 J2].
-    apply IdomSorted.imm_dom__at_head in J1; auto.
+    eapply IdomSorted.imm_dom__at_head in J1; eauto.
     destruct J1 as [dts0 J1].
     rewrite Hanalyze in J1.
     exists ch0. exists (rev (ch0::p0::dts0)).
@@ -228,7 +228,7 @@ Proof.
     simpl in Hinp.
     destruct_in Hinp.
       apply in_rev in Hinp.
-      eapply DomsInParents.in_dom__reachable; eauto.
+      eapply PDomProps.in_dom__reachable; eauto.
     
       destruct_in Hinp.
       apply Hreach; auto.
@@ -248,7 +248,7 @@ Proof.
     split; auto.
       apply compute_sdom_chains_spec in Hin.    
       destruct Hin as [[dts0 [Hin Heq]] ?]; subst chain0.
-      subst. apply IdomSorted.dom__imm_sorted; auto.
+      subst. eapply IdomSorted.dom__imm_sorted; eauto.
   Case "2".
     subst dt. apply create_dtree__disjoint_children_dtree.
   Case "3".
@@ -257,95 +257,3 @@ Qed.
 
 End create_dtree__wf_dtree.
 
-
-(*
-Module PositiveDT <: UsualDecidableType with Definition t := positive.
-
-  Definition t := positive.
-
-  Definition eq := @eq positive.
-  Definition eq_refl := @refl_equal positive.
-  Definition eq_sym := @sym_eq positive.
-  Definition eq_trans := @trans_eq positive.
-
-  Definition eq_dec := positive_eq_dec.
-
-End PositiveDT.
-
-Module Import PositiveSetImpl : FSetExtra.WSfun PositiveDT :=
-  FSetExtra.Make PositiveDT.
-
-Notation positives :=
-  PositiveSetImpl.t.
-
-Module Import PositiveSetDecide := 
-  CoqFSetDecide.WDecide_fun PositiveDT PositiveSetImpl.
-
-Module Export PositiveSetNotin := FSetWeakNotin.Notin_fun PositiveDT PositiveSetImpl.
-
-Module PositiveSetFacts := FSetFacts.WFacts_fun PositiveDT PositiveSetImpl.
-Module PositiveSetProperties := 
-  FSetProperties.WProperties_fun PositiveDT PositiveSetImpl.
-
-Fixpoint dtree_dom (dt: DTree) : positives :=
-match dt with
-| DT_node l0 dts0 => union (singleton l0) (dtrees_dom dts0)
-end
-with dtrees_dom (dts: @DTrees positive) : positives :=
-match dts with
-| DT_nil => PositiveSetImpl.empty
-| DT_cons dt0 dts0 => union (dtree_dom dt0) (dtrees_dom dts0)
-end.
-
-Definition in_dtree_dom__in_dtree_insert_dom_prop (dt:DTree) :=
-forall i0 p ch tl,
-  In i0 (dtree_dom dt) -> 
-  In i0 (dtree_dom (dtree_insert positive_eq_dec dt p ch tl)).
-
-Definition in_dtrees_dom__in_dtrees_insert_dom_prop (dts:DTrees) :=
-forall i0 ch tl,
-  In i0 (dtrees_dom dts) -> 
-  In i0 (dtrees_dom (dtrees_insert positive_eq_dec dts ch tl)).
-
-Lemma in_dtree_dom__in_dtree_insert_dom_mutrec :
-  (forall dt, in_dtree_dom__in_dtree_insert_dom_prop dt) *
-  (forall dts, in_dtrees_dom__in_dtrees_insert_dom_prop dts).
-Proof.
-  apply dtree_mutrec;
-    unfold in_dtree_dom__in_dtree_insert_dom_prop,
-           in_dtrees_dom__in_dtrees_insert_dom_prop;
-    simpl; intros.
-  Case "DT_node".
-  destruct (positive_eq_dec p a); subst; simpl; auto.
-    apply PositiveSetFacts.union_iff in H0.
-    apply PositiveSetFacts.union_iff. 
-    destruct H0; auto.
-  Case "DT_nil".
-  contradict H. auto.
-  Case "DT_cons".
-  apply PositiveSetFacts.union_iff in H1.
-  destruct d as [l0 ?].
-  destruct_if; simpl.
-    SCase "1".
-    destruct tl; simpl.
-      SSCase "1.1".
-      apply PositiveSetFacts.union_iff. 
-      destruct H1 as [H1 | H1]; auto.
-      SSCase "1.2".
-      apply PositiveSetFacts.union_iff. 
-      destruct H1 as [H1 | H1]; auto.
-        left. apply H; auto.
-    SCase "2".
-    apply PositiveSetFacts.union_iff. 
-    destruct H1 as [H1 | H1]; auto.
-Qed.
-
-Lemma in_dtree_dom__in_dtree_insert_dom: forall dt i0 p ch tl,
-  In i0 (dtree_dom dt) -> 
-  In i0 (dtree_dom (dtree_insert positive_eq_dec dt p ch tl)).
-Proof.
-  destruct in_dtree_dom__in_dtree_insert_dom_mutrec as [H _].
-  unfold in_dtree_dom__in_dtree_insert_dom_prop in H. auto.
-Qed.
-
-*)

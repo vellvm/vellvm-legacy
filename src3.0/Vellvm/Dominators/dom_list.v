@@ -811,15 +811,15 @@ Qed.
 
 Lemma reachable_isnt_bot: forall (l3 : l) (res : PMap.t LDoms.t) 
   (p3 : positive) (pe : positive)
-  (Hpentry : (PO_a2p PO) ! le = Some pe)
-  (H0 : pdom_analyze (asuccs_psuccs (PO_a2p PO) asuccs) pe = res)
+  (Hpentry : (PO_a2p PO) ! le = Some pe) ni
+  (H0 : pdom_analyze (asuccs_psuccs (PO_a2p PO) asuccs) pe ni = res)
   (Hget3 : (PO_a2p PO) ! l3 = Some p3)
   (Hreach3 : ACfg.reachable asuccs le l3)
   (Hwf_porder : wf_porder pe),
   exists dts3 : list positive, res ?? p3 = Some dts3.
 Proof.
   intros.
-  apply DomSound.reachable_isnt_bot with (n:=p3) in Hwf_porder.
+  apply DomSound.reachable_isnt_bot with (n:=p3) (ni:=ni) in Hwf_porder; auto.
     simpl in Hwf_porder. rewrite H0 in Hwf_porder.
     unfold LDoms.bot in Hwf_porder.
     destruct (res ?? p3); eauto. congruence.
@@ -881,9 +881,9 @@ Qed.
 
 Lemma reachable_isnt_bot': forall (l3: l) (pe : positive)
   (p2 : PTree.elt) (J2 : (PO_a2p PO) ! l3 = Some p2) 
-  (J3 : (PO_a2p PO) ! le = Some pe),
+  (J3 : (PO_a2p PO) ! le = Some pe) ni,
   exists dts2 : list positive,
-    (pdom_analyze (asuccs_psuccs (PO_a2p PO) asuccs) pe) ?? p2 = Some dts2.
+    (pdom_analyze (asuccs_psuccs (PO_a2p PO) asuccs) pe ni) ?? p2 = Some dts2.
 Proof.
   intros.
   assert (Hwf_porder:=J3).
@@ -1192,7 +1192,7 @@ Definition dom_analyze (f: fdef) : PMap.t LDoms.t * ATree.t positive :=
       let '(mkPO _ a2p) := dfs asuccs le 1%positive in
       let psuccs := asuccs_psuccs a2p asuccs in
       match ATree.get le a2p with
-      | Some pe => (pdom_analyze psuccs pe, a2p)
+      | Some pe => (pdom_analyze psuccs pe (num_iters f), a2p)
       | None => (PMap.init LDoms.top, ATree.empty _)
       end
   | None => (PMap.init LDoms.top, ATree.empty _)
@@ -1370,20 +1370,98 @@ Qed.
 
 End in_ps__in_ps2as.
 
-Module AlgDom' : ALGDOM_WITH_TREE.
+Section Num_iters__is__large_enough.
 
-Definition dom_analysis_is_successful (f: fdef) : Prop :=
-  let asuccs := cfg.successors f in
-  match LLVMinfra.getEntryLabel f with
-  | Some le =>
-      let '(mkPO _ a2p) := dfs asuccs le 1%positive in
-      let psuccs := asuccs_psuccs a2p asuccs in
-      match ATree.get le a2p with
-      | Some pe => pdom_analysis_is_successful psuccs pe
-      | None => False
-      end
-  | None => False
-  end.
+Variable f:fdef.
+Variable PO: PostOrder.
+Variable le: l.
+Hypothesis Hentry: getEntryLabel f = Some le.
+Hypothesis Hdfs: dfs (successors f) le 1 = PO.
+Hypothesis Huniq: uniqFdef f.
+Hypothesis branches_in_bound_fdef: forall p ps0 cs0 tmn0 l2
+  (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
+  (J4 : In l2 (successors_terminator tmn0)),
+  In l2 (bound_fdef f).
+
+Lemma num_iters__is__large_enough:
+  (num_iters f >= 
+     Termination.num_iters (asuccs_psuccs (PO_a2p PO) (successors f)))%positive.
+Proof.
+  intros. 
+  assert (NoDup (XATree.elements_of_cfg (successors f) eq_atom_dec)) as Hpnodup.
+    apply remove_redundancy_NoDup; auto.
+  assert (NoDup (bound_fdef f)) as Hnodupf.
+    apply uniqFdef__NoDup_bounds_fdef; auto.
+  assert (J:=elements_of_acfg__eq__bound).
+  eapply NoDup_set_eq_length_eq in J; eauto using eq_atom_dec.
+  destruct f as [? bs]. simpl.
+  unfold num_iters, Termination.num_iters, pnum_of_blocks_in_fdef,
+         Termination.psize_of_cfg.
+  repeat rewrite plength_of_blocks__eq__P_of_plus_nat.
+  apply Pcubeplus_ge.
+  assert (length 
+           (XPTree.elements_of_cfg 
+             (asuccs_psuccs (PO_a2p PO) (successors_blocks bs)) 
+               positive_eq_dec) <=
+           length (XATree.elements_of_cfg (successors_blocks bs) eq_atom_dec))%nat 
+          as Hle.
+    apply NoDup_incl_inj_length with (f:=fun k => (PO_a2p PO) ! k); 
+      auto using eq_atom_dec.
+      apply remove_redundancy_NoDup; auto.
+
+      intros a1 Hina1.
+      assert (Hincfg: PCfg.vertexes 
+                (asuccs_psuccs (PO_a2p PO) (successors_blocks bs)) (index a1)).
+        apply XPTree.in_elements_of_cfg__in_cfg in Hina1; auto.
+      assert (J1:=Hincfg).
+      apply in_vertexes__get_a2p in J1.
+      destruct J1 as [[b1] J1].
+      exists b1.
+      split; auto.
+        eapply a2p_vertexes in J1; eauto.
+        apply XATree.in_elements_of_cfg__in_cfg.
+        apply J1 in Hincfg; auto.
+  unfold Termination.elements_of_cfg, plength.
+  simpl in *. unfold ATree.elt, PTree.elt in *. rewrite <- J.
+  remember (@length atom (XATree.elements_of_cfg (successors_blocks bs) eq_atom_dec)) 
+    as A.
+  remember (@length positive
+             (XPTree.elements_of_cfg
+               (asuccs_psuccs (PO_a2p PO) (successors_blocks bs))
+                  positive_eq_dec)) as B.
+  rewrite <- P_of_plus_one_nat__P_of_succ_nat.
+  change 3%positive with (2+1)%positive.
+  rewrite <- P_of_plus_nat_Pplus_commut.
+  assert (A >= B)%nat as J'. omega.
+  apply P_of_plus_nat__ge with (q:=1%positive) in J'.
+  zify. omega.
+Qed.
+
+End Num_iters__is__large_enough.
+
+Ltac termination_tac2 :=
+let foo a2p f pe :=
+  match goal with
+  | Hdfs : dfs _ _ _ = _ |- _ =>
+    let J := fresh "J" in
+    let dms := fresh "dms" in
+    let Hfix_tmn := fresh "Hfix_tmn" in
+    assert (J:=Hdfs);
+    apply num_iters__is__large_enough in J; auto;
+    eapply Termination.fixpoint_wf with (entrypoint:=pe) in J; 
+      try solve [eauto | eapply dfs_wf_porder in Hdfs; eauto];
+    unfold Termination.entrypoints in J;
+    destruct J as [dms Hfix_tmn]; simpl in Hfix_tmn;
+    rewrite Hfix_tmn in *
+  end in
+match goal with
+| |- context [DomDS.fixpoint (asuccs_psuccs ?a2p (successors ?f)) _ 
+               ((?pe, _)::_) ?ni] => foo a2p f pe
+| _: context [DomDS.fixpoint (asuccs_psuccs ?a2p (successors ?f)) _ 
+             ((?pe, _)::_) ?ni] |- _ => foo a2p f pe
+end.
+
+Module AlgDom' : ALGDOM_WITH_TREE.
 
 Definition p2a_dom p2a bd (res: LDoms.t) : list atom :=
 match res with
@@ -1406,12 +1484,27 @@ bound_dom a2p p2a b dt.
 
 Ltac simpl_dom_query :=
 match goal with
+| Hhasentry: getEntryBlock ?f <> None |- _ =>
+  let Hentry := fresh "Hentry" in
+  let entry := fresh "entry" in
+  case_eq (getEntryBlock f); try solve [intros; try congruence];
+  intros entry Hentry
+| _ => idtac
+end;
+match goal with
 | Hentry : getEntryBlock ?f = Some _ |- _ =>
   apply getEntryBlock__getEntryLabel in Hentry; simpl in Hentry
 | Hentry : getEntryBlock _ = None |- _ =>
   unfold dom_query, dom_analyze, bound_dom;
   apply getEntryBlock__getEntryLabel_none in Hentry;
   rewrite Hentry
+| Hsdom: strict_domination _ _ _ |- _ =>
+  let Hentry := fresh "Hentry" in
+  let entry := fresh "entry" in
+  assert (Hentry:=Hsdom);
+  apply strict_domination__getEntryLabel in Hentry;
+  destruct Hentry as [entry Hentry]
+(*
 | H: dom_analysis_is_successful ?f |- _ =>
   unfold dom_analysis_is_successful in H;
   let Hentry:=fresh "Hentry" in
@@ -1419,6 +1512,7 @@ match goal with
   case_eq (getEntryLabel f); 
     try solve [intro Hentry; rewrite Hentry in H; tauto];
   intros le Hentry
+*)
 | _ => idtac
 end;
 match goal with
@@ -1447,39 +1541,42 @@ Proof.
   simpl. unfold ps2as. auto.
 Qed.
 
+Definition branchs_in_fdef f :=
+  forall (p : l) (ps0 : phinodes) (cs0 : cmds) 
+         (tmn0 : terminator) (l2 : l),
+  blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
+  In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f).
+
 Section entry_doms_others.
 
 Variable f:fdef.
 
+Hypothesis branches_in_bound_fdef: branchs_in_fdef f.
+Hypothesis Huniq: uniqFdef f.
+
 Lemma entry_doms_others: forall entry
-  (Hex: dom_analysis_is_successful f)
   (H: getEntryLabel f = Some entry),
   (forall b (H0: b <> entry /\ cfg.reachable f b),
      ListSet.set_In entry (dom_query f b)).
 Proof.
   intros.
   destruct H0 as [J1 J2].
-  unfold dom_analysis_is_successful in Hex.
   simpl_dom_query.
   case_eq (PO_a2p ! b).
   Case "1".
     intros p Hsome.  
-    unfold pdom_analysis_is_successful in Hex.
     unfold pdom_analyze.
-    remember (DomDS.fixpoint (asuccs_psuccs PO_a2p (cfg.successors f))
-              LDoms.transfer ((pe, LDoms.top) :: nil)) as R.
-    destruct R; try tauto.
-    symmetry in HeqR.
-    apply EntryDomsOthers.fixpoint_wf_doms in HeqR; auto.
+    termination_tac2.
+    apply EntryDomsOthers.fixpoint_wf_doms in Hfix_tmn; auto.
     SCase "1".
-      unfold EntryDomsOthers.wf_doms in HeqR.
+      unfold EntryDomsOthers.wf_doms in Hfix_tmn.
       assert (p <> pe) as Hneq.
         eapply Injective.dfs_inj' with (p1:=p)(p2:=pe)(a1:=entry)(a2:=b) in Hdfs; 
           simpl; eauto.
-      apply HeqR in Hneq.
+      apply Hfix_tmn in Hneq.
       unfold member in Hneq.
       unfold p2a_dom.
-      destruct (t ?? p); simpl.
+      destruct (dms ?? p); simpl.
         eapply in_ps__in_ps2as; eauto using Injective.dfs_inj.
         apply entry_in_bound_fdef; auto.
     SCase "2".
@@ -1505,7 +1602,7 @@ Proof.
       intros p Hsome. 
       unfold pdom_analyze.
       case_eq (DomDS.fixpoint (asuccs_psuccs PO_a2p (cfg.successors f))
-            LDoms.transfer ((pe, LDoms.top) :: nil)).
+            LDoms.transfer ((pe, LDoms.top) :: nil) (num_iters f)).
       SSCase "1.1.1".
         intros t Heq.
         case_eq (t ??p); simpl.
@@ -1515,7 +1612,7 @@ Proof.
           apply in_parents__in_bound_fdef.
           apply in_ps2as__in_ps in Hin.
           destruct Hin as [p' [Hget' Hin]].
-          eapply dom_fix_in_bound in Heq; eauto.
+          eapply DomsInParents.dom_fix_in_bound in Heq; eauto.
           eapply in_pparents__in_aparents; eauto.
         SSSCase "1.1.1.2".
           intros Hget. auto with datatypes v62.
@@ -1607,7 +1704,7 @@ Proof.
       apply in_ps2as__in_ps in Hin.
       destruct Hin as [p1 [Hget1 Hin]].
       apply DomSound.sadom_adom_successors with (n1:=p1)(entrypoint:=pe) 
-        in Hinscs'; auto.
+        (ni:=num_iters (fdef_intro fh bs)) in Hinscs'; auto.
       SSCase "1".
         unfold adomination in Hinscs'. simpl in Hinscs'.
         rewrite Hget3a in Hinscs'.
@@ -1620,7 +1717,7 @@ Proof.
         SSSCase "1.2".
           simpl. right. eapply in_ps__in_ps2as; eauto using Injective.dfs_inj.
       SSCase "2".
-        left. eapply pdom_in_bound; eauto.
+        left. eapply PDomProps.pdom_in_bound; eauto.
       SSCase "3".
         unfold strict_adomination. simpl.
         rewrite Hget'a. simpl. auto.
@@ -1638,14 +1735,14 @@ Qed.
 Section sdom_is_complete.
 
 Variable f:fdef.
+Hypothesis branches_in_bound_fdef: branchs_in_fdef f.
 
 Lemma sdom_is_complete: forall
   (l3 : l) (l' : l) ps cs tmn ps' cs' tmn'
   (HuniqF : uniqFdef f)
-  (Hsucc: dom_analysis_is_successful f)
   (HBinF' : blockInFdefB (block_intro l' ps' cs' tmn') f = true)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hsdom: cfg.strict_domination f l' l3),
+  (Hsdom: strict_domination f l' l3),
   In l' (dom_query f l3).
 Proof.
   intros. 
@@ -1655,14 +1752,15 @@ Proof.
     eapply p2a_strict_domination in Hsdom; eauto.
     destruct Hsdom as [p1 [p2 [pe' [Hsdom [J1 [J2 J3]]]]]].
     simpl in J3. rewrite J3 in Hl2p. inversion Hl2p; subst pe'.
-    apply DomComplete.sadom_is_complete in Hsdom; eauto using entry_in_a2p_cfg.
+    apply PDomProps.sadom_is_complete with (ni:=(num_iters f)) in Hsdom; 
+      eauto using entry_in_a2p_cfg, num_iters__is__large_enough.
     SCase "1".
       unfold strict_adomination in Hsdom.
       simpl in J1, J2, Hsdom.
       rewrite J2. 
       assert (exists dts2, 
-               (pdom_analyze (asuccs_psuccs PO_a2p (asuccs f)) pe) ?? p2=
-                 Some dts2) as Hdts2_some.
+               (pdom_analyze (asuccs_psuccs PO_a2p (asuccs f)) pe (num_iters f)) 
+                 ?? p2= Some dts2) as Hdts2_some.
         eapply reachable_isnt_bot' in Hdfs; eauto.
       destruct Hdts2_some as [dts2 Hdts2_some]. unfold asuccs in *.
       rewrite Hdts2_some in *. simpl in Hsdom.
@@ -1684,11 +1782,11 @@ End sdom_is_complete.
 Section dom_unreachable.
 
 Variable f:fdef.
+Hypothesis branches_in_bound_fdef: branchs_in_fdef f.
 
 Lemma dom_unreachable: forall
-  (Hhasentry: getEntryBlock f <> None) (* useless? *)
+  (Hhasentry: getEntryBlock f <> None)
   (l3 : l) (l' : l) ps cs tmn
-  (Hsucc: dom_analysis_is_successful f)
   (HuniqF: uniqFdef f)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hunreach: ~ cfg.reachable f l3),
@@ -1698,95 +1796,22 @@ Proof.
   simpl_dom_query.
   case_eq (PO_a2p ! l3); auto.
   intros p3 Hget3.
-  apply UnreachableDoms.dom_unreachable with (n3:=p3) in Hsucc; auto.
+  assert (Heq:=Hdfs).
+  eapply entry_in_a2p_cfg with (p:=pe) in Heq; eauto.
+  apply PDomProps.dom_unreachable with (n3:=p3)(ni:=num_iters f) in Heq; 
+    eauto using num_iters__is__large_enough.
   Case "1".
-    case_eq ((pdom_analyze (asuccs_psuccs PO_a2p (cfg.successors f)) pe) ?? p3);
-      try solve [intros l0 Hsome; rewrite Hsome in Hsucc; inv Hsucc | auto].
+    case_eq ((pdom_analyze (asuccs_psuccs PO_a2p (cfg.successors f)) pe
+               (num_iters f)) ?? p3);
+      try solve [intros l0 Hsome; simpl in Heq; unfold asuccs in Heq;
+                 rewrite Hsome in Heq; inv Heq | auto].
   Case "2".
-    eapply entry_in_a2p_cfg in Hdfs; eauto.
+    eapply dfs_wf_porder in Hdfs; eauto.
   Case "3".
     intro J. apply Hunreach. eapply p2a_reachable; eauto.
 Qed.
 
 End dom_unreachable.
-
-Section sound_acyclic.
-
-Variable f : fdef.
-Hypothesis Hhasentry: getEntryBlock f <> None.
-
-Lemma dom_is_sound : forall
-  (l3 : l) (l' : l) ps cs tmn
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin : In l' (l3::(dom_query f l3))),
-  cfg.domination f l' l3.
-Proof.
-  intros.
-  unfold dom_query, dom_analyze in Hin.
-  case_eq (getEntryLabel f); try solve [
-    intro Hnone; apply getEntryBlock__getEntryLabel_none in Hnone; congruence
-  ].
-  intros le Hentry.
-  rewrite Hentry in Hin.
-  case_eq (dfs (cfg.successors f) le 1).
-  intros cnt a2p Hdfs.
-  rewrite Hdfs in Hin.
-  assert (Hdfs_entry:=Hdfs).
-  apply ReachableEntry.dfs_wf in Hdfs_entry.
-  simpl in Hdfs_entry.
-  case_eq (a2p ! le); try solve [intros; congruence].
-  intros pe Hl2p.
-  rewrite Hl2p in Hin.
-  unfold bound_dom in Hin.
-  case_eq (a2p ! l3).
-  Case "l3 is reachable".
-    intros p3 Hget3.
-    rewrite Hget3 in Hin.
-    assert (wf_porder:=Hdfs).
-    eapply dfs_wf_porder in wf_porder; eauto.
-    assert (exists dts3, 
-             (pdom_analyze (asuccs_psuccs a2p (cfg.successors f)) pe) ?? p3 =
-               Some dts3) as Hdts3_some.
-      eapply reachable_isnt_bot' in Hdfs; eauto.
-    destruct Hdts3_some as [dts3 Hdts3_some].
-    rewrite Hdts3_some in Hin. simpl in Hin.
-    assert (exists p', a2p ! l' = Some p') as Hget'. 
-      destruct Hin as [Hin | Hin]; subst; eauto.
-        apply in_ps2as__in_ps in Hin; auto.
-        destruct_conjs; eauto.
-    destruct Hget' as [p' Hget'].
-    apply DomSound.adom_is_sound with (n1:=p')(n2:=p3) in wf_porder; auto.
-    SCase "1".
-      apply a2p_domination with (p1:=p')(p2:=p3)(pe:=pe)(PO:=mkPO cnt a2p)
-        (le:=le); auto.
-        intros.
-        eapply dfs_reachable_iff_get_some in Hdfs; 
-          eauto using le_in_cfg.
-    SSCase "2".
-      destruct Hin as [Hin | Hin]; subst.
-        apply blockInFdefB_in_vertexes in HBinF.
-        eapply get_a2p__in_pcfg; eauto.
-         
-        left. 
-        eapply pdom_in_bound; eauto.
-          apply in_ps2as__in_ps in Hin.
-          destruct_conjs. uniq_result. auto.
-
-    SSCase "3".
-      simpl. unfold adomination, asuccs.
-      rewrite Hdts3_some. simpl.
-      destruct Hin as [Hin | Hin]; subst.
-        uniq_result. auto.
-        apply in_ps2as__in_ps in Hin. 
-        destruct_conjs. uniq_result. auto.
-  Case "l3 is unreachable".
-    intros Hget3.
-    eapply unreachable__get_a2p with (l2:=l3) in Hdfs; eauto.
-    apply Hdfs in Hget3.
-    apply DecDom.everything_dominates_unreachable_blocks; auto.
-Qed.
-
-End sound_acyclic.
 
 Section pres_dom.
 
@@ -1835,6 +1860,15 @@ Proof.
     terminator_match_tac.
 Qed.
 
+Lemma pres_num_iters: forall f, num_iters f = num_iters (ftrans f).
+Proof.
+  destruct f as [fh bs]. 
+  rewrite ftrans_spec. unfold num_iters. simpl.
+  f_equal.
+  generalize 3%positive.
+  induction bs; simpl; intros; auto.
+Qed.
+
 Lemma pres_dom_query: forall (f : fdef) (l5 l0 : l),
   ListSet.set_In l5 (dom_query f l0) <->
   ListSet.set_In l5 (dom_query (ftrans f) l0).
@@ -1844,6 +1878,7 @@ Proof.
   case_eq (getEntryLabel (fdef_intro fh bs)).
     intros b Hentry.
     rewrite pres_getEntryLabel in Hentry.
+    rewrite <- pres_num_iters.
     rewrite Hentry. rewrite ftrans_spec. simpl.
     rewrite <- pres_successors_blocks. 
     rewrite <- pres_bound_blocks.
@@ -1853,24 +1888,6 @@ Proof.
     rewrite pres_getEntryLabel in Hentry.
     rewrite Hentry. rewrite ftrans_spec. simpl.
     rewrite <- pres_bound_blocks. split; auto.
-Qed.
-
-Lemma pres_dom_analysis_is_successful : forall f,
-  dom_analysis_is_successful f <-> 
-    dom_analysis_is_successful (ftrans f).
-Proof.
-  unfold dom_analysis_is_successful.
-  destruct f as [fh bs]. 
-  case_eq (getEntryLabel (fdef_intro fh bs)).
-    intros b Hentry.
-    rewrite pres_getEntryLabel in Hentry.
-    rewrite Hentry. rewrite ftrans_spec. simpl.
-    rewrite <- pres_successors_blocks. split; eauto.
-
-    intros Hentry.
-    rewrite pres_getEntryLabel in Hentry.
-    rewrite Hentry. 
-    split; auto.
 Qed.
 
 End pres_dom.
@@ -1893,25 +1910,20 @@ Definition create_dom_tree (f: fdef) : option DTree :=
 Section create_dom_tree_correct.
 
 Variable f:fdef.
-Hypothesis Hok: dom_analysis_is_successful f.
 Variable dt: @DTree l.
 Hypothesis Hcreate: create_dom_tree f = Some dt.
 Variable le:l.
 Hypothesis Hentry: getEntryLabel f = Some le.
 Hypothesis Hnopreds: (XATree.make_predecessors (successors f)) !!! le = nil.
-Hypothesis Hwfcfg: 
-  forall (p : l) (ps0 : phinodes) (cs0 : cmds) 
-         (tmn0 : terminator) (l2 : l),
-  blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
-  In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f).
+Hypothesis Hwfcfg: branchs_in_fdef f.
+Hypothesis Huniq: uniqFdef f.
 
 Lemma dtree_edge_iff_idom: forall p0 ch0,
   is_dtree_edge eq_atom_dec dt p0 ch0 = true <-> 
     (imm_domination f p0 ch0 /\ reachable f ch0).
 Proof.
   unfold reachable, create_dom_tree, imm_domination, 
-         strict_domination, domination, dom_analyze,
-         dom_analysis_is_successful in *.
+         strict_domination, domination, dom_analyze in *.
   intros. rewrite Hentry in *.
   assert (J:=Hentry).
   apply getEntryLabel__getEntryBlock in J.
@@ -1919,6 +1931,8 @@ Proof.
   rewrite Hentry' in *.
   case_eq (dfs (successors f) le 1).
   intros cnt a2p Hdfs. rewrite Hdfs in *.
+  assert (Hpentry:=Hdfs).
+  apply ReachableEntry.dfs_wf in Hpentry. simpl in Hpentry.
   remember (a2p ! le) as R.
   destruct R; try tauto.
   rewrite <- HeqR in *. 
@@ -1969,6 +1983,8 @@ Proof.
       eapply entry_in_a2p_cfg in Hdfs; eauto.
     SCase "rpo". 
       eapply dfs_wf_porder in Hdfs; eauto.
+    SCase "large".
+      eapply num_iters__is__large_enough in Hdfs; eauto.
     SCase "no pred". 
       eapply asuccs_psuccs__no_preds in Hdfs; eauto.
 Qed.
@@ -1976,10 +1992,12 @@ Qed.
 Lemma create_dom_tree__wf_dtree: 
   ADProps.wf_dtree (successors f) le eq_atom_dec dt.
 Proof.
-  unfold create_dom_tree, dom_analyze, dom_analysis_is_successful in *.
+  unfold create_dom_tree, dom_analyze in *.
   rewrite Hentry in *.
   case_eq (dfs (successors f) le 1).
   intros cnt a2p Hdfs. rewrite Hdfs in *.
+  assert (Hpentry:=Hdfs).
+  apply ReachableEntry.dfs_wf in Hpentry. simpl in Hpentry.
   remember (a2p ! le) as R.
   destruct R; try tauto.
   inv_mbind.
@@ -2009,6 +2027,8 @@ Proof.
       eapply entry_in_a2p_cfg in Hdfs; eauto.
     SCase "rpo". 
       eapply dfs_wf_porder in Hdfs; eauto.
+    SCase "large".
+      eapply num_iters__is__large_enough in Hdfs; eauto.
     SCase "no pred". 
       eapply asuccs_psuccs__no_preds in Hdfs; eauto.
 Qed.
@@ -2027,7 +2047,6 @@ Section wf_fdef__create_dom_tree_correct.
 
 Variable (S:system) (M:module) (f:fdef) (dt:@DTree l) (le:l).
 Hypothesis (Hwfdef: wf_fdef S M f) (Huniq: uniqFdef f)
-           (Hok: AlgDom'.dom_analysis_is_successful f)
            (Hcreate: AlgDom'.create_dom_tree f = Some dt)
            (Hentry: getEntryLabel f = Some le).
 

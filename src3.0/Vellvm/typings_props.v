@@ -57,14 +57,13 @@ let HpInS := fresh "HpInS" in
 let Hwffh := fresh "Hwffh" in
 let Hentry := fresh "Hentry" in
 let Hnpred := fresh "Hnpred" in
-let Hsuccess := fresh "Hsuccess" in
 let Hwfb := fresh "Hwfb" in
 let EQ1 := fresh "EQ1" in
 let EQ2 := fresh "EQ2" in
 let EQ3 := fresh "EQ3" in
 inversion H as 
   [S5 los5 nts5 prods5 fh5 bs5 b5 HpInS Hwffh Hentry Hnpred
-   Hsuccess Hwfb EQ1 EQ2 EQ3]; subst S5.
+   Hwfb EQ1 EQ2 EQ3]; subst S5.
 
 Lemma getEntryBlock_inv : forall fh bs
   (l3 : l)
@@ -851,10 +850,6 @@ Proof.
   rewrite Hin in HeqR0. auto.
 Qed.
 
-Lemma wf_fdef__dom_analysis_is_successful: forall S M f
-  (HwfF: wf_fdef S M f), AlgDom.dom_analysis_is_successful f.
-Proof. intros. inv HwfF; auto. Qed.
-
 Lemma wf_fdef__wf_entry: forall (S : system) (M : module) (f : fdef)
   (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f),
   match getEntryBlock f with
@@ -910,7 +905,7 @@ try solve [
   eapply wf_fdef__non_entry; eauto |
   eapply branches_in_vertexes; eauto |
   eapply wf_fdef__wf_entry; eauto |
-  eapply wf_fdef__dom_analysis_is_successful; eauto 
+  unfold AlgDom.branchs_in_fdef; eapply branches_in_bound_fdef; eauto
 ].
 
 Lemma dom_unreachable: forall
@@ -943,7 +938,7 @@ Lemma dom_is_sound : forall
   (Hin : In l' (l3::(AlgDom.dom_query f l3))),
   domination f l' l3.
 Proof. 
-  intros. eapply AlgDom.dom_is_sound; solve_dom.
+  intros. eapply AlgDomProps.dom_is_sound; solve_dom.
 Qed.
 
 Lemma sdom_is_sound : forall
@@ -1009,7 +1004,7 @@ Proof.
   intros. eapply DecDom.sdom_tran; eauto using getEntryBlock_inv'.
 Qed.
 
-Lemma adom_acyclic: forall l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2 S M F
+Lemma sdom_acyclic: forall l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2 S M F
   (Hwf: wf_fdef S M F) (Huniq: uniqFdef F) (Hrd: reachable F l2)
   (HbInF1: blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true)
   (HbInF2: blockInFdefB (block_intro l2 ps2 cs2 tmn2) F = true)
@@ -1018,7 +1013,7 @@ Lemma adom_acyclic: forall l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2 S M F
   (Hneq: l1 <> l2),
   False.
 Proof. 
-  intros. eapply AlgDomProps.adom_acyclic in Hneq; solve_dom.
+  intros. eapply AlgDomProps.sdom_acyclic in Hneq; solve_dom.
 Qed.
 
 Lemma blockStrictDominates_trans : forall S M f b1 b2 b3
@@ -2229,7 +2224,7 @@ Proof.
     eauto using insnInFdefBlockB__blockInFdefB.
   assert (In l' (AlgDom.dom_query F l0)) as Hindom.
     eapply domination__block_in_scope; eauto.
-  eapply adom_acyclic in Hindom; eauto.
+  eapply sdom_acyclic in Hindom; eauto.
   Case "i0 is args".
     assert (blockInFdefB (block_intro l' ps' cs' tmn') F = true) as HBinF.
       solve_blockInFdefB.
@@ -2669,7 +2664,7 @@ Proof.
       end.
       auto.
     apply insnInFdefBlockB__blockInFdefB in H0.
-    eapply adom_acyclic in Hindom; eauto.
+    eapply sdom_acyclic in Hindom; eauto.
   Case "id1 is args".
     contradict H6.
     replace (getCmdLoc c) with (getInsnLoc (insn_cmd c)); auto.
@@ -3177,7 +3172,7 @@ Proof.
           intro J. subst.
           apply ListSet.set_diff_elim2 in J4; auto.
           simpl in J4. auto.
-        eapply adom_acyclic in Hneq; eauto 1.
+        eapply sdom_acyclic in Hneq; eauto 1.
           apply ListSet.set_diff_elim1 in J4; auto.
           apply ListSet.set_diff_elim1 in J1; auto.
 Qed.

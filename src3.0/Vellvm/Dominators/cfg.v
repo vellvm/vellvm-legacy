@@ -487,6 +487,45 @@ Qed.
 
 End rt_idom__sdom_ordered.
 
+Lemma noone_sdom_entry: forall n
+  (Hincfg: XTree.in_cfg successors entry)
+  (Hnopred: XTree.successors_list 
+              (XTree.make_predecessors successors) entry = nil)
+  (Hsdom : strict_domination n entry),
+  False.
+Proof.
+  intros.
+  assert (Hreach:=reachable_entry Hincfg).
+  destruct Hreach as [vl [al Hreach]].
+  assert (Hw:=Hreach).
+  apply Hsdom in Hw.
+  inv Hreach.
+    tauto.
+
+    simpl in H1. 
+    destruct y.
+    apply XTree.make_predecessors_correct in H1.
+    rewrite Hnopred in H1. tauto.
+Qed.
+
+Lemma reachable_is_in_cfg: forall n (Hreach: reachable n), 
+  XTree.in_cfg successors n.
+Proof.
+  intros.
+  destruct Hreach as [vl [al Hreach]].
+  apply DW_endx_inv in Hreach; auto.
+Qed.
+
+Lemma sdom_of_reachable_is_in_cfg: forall n1 n2 
+  (Hreach: reachable n2)
+  (Hsdom: strict_domination n1 n2),
+  XTree.in_cfg successors n1.
+Proof.
+  intros.
+  apply sdom_reachable in Hsdom; auto.
+  apply reachable_is_in_cfg; auto.
+Qed.
+
 End Cfg. End Cfg.
 
 Module ACfg := Cfg(ATree).
@@ -633,13 +672,12 @@ Proof.
   apply in_bound__in_parents; auto.
 Qed.
 
-Lemma successors__blockInFdefB : forall l0 a f,
-  In l0 (successors f) !!! a ->
+Lemma successors_blocks__InBlocksB : forall l0 a bs,
+  In l0 (successors_blocks bs) !!! a ->
   exists ps0, exists cs0, exists tmn0,
-    blockInFdefB (block_intro a ps0 cs0 tmn0) f /\
+    InBlocksB (block_intro a ps0 cs0 tmn0) bs /\
     In l0 (successors_terminator tmn0).
 Proof.
-  destruct f as [fh bs]. simpl.
   unfold XATree.successors_list.
   induction bs as [|a0 bs]; simpl; intro.
     rewrite ATree.gempty in H. inv H.
@@ -657,6 +695,16 @@ Proof.
       exists ps0. exists cs0. exists tmn0.
       split; auto.
         eapply orb_true_iff; eauto.
+Qed.
+
+Lemma successors__blockInFdefB : forall l0 a f,
+  In l0 (successors f) !!! a ->
+  exists ps0, exists cs0, exists tmn0,
+    blockInFdefB (block_intro a ps0 cs0 tmn0) f /\
+    In l0 (successors_terminator tmn0).
+Proof.
+  destruct f as [fh bs]. simpl.
+  apply successors_blocks__InBlocksB; auto.
 Qed.
 
 Lemma successors_blocks__blockInFdefB : forall l0 a fh bs,
@@ -1198,3 +1246,111 @@ Proof.
   simpl in Heq. subst.
   eapply entry_in_vertexes; eauto.
 Qed.
+
+Lemma in_bound__in_cfg : forall bs l0 (Hin: In l0 (bound_blocks bs)),
+  XATree.in_cfg (successors_blocks bs) l0.
+Proof.
+  intros. left. apply in_bound__in_parents; auto.
+Qed.
+
+Lemma strict_domination__getEntryLabel: forall f l1 l2
+  (Hsdom: strict_domination f l1 l2),
+  exists e, getEntryLabel f = Some e.
+Proof.
+  unfold strict_domination.
+  intros.
+  inv_mbind. symmetry in HeqR.
+  apply getEntryBlock__getEntryLabel in HeqR. eauto.
+Qed.
+
+Lemma uniqFdef__NoDup_bounds_fdef: forall f (Huniq: uniqFdef f),
+  NoDup (bound_fdef f).
+Proof.
+  destruct f as [[] bs]. simpl.
+  intros. 
+  destruct Huniq as [[Huniq _] _].
+  induction bs as [|[] bs]; simpl.
+    constructor.    
+    
+    inv Huniq.
+    constructor; auto.
+Qed.
+
+Section ElementsOfCfg__eq__Bound.
+
+Variable f:fdef.
+
+Hypothesis branches_in_bound_fdef: forall p ps0 cs0 tmn0 l2
+  (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
+  (J4 : In l2 (successors_terminator tmn0)),
+  In l2 (bound_fdef f).
+
+Lemma in_cfg__in_bound : forall l0 
+  (Hin: XATree.in_cfg (successors f) l0), In l0 (bound_fdef f).
+Proof.
+  destruct f as [fh bs].
+  intros. 
+  destruct Hin as [Hin | Hin].
+    apply in_parents__in_bound; auto.
+
+    apply XATree.children_of_tree__in_successors in Hin.
+    destruct Hin as [p [sc [Hscs Hin]]].
+    assert (In l0 (successors (fdef_intro fh bs)) !!! p) as Hin'.
+      unfold XATree.successors_list.
+      unfold ATree.elt, l in *.
+      rewrite Hscs. auto.
+    apply successors__blockInFdefB in Hin'.
+    destruct_conjs. eauto.
+Qed.
+
+Lemma elements_of_acfg__eq__bound : 
+  AtomSet.set_eq (XATree.elements_of_cfg (successors f) eq_atom_dec) 
+    (bound_fdef f).
+Proof.
+  split.
+    intros x Hinx.
+    apply XATree.in_elements_of_cfg__in_cfg in Hinx.
+    apply in_cfg__in_bound; auto.
+
+    intros x Hinx.
+    apply XATree.in_elements_of_cfg__in_cfg.
+    destruct f.
+    apply in_bound__in_cfg in Hinx; auto.
+Qed.
+
+End ElementsOfCfg__eq__Bound.
+
+Definition Pcubeplus (p:positive) : positive := (p * (p * p) + p)%positive.
+
+Lemma Pcubeplus_ge: forall p1 p2 (Hge: (p1 >= p2)%positive),
+  (Pcubeplus p1 >= Pcubeplus p2)%positive.
+Proof.
+  unfold Pcubeplus.
+  intros.
+  assert (p1 * (p1 * p1) >= p2* (p2 * p2))%positive.
+    zify. repeat (apply Zmult_ge_compat; try omega).
+  zify; omega.
+Qed.
+
+Definition plength A := fun (ls1 : list A) => P_of_succ_nat (length ls1).
+Implicit Arguments plength [A].
+
+Definition pnum_of_blocks_in_fdef (f: fdef) : positive :=
+match f with
+| fdef_intro _ bs => List.fold_left (fun acc _ => Psucc acc) bs 3%positive
+end.
+
+Definition num_iters (f: fdef): positive :=
+let pn := pnum_of_blocks_in_fdef f in
+Pcubeplus pn.
+
+Lemma plength_of_blocks__eq__P_of_plus_nat: forall bs p,
+  fold_left (fun (acc : positive) (_ : block) => Psucc acc) bs p = 
+    P_of_plus_nat p (length (bound_blocks bs)).
+Proof.
+  induction bs as [|[] bs]; simpl; intros; auto.
+    rewrite IHbs.
+    repeat rewrite Pplus_one_succ_l.
+    rewrite P_of_plus_nat_Pplus_commut; auto.
+Qed.
+

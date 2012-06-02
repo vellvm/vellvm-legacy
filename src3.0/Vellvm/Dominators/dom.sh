@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DOM=../../_build/Vellvm/Dominators/main.native
+DOM=~/SVN/sol/vol/src3.0/_build/Vellvm/Dominators/main.native
 OC_DIR=../../Transforms/testcases/olden-ccured/
 OC_CASES="bh bisort em3d health mst perimeter power treeadd tsp"
 S95_DIR=../../Transforms/testcases/spec95-ccured/

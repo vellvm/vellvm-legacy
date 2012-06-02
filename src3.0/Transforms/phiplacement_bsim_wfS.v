@@ -1349,14 +1349,11 @@ Proof.
   inv_wf_fdef HwfF'.
   match goal with
   | Hentry : getEntryBlock _ = _,
-    Hnpred : has_no_predecessors _ _ = _,
-    Hsuccess: AlgDom.dom_analysis_is_successful _ |- _ =>
+    Hnpred : has_no_predecessors _ _ = _ |- _ =>
      eapply (@TransCFG.pres_getEntryBlock (PhiPlacement pinfo)) 
        in Hentry; eauto;
      erewrite (@TransCFG.pres_has_no_predecessors (PhiPlacement pinfo)) 
-       in Hnpred;
-     eapply (@TransCFG.pres_dom_analysis_is_successful (PhiPlacement pinfo)) 
-       in Hsuccess; eauto
+       in Hnpred; eauto
   end.
   rewrite EQ2 in Hwfb.
   match goal with

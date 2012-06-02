@@ -920,15 +920,6 @@ Proof.
   tauto.
 Qed.
 
-Lemma pres_dom_analysis_is_successful : forall f,
-  AlgDom.dom_analysis_is_successful f <-> 
-    AlgDom.dom_analysis_is_successful (pass.(ftrans) f).
-Proof.
-  intros.
-  apply AlgDom.pres_dom_analysis_is_successful with (btrans:=pass.(btrans)); 
-    auto using pass.(ftrans_spec), pass.(btrans_eq_label), pass.(btrans_eq_tmn).
-Qed.
-
 Lemma pres_lookupBlockViaLabelFromBlocks : forall l5 bs b,
   lookupBlockViaLabelFromBlocks bs l5 = ret b ->
   lookupBlockViaLabelFromBlocks (List.map pass.(btrans) bs) l5 =

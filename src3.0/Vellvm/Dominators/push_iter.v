@@ -98,8 +98,8 @@ Definition step (s: state) : PMap.t L.t + state :=
 (** The whole fixpoint computation is the iteration of [step] from
   the start state. *)
 
-Definition fixpoint : option (PMap.t L.t) :=
-  PrimIter.iter _ _ step PrimIter.num_iterations start_state.
+Definition fixpoint num_iterations : option (PMap.t L.t) :=
+  PrimIter.iter _ _ step num_iterations start_state.
 
 End Kildall.
 
@@ -613,8 +613,8 @@ Qed.
 Variable entrypoints: list (positive * LDoms.t).
 
 Lemma fixpoint_wf:
-  forall res 
-  (Hfix: DomDS.fixpoint successors LDoms.transfer entrypoints = Some res),
+  forall res ni
+  (Hfix: DomDS.fixpoint successors LDoms.transfer entrypoints ni = Some res),
   DomMap.in_incr (DomDS.start_state_in entrypoints) res.
 Proof.
   unfold DomDS.fixpoint; intros.
@@ -636,7 +636,163 @@ Proof.
     apply DomMap.in_incr_refl.
 Qed.
 
+Lemma propagate_succ_list_records_unchanges:
+  forall out bd scs (Hinc: incl scs bd)
+  st st' (Heq: st' = DomDS.propagate_succ_list st out scs)
+  (H: DomMap.eq bd st.(DomDS.st_in) st'.(DomDS.st_in)),
+  st.(DomDS.st_wrk) = st'.(DomDS.st_wrk).
+Proof.
+  induction scs; simpl; intros; subst; auto.
+    assert (J1:=Mono.propagate_succ_wf st out a).
+    assert (J2:=Mono.propagate_succ_list_wf out scs (DomDS.propagate_succ st out a)).
+    eapply DomMap_eq_incr_incr__eq_eq in H; eauto.
+    destruct H.
+    transitivity (DomDS.st_wrk (DomDS.propagate_succ st out a)).
+      eapply propagate_succ_records_unchanges; eauto with datatypes v62.
+      apply IHscs; eauto with datatypes v62.
+Qed.
+
 End Mono. End Mono.
+
+(***************************************************)
+
+Module DomsInParents. Section DomsInParents.
+
+Variable asuccs: PTree.t (list positive).
+Variable entrypoint: positive.
+Definition entrypoints := (entrypoint, LDoms.top) :: nil.
+
+Definition wf_dom (res: LDoms.t) : Prop :=
+  match res with
+  | Some ns0 => incl ns0 (XPTree.parents_of_tree asuccs)
+  | None => True
+  end.
+
+Definition wf_doms (res: PMap.t LDoms.t) : Prop := 
+  forall l0, wf_dom (res ?? l0).
+
+Lemma start_wf_doms:
+  wf_doms (DomDS.st_in (DomDS.start_state asuccs entrypoints)).
+Proof.
+  simpl. intros l0.
+  rewrite PMap.gsspec.
+  rewrite PMap.gi. simpl. 
+  destruct_if; simpl.
+    intros x Hinx. inv Hinx.
+    rewrite PMap.gi. simpl. auto.
+Qed.
+
+(** We show that the start state satisfies the invariant, and that
+  the [step] function preserves it. *)
+
+Lemma wf_dom_eq: forall dt1 dt2 (Heq: LDoms.eq dt1 dt2) (Hwf: wf_dom dt2),
+  wf_dom dt1.
+Proof.
+  unfold wf_dom.
+  intros.
+  destruct dt1; destruct dt2; inv Heq; auto.
+Qed.
+
+Lemma propagate_succ_wf_doms: forall st n out,
+  wf_dom out ->
+  wf_doms st.(DomDS.st_in) ->
+  wf_doms (DomDS.propagate_succ st out n).(DomDS.st_in).
+Proof.
+  unfold wf_doms.
+  intros.
+  destruct (propagate_succ_spec st out n) as [J1 J2].
+  destruct (positive_eq_dec n l0); subst.
+    apply wf_dom_eq in J1; auto.
+    assert (J:=H0 l0).
+    clear - J H.
+    unfold wf_dom in *.
+    case_eq (LDoms.lub (DomDS.st_in st) ?? l0 out).
+    intros t b Heq.
+    assert (Heq':=Heq).
+    apply LDoms.ge_lub_left in Heq'.
+    destruct out as [x|]; destruct ((DomDS.st_in st) ?? l0) as [y|]; 
+      try solve [inv Heq; simpl; auto].
+    destruct t; tinv Heq'.
+    simpl in *.
+    intros p Hin.
+    apply J. eauto with sublist.
+
+    rewrite J2; auto.
+Qed.
+
+Lemma propagate_succ_list_wf_doms:
+  forall scs st out (Hsc: scs <> nil -> wf_dom out),
+  wf_doms st.(DomDS.st_in) ->
+  wf_doms (DomDS.propagate_succ_list st out scs).(DomDS.st_in).
+Proof.
+  induction scs; simpl; intros; auto.
+    apply IHscs; auto.
+      intro J. apply Hsc. congruence.
+      apply propagate_succ_wf_doms; auto.
+        apply Hsc. congruence.
+Qed.
+
+Lemma pick_wf_doms:
+  forall st n rem,
+  PNodeSetMax.pick st.(DomDS.st_wrk) = Some(n, rem) ->
+  wf_doms st.(DomDS.st_in) ->
+  wf_doms (DomDS.propagate_succ_list
+             (DomDS.mkstate st.(DomDS.st_in) rem)
+             (LDoms.transfer n st.(DomDS.st_in)??n)
+             (asuccs???n)).(DomDS.st_in).
+Proof.
+  intros st n rem WKL GOOD.
+  destruct st. simpl.
+  apply propagate_succ_list_wf_doms; auto.
+    intro Hnnil.
+    assert (J:=GOOD n). simpl in J.
+    unfold wf_dom. unfold wf_dom in J.    
+    destruct (st_in ?? n); simpl; auto.
+    intros x Hin.
+    destruct_in Hin; auto.
+      apply XPTree.nonleaf_is_parent; auto.
+Qed.
+
+Lemma step_wf_doms: forall (st st': DomDS.state)
+  (Hstep: DomDS.step asuccs LDoms.transfer st = inr st'),
+  wf_doms st.(DomDS.st_in) -> wf_doms st'.(DomDS.st_in).
+Proof.
+  unfold DomDS.step.
+  intros.
+  remember (PNodeSetMax.pick (DomDS.st_wrk st)) as R.
+  destruct R as [ [n rem] | ]; inv Hstep.
+  apply pick_wf_doms; auto.
+Qed.
+
+Theorem fixpoint_wf: forall res ni,
+  DomDS.fixpoint asuccs LDoms.transfer entrypoints ni = Some res ->
+  wf_doms res.
+Proof.
+  unfold DomDS.fixpoint. intros res ni PI. pattern res.
+  eapply (PrimIter.iter_prop _ _ (DomDS.step _ _)
+    (fun st => wf_doms st.(DomDS.st_in))); eauto.
+    intros st GOOD. unfold DomDS.step.
+    caseEq (PNodeSetMax.pick st.(DomDS.st_wrk)); auto.
+    intros [n rem] PICK.
+    apply pick_wf_doms; auto.
+
+    apply start_wf_doms.
+Qed.
+
+Lemma dom_fix_in_bound: forall res ni
+  (Hfix: DomDS.fixpoint asuccs LDoms.transfer
+           entrypoints ni = Some res),
+  forall l0 ns0 (Hget: res ?? l0 = Some ns0) n (Hin: In n ns0),
+    In n (XPTree.parents_of_tree asuccs).
+Proof.
+  intros.
+  apply fixpoint_wf in Hfix; auto.
+  assert (J:=Hfix l0).
+  unfold wf_dom in J.
+  rewrite Hget in J. auto.
+Qed.
+
+End DomsInParents. End DomsInParents.
 
 (******************************************************)
 
@@ -851,8 +1007,8 @@ Lemma wf_state__wf_doms: forall st (Hwf: wf_state st), wf_doms st.(DomDS.st_in).
 Proof. unfold wf_state. tauto. Qed.
 
 Lemma fixpoint_wf:
-  forall res
-  (Hfix: DomDS.fixpoint successors LDoms.transfer entrypoints = Some res),
+  forall res ni
+  (Hfix: DomDS.fixpoint successors LDoms.transfer entrypoints ni = Some res),
   wf_doms res.
 Proof.
   unfold DomDS.fixpoint; intros.
@@ -1058,8 +1214,8 @@ Lemma wf_state__wf_doms: forall st (Hwf: wf_state st), wf_doms st.(DomDS.st_in).
 Proof. unfold wf_state. tauto. Qed.
 
 Lemma fixpoint_wf:
-  forall res
-  (Hfix: DomDS.fixpoint successors LDoms.transfer entrypoints = Some res),
+  forall res ni
+  (Hfix: DomDS.fixpoint successors LDoms.transfer entrypoints ni = Some res),
   wf_doms res.
 Proof.
   unfold DomDS.fixpoint; intros.
@@ -1245,17 +1401,17 @@ Hypothesis wf_order: forall n (Hneq: n <> entrypoint)
   exists p, In p (predecessors ??? n) /\ (p > n)%positive.
 
 Theorem fixpoint_solution:
-  forall res n s,
-  DomDS.fixpoint successors LDoms.transfer entrypoints = Some res ->
+  forall res ni n s,
+  DomDS.fixpoint successors LDoms.transfer entrypoints ni = Some res ->
   In s (successors???n) ->
   LDoms.ge res??s (LDoms.transfer n res??n).
 Proof.
-  assert (forall res, 
-          DomDS.fixpoint successors LDoms.transfer entrypoints = Some res ->
+  assert (forall res ni, 
+          DomDS.fixpoint successors LDoms.transfer entrypoints ni = Some res ->
           forall n s,
           In s successors???n ->
           LDoms.ge res??s (LDoms.transfer n res??n)) as J.
-    unfold DomDS.fixpoint. intros res PI. pattern res.
+    unfold DomDS.fixpoint. intros res ni PI. pattern res.
     eapply (PrimIter.iter_prop _ _ (DomDS.step successors LDoms.transfer) 
             (fun st => SortedDoms.wf_state successors st /\ good_state st )); 
       eauto 1.
@@ -1308,8 +1464,8 @@ Proof.
 Qed.
 
 Theorem fixpoint_entry:
-  forall res n v,
-  DomDS.fixpoint successors LDoms.transfer entrypoints = Some res ->
+  forall res ni n v,
+  DomDS.fixpoint successors LDoms.transfer entrypoints ni = Some res ->
   In (n, v) entrypoints ->
   LDoms.ge res??n v.
 Proof.
@@ -1391,34 +1547,14 @@ Proof.
 Qed.
 
 Variable entrypoint: positive.
+Variable num_iters: positive.
 
 Definition pdom_analyze : PMap.t LDoms.t :=
 match DomDS.fixpoint successors LDoms.transfer 
-              ((entrypoint, LDoms.top) :: nil) with
+              ((entrypoint, LDoms.top) :: nil) num_iters with
 | None => PMap.init LDoms.top
 | Some res => res
 end.
-
-Definition pdom_analysis_is_successful : Prop :=
-match DomDS.fixpoint successors LDoms.transfer 
-              ((entrypoint, LDoms.top) :: nil) with
-| None => False
-| Some _ => True
-end.
-
-Lemma nonempty__pdom_analysis_is_successful: forall n dts
-  (Hdom : pdom_analyze ?? n = Some dts)
-  (Hnonempty : dts <> nil),
-  pdom_analysis_is_successful.
-Proof.
-  unfold pdom_analyze, pdom_analysis_is_successful.
-  intros.
-  case_eq (DomDS.fixpoint successors LDoms.transfer 
-              ((entrypoint, LDoms.top) :: nil)); auto.
-  intros Heq.
-  rewrite Heq in Hdom.
-  rewrite PMap.gi in Hdom. inv Hdom. tauto.
-Qed.
 
 Definition adomination (n1 n2:positive) : Prop :=
 member n1 (LDoms.transfer n2 (pdom_analyze ?? n2)).
@@ -1470,526 +1606,6 @@ Proof.
 Qed.
 
 End StartStateIn.
-
-(***************************************************)
-
-Module UnreachableDoms. Section UnreachableDoms.
-
-Variable successors: PTree.t (list positive).
-Variable entrypoint: positive.
-Definition entrypoints := (entrypoint, LDoms.top) :: nil.
-
-Definition wf_doms (res: PMap.t LDoms.t) : Prop :=
-  forall n0 (Hunreach: ~ PCfg.reachable successors entrypoint n0) 
-    (Hneq: n0 <> entrypoint),
-    LDoms.eq res??n0 LDoms.bot.
-
-Lemma start_wf_doms:
-  wf_doms (DomDS.st_in (DomDS.start_state successors entrypoints)).
-Proof.
-  intros n0 Hunreach Hneq. simpl.
-  eapply dom_nonentry_start_state_in in Hneq; eauto.
-Qed.
-
-(** We show that the start state satisfies the invariant, and that
-  the [step] function preserves it. *)
-
-Lemma propagate_succ_wf_doms: forall st n out
-  (Hp: ~ PCfg.reachable successors entrypoint n -> 
-       n <> entrypoint -> LDoms.eq out LDoms.bot)
-  (Hwf: wf_doms st.(DomDS.st_in)),
-  wf_doms (DomDS.propagate_succ st out n).(DomDS.st_in).
-Proof.
-  unfold wf_doms.
-  intros.
-  destruct (propagate_succ_spec st out n) as [J1 J2].
-  assert (Hunreach':=Hunreach).
-  apply Hwf in Hunreach; auto.
-  destruct (positive_eq_dec n n0); subst.
-    apply Hp in Hunreach'; auto.
-    apply LDoms.eq_trans with
-      (y:=fst (LDoms.lub (DomDS.st_in st) ?? n0 out)); auto.
-    rewrite Hunreach'. rewrite Hunreach. simpl. apply LDoms.eq_refl.
-
-    rewrite J2; auto.
-Qed.
-
-Lemma propagate_succ_list_wf_doms: forall scs st out
-  (H: forall s, In s scs ->
-             ~ PCfg.reachable successors entrypoint s -> s <> entrypoint ->
-             LDoms.eq out LDoms.bot)
-  (Hwf: wf_doms st.(DomDS.st_in)),
-  wf_doms (DomDS.propagate_succ_list st out scs).(DomDS.st_in).
-Proof.
-  induction scs; simpl; intros; auto.
-    apply IHscs.
-      intros. apply H with (s:=s); auto.
-      apply propagate_succ_wf_doms; auto.
-        intros J1 J2. eapply H; eauto.
-Qed.
-
-Hypothesis wf_entrypoints: in_cfg successors entrypoint.
-
-Lemma step_wf_doms:
-  forall st n rem
-  (WKL: PNodeSetMax.pick st.(DomDS.st_wrk) = Some(n, rem))
-  (GOOD: wf_doms st.(DomDS.st_in)),
-  wf_doms (DomDS.propagate_succ_list
-                                  (DomDS.mkstate st.(DomDS.st_in) rem)
-                                  (LDoms.transfer n st.(DomDS.st_in)??n)
-                                  (successors???n)).(DomDS.st_in).
-Proof.
-  intros st n rem WKL GOOD.
-  destruct st. simpl.
-  apply propagate_succ_list_wf_doms; auto.
-  intros s Hin Hunreach.
-  destruct (PCfg.reachable_dec successors entrypoint n).
-  Case "1".
-    apply PCfg.reachable_succ with (sc:=s) in H; auto.
-    congruence.
-  Case "2".
-    apply GOOD in H. simpl in H.
-    intros Hneq.
-    destruct (positive_eq_dec n entrypoint); subst.
-    SCase "2.1".
-      contradict Hunreach.
-      unfold reachable.
-      exists (index entrypoint::nil). 
-      exists (A_ends (index s) (index entrypoint)::nil).
-      constructor; auto.
-        constructor; auto.
-        eapply XPTree.in_succ__in_cfg; eauto.
-
-    SCase "2.2".
-      rewrite H; auto. simpl. 
-      unfold LDoms.eq, LDoms.bot. auto.
-Qed.
-
-Theorem fixpoint_wf: forall res,
-  DomDS.fixpoint successors LDoms.transfer entrypoints = Some res ->
-  wf_doms res.
-Proof.
-  unfold DomDS.fixpoint. intros res PI. pattern res.
-  eapply (PrimIter.iterate_prop _ _ (DomDS.step successors LDoms.transfer)
-    (fun st => wf_doms st.(DomDS.st_in))); eauto.
-    intros st GOOD. unfold DomDS.step.
-    caseEq (PNodeSetMax.pick st.(DomDS.st_wrk)); auto.
-    intros [n rem] PICK.
-    apply step_wf_doms; auto.
-
-    apply start_wf_doms.
-Qed.
-
-Lemma dom_unreachable: forall n3 (Hunreach: ~ PCfg.reachable successors entrypoint n3)
-  (Hok: pdom_analysis_is_successful successors entrypoint),
-  LDoms.eq ((pdom_analyze successors entrypoint) ?? n3) LDoms.bot.
-Proof.
-  intros.
-  destruct (positive_eq_dec n3 entrypoint); subst.
-  Case "1".
-    contradict Hunreach. 
-    apply PCfg.reachable_entry; auto.    
-  Case "2".
-    unfold strict_adomination, pdom_analysis_is_successful, pdom_analyze in *.
-    remember (DomDS.fixpoint successors LDoms.transfer
-               ((entrypoint, LDoms.top) :: nil)) as R.
-    destruct R as [dms|]; try tauto.
-    symmetry in HeqR.
-    eapply fixpoint_wf in HeqR; eauto.
-Qed.
-
-Lemma fixpoint_reachable: forall n res dts
-  (Hfix: DomDS.fixpoint successors LDoms.transfer entrypoints = Some res)
-  (Hdom: res ?? n = Some dts),
-  PCfg.reachable successors entrypoint n.
-Proof.
-  intros.
-  destruct (positive_eq_dec n entrypoint); subst.
-    apply PCfg.reachable_entry; auto.
-    destruct (PCfg.reachable_dec successors entrypoint n) as [H|H]; auto.
-      apply fixpoint_wf in Hfix.
-      assert (J:=Hfix n). 
-      apply J in H; auto.
-      rewrite Hdom in H. inv H.
-Qed.
-
-Lemma nonempty_is_reachable: forall n dts
-  (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts)
-  (Hnonempty: dts <> nil),
-  PCfg.reachable successors entrypoint n.
-Proof.
-  intros.
-  destruct (PCfg.reachable_dec successors entrypoint n) as [H|H]; auto.
-    apply UnreachableDoms.dom_unreachable in H; auto.
-    rewrite Hdom in H. inv H.
-
-    eapply nonempty__pdom_analysis_is_successful; eauto.
-Qed.
-
-End UnreachableDoms. End UnreachableDoms.
-
-(*****************************************************************)
-
-Require Import Program.Equality.
-
-Module DomSound. Section DomSound.
-
-Variable successors: PTree.t (list positive).
-Variable entrypoint: positive.
-Definition entrypoints := (entrypoint, LDoms.top) :: nil.
-
-Lemma adom_entrypoint:
-  (pdom_analyze successors entrypoint) ?? entrypoint = Some nil.
-Proof.
-  unfold pdom_analyze.
-  caseEq (DomDS.fixpoint successors LDoms.transfer
-           ((entrypoint, LDoms.top) :: nil)).
-    intros res H.
-    eapply Inequations.fixpoint_entry with (n:=entrypoint) in H; simpl; eauto.
-    destruct (res ?? entrypoint); inv H; auto.
- 
-    intros H. rewrite PMap.gi. auto.
-Qed.
-
-Definition predecessors := XPTree.make_predecessors successors.
-
-Hypothesis wf_order: forall n (Hincfg: XPTree.in_cfg successors n) 
-  (Hneq: n <> entrypoint),
-  exists p, In p (predecessors ??? n) /\ (p > n)%positive.
-
-Lemma sadom_adom_successors: forall n1 n2 p2 (Hsc : In n2 successors ??? p2)
-  (Hincfg : in_cfg successors n1)
-  (Hadom : strict_adomination successors entrypoint n1 n2),
-  adomination successors entrypoint n1 p2.
-Proof.
-  intros.
-  unfold adomination, strict_adomination, pdom_analyze in *.
-  remember (DomDS.fixpoint successors LDoms.transfer
-                   ((entrypoint, LDoms.top) :: nil)) as R.
-  destruct R as [res|]; simpl in *.
-    symmetry in HeqR.
-    apply Inequations.fixpoint_solution with (n:=p2)(s:=n2) in HeqR; auto.
-    destruct (res ?? n2) as [dms2|]; simpl in *.
-      destruct (LDoms.transfer p2 res ?? p2); simpl; auto.
-        eapply sublist_In; eauto.
-      
-      destruct (LDoms.transfer p2 res ?? p2); simpl; auto.
-        tauto.
-
-    rewrite PMap.gi in Hadom. simpl in Hadom.
-    destruct Hadom; subst; tauto.
-Qed.
-
-Lemma adom_successors: forall n1 n2 p2 (Hsc : In n2 successors ??? p2)
-  (Hincfg : in_cfg successors n1)
-  (Hadom : adomination successors entrypoint n1 n2)
-  (Hneq : n1 <> n2),
-  adomination successors entrypoint n1 p2.
-Proof.
-  intros. eapply sadom_adom_successors; eauto using adom__sadom.
-Qed.
-
-Lemma adom_is_sound : forall n1 n2 (Hincfg: in_cfg successors n1)
-  (Hadom: adomination successors entrypoint n1 n2),
-  PCfg.domination successors entrypoint n1 n2.
-Proof.
-  intros.
-  intros vl al Hreach.
-  remember (PCfg.vertexes successors) as A.
-  remember (PCfg.arcs successors) as B.
-  unfold PTree.elt in *.
-  remember (index n2) as C.
-  remember (index entrypoint) as D.
-  generalize dependent n2.
-  induction Hreach; intros; subst.
-  Case "base".
-    inversion HeqC; subst n2.
-    unfold adomination in Hadom.
-    rewrite adom_entrypoint in Hadom.
-    simpl in Hadom. destruct Hadom as [Hadom | Hadom]; tinv Hadom; auto.
-
-  Case "ind".
-    destruct y as [p2].
-    destruct (positive_eq_dec n1 n2); subst; auto.
-    left.
-    assert (In (index n1) vl \/ n1 = p2) as Hin.
-      apply IHHreach; auto.
-      eapply adom_successors; eauto.
-    simpl.
-    destruct Hin; subst; eauto.
-Qed.
-
-Lemma sadom_is_sound : forall n1 n2 (Hincfg: in_cfg successors n1)
-  (Hsadom: strict_adomination successors entrypoint n1 n2),
-  PCfg.strict_domination successors entrypoint n1 n2.
-Proof.
-  intros. assert (Hadom:=Hsadom).
-  apply sadom__adom in Hadom.
-  apply adom_is_sound in Hadom; auto.
-  intros vl al Hreach.
-  assert (Hw':=Hreach).
-  apply DWalk_to_dpath in Hreach; auto using positive_eq_dec.
-  destruct Hreach as [vl0 [al0 Hp]].
-  destruct (positive_eq_dec n1 n2); subst.
-  Case "n1=n2".
-    unfold PCfg.domination in *.
-    destruct (positive_eq_dec n2 entrypoint); subst.
-    SCase "n2=entry".
-      unfold strict_adomination in Hsadom.
-      rewrite adom_entrypoint in Hsadom.
-      inv Hsadom.
-    SCase "n2<>entry".
-      inv Hp; try congruence.
-      destruct y as [p2].
-      assert (adomination successors entrypoint n2 p2) as J.
-        eapply sadom_adom_successors; eauto.
-      eapply adom_is_sound in J; eauto.
-      unfold domination in J.
-      assert (Hw:=H).
-      apply D_path_isa_walk in Hw.
-      apply J in Hw.
-      destruct Hw as [Hw | Hw]; subst; auto.
-        apply H4 in Hw. inv Hw; try congruence.
-        elimtype False. auto.
-  Case "n1<>n2".
-    apply Hadom in Hw'.
-    split; auto. destruct Hw'; subst; auto. congruence.
-Qed.
-
-Lemma sadom_isnt_refl : forall n1 n2 (Hincfg: in_cfg successors n1)
-  (Hreach : PCfg.reachable successors entrypoint n2)
-  (Hsadom: strict_adomination successors entrypoint n1 n2),
-  n1 <> n2.
-Proof.
-  intros.
-  eapply sadom_is_sound in Hsadom; eauto.
-  destruct Hreach as [vl [al Hreach]].
-  apply Hsadom in Hreach. tauto.
-Qed.
-
-Lemma reachable_isnt_bot : forall n 
-  (Hreach : PCfg.reachable successors entrypoint n),
-  (pdom_analyze successors entrypoint) ?? n <> LDoms.bot.
-Proof.
-  intros.
-  destruct Hreach as [vl [al Hreach]].
-  remember (PCfg.vertexes successors) as A.
-  remember (PCfg.arcs successors) as B.
-  unfold PTree.elt in *.
-  remember (index n) as C.
-  remember (index entrypoint) as D.
-  generalize dependent n.
-  induction Hreach; intros; subst.
-  Case "base".
-    inversion HeqC; subst n.
-    rewrite adom_entrypoint. unfold LDoms.bot. congruence.
-
-  Case "ind".
-    destruct y as [p2].
-    assert (index p2 = index p2) as Hdom. auto.
-    apply_clear IHHreach in Hdom; auto.
-    unfold pdom_analyze in *.
-    case_eq (DomDS.fixpoint successors LDoms.transfer
-              ((entrypoint, LDoms.top) :: nil)).
-    SCase "1".
-      intros res Hfix.
-      rewrite Hfix in Hdom.
-      apply Inequations.fixpoint_solution with (n:=p2)(s:=n) in Hfix; auto.
-      unfold LDoms.bot in *.
-      destruct (res ?? p2); try congruence.
-      simpl in Hfix.
-      destruct (res ?? n); inv Hfix; congruence.
-
-    SCase "2".
-      intro Hfix.
-      rewrite PMap.gi. 
-      unfold LDoms.top, LDoms.bot.
-      congruence.
-Qed.
-
-End DomSound. End DomSound.
-
-(***************************************************)
-
-Module DomsInParents. Section DomsInParents.
-
-Variable asuccs: PTree.t (list positive).
-Variable entrypoint: positive.
-Definition entrypoints := (entrypoint, LDoms.top) :: nil.
-
-Definition wf_dom (res: LDoms.t) : Prop :=
-  match res with
-  | Some ns0 => incl ns0 (XPTree.parents_of_tree asuccs)
-  | None => True
-  end.
-
-Definition wf_doms (res: PMap.t LDoms.t) : Prop := 
-  forall l0, wf_dom (res ?? l0).
-
-Lemma start_wf_doms:
-  wf_doms (DomDS.st_in (DomDS.start_state asuccs entrypoints)).
-Proof.
-  simpl. intros l0.
-  rewrite PMap.gsspec.
-  rewrite PMap.gi. simpl. 
-  destruct_if; simpl.
-    intros x Hinx. inv Hinx.
-    rewrite PMap.gi. simpl. auto.
-Qed.
-
-(** We show that the start state satisfies the invariant, and that
-  the [step] function preserves it. *)
-
-Lemma wf_dom_eq: forall dt1 dt2 (Heq: LDoms.eq dt1 dt2) (Hwf: wf_dom dt2),
-  wf_dom dt1.
-Proof.
-  unfold wf_dom.
-  intros.
-  destruct dt1; destruct dt2; inv Heq; auto.
-Qed.
-
-Lemma propagate_succ_wf_doms: forall st n out,
-  wf_dom out ->
-  wf_doms st.(DomDS.st_in) ->
-  wf_doms (DomDS.propagate_succ st out n).(DomDS.st_in).
-Proof.
-  unfold wf_doms.
-  intros.
-  destruct (propagate_succ_spec st out n) as [J1 J2].
-  destruct (positive_eq_dec n l0); subst.
-    apply wf_dom_eq in J1; auto.
-    assert (J:=H0 l0).
-    clear - J H.
-    unfold wf_dom in *.
-    case_eq (LDoms.lub (DomDS.st_in st) ?? l0 out).
-    intros t b Heq.
-    assert (Heq':=Heq).
-    apply LDoms.ge_lub_left in Heq'.
-    destruct out as [x|]; destruct ((DomDS.st_in st) ?? l0) as [y|]; 
-      try solve [inv Heq; simpl; auto].
-    destruct t; tinv Heq'.
-    simpl in *.
-    intros p Hin.
-    apply J. eauto with sublist.
-
-    rewrite J2; auto.
-Qed.
-
-Lemma propagate_succ_list_wf_doms:
-  forall scs st out (Hsc: scs <> nil -> wf_dom out),
-  wf_doms st.(DomDS.st_in) ->
-  wf_doms (DomDS.propagate_succ_list st out scs).(DomDS.st_in).
-Proof.
-  induction scs; simpl; intros; auto.
-    apply IHscs; auto.
-      intro J. apply Hsc. congruence.
-      apply propagate_succ_wf_doms; auto.
-        apply Hsc. congruence.
-Qed.
-
-Lemma pick_wf_doms:
-  forall st n rem,
-  PNodeSetMax.pick st.(DomDS.st_wrk) = Some(n, rem) ->
-  wf_doms st.(DomDS.st_in) ->
-  wf_doms (DomDS.propagate_succ_list
-             (DomDS.mkstate st.(DomDS.st_in) rem)
-             (LDoms.transfer n st.(DomDS.st_in)??n)
-             (asuccs???n)).(DomDS.st_in).
-Proof.
-  intros st n rem WKL GOOD.
-  destruct st. simpl.
-  apply propagate_succ_list_wf_doms; auto.
-    intro Hnnil.
-    assert (J:=GOOD n). simpl in J.
-    unfold wf_dom. unfold wf_dom in J.    
-    destruct (st_in ?? n); simpl; auto.
-    intros x Hin.
-    destruct_in Hin; auto.
-      apply XPTree.nonleaf_is_parent; auto.
-Qed.
-
-Lemma step_wf_doms: forall (st st': DomDS.state)
-  (Hstep: DomDS.step asuccs LDoms.transfer st = inr st'),
-  wf_doms st.(DomDS.st_in) -> wf_doms st'.(DomDS.st_in).
-Proof.
-  unfold DomDS.step.
-  intros.
-  remember (PNodeSetMax.pick (DomDS.st_wrk st)) as R.
-  destruct R as [ [n rem] | ]; inv Hstep.
-  apply pick_wf_doms; auto.
-Qed.
-
-Theorem fixpoint_wf: forall res,
-  DomDS.fixpoint asuccs LDoms.transfer entrypoints = Some res ->
-  wf_doms res.
-Proof.
-  unfold DomDS.fixpoint. intros res PI. pattern res.
-  eapply (PrimIter.iter_prop _ _ (DomDS.step _ _)
-    (fun st => wf_doms st.(DomDS.st_in))); eauto.
-    intros st GOOD. unfold DomDS.step.
-    caseEq (PNodeSetMax.pick st.(DomDS.st_wrk)); auto.
-    intros [n rem] PICK.
-    apply pick_wf_doms; auto.
-
-    apply start_wf_doms.
-Qed.
-
-Lemma dom_in_parants: forall (dts : list positive) n
-  (Hdom : (pdom_analyze asuccs entrypoint) ?? n = Some dts)
-  (p : positive) (Hinp : In p dts),
-  In p (XPTree.parents_of_tree asuccs).
-Proof.
-  unfold pdom_analyze  in *.
-  intros.
-  case_eq (DomDS.fixpoint asuccs LDoms.transfer
-             ((entrypoint, LDoms.top) :: nil)).
-    intros res Heq.
-    rewrite Heq in Hdom.
-    apply fixpoint_wf in Heq.
-    assert (J:=Heq n). rewrite Hdom in J.
-    simpl in J.
-    eauto with datatypes v62.
-
-    intros Heq.
-    rewrite Heq in Hdom.
-    rewrite PMap.gi in Hdom. inv Hdom. inv Hinp.
-Qed.
-
-Lemma dom_in_cfg: forall (dts : list positive) n
-  (Hdom : (pdom_analyze asuccs entrypoint) ?? n = Some dts)
-  (p : positive) (Hinp : In p dts),
-  XPTree.in_cfg asuccs p.
-Proof.
-  intros. left. eapply dom_in_parants; eauto.
-Qed.
-
-Definition predecessors := XPTree.make_predecessors asuccs.
-
-Hypothesis wf_order: forall n (Hincfg: XPTree.in_cfg asuccs n) 
-  (Hneq: n <> entrypoint),
-  exists p, In p (predecessors ??? n) /\ (p > n)%positive.
-
-Lemma in_dom__reachable: forall
-  (Hinentry: in_cfg asuccs entrypoint)
-  (dts : list positive) n
-  (Hdom : (pdom_analyze asuccs entrypoint) ?? n = Some dts)
-  (p : positive) (Hinp : In p dts),
-  PCfg.reachable asuccs entrypoint p.
-Proof.
-  intros. 
-  assert (Hincfg:=Hdom).
-  eapply DomsInParents.dom_in_cfg in Hincfg; eauto.
-  assert (Hreach:=Hdom).
-  apply UnreachableDoms.nonempty_is_reachable in Hreach; auto.
-    assert (PCfg.strict_domination asuccs entrypoint p n) as Hsdom.
-      apply DomSound.sadom_is_sound; auto.
-        unfold strict_adomination. rewrite Hdom. auto.
-    eapply PCfg.sdom_reachable; eauto using positive_eq_dec.
-
-    intro Eq. subst. tauto.
-Qed.
-
-End DomsInParents. End DomsInParents.
 
 (***********************************************************)
 
@@ -2190,33 +1806,13 @@ Qed.
 
 (***********************************************************)
 
-Lemma propagate_succ_list_records_unchanges:
-  forall out bd scs (Hinc: incl scs bd)
-  st st' (Heq: st' = DomDS.propagate_succ_list st out scs)
-  (H: DomMap.eq bd st.(DomDS.st_in) st'.(DomDS.st_in)),
-  st.(DomDS.st_wrk) = st'.(DomDS.st_wrk).
-Proof.
-  induction scs; simpl; intros; subst; auto.
-    assert (J1:=Mono.propagate_succ_wf st out a).
-    assert (J2:=Mono.propagate_succ_list_wf out scs (DomDS.propagate_succ st out a)).
-    eapply DomMap_eq_incr_incr__eq_eq in H; eauto.
-    destruct H.
-    transitivity (DomDS.st_wrk (DomDS.propagate_succ st out a)).
-      eapply propagate_succ_records_unchanges; eauto with datatypes v62.
-      apply IHscs; eauto with datatypes v62.
-Qed.
-
 Module Termination. Section Termination.
 
 Variable successors: PTree.t (list positive).
 Definition in_cfg := XPTree.in_cfg successors.
 
-Definition elements_of_cfg : list positive :=
-  remove_redundancy positive_eq_dec nil 
-    (XPTree.parents_of_tree successors ++ XPTree.children_of_tree successors).
-
-Definition plength A := fun (ls1 : list A) => P_of_succ_nat (length ls1).
-Implicit Arguments plength [A].
+Definition elements_of_cfg : list positive := 
+  XPTree.elements_of_cfg successors positive_eq_dec.
 
 Definition psize_of_cfg := (plength elements_of_cfg + 2)%positive.
 
@@ -2229,24 +1825,13 @@ Definition num_of_doms_fun (dmap: PMap.t LDoms.t) (acc p:positive) : positive :=
 Definition num_of_doms (dmap: PMap.t LDoms.t) : positive :=
 fold_left (num_of_doms_fun dmap) elements_of_cfg 1%positive.
 
-Definition Pcube (p:positive) : positive := (p * (p * p))%positive.
-Definition num_iters := (Pcube psize_of_cfg + psize_of_cfg)%positive.
+Definition num_iters := Pcubeplus psize_of_cfg.
 Definition psize_of_worklist (wrk: PNodeSetMax.t) : positive :=
 (P_of_succ_nat (PositiveSet.cardinal wrk) + 1)%positive.
 
 Definition num_iters_aux (st: DomDS.state) := 
 (psize_of_cfg * (num_of_doms (st.(DomDS.st_in))) + 
   psize_of_worklist (st.(DomDS.st_wrk)))%positive.
-
-Lemma succs_in_elements_of_cfg: forall n, incl successors ??? n elements_of_cfg.
-Proof.
-  intros.
-  unfold elements_of_cfg.
-  intros x Hin.
-  apply remove_redundancy_in; auto.
-    apply XPTree.children_in_children_of_tree in Hin.
-    auto with datatypes v62.
-Qed.
 
 Lemma elements_of_cfg__lt__psize_of_cfg:
   (plength elements_of_cfg < psize_of_cfg)%positive.
@@ -2282,9 +1867,9 @@ Proof.
     intros [max rem] Hpick.
     rewrite Hpick in *. exists max.
     inv Hstep.
-    erewrite <- propagate_succ_list_records_unchanges; eauto.
+    erewrite <- Mono.propagate_succ_list_records_unchanges; eauto.
       simpl. auto.
-      apply succs_in_elements_of_cfg.
+      apply XPTree.succs_in_elements_of_cfg.
 
     intros Hpick.
     rewrite Hpick in *. congruence.
@@ -2830,29 +2415,176 @@ Proof.
   zify; omega.
 Qed.
 
-Lemma fixpoint_wf:
-  exists res, 
-    PrimIter.iter _ _ (DomDS.step successors LDoms.transfer)
-      num_iters (DomDS.start_state successors entrypoints) = Some res.
+Lemma num_iters__ge__num_iters_aux: 
+  (num_iters >= 
+    num_iters_aux (DomDS.start_state successors entrypoints))%positive.
 Proof.
-  apply fixpoint_iter.
-    unfold num_iters, num_iters_aux, Pcube. 
-    assert (J1:=entry_num_of_doms).
-    assert (J2:=entry_psize_of_worklist).
-    revert J1 J2.
-    generalize 
-      (num_of_doms (DomDS.st_in (DomDS.start_state successors entrypoints))) 
-      as C.
-    intros C. intros.
-    assert (psize_of_cfg * (psize_of_cfg * psize_of_cfg) >= psize_of_cfg * C)%positive.
-      zify. apply Zmult_ge_compat_l; omega.
-    zify. omega.
+  unfold num_iters, num_iters_aux, Pcubeplus. 
+  assert (J1:=entry_num_of_doms).
+  assert (J2:=entry_psize_of_worklist).
+  revert J1 J2.
+  generalize 
+    (num_of_doms (DomDS.st_in (DomDS.start_state successors entrypoints))) 
+    as C.
+  intros C. intros.
+  assert (psize_of_cfg * (psize_of_cfg * psize_of_cfg) >= psize_of_cfg * C)%positive.
+    zify. apply Zmult_ge_compat_l; omega.
+  zify. omega.
+Qed.
 
-    eapply DomsInParents.start_wf_doms; eauto.
-    eapply SortedDoms.entrypoints_wf_state; eauto.
+Lemma fixpoint_wf: forall ni (Hge: (ni >= num_iters)%positive),
+  exists res, 
+    DomDS.fixpoint successors LDoms.transfer entrypoints ni = Some res.
+Proof.
+  intros.
+  apply fixpoint_iter.
+  Case "1".
+    assert (J:=num_iters__ge__num_iters_aux).
+    zify. omega.
+  Case "2". eapply DomsInParents.start_wf_doms; eauto.
+  Case "3". eapply SortedDoms.entrypoints_wf_state; eauto.
 Qed.
 
 End Termination. End Termination.
+
+Ltac termination_tac :=
+match goal with
+| Hlarge_enough: (?ni >= Termination.num_iters ?successors)%positive |- _ =>
+    let J:=fresh "J" in 
+    assert (J:=Hlarge_enough);
+    eapply Termination.fixpoint_wf in J; eauto;
+    destruct J as [dms Hfix_tmn];
+    unfold Termination.entrypoints in Hfix_tmn;
+    rewrite Hfix_tmn in *
+end.
+
+(***************************************************)
+
+Module UnreachableDoms. Section UnreachableDoms.
+
+Variable successors: PTree.t (list positive).
+Variable entrypoint: positive.
+Definition entrypoints := (entrypoint, LDoms.top) :: nil.
+
+Definition wf_doms (res: PMap.t LDoms.t) : Prop :=
+  forall n0 (Hunreach: ~ PCfg.reachable successors entrypoint n0) 
+    (Hneq: n0 <> entrypoint),
+    LDoms.eq res??n0 LDoms.bot.
+
+Lemma start_wf_doms:
+  wf_doms (DomDS.st_in (DomDS.start_state successors entrypoints)).
+Proof.
+  intros n0 Hunreach Hneq. simpl.
+  eapply dom_nonentry_start_state_in in Hneq; eauto.
+Qed.
+
+(** We show that the start state satisfies the invariant, and that
+  the [step] function preserves it. *)
+
+Lemma propagate_succ_wf_doms: forall st n out
+  (Hp: ~ PCfg.reachable successors entrypoint n -> 
+       n <> entrypoint -> LDoms.eq out LDoms.bot)
+  (Hwf: wf_doms st.(DomDS.st_in)),
+  wf_doms (DomDS.propagate_succ st out n).(DomDS.st_in).
+Proof.
+  unfold wf_doms.
+  intros.
+  destruct (propagate_succ_spec st out n) as [J1 J2].
+  assert (Hunreach':=Hunreach).
+  apply Hwf in Hunreach; auto.
+  destruct (positive_eq_dec n n0); subst.
+    apply Hp in Hunreach'; auto.
+    apply LDoms.eq_trans with
+      (y:=fst (LDoms.lub (DomDS.st_in st) ?? n0 out)); auto.
+    rewrite Hunreach'. rewrite Hunreach. simpl. apply LDoms.eq_refl.
+
+    rewrite J2; auto.
+Qed.
+
+Lemma propagate_succ_list_wf_doms: forall scs st out
+  (H: forall s, In s scs ->
+             ~ PCfg.reachable successors entrypoint s -> s <> entrypoint ->
+             LDoms.eq out LDoms.bot)
+  (Hwf: wf_doms st.(DomDS.st_in)),
+  wf_doms (DomDS.propagate_succ_list st out scs).(DomDS.st_in).
+Proof.
+  induction scs; simpl; intros; auto.
+    apply IHscs.
+      intros. apply H with (s:=s); auto.
+      apply propagate_succ_wf_doms; auto.
+        intros J1 J2. eapply H; eauto.
+Qed.
+
+Hypothesis wf_entrypoints: in_cfg successors entrypoint.
+
+Lemma step_wf_doms:
+  forall st n rem
+  (WKL: PNodeSetMax.pick st.(DomDS.st_wrk) = Some(n, rem))
+  (GOOD: wf_doms st.(DomDS.st_in)),
+  wf_doms (DomDS.propagate_succ_list
+                                  (DomDS.mkstate st.(DomDS.st_in) rem)
+                                  (LDoms.transfer n st.(DomDS.st_in)??n)
+                                  (successors???n)).(DomDS.st_in).
+Proof.
+  intros st n rem WKL GOOD.
+  destruct st. simpl.
+  apply propagate_succ_list_wf_doms; auto.
+  intros s Hin Hunreach.
+  destruct (PCfg.reachable_dec successors entrypoint n).
+  Case "1".
+    apply PCfg.reachable_succ with (sc:=s) in H; auto.
+    congruence.
+  Case "2".
+    apply GOOD in H. simpl in H.
+    intros Hneq.
+    destruct (positive_eq_dec n entrypoint); subst.
+    SCase "2.1".
+      contradict Hunreach.
+      unfold reachable.
+      exists (index entrypoint::nil). 
+      exists (A_ends (index s) (index entrypoint)::nil).
+      constructor; auto.
+        constructor; auto.
+        eapply XPTree.in_succ__in_cfg; eauto.
+
+    SCase "2.2".
+      rewrite H; auto. simpl. 
+      unfold LDoms.eq, LDoms.bot. auto.
+Qed.
+
+Variable ni:positive.
+
+Theorem fixpoint_wf: forall res,
+  DomDS.fixpoint successors LDoms.transfer entrypoints ni = Some res ->
+  wf_doms res.
+Proof.
+  unfold DomDS.fixpoint. intros res PI. pattern res.
+  eapply (PrimIter.iter_prop _ _ (DomDS.step successors LDoms.transfer)
+    (fun st => wf_doms st.(DomDS.st_in))); eauto.
+    intros st GOOD. unfold DomDS.step.
+    caseEq (PNodeSetMax.pick st.(DomDS.st_wrk)); auto.
+    intros [n rem] PICK.
+    apply step_wf_doms; auto.
+
+    apply start_wf_doms.
+Qed.
+
+Lemma fixpoint_reachable: forall n res dts
+  (Hfix: DomDS.fixpoint successors LDoms.transfer entrypoints ni = Some res)
+  (Hdom: res ?? n = Some dts),
+  PCfg.reachable successors entrypoint n.
+Proof.
+  intros.
+  destruct (positive_eq_dec n entrypoint); subst.
+    apply PCfg.reachable_entry; auto.
+    destruct (PCfg.reachable_dec successors entrypoint n) as [H|H]; auto.
+      apply fixpoint_wf in Hfix.
+      assert (J:=Hfix n). 
+      apply J in H; auto.
+      rewrite Hdom in H. inv H.
+Qed.
+
+End UnreachableDoms. End UnreachableDoms.
 
 (***************************************************)
 
@@ -2960,12 +2692,12 @@ Hypothesis wf_order: forall n (Hneq: n <> entrypoint)
   (Hincfg: XPTree.in_cfg successors n),
   exists p, In p (predecessors ??? n) /\ (p > n)%positive.
 
-Theorem fixpoint_wf_doms: forall res,
-  DomDS.fixpoint successors LDoms.transfer entrypoints = Some res ->
+Theorem fixpoint_wf_doms: forall res ni,
+  DomDS.fixpoint successors LDoms.transfer entrypoints ni = Some res ->
   wf_doms res.
 Proof.
-  unfold DomDS.fixpoint. intros res PI. pattern res.
-  eapply (PrimIter.iterate_prop _ _ (DomDS.step successors LDoms.transfer)
+  unfold DomDS.fixpoint. intros res ni PI. pattern res.
+  eapply (PrimIter.iter_prop _ _ (DomDS.step successors LDoms.transfer)
     (fun st => SortedDoms.wf_state successors st /\
                wf_doms st.(DomDS.st_in))); eauto.
   Case "1".
@@ -2979,27 +2711,6 @@ Proof.
     split.
       apply SortedDoms.entrypoints_wf_state; auto.
       apply start_wf_doms.
-Qed.
-
-Lemma entrypoint_in_nonempty: forall n dts
-  (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts)
-  (Hnonempty: dts <> nil),
-  In entrypoint dts.
-Proof.
-  intros.
-  destruct (positive_eq_dec n entrypoint) as [Heq | Hneq]; subst.
-    rewrite DomSound.adom_entrypoint in Hdom.
-    congruence.
-
-    unfold pdom_analyze in *.
-    caseEq (DomDS.fixpoint successors LDoms.transfer
-             ((entrypoint, LDoms.top) :: nil)).
-      intros res H. rewrite H in Hdom.
-      apply fixpoint_wf_doms in H.
-      apply H in Hneq. rewrite Hdom in Hneq. simpl in Hneq. auto.
- 
-      intros H. rewrite H in Hdom.
-      rewrite PMap.gi in Hdom. inv Hdom. congruence.
 Qed.
 
 End EntryDomsOthers. End EntryDomsOthers.
@@ -3159,12 +2870,12 @@ Hypothesis wf_order: forall n (Hneq: n <> entrypoint)
   (Hincfg: XPTree.in_cfg successors n),
   exists p, In p (predecessors ??? n) /\ (p > n)%positive.
 
-Theorem fixpoint_wf: forall res,
-  DomDS.fixpoint successors LDoms.transfer entrypoints = Some res ->
+Theorem fixpoint_wf: forall res ni,
+  DomDS.fixpoint successors LDoms.transfer entrypoints ni = Some res ->
   wf_doms res.
 Proof.
-  unfold DomDS.fixpoint. intros res PI. pattern res.
-  eapply (PrimIter.iterate_prop _ _ (DomDS.step successors LDoms.transfer)
+  unfold DomDS.fixpoint. intros res ni PI. pattern res.
+  eapply (PrimIter.iter_prop _ _ (DomDS.step successors LDoms.transfer)
     (fun st => SortedDoms.wf_state successors st /\
                wf_doms st.(DomDS.st_in))); eauto.
   Case "1".
@@ -3180,107 +2891,347 @@ Proof.
       apply start_wf_doms.
 Qed.
 
-Lemma sadom_is_complete: forall n1 n2 (Hincfg: in_cfg successors n1)
-  (Hsdom: PCfg.strict_domination successors entrypoint n1 n2)
-  (Hok: pdom_analysis_is_successful successors entrypoint),
-  strict_adomination successors entrypoint n1 n2.
+End DomComplete. End DomComplete.
+
+(*****************************************************************)
+
+Require Import Program.Equality.
+
+Module DomSound. Section DomSound.
+
+Variable successors: PTree.t (list positive).
+Variable entrypoint: positive.
+Definition entrypoints := (entrypoint, LDoms.top) :: nil.
+Variable ni: positive.
+
+Lemma adom_entrypoint:
+  (pdom_analyze successors entrypoint ni) ?? entrypoint = Some nil.
+Proof.
+  unfold pdom_analyze.
+  caseEq (DomDS.fixpoint successors LDoms.transfer
+           ((entrypoint, LDoms.top) :: nil) ni).
+    intros res H.
+    eapply Inequations.fixpoint_entry with (n:=entrypoint) in H; simpl; eauto.
+    destruct (res ?? entrypoint); inv H; auto.
+ 
+    intros H. rewrite PMap.gi. auto.
+Qed.
+
+Definition predecessors := XPTree.make_predecessors successors.
+
+Hypothesis wf_order: forall n (Hincfg: XPTree.in_cfg successors n) 
+  (Hneq: n <> entrypoint),
+  exists p, In p (predecessors ??? n) /\ (p > n)%positive.
+
+Lemma sadom_adom_successors: forall n1 n2 p2 (Hsc : In n2 successors ??? p2)
+  (Hincfg : in_cfg successors n1)
+  (Hadom : strict_adomination successors entrypoint ni n1 n2),
+  adomination successors entrypoint ni n1 p2.
+Proof.
+  intros.
+  unfold adomination, strict_adomination, pdom_analyze in *.
+  remember (DomDS.fixpoint successors LDoms.transfer
+                   ((entrypoint, LDoms.top) :: nil) ni) as R.
+  destruct R as [res|]; simpl in *.
+    symmetry in HeqR.
+    apply Inequations.fixpoint_solution with (n:=p2)(s:=n2) in HeqR; auto.
+    destruct (res ?? n2) as [dms2|]; simpl in *.
+      destruct (LDoms.transfer p2 res ?? p2); simpl; auto.
+        eapply sublist_In; eauto.
+      
+      destruct (LDoms.transfer p2 res ?? p2); simpl; auto.
+        tauto.
+
+    rewrite PMap.gi in Hadom. simpl in Hadom.
+    destruct Hadom; subst; tauto.
+Qed.
+
+Lemma adom_successors: forall n1 n2 p2 (Hsc : In n2 successors ??? p2)
+  (Hincfg : in_cfg successors n1)
+  (Hadom : adomination successors entrypoint ni n1 n2)
+  (Hneq : n1 <> n2),
+  adomination successors entrypoint ni n1 p2.
+Proof.
+  intros. eapply sadom_adom_successors; eauto using adom__sadom.
+Qed.
+
+Lemma adom_is_sound : forall n1 n2 (Hincfg: in_cfg successors n1)
+  (Hadom: adomination successors entrypoint ni n1 n2),
+  PCfg.domination successors entrypoint n1 n2.
+Proof.
+  intros.
+  intros vl al Hreach.
+  remember (PCfg.vertexes successors) as A.
+  remember (PCfg.arcs successors) as B.
+  unfold PTree.elt in *.
+  remember (index n2) as C.
+  remember (index entrypoint) as D.
+  generalize dependent n2.
+  induction Hreach; intros; subst.
+  Case "base".
+    inversion HeqC; subst n2.
+    unfold adomination in Hadom.
+    rewrite adom_entrypoint in Hadom.
+    simpl in Hadom. destruct Hadom as [Hadom | Hadom]; tinv Hadom; auto.
+
+  Case "ind".
+    destruct y as [p2].
+    destruct (positive_eq_dec n1 n2); subst; auto.
+    left.
+    assert (In (index n1) vl \/ n1 = p2) as Hin.
+      apply IHHreach; auto.
+      eapply adom_successors; eauto.
+    simpl.
+    destruct Hin; subst; eauto.
+Qed.
+
+Lemma sadom_is_sound : forall n1 n2 (Hincfg: in_cfg successors n1)
+  (Hsadom: strict_adomination successors entrypoint ni n1 n2),
+  PCfg.strict_domination successors entrypoint n1 n2.
+Proof.
+  intros. assert (Hadom:=Hsadom).
+  apply sadom__adom in Hadom.
+  apply adom_is_sound in Hadom; auto.
+  intros vl al Hreach.
+  assert (Hw':=Hreach).
+  apply DWalk_to_dpath in Hreach; auto using positive_eq_dec.
+  destruct Hreach as [vl0 [al0 Hp]].
+  destruct (positive_eq_dec n1 n2); subst.
+  Case "n1=n2".
+    unfold PCfg.domination in *.
+    destruct (positive_eq_dec n2 entrypoint); subst.
+    SCase "n2=entry".
+      unfold strict_adomination in Hsadom.
+      rewrite adom_entrypoint in Hsadom.
+      inv Hsadom.
+    SCase "n2<>entry".
+      inv Hp; try congruence.
+      destruct y as [p2].
+      assert (adomination successors entrypoint ni n2 p2) as J.
+        eapply sadom_adom_successors; eauto.
+      eapply adom_is_sound in J; eauto.
+      unfold domination in J.
+      assert (Hw:=H).
+      apply D_path_isa_walk in Hw.
+      apply J in Hw.
+      destruct Hw as [Hw | Hw]; subst; auto.
+        apply H4 in Hw. inv Hw; try congruence.
+        elimtype False. auto.
+  Case "n1<>n2".
+    apply Hadom in Hw'.
+    split; auto. destruct Hw'; subst; auto. congruence.
+Qed.
+
+Lemma sadom_isnt_refl : forall n1 n2 (Hincfg: in_cfg successors n1)
+  (Hreach : PCfg.reachable successors entrypoint n2)
+  (Hsadom: strict_adomination successors entrypoint ni n1 n2),
+  n1 <> n2.
+Proof.
+  intros.
+  eapply sadom_is_sound in Hsadom; eauto.
+  destruct Hreach as [vl [al Hreach]].
+  apply Hsadom in Hreach. tauto.
+Qed.
+
+Lemma reachable_isnt_bot : forall n 
+  (Hreach : PCfg.reachable successors entrypoint n),
+  (pdom_analyze successors entrypoint ni) ?? n <> LDoms.bot.
+Proof.
+  intros.
+  destruct Hreach as [vl [al Hreach]].
+  remember (PCfg.vertexes successors) as A.
+  remember (PCfg.arcs successors) as B.
+  unfold PTree.elt in *.
+  remember (index n) as C.
+  remember (index entrypoint) as D.
+  generalize dependent n.
+  induction Hreach; intros; subst.
+  Case "base".
+    inversion HeqC; subst n.
+    rewrite adom_entrypoint. unfold LDoms.bot. congruence.
+
+  Case "ind".
+    destruct y as [p2].
+    assert (index p2 = index p2) as Hdom. auto.
+    apply_clear IHHreach in Hdom; auto.
+    unfold pdom_analyze in *.
+    case_eq (DomDS.fixpoint successors LDoms.transfer
+              ((entrypoint, LDoms.top) :: nil) ni).
+    SCase "1".
+      intros res Hfix.
+      rewrite Hfix in Hdom.
+      apply Inequations.fixpoint_solution with (n:=p2)(s:=n) in Hfix; auto.
+      unfold LDoms.bot in *.
+      destruct (res ?? p2); try congruence.
+      simpl in Hfix.
+      destruct (res ?? n); inv Hfix; congruence.
+
+    SCase "2".
+      intro Hfix.
+      rewrite PMap.gi. 
+      unfold LDoms.top, LDoms.bot.
+      congruence.
+Qed.
+
+End DomSound. End DomSound.
+
+(***************************************************************)
+
+Module PDomProps. Section PDomProps.
+
+Variable successors: PTree.t (list positive).
+Variable entrypoint: positive.
+Definition entrypoints := (entrypoint, LDoms.top) :: nil.
+Variable ni: positive.
+
+Lemma dom_in_parants: forall (dts : list positive) n
+  (Hdom : (pdom_analyze successors entrypoint ni) ?? n = Some dts)
+  (p : positive) (Hinp : In p dts),
+  In p (XPTree.parents_of_tree successors).
+Proof.
+  unfold pdom_analyze  in *.
+  intros.
+  case_eq (DomDS.fixpoint successors LDoms.transfer
+             ((entrypoint, LDoms.top) :: nil) ni).
+    intros res Heq.
+    rewrite Heq in Hdom.
+    apply DomsInParents.fixpoint_wf in Heq.
+    assert (J:=Heq n). rewrite Hdom in J.
+    simpl in J.
+    eauto with datatypes v62.
+
+    intros Heq.
+    rewrite Heq in Hdom.
+    rewrite PMap.gi in Hdom. inv Hdom. inv Hinp.
+Qed.
+
+Lemma dom_in_cfg: forall (dts : list positive) n
+  (Hdom : (pdom_analyze successors entrypoint ni) ?? n = Some dts)
+  (p : positive) (Hinp : In p dts),
+  XPTree.in_cfg successors p.
+Proof.
+  intros. left. eapply dom_in_parants; eauto.
+Qed.
+
+Hypothesis Hlarge_enough: (ni >= Termination.num_iters successors)%positive.
+
+Hypothesis wf_entrypoints: in_cfg successors entrypoint.
+Definition predecessors := XPTree.make_predecessors successors.
+Hypothesis wf_order: forall n (Hincfg: XPTree.in_cfg successors n) 
+  (Hneq: n <> entrypoint),
+  exists p, In p (predecessors ??? n) /\ (p > n)%positive.
+
+Lemma dom_unreachable: forall n3 
+  (Hunreach: ~ PCfg.reachable successors entrypoint n3),
+  LDoms.eq ((pdom_analyze successors entrypoint ni) ?? n3) LDoms.bot.
+Proof.
+  intros.
+  destruct (positive_eq_dec n3 entrypoint); subst.
+  Case "1".
+    contradict Hunreach. 
+    apply PCfg.reachable_entry; auto.    
+  Case "2".
+    unfold strict_adomination, pdom_analyze in *.
+    termination_tac.
+    eapply UnreachableDoms.fixpoint_wf in Hfix_tmn; eauto.
+Qed.
+
+Lemma nonempty_is_reachable: forall n dts
+  (Hdom: (pdom_analyze successors entrypoint ni) ?? n = Some dts)
+  (Hnonempty: dts <> nil),
+  PCfg.reachable successors entrypoint n.
+Proof.
+  intros.
+  destruct (PCfg.reachable_dec successors entrypoint n) as [H|H]; auto.
+    apply dom_unreachable in H; auto.
+    rewrite Hdom in H. inv H.
+Qed.
+
+Lemma in_dom__reachable: forall
+  (dts : list positive) n
+  (Hdom : (pdom_analyze successors entrypoint ni) ?? n = Some dts)
+  (p : positive) (Hinp : In p dts),
+  PCfg.reachable successors entrypoint p.
 Proof.
   intros. 
-  unfold strict_adomination, pdom_analysis_is_successful, pdom_analyze in *.
-  remember (DomDS.fixpoint successors LDoms.transfer
-             ((entrypoint, LDoms.top) :: nil)) as R.
-  destruct R as [dms|]; try tauto.
-  symmetry in HeqR.
-  eapply fixpoint_wf in HeqR; eauto.
+  assert (Hincfg:=Hdom).
+  eapply dom_in_cfg in Hincfg; eauto.
+  assert (Hreach:=Hdom).
+  apply nonempty_is_reachable in Hreach; auto.
+    assert (PCfg.strict_domination successors entrypoint p n) as Hsdom.
+      apply DomSound.sadom_is_sound with (ni:=ni); auto.
+        unfold strict_adomination. rewrite Hdom; auto.
+    eapply PCfg.sdom_reachable; eauto using positive_eq_dec.
+
+    intro Eq. subst. tauto.
+Qed.
+
+Lemma pdom_in_bound: forall p dts
+  (Hdom: (pdom_analyze successors entrypoint ni) ?? p = Some dts) dt
+  (Hin: In dt dts),
+  In dt (XPTree.parents_of_tree successors).
+Proof.
+  unfold pdom_analyze.
+  intros.
+  case_eq (DomDS.fixpoint successors LDoms.transfer 
+             ((entrypoint, LDoms.top) :: nil) ni).
+    intros res Hfix. rewrite Hfix in Hdom.
+    eapply DomsInParents.dom_fix_in_bound; eauto.
+
+    intros Hfix. rewrite Hfix in Hdom.
+    rewrite PMap.gi in Hdom. inv Hdom. tauto.
+Qed.
+
+Lemma entrypoint_in_nonempty: forall n dts
+  (Hdom: (pdom_analyze successors entrypoint ni) ?? n = Some dts)
+  (Hnonempty: dts <> nil),
+  In entrypoint dts.
+Proof.
+  intros.
+  destruct (positive_eq_dec n entrypoint) as [Heq | Hneq]; subst.
+    rewrite DomSound.adom_entrypoint in Hdom.
+    congruence.
+
+    unfold pdom_analyze in *.
+    caseEq (DomDS.fixpoint successors LDoms.transfer
+             ((entrypoint, LDoms.top) :: nil) ni).
+      intros res H. rewrite H in Hdom.
+      apply EntryDomsOthers.fixpoint_wf_doms in H; auto.
+      apply H in Hneq. rewrite Hdom in Hneq. simpl in Hneq. auto.
+ 
+      intros H. rewrite H in Hdom.
+      rewrite PMap.gi in Hdom. inv Hdom. congruence.
+Qed.
+
+Lemma sadom_is_complete: forall n1 n2 (Hincfg: in_cfg successors n1)
+  (Hsdom: PCfg.strict_domination successors entrypoint n1 n2),
+  strict_adomination successors entrypoint ni n1 n2.
+Proof.
+  intros. 
+  unfold strict_adomination, pdom_analyze in *.
+  termination_tac.
+  eapply DomComplete.fixpoint_wf in Hfix_tmn; eauto.
   Case "1".
-    unfold wf_doms in HeqR.
+    unfold DomComplete.wf_doms in Hfix_tmn.
     destruct (member_dec successors n1 dms ?? n2); auto.
-    apply HeqR with (n2:=n2) in Hincfg; auto.
+    apply Hfix_tmn with (n2:=n2) in Hincfg; auto.
     SCase "1.1".
-      unfold non_sdomination in Hincfg.
+      unfold DomComplete.non_sdomination in Hincfg.
       destruct Hincfg as [vl [al [J1 J2]]].
       unfold strict_domination in Hsdom.
       apply Hsdom in J1.
       destruct J1; subst; congruence.
 Qed.
 
-End DomComplete. End DomComplete.
-
-(***************************************************************)
-
-Lemma dom_fix_in_bound: forall successors le t
-  (Hfix: DomDS.fixpoint successors LDoms.transfer
-            ((le, LDoms.top) :: nil) = Some t),
-  forall l0 ns0 (Hget: t ?? l0 = Some ns0) n (Hin: In n ns0),
-    In n (XPTree.parents_of_tree successors).
-Proof.
-  intros.
-  apply DomsInParents.fixpoint_wf in Hfix; auto.
-  assert (J:=Hfix l0).
-  unfold DomsInParents.wf_dom in J.
-  rewrite Hget in J. auto.
-Qed.
-
-Lemma pdom_in_bound: forall psuccs pe p dts
-  (Hdom: (pdom_analyze psuccs pe) ?? p = Some dts) dt
-  (Hin: In dt dts),
-  In dt (XPTree.parents_of_tree psuccs).
-Proof.
-  unfold pdom_analyze.
-  intros.
-  case_eq (DomDS.fixpoint psuccs LDoms.transfer ((pe, LDoms.top) :: nil)).
-    intros res Hfix. rewrite Hfix in Hdom.
-    eapply dom_fix_in_bound; eauto.
-
-    intros Hfix. rewrite Hfix in Hdom.
-    rewrite PMap.gi in Hdom. inv Hdom. tauto.
-Qed.
+End PDomProps. End PDomProps.
 
 Require Import dom_decl.
-
-Lemma noone_sdom_entry: forall successors entrypoint n
-  (Hincfg: in_cfg successors entrypoint)
-  (Hnopred: (XPTree.make_predecessors successors) ??? entrypoint = nil)
-  (Hsdom : PCfg.strict_domination successors entrypoint n entrypoint),
-  False.
-Proof.
-  intros.
-  assert (Hreach:=PCfg.reachable_entry successors entrypoint Hincfg).
-  destruct Hreach as [vl [al Hreach]].
-  assert (Hw:=Hreach).
-  apply Hsdom in Hw.
-  inv Hreach.
-    tauto.
-
-    simpl in H1. 
-    destruct y.
-    apply XPTree.make_predecessors_correct in H1.
-    rewrite Hnopred in H1. tauto.
-Qed.
 
 Module IdomSorted. Section IdomSorted.
 
 Variable successors: PTree.t (list positive).
 Variable entrypoint: positive.
 Hypothesis wf_entrypoints: in_cfg successors entrypoint.
-
-Lemma reachable_is_in_cfg: forall n (Hreach: PCfg.reachable successors entrypoint n), 
-  in_cfg successors n.
-Proof.
-  intros.
-  destruct Hreach as [vl [al Hreach]].
-  apply DW_endx_inv in Hreach; auto.
-Qed.
-
-Lemma sdom_of_reachable_is_in_cfg: forall n1 n2 
-  (Hreach: PCfg.reachable successors entrypoint n2)
-  (Hsdom: PCfg.strict_domination successors entrypoint n1 n2),
-  in_cfg successors n1.
-Proof.
-  intros.
-  apply PCfg.sdom_reachable in Hsdom; auto using positive_eq_dec.
-  apply reachable_is_in_cfg; auto.
-Qed.
 
 Definition entrypoints := (entrypoint, LDoms.top) :: nil.
 Definition predecessors := XPTree.make_predecessors successors.
@@ -3289,9 +3240,12 @@ Hypothesis wf_order: forall n (Hneq: n <> entrypoint)
   (Hincfg: XPTree.in_cfg successors n),
   exists p, In p (predecessors ??? n) /\ (p > n)%positive.
 
+Variable ni: positive.
+Hypothesis Hlarge_enough: (ni >= Termination.num_iters successors)%positive.
+
 Lemma Forall_Pgt__Forall_sdom: forall (n : positive) (res : PMap.t LDoms.t)
   (Hfix : DomDS.fixpoint successors LDoms.transfer
-           ((entrypoint, LDoms.top) :: nil) = Some res)
+           ((entrypoint, LDoms.top) :: nil) ni = Some res)
   (Hreach : PCfg.reachable successors entrypoint n)
   (Hsort : SortedDoms.wf_doms res) 
   (a : positive)
@@ -3305,50 +3259,51 @@ Lemma Forall_Pgt__Forall_sdom: forall (n : positive) (res : PMap.t LDoms.t)
   Forall (PCfg.strict_domination successors entrypoint a) l.
 Proof.
   intros.
-  assert (pdom_analysis_is_successful successors entrypoint) as Hok.
-    unfold pdom_analysis_is_successful. rewrite Hfix. auto.    
-      induction H; auto.
-        constructor.
-          clear IHForall.
-          assert (PCfg.strict_domination successors entrypoint a x \/ 
-                  PCfg.strict_domination successors entrypoint x a) as Horder.
-            assert (PCfg.strict_domination successors entrypoint a n) 
-              as Hsdom_an.
-              apply Hpn; auto with datatypes v62.
-            assert (PCfg.strict_domination successors entrypoint x n) 
-              as Hsdom_xn.
-              apply Hpn; auto with datatypes v62.
-            eapply PCfg.sdom_ordered; eauto using positive_eq_dec with positive.
-          destruct Horder as [Hsdom_ax | Hsdom_xa]; auto.
-          elimtype False.
-          apply DomComplete.sadom_is_complete in Hsdom_xa; auto.
-             unfold strict_adomination, pdom_analyze in Hsdom_xa.
-             rewrite Hfix in Hsdom_xa.
-             assert (Hsorta:=Hsort a).
-             remember (res ?? a) as R.
-             destruct R; simpl in Hsdom_xa.
-               apply Plt_Sorted__StronglySorted in Hsorta.
-               inv Hsorta.
-               eapply Forall_forall in H4; eauto.
-               inv H4. rewrite H in H2. congruence.
-    
-               assert (PCfg.reachable successors entrypoint a) as Hreacha. 
-                 apply Hpn. simpl. auto.
-               apply DomSound.reachable_isnt_bot in Hreacha; auto.
-               unfold pdom_analyze in Hreacha.
-               rewrite Hfix in Hreacha. rewrite <- HeqR in Hreacha. auto.
-    
-             apply Hpn. simpl. auto.
-    
-          apply IHForall.            
-            apply StronglySorted_inv in Hsortn. tauto.
-            intros. apply Hpn. destruct_in H1; simpl; auto.
+  induction H; auto.
+    constructor.
+    Case "1".
+      clear IHForall.
+      assert (PCfg.strict_domination successors entrypoint a x \/ 
+              PCfg.strict_domination successors entrypoint x a) as Horder.
+        assert (PCfg.strict_domination successors entrypoint a n) 
+          as Hsdom_an.
+          apply Hpn; auto with datatypes v62.
+        assert (PCfg.strict_domination successors entrypoint x n) 
+          as Hsdom_xn.
+          apply Hpn; auto with datatypes v62.
+        eapply PCfg.sdom_ordered; eauto using positive_eq_dec with positive.
+      destruct Horder as [Hsdom_ax | Hsdom_xa]; auto.
+      elimtype False.
+      eapply PDomProps.sadom_is_complete in Hsdom_xa; eauto.
+      SCase "1.1".
+        unfold strict_adomination, pdom_analyze in Hsdom_xa.
+        rewrite Hfix in Hsdom_xa.
+        assert (Hsorta:=Hsort a).
+        remember (res ?? a) as R.
+        destruct R; simpl in Hsdom_xa.
+        SSCase "1.1.1".
+          apply Plt_Sorted__StronglySorted in Hsorta.
+          inv Hsorta.
+          eapply Forall_forall in H4; eauto.
+          inv H4. rewrite H in H2. congruence.
+        SSCase "1.1.2".  
+          assert (PCfg.reachable successors entrypoint a) as Hreacha. 
+            apply Hpn. simpl. auto.
+          apply DomSound.reachable_isnt_bot with (ni:=ni) in Hreacha; auto.
+          unfold pdom_analyze in Hreacha.
+          rewrite Hfix in Hreacha. rewrite <- HeqR in Hreacha. auto.
+      SCase "1.2".   
+        apply Hpn. simpl. auto.
+    Case "2".   
+      apply IHForall.            
+        apply StronglySorted_inv in Hsortn. tauto.
+        intros. apply Hpn. destruct_in H1; simpl; auto.
 Qed.
 
 Lemma Pgt_sorted__sdom_sorted: forall (n : positive) (dts : list positive)
   (res : PMap.t LDoms.t)
   (Hfix : DomDS.fixpoint successors LDoms.transfer
-           ((entrypoint, LDoms.top) :: nil) = Some res)
+           ((entrypoint, LDoms.top) :: nil) ni = Some res)
   (Hreach : PCfg.reachable successors entrypoint n)
   (Hsort : SortedDoms.wf_doms res)
   (Hsortn : StronglySorted Pgt dts)
@@ -3369,20 +3324,17 @@ Proof.
 Qed.
 
 Lemma dom__sdom_sorted_aux: forall n dts
-  (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts),
+  (Hdom: (pdom_analyze successors entrypoint ni) ?? n = Some dts),
   StronglySorted (PCfg.strict_domination successors entrypoint) (rev dts).
 Proof.
   unfold pdom_analyze.
   intros.
   case_eq (DomDS.fixpoint successors LDoms.transfer 
-            ((entrypoint, LDoms.top) :: nil)).
+            ((entrypoint, LDoms.top) :: nil) ni).
     intros res Hfix. rewrite Hfix in Hdom.    
-    assert (pdom_analysis_is_successful successors entrypoint) as Hok.
-      unfold pdom_analysis_is_successful. rewrite Hfix. auto.    
-
     assert (PCfg.reachable successors entrypoint n) as Hreach.
       destruct (PCfg.reachable_dec successors entrypoint n) as [H|H]; auto.
-      apply UnreachableDoms.dom_unreachable in H; auto.
+      apply PDomProps.dom_unreachable with (ni:=ni) in H; auto.
         unfold pdom_analyze in H. rewrite Hfix in H. rewrite Hdom in H. inv H.
 
     assert (forall dt, In dt (rev dts) ->
@@ -3391,7 +3343,7 @@ Proof.
                        in_cfg successors dt) as Hpn.
       intros dt Hin. apply in_rev in Hin.
       assert (PCfg.strict_domination successors entrypoint dt n) as Hsound.
-        apply DomSound.sadom_is_sound; auto.
+        apply DomSound.sadom_is_sound with (ni:=ni); auto.
           apply DomsInParents.fixpoint_wf in Hfix.
             assert (J:=Hfix n). rewrite Hdom in J. simpl in J.
             left. eauto with datatypes v62.
@@ -3420,7 +3372,7 @@ Proof.
 Qed.
 
 Lemma dom__sdom_sorted: forall n dts
-  (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts),
+  (Hdom: (pdom_analyze successors entrypoint ni) ?? n = Some dts),
   StronglySorted (PCfg.strict_domination successors entrypoint) 
     (rev (n::dts)).
 Proof.
@@ -3431,9 +3383,8 @@ Proof.
   apply StronglySorted_rev_cons; auto.
     apply Forall_forall.
     intros x Hinx. apply in_rev in Hinx.
-    apply DomSound.sadom_is_sound; auto.
-      eapply DomsInParents.dom_in_cfg; eauto.
-
+    apply DomSound.sadom_is_sound with (ni:=ni); auto.
+      eapply PDomProps.dom_in_cfg; eauto.
       unfold strict_adomination. rewrite Hdom. simpl. auto.
 Qed.
 
@@ -3522,7 +3473,7 @@ Proof.
 Qed.
 
 Lemma dom__imm_sorted: forall n dts
-  (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts),
+  (Hdom: (pdom_analyze successors entrypoint ni) ?? n = Some dts),
   Sorted (PCfg.imm_domination successors entrypoint) (rev (n::dts)).
 Proof.
   intros.
@@ -3531,25 +3482,23 @@ Proof.
   unfold pdom_analyze in Hdom.
   intros.
   case_eq (DomDS.fixpoint successors LDoms.transfer 
-            ((entrypoint, LDoms.top) :: nil)).
+            ((entrypoint, LDoms.top) :: nil) ni).
   Case "1".
     intros res Hfix. rewrite Hfix in Hdom.    
-    assert (pdom_analysis_is_successful successors entrypoint) as Hok.
-      unfold pdom_analysis_is_successful. rewrite Hfix. auto.    
     simpl.
     apply sdom_sorted__imm_sorted with (dts0:=nil); simpl; auto.
     SCase "1.1".
       intros n' Hsdom.
-      apply DomComplete.sadom_is_complete in Hsdom; auto.
+      apply PDomProps.sadom_is_complete with (ni:=ni) in Hsdom; auto.
         unfold strict_adomination, pdom_analyze in Hsdom.
         rewrite Hfix in Hsdom. rewrite Hdom in Hsdom. simpl in Hsdom.
         apply in_rev in Hsdom; auto.
 
         eapply UnreachableDoms.fixpoint_reachable in Hfix; eauto.
-        eapply sdom_of_reachable_is_in_cfg; eauto.
+        eapply PCfg.sdom_of_reachable_is_in_cfg; eauto using positive_eq_dec.
     SCase "1.2".
       intros dt Hin. apply in_rev in Hin.
-      eapply DomsInParents.in_dom__reachable with (dts:=dts); 
+      eapply PDomProps.in_dom__reachable with (dts:=dts); 
          try solve [congruence | eauto with datatypes v62].
         unfold pdom_analyze. rewrite Hfix. eauto.
 
@@ -3561,30 +3510,25 @@ Qed.
 
 Lemma imm_dom__at_head: forall im n
   (Hidom: PCfg.imm_domination successors entrypoint im n) 
-  (Hok: pdom_analysis_is_successful successors entrypoint)
   (Hreach: PCfg.reachable successors entrypoint n),
   exists dts, 
-    (pdom_analyze successors entrypoint) ?? n = Some (im::dts).
+    (pdom_analyze successors entrypoint ni) ?? n = Some (im::dts).
 Proof.
   intros.
   assert (Hnonbot := Hreach).
-  apply DomSound.reachable_isnt_bot in Hnonbot; auto.
-  case_eq ((pdom_analyze successors entrypoint) ?? n);
+  apply DomSound.reachable_isnt_bot with (ni:=ni) in Hnonbot; auto.
+  case_eq ((pdom_analyze successors entrypoint ni) ?? n);
     try solve [intro Heq; rewrite Heq in Hnonbot;  
                unfold LDoms.bot in Hnonbot; congruence].
   intros dts Heq.
   assert (Hsort:=Heq).
   apply dom__sdom_sorted in Hsort.
   destruct Hidom as [Hsdom Hmin].
-  apply DomComplete.sadom_is_complete in Hsdom; auto.
+  apply PDomProps.sadom_is_complete with (ni:=ni) in Hsdom; auto.
   Case "1".
-    unfold pdom_analysis_is_successful in Hok.
     unfold strict_adomination, pdom_analyze in *.
-    case_eq (DomDS.fixpoint successors LDoms.transfer
-              ((entrypoint, LDoms.top) :: nil));
-    try solve [intro Heq'; rewrite Heq' in Hok; tauto].
-    intros res Heq'.
-    rewrite Heq' in *. rewrite Heq in *. simpl in Hsdom.
+    termination_tac.
+    rewrite Heq in *. simpl in Hsdom.
     destruct dts as [|a dts]; try tauto.
     destruct_in Hsdom; subst; eauto.
     simpl in Hsort. 
@@ -3597,24 +3541,24 @@ Proof.
       simpl; auto with datatypes v62.
     apply Hmin in J.
     assert (PCfg.reachable successors entrypoint a) as Hreacha.
-      eapply DomsInParents.in_dom__reachable with (dts:=a::dts); 
+      eapply PDomProps.in_dom__reachable with (dts:=a::dts)(ni:=ni); 
          try solve [congruence | eauto with datatypes v62].
-      unfold pdom_analyze. rewrite Heq'. eauto.
+      unfold pdom_analyze. rewrite Hfix_tmn. eauto.
     eapply PCfg.dom_acyclic in Hsort;
       eauto using positive_eq_dec, XPTree.no_preds__notin_succs.
       tauto.
   Case "2".
-    eapply sdom_of_reachable_is_in_cfg; eauto.
+    eapply PCfg.sdom_of_reachable_is_in_cfg; eauto using positive_eq_dec.
 Qed.
 
 Lemma entry__at_last: forall dts n
-  (Hdom: (pdom_analyze successors entrypoint) ?? n = Some dts)
+  (Hdom: (pdom_analyze successors entrypoint ni) ?? n = Some dts)
   (Hnnil: dts <> nil),
   exists dts', dts = dts'++[entrypoint].
 Proof.
   intros.
   assert (J:=Hdom).
-  apply EntryDomsOthers.entrypoint_in_nonempty in J; auto.
+  apply PDomProps.entrypoint_in_nonempty in J; auto.
   assert (Hsort:=Hdom).
   apply dom__sdom_sorted in Hsort.
   simpl in Hsort.
@@ -3630,55 +3574,9 @@ Proof.
     apply in_rev in J.
     apply StronglySorted__R_front_back with (a1:=last)(a2:=entrypoint) in Hsort; 
       simpl; auto with datatypes v62.
-      apply noone_sdom_entry in Hsort; auto.
+      apply PCfg.noone_sdom_entry in Hsort; auto.
     destruct_in J.
 Qed.
 
 End IdomSorted. End IdomSorted.
-
-(*
-(** ** Preservation of a property over solutions *)
-
-Variable P: L.t -> Prop.
-Hypothesis P_bot: P L.bot.
-Hypothesis P_lub: forall x y, P x -> P y -> P (L.lub x y).
-Hypothesis P_transf: forall pc x, P x -> P (transf pc x).
-Hypothesis P_entrypoints: forall n v, In (n, v) entrypoints -> P v.
-
-Theorem fixpoint_invariant:
-  forall res pc,
-  fixpoint = Some res ->
-  P res!!pc.
-Proof.
-  assert (forall ep,
-          (forall n v, In (n, v) ep -> P v) ->
-          forall pc, P (start_state_in ep)!!pc).
-    induction ep; intros; simpl.
-    rewrite AMap.gi. auto.
-    simpl in H.
-    assert (P (start_state_in ep)!!pc). apply IHep. eauto.
-    destruct a as [n v]. rewrite AMap.gsspec. destruct (eq_atom_dec pc n).
-    apply P_lub. subst. auto. eapply H. left; reflexivity. auto.
-  set (inv := fun st => forall pc, P (st.(st_in)!!pc)).
-  assert (forall st v n, inv st -> P v -> inv (propagate_succ st v n)).
-    unfold inv, propagate_succ. intros.
-    destruct (LAT.beq (st_in st)!!n (LAT.lub (st_in st)!!n v)).
-    auto. simpl. rewrite AMap.gsspec. destruct (eq_atom_dec pc n).
-    apply P_lub. subst n; auto. auto.
-    auto.
-  assert (forall l st v, inv st -> P v -> inv (propagate_succ_list st v l)).
-    induction l; intros; simpl. auto.
-    apply IHl; auto.
-  assert (forall res, fixpoint = Some res -> forall pc, P res!!pc).
-    unfold fixpoint. intros res0 RES0. pattern res0.
-    eapply (PrimIter.iterate_prop _ _ step inv).
-    intros. unfold step. destruct (NS.pick (st_wrk a)) as [[n rem] | ].
-    apply H1. auto. apply P_transf. apply H2.
-    assumption.
-    eauto.
-    unfold inv, start_state; simpl. auto.
-  intros. auto.
-Qed.
-*)
-
 
