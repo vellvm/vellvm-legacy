@@ -1476,13 +1476,13 @@ match a2p ! l0 with
 | None => bd
 end.
 
-Definition dom_query f : atom -> list atom :=
+Definition sdom f : atom -> list atom :=
 let '(dt, a2p) := dom_analyze f in
 let b := cfg.bound_fdef f in
 let p2a := a2p_p2a a2p in
 bound_dom a2p p2a b dt.
 
-Ltac simpl_dom_query :=
+Ltac simpl_sdom :=
 match goal with
 | Hhasentry: getEntryBlock ?f <> None |- _ =>
   let Hentry := fresh "Hentry" in
@@ -1495,14 +1495,14 @@ match goal with
 | Hentry : getEntryBlock ?f = Some _ |- _ =>
   apply getEntryBlock__getEntryLabel in Hentry; simpl in Hentry
 | Hentry : getEntryBlock _ = None |- _ =>
-  unfold dom_query, dom_analyze, bound_dom;
+  unfold sdom, dom_analyze, bound_dom;
   apply getEntryBlock__getEntryLabel_none in Hentry;
   rewrite Hentry
 | Hsdom: strict_domination _ _ _ |- _ =>
   let Hentry := fresh "Hentry" in
   let entry := fresh "entry" in
   assert (Hentry:=Hsdom);
-  apply strict_domination__getEntryLabel in Hentry;
+  apply DecDom.strict_domination__getEntryLabel in Hentry;
   destruct Hentry as [entry Hentry]
 (*
 | H: dom_analysis_is_successful ?f |- _ =>
@@ -1517,7 +1517,7 @@ match goal with
 end;
 match goal with
 | Hentry : getEntryLabel ?f = Some ?le |- _ =>
-  unfold dom_query, dom_analyze, bound_dom;
+  unfold sdom, dom_analyze, bound_dom;
   fill_holes_in_ctx;
   case_eq (dfs (cfg.successors f) le 1);
   intros PO_cnt PO_a2p Hdfs;
@@ -1533,10 +1533,10 @@ end.
 
 Lemma dom_entrypoint : forall f l0 ps cs tmn
   (Hentry : getEntryBlock f = Some (block_intro l0 ps cs tmn)),
-  dom_query f l0 = nil.
+  sdom f l0 = nil.
 Proof.
   intros. 
-  simpl_dom_query.
+  simpl_sdom.
   rewrite DomSound.adom_entrypoint.
   simpl. unfold ps2as. auto.
 Qed.
@@ -1547,56 +1547,14 @@ Definition branchs_in_fdef f :=
   blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
   In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f).
 
-Section entry_doms_others.
-
-Variable f:fdef.
-
-Hypothesis branches_in_bound_fdef: branchs_in_fdef f.
-Hypothesis Huniq: uniqFdef f.
-
-Lemma entry_doms_others: forall entry
-  (H: getEntryLabel f = Some entry),
-  (forall b (H0: b <> entry /\ cfg.reachable f b),
-     ListSet.set_In entry (dom_query f b)).
-Proof.
-  intros.
-  destruct H0 as [J1 J2].
-  simpl_dom_query.
-  case_eq (PO_a2p ! b).
-  Case "1".
-    intros p Hsome.  
-    unfold pdom_analyze.
-    termination_tac2.
-    apply EntryDomsOthers.fixpoint_wf_doms in Hfix_tmn; auto.
-    SCase "1".
-      unfold EntryDomsOthers.wf_doms in Hfix_tmn.
-      assert (p <> pe) as Hneq.
-        eapply Injective.dfs_inj' with (p1:=p)(p2:=pe)(a1:=entry)(a2:=b) in Hdfs; 
-          simpl; eauto.
-      apply Hfix_tmn in Hneq.
-      unfold member in Hneq.
-      unfold p2a_dom.
-      destruct (dms ?? p); simpl.
-        eapply in_ps__in_ps2as; eauto using Injective.dfs_inj.
-        apply entry_in_bound_fdef; auto.
-    SCase "2".
-      eapply entry_in_a2p_cfg in Hdfs; eauto.
-    SCase "3".
-      eapply dfs_wf_porder in Hdfs; eauto.
-  Case "2".
-    intros Hnone. apply entry_in_bound_fdef; auto.
-Qed.
-
-End entry_doms_others.
-
-Lemma dom_query_in_bound': forall f l5, 
-  incl (dom_query f l5) (cfg.bound_fdef f).
+Lemma sdom_in_bound': forall f l5, 
+  incl (sdom f l5) (cfg.bound_fdef f).
 Proof.
   intros.
   case_eq (getEntryBlock f).
   Case "1".
     intros [le ? ? ?] Hentry.
-    simpl_dom_query.
+    simpl_sdom.
     case_eq (PO_a2p ! l5).
     SCase "1.1".
       intros p Hsome. 
@@ -1625,29 +1583,29 @@ Proof.
       intros Hnone. auto with datatypes v62.
   Case "2".
     intros Hnone.
-    simpl_dom_query.
+    simpl_sdom.
 
     rewrite ATree.gempty. auto with datatypes v62.
 Qed.
 
-Lemma dom_query_in_bound: forall fh bs l5, 
-  incl (dom_query (fdef_intro fh bs) l5) (cfg.bound_blocks bs).
+Lemma sdom_in_bound: forall fh bs l5, 
+  incl (sdom (fdef_intro fh bs) l5) (cfg.bound_blocks bs).
 Proof.
-  intros. apply dom_query_in_bound'.
+  intros. apply sdom_in_bound'.
 Qed.
 
 Lemma dom_successors : forall
   (l3 : l) (l' : l) f
   (contents3 contents': ListSet.set atom)
   (Hinscs : In l' (cfg.successors f) !!! l3)
-  (Heqdefs3 : contents3 = dom_query f l3)
-  (Heqdefs' : contents' = dom_query f l'),
+  (Heqdefs3 : contents3 = sdom f l3)
+  (Heqdefs' : contents' = sdom f l'),
   incl contents' (l3 :: contents3).
 Proof.
   intros. 
   assert (Hinbd': incl contents' (cfg.bound_fdef f)).
-    subst. apply dom_query_in_bound'.
-  unfold dom_query in *.
+    subst. apply sdom_in_bound'.
+  unfold sdom in *.
   case_eq (dom_analyze f).
   intros res a2p Hdoma.
   rewrite Hdoma in *.
@@ -1743,10 +1701,10 @@ Lemma sdom_is_complete: forall
   (HBinF' : blockInFdefB (block_intro l' ps' cs' tmn') f = true)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hsdom: strict_domination f l' l3),
-  In l' (dom_query f l3).
+  In l' (sdom f l3).
 Proof.
   intros. 
-  simpl_dom_query.  
+  simpl_sdom.  
   destruct (reach.reachable_dec f l3) as [Hreach | Hunreach].
   Case "reach".
     eapply p2a_strict_domination in Hsdom; eauto.
@@ -1790,10 +1748,10 @@ Lemma dom_unreachable: forall
   (HuniqF: uniqFdef f)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hunreach: ~ cfg.reachable f l3),
-  dom_query f l3 = cfg.bound_fdef f.
+  sdom f l3 = cfg.bound_fdef f.
 Proof.
   intros.
-  simpl_dom_query.
+  simpl_sdom.
   case_eq (PO_a2p ! l3); auto.
   intros p3 Hget3.
   assert (Heq:=Hdfs).
@@ -1869,12 +1827,12 @@ Proof.
   induction bs; simpl; intros; auto.
 Qed.
 
-Lemma pres_dom_query: forall (f : fdef) (l5 l0 : l),
-  ListSet.set_In l5 (dom_query f l0) <->
-  ListSet.set_In l5 (dom_query (ftrans f) l0).
+Lemma pres_sdom: forall (f : fdef) (l5 l0 : l),
+  ListSet.set_In l5 (sdom f l0) <->
+  ListSet.set_In l5 (sdom (ftrans f) l0).
 Proof.
   intros.
-  unfold dom_query, dom_analyze. destruct f as [fh bs]. 
+  unfold sdom, dom_analyze. destruct f as [fh bs]. 
   case_eq (getEntryLabel (fdef_intro fh bs)).
     intros b Hentry.
     rewrite pres_getEntryLabel in Hentry.
@@ -2055,7 +2013,7 @@ Lemma wf_fdef__dtree_edge_iff_idom: forall p0 ch0,
       (imm_domination f p0 ch0 /\ reachable f ch0).
 Proof.
   intros.
-  eapply AlgDom'.dtree_edge_iff_idom; 
+  eapply AlgDom'.dtree_edge_iff_idom; unfold AlgDom'.branchs_in_fdef;
     intros; eauto using entry_no_preds, branches_in_bound_fdef.
 Qed.
 
@@ -2063,7 +2021,7 @@ Lemma wf_fdef__create_dom_tree__wf_dtree:
   ADProps.wf_dtree (successors f) le eq_atom_dec dt.
 Proof.
   intros.
-  eapply AlgDom'.create_dom_tree__wf_dtree;
+  eapply AlgDom'.create_dom_tree__wf_dtree; unfold AlgDom'.branchs_in_fdef;
     intros; eauto using entry_no_preds, branches_in_bound_fdef.
 Qed.
 

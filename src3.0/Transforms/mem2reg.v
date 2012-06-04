@@ -592,7 +592,7 @@ match getEntryBlock f, reachablity_analysis f with
           (macro_mem2reg_fdef_step rd succs preds) (f0, nil) 
       else
         let b := bound_fdef f in
-        let dts := AlgDom.dom_query f in
+        let dts := AlgDom.sdom f in
         let chains := compute_sdom_chains dts rd in
         let dt :=
           fold_left

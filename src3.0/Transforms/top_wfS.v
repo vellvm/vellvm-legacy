@@ -902,7 +902,7 @@ Proof.
   unfold blockStrictDominates. 
   btrans_eq_label_tac b1. 
   btrans_eq_label_tac b2. 
-  apply AlgDom.pres_dom_query with (btrans:=pass.(btrans)); auto
+  apply AlgDom.pres_sdom with (btrans:=pass.(btrans)); auto
     using pass.(ftrans_spec), pass.(btrans_eq_label), pass.(btrans_eq_tmn).
 Qed.
 
@@ -914,7 +914,7 @@ Proof.
   unfold blockDominates.
   btrans_eq_label_tac b1. 
   btrans_eq_label_tac b2. 
-  assert (G:=@AlgDom.pres_dom_query pass.(ftrans) pass.(btrans)
+  assert (G:=@AlgDom.pres_sdom pass.(ftrans) pass.(btrans)
              pass.(ftrans_spec) pass.(btrans_eq_label) pass.(btrans_eq_tmn)
              f l5 l0).
   tauto.

@@ -711,10 +711,10 @@ Lemma dom_successors : forall
   (Huniq' : uniqFdef (fdef_intro fh bs))
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) (fdef_intro fh bs) = true)
   (contents3 : ListSet.set atom)
-  (Heqdefs3 : contents3 = AlgDom.dom_query (fdef_intro fh bs) l3)
+  (Heqdefs3 : contents3 = AlgDom.sdom (fdef_intro fh bs) l3)
   (Hsucc : In l' (successors_terminator tmn))
   (contents' : ListSet.set atom)
-  (Heqdefs' : contents' = AlgDom.dom_query (fdef_intro fh bs) l'),
+  (Heqdefs' : contents' = AlgDom.sdom (fdef_intro fh bs) l'),
   incl contents' (l3 :: contents3).
 Proof.
   intros. 
@@ -913,8 +913,8 @@ Lemma dom_unreachable: forall
   (HwfF : wf_fdef S M f) (HuniqF: uniqFdef f)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hunreach: ~ reachable f l3)
-  (Hnempty: AlgDom.dom_query f l3 <> nil),
-  AlgDom.dom_query f l3 = bound_fdef f.
+  (Hnempty: AlgDom.sdom f l3 <> nil),
+  AlgDom.sdom f l3 = bound_fdef f.
 Proof. 
   intros. eapply AlgDom.dom_unreachable; solve_dom.
 Qed.
@@ -925,8 +925,8 @@ Lemma sdom_is_complete: forall
   (HBinF' : blockInFdefB (block_intro l' ps' cs' tmn') f = true)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hsdom: strict_domination f l' l3)
-  (Hnempty: AlgDom.dom_query f l3 <> nil),
-  In l' (AlgDom.dom_query f l3).
+  (Hnempty: AlgDom.sdom f l3 <> nil),
+  In l' (AlgDom.sdom f l3).
 Proof.
   intros. eapply AlgDom.sdom_is_complete; solve_dom.
 Qed.
@@ -935,7 +935,7 @@ Lemma dom_is_sound : forall
   S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
   (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin : In l' (l3::(AlgDom.dom_query f l3))),
+  (Hin : In l' (l3::(AlgDom.sdom f l3))),
   domination f l' l3.
 Proof. 
   intros. eapply AlgDomProps.dom_is_sound; solve_dom.
@@ -945,7 +945,7 @@ Lemma sdom_is_sound : forall
   S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
   (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f) (Hreach : reachable f l3)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin : In l' (AlgDom.dom_query f l3)),
+  (Hin : In l' (AlgDom.sdom f l3)),
   strict_domination f l' l3.
 Proof. 
   intros. eapply AlgDomProps.sdom_is_sound; solve_dom.
@@ -955,7 +955,7 @@ Lemma sdom_isnt_refl : forall
   S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
   (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f) (Hreach : reachable f l3)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin : In l' (AlgDom.dom_query f l3)),
+  (Hin : In l' (AlgDom.sdom f l3)),
   l' <> l3.
 Proof. 
   intros. eapply AlgDomProps.sdom_isnt_refl; solve_dom.
@@ -1008,8 +1008,8 @@ Lemma sdom_acyclic: forall l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2 S M F
   (Hwf: wf_fdef S M F) (Huniq: uniqFdef F) (Hrd: reachable F l2)
   (HbInF1: blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true)
   (HbInF2: blockInFdefB (block_intro l2 ps2 cs2 tmn2) F = true)
-  (Hin1: In l1 (AlgDom.dom_query F l2))
-  (Hin2: In l2 (AlgDom.dom_query F l1))
+  (Hin1: In l1 (AlgDom.sdom F l2))
+  (Hin2: In l2 (AlgDom.sdom F l1))
   (Hneq: l1 <> l2),
   False.
 Proof. 
@@ -2011,7 +2011,7 @@ Lemma block_in_scope__strict: forall (l' : l) (ps' : phinodes) (cs' : cmds)
   (Hreach' : isReachableFromEntry F (block_intro l' ps' cs' tmn')) s m
   (HwfF : wf_fdef s m F) (HuniqF : uniqFdef F)
   (contents' : ListSet.set atom)
-  (Heqdefs' : contents' = AlgDom.dom_query F l')
+  (Heqdefs' : contents' = AlgDom.sdom F l')
   (l0 : l) (Hindom' : In l0 contents')
   (HbInF' : blockInFdefB (block_intro l' ps' cs' tmn') F = true),
   l0 <> l'.
@@ -2177,7 +2177,7 @@ Lemma operands_of_cmd__cannot_be__phis_that_cmd_doms: forall (l' : l)
   (Hlkup : ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l')
   (ids0' : list atom) (HwfF : wf_fdef s m F) (contents' : ListSet.set atom)
   (Huniq: uniqFdef F)
-  (Heqdefs' : contents' = AlgDom.dom_query F l')
+  (Heqdefs' : contents' = AlgDom.sdom F l')
   (Hinscope : fold_left (inscope_of_block F l') contents'
                (ret (getPhiNodesIDs ps' ++ getArgsIDsOfFdef F)) = ret ids0')
   (id1 : atom) (Hid1 : In id1 ids0')
@@ -2212,7 +2212,7 @@ Proof.
       solve_in_list.
   subst.
   destruct b1 as [l0 p c t0].
-  assert (In l0 (AlgDom.dom_query F l')) as Hindom'.
+  assert (In l0 (AlgDom.sdom F l')) as Hindom'.
     eapply cmd_in_scope__block_in_scope; eauto.
   assert (blockInFdefB (block_intro l' ps' cs' tmn') F = true)as HbInF'.
     symmetry in Hlkup.
@@ -2222,7 +2222,7 @@ Proof.
     eapply block_in_scope__strict; eauto.
   assert (blockInFdefB (block_intro l0 p c t0) F = true)as HbInF0.
     eauto using insnInFdefBlockB__blockInFdefB.
-  assert (In l' (AlgDom.dom_query F l0)) as Hindom.
+  assert (In l' (AlgDom.sdom F l0)) as Hindom.
     eapply domination__block_in_scope; eauto.
   eapply sdom_acyclic in Hindom; eauto.
   Case "i0 is args".
@@ -2255,7 +2255,7 @@ Lemma strict_operands__in_scope: forall f (l1 : l) (ps1 : phinodes)
   (cs1 : cmds) (tmn1 : terminator) (defs : list atom) (id1 : id)
   (Hreach : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
   (bs_contents : ListSet.set atom)
-  (HeqR : bs_contents = AlgDom.dom_query f l1)
+  (HeqR : bs_contents = AlgDom.sdom f l1)
   (Hinscope : forall (l2 : atom) (b1 : block),
              In l2 (ListSet.set_diff eq_atom_dec bs_contents [l1]) ->
              lookupBlockViaLabelFromFdef f l2 = ret b1 ->
@@ -2519,7 +2519,7 @@ Lemma l1_strict_in_scope_of_l2__l1_blockDominates_l2: forall (ids1 : list atom)
   (Hin : In (getCmdLoc c1) ids1) (l0 : l) (p : phinodes) (c0 : cmds)
   (t : terminator)
   (H0 : insnInFdefBlockB (insn_cmd c1) F1 (block_intro l0 p c0 t) = true)
-  (HeqR : bs_contents = AlgDom.dom_query F1 l3)
+  (HeqR : bs_contents = AlgDom.sdom F1 l3)
   init (Heq: init = getArgsIDsOfFdef F1)
   (HInscope : ret ids1 =
               fold_left (inscope_of_block F1 l3) bs_contents
@@ -2653,11 +2653,11 @@ Proof.
       simpl in Hreach'. apply insnInFdefBlockB__blockInFdefB in H.
       eapply sdom_isnt_refl with (l':=l3) in Hreach'; eauto.
 
-    assert (In l0 (AlgDom.dom_query F1 l3)) as Hindom'.
+    assert (In l0 (AlgDom.sdom F1 l3)) as Hindom'.
       clear - H0 HInscope Hin Hneq HBinF1 HwfF1 Huniq. destruct F1 as [[]].
       eapply l1_strict_in_scope_of_l2__l1_blockDominates_l2 in HInscope; eauto.
 
-    assert (In l3 (AlgDom.dom_query F1 l0)) as Hindom.
+    assert (In l3 (AlgDom.sdom F1 l0)) as Hindom.
       match goal with
       | H6: blockStrictDominates _ _ _ |- _ =>
         clear - H6; unfold blockStrictDominates in H6
@@ -2723,7 +2723,7 @@ Proof.
   SCase "l5<>l1".
     destruct J3 as [J3 | Heq]; subst; try congruence.
     assert (In l5 (ListSet.set_diff eq_atom_dec 
-       (AlgDom.dom_query (fdef_intro (fheader_intro fa ty fid la va) bs) l1) [l1])) as G.
+       (AlgDom.sdom (fdef_intro (fheader_intro fa ty fid la va) bs) l1) [l1])) as G.
       apply ListSet.set_diff_intro; auto.
         simpl. intro JJ. destruct JJ as [JJ | JJ]; auto.
     assert (
@@ -2745,13 +2745,13 @@ Lemma inscope_of_block_inscope_of_block__inscope_of_block: forall (f : fdef)
   (t : list atom) (l1 : l) (ps1 : phinodes) (cs1 : cmds) s m
   (tmn1 : terminator) id1 (id2 : id) (HwfF : wf_fdef s m f)
   (bs_contents : ListSet.set atom) (Huniq: uniqFdef f)
-  (HeqR3 : bs_contents = AlgDom.dom_query f l1)
+  (HeqR3 : bs_contents = AlgDom.sdom f l1)
   (Hreach : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
   (HbInF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
   (l2 : l) (p : phinodes) (c2 : cmds) (t0 : terminator)
   (HeqR1 : ret block_intro l2 p c2 t0 = lookupBlockViaIDFromFdef f id2)
   (bs_contents0 : ListSet.set atom)
-  (HeqR4 : bs_contents0 = AlgDom.dom_query f l2)
+  (HeqR4 : bs_contents0 = AlgDom.sdom f l2)
   (b1 : block) (l1' : atom)
   (J10 : In l1' (ListSet.set_diff eq_atom_dec bs_contents0 [l2]))
   (J11 : lookupBlockViaLabelFromFdef f l1' = ret b1)
@@ -3374,9 +3374,9 @@ Lemma dom_analysis__entry_doms_others: forall S M f
   (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) entry
   (H: getEntryLabel f = Some entry),
   (forall b, b <> entry /\ reachable f b ->
-     ListSet.set_In entry (AlgDom.dom_query f b)).
+     ListSet.set_In entry (AlgDom.sdom f b)).
 Proof.
-  intros. eapply AlgDom.entry_doms_others; solve_dom.
+  intros. eapply AlgDomProps.entry_doms_others; solve_dom.
 Qed.
 
 Lemma entry_blockStrictDominates_others: forall s m f (HwfF : wf_fdef s m f)
@@ -3576,7 +3576,7 @@ Lemma inscope_of_blocks_with_init__id_in_reachable_block: forall s m F
   (Hreach : isReachableFromEntry F b)
   (HBinF : blockInFdefB b F = true)
   (contents' : ListSet.set atom)
-  (Heqdefs' : contents' = AlgDom.dom_query F (getBlockLabel b)) ids2 init
+  (Heqdefs' : contents' = AlgDom.sdom F (getBlockLabel b)) ids2 init
   (Hinscope : (fold_left (inscope_of_block F (getBlockLabel b)) contents'
     (ret init) = ret ids2))
   (Hinc: incl init (getBlockIDs b ++ getArgsIDsOfFdef F)) vid
@@ -3647,7 +3647,7 @@ Lemma idDominates_inscope_of_cmd_at_beginning__inscope_of_cmd_at_beginning:
   (cs1 cs : cmds) (s : system) (m : module) (tmn1 : terminator) (id1 : id) 
   (instr1 : insn) (id2 : id)
   (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true) contents'
-  (Heqdefs' : contents' = AlgDom.dom_query f l1)
+  (Heqdefs' : contents' = AlgDom.sdom f l1)
   (Hinscope : fold_left (inscope_of_block f l1) contents'
                (ret (getPhiNodesIDs ps1 ++ getArgsIDsOfFdef f)) = 
              ret t)

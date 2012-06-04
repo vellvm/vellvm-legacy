@@ -1031,7 +1031,7 @@ match res with
 | None => bd
 end.
 
-Definition dom_query f : atom -> set atom :=
+Definition sdom f : atom -> set atom :=
 let dt := dom_analyze f in
 let b := bound_fdef f in
 fun l0 => bound_dom b (dt !! l0).
@@ -1040,10 +1040,10 @@ Import AtomSet.
 
 Lemma dom_entrypoint : forall f l0 ps cs tmn
   (Hentry : getEntryBlock f = Some (block_intro l0 ps cs tmn)),
-  dom_query f l0 = nil.
+  sdom f l0 = nil.
 Proof.
   intros.
-  unfold dom_query, dom_analyze.
+  unfold sdom, dom_analyze.
   destruct f as [f b].
   rewrite Hentry.
   remember (DomDS.fixpoint (successors_blocks b)
@@ -1226,44 +1226,6 @@ Definition branchs_in_fdef f :=
   blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
   In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f).
 
-Section entry_doms_others.
-
-Variable f:fdef.
-
-Hypothesis branches_in_bound_fdef: branchs_in_fdef f.
-Hypothesis Huniq: uniqFdef f.
-
-Lemma entry_doms_others: forall entry
-  (H: getEntryLabel f = Some entry),
-  (forall b (H0: b <> entry /\ reachable f b),
-     ListSet.set_In entry (AlgDom.dom_query f b)).
-Proof.
-  intros.
-  destruct H0 as [J1 J2].
-  unfold dom_query, dom_analyze.
-  destruct f as [fh b0].
-  apply getEntryLabel__getEntryBlock in H.
-  destruct H as [be [Hentry EQ]]; subst. rewrite Hentry.
-  destruct be as [l1 p c t].
-  termination_tac2.
-  destruct b0; inv Hentry.
-  eapply EntryDomsOthers.dom_entry_doms_others with (entry:=l1) in Hfix_tmn; 
-    eauto.
-  Case "1".
-    unfold EntryDomsOthers.entry_doms_others in Hfix_tmn.
-    apply Hfix_tmn in J1.
-    unfold Dominators.member in J1. simpl.
-    destruct (dms !! b); simpl; auto.
-  Case "2".
-    split; auto.
-      exists Dominators.top.
-      simpl.
-      split; auto.
-        split; intros x Hin; auto.
-Qed.
-
-End entry_doms_others.
-
 Lemma dom_in_bound: forall successors le t ni
   (Hfix: DomDS.fixpoint successors transfer
             ((le, Dominators.top) :: nil) ni = Some t),
@@ -1288,11 +1250,11 @@ Proof.
   eapply dom_in_bound; eauto.
 Qed.
 
-Lemma dom_query_in_bound: forall fh bs l5, 
-  incl (dom_query (fdef_intro fh bs) l5) (bound_blocks bs).
+Lemma sdom_in_bound: forall fh bs l5, 
+  incl (sdom (fdef_intro fh bs) l5) (bound_blocks bs).
 Proof.
   intros.
-  unfold dom_query, dom_analyze.
+  unfold sdom, dom_analyze.
   destruct (getEntryBlock (fdef_intro fh bs)) as [[]|]; simpl. 
     remember (DomDS.fixpoint (successors_blocks bs) transfer
                 ((l0, Dominators.top) :: nil) 
@@ -1311,12 +1273,12 @@ Lemma dom_successors : forall
   (l3 : l) (l' : l) f
   (contents3 contents': ListSet.set atom)
   (Hinscs : In l' (successors f) !!! l3)
-  (Heqdefs3 : contents3 = dom_query f l3)
-  (Heqdefs' : contents' = dom_query f l'),
+  (Heqdefs3 : contents3 = sdom f l3)
+  (Heqdefs' : contents' = sdom f l'),
   incl contents' (l3 :: contents3).
 Proof.
   intros. 
-  unfold dom_query, dom_analyze in *.
+  unfold sdom, dom_analyze in *.
   remember (getEntryBlock f) as R.
   destruct f as [fh bs].
   destruct R as [[le ? ? ?]|].
@@ -1537,12 +1499,12 @@ Lemma sdom_is_complete: forall
   (HBinF' : blockInFdefB (block_intro l' ps' cs' tmn') f = true)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hsdom: strict_domination f l' l3),
-  In l' (dom_query f l3).
+  In l' (sdom f l3).
 Proof.
   intros. 
-  unfold dom_query, dom_analyze in *. 
+  unfold sdom, dom_analyze in *. 
   destruct f as [fh bs].
-  assert (Hentry:=Hsdom). apply strict_domination__getEntryLabel in Hentry.
+  assert (Hentry:=Hsdom). apply DecDom.strict_domination__getEntryLabel in Hentry.
   destruct Hentry as [e Hentry].
   apply getEntryLabel__getEntryBlock in Hentry.
   destruct Hentry as [[le ? ? ?] [Hentry Heq]]; subst e.
@@ -1732,7 +1694,7 @@ Lemma dom_unreachable: forall
   (HuniqF: uniqFdef f)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hunreach: ~ reachable f l3),
-  dom_query f l3 = bound_fdef f.
+  sdom f l3 = bound_fdef f.
 Proof.
   intros.
   case_eq (getEntryBlock f); try congruence.
@@ -1745,7 +1707,7 @@ Proof.
     contradict Hunreach.
     eapply reachable_entrypoint; eauto.
   Case "l3<>l0".
-    unfold dom_query, dom_analyze in *.
+    unfold sdom, dom_analyze in *.
     match goal with | H1: getEntryBlock _ = _ |- _ => rewrite H1 in * end.
     termination_tac2.
     eapply UnreachableDoms.dom_unreachable_doms with (entry:=l0) in Hfix_tmn;
@@ -1824,12 +1786,12 @@ Proof.
   induction bs; simpl; intros; auto.
 Qed.
 
-Lemma pres_dom_query: forall (f : fdef) (l5 l0 : l),
-  ListSet.set_In l5 (AlgDom.dom_query f l0) <->
-  ListSet.set_In l5 (AlgDom.dom_query (ftrans f) l0).
+Lemma pres_sdom: forall (f : fdef) (l5 l0 : l),
+  ListSet.set_In l5 (AlgDom.sdom f l0) <->
+  ListSet.set_In l5 (AlgDom.sdom (ftrans f) l0).
 Proof.
   intros.
-  unfold AlgDom.dom_query, AlgDom.dom_analyze. destruct f as [fh bs]. 
+  unfold AlgDom.sdom, AlgDom.dom_analyze. destruct f as [fh bs]. 
   case_eq (getEntryBlock (fdef_intro fh bs)).
     intros b Hentry.
     apply pres_getEntryBlock in Hentry; eauto.

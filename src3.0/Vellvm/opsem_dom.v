@@ -251,7 +251,7 @@ Lemma wf_defs_br_aux : forall TD gl S M lc l' ps' cs' lc' F tmn' b
   (ids0' : list atom)
   (HwfF : wf_fdef S M F) (HuniqF: uniqFdef F)
   (contents' : ListSet.set atom)
-  (Heqdefs' : contents' = AlgDom.dom_query F l')
+  (Heqdefs' : contents' = AlgDom.sdom F l')
   (Hinscope : (fold_left (inscope_of_block F l') contents'
     (ret (getPhiNodesIDs ps' ++ getArgsIDsOfFdef F)) = ret ids0'))
   (Hinc : incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) t),
@@ -321,8 +321,8 @@ Proof.
   unfold inscope_of_tmn. unfold inscope_of_cmd, inscope_of_id.
   destruct F as [fh bs].
 
-  assert (incl (AlgDom.dom_query (fdef_intro fh bs) l')
-    (l3::(AlgDom.dom_query (fdef_intro fh bs) l3))) as Hsub.
+  assert (incl (AlgDom.sdom (fdef_intro fh bs) l')
+    (l3::(AlgDom.sdom (fdef_intro fh bs) l3))) as Hsub.
     clear - HBinF Hsucc HuniqF HwfF.
     eapply dom_successors; eauto.
 
@@ -330,7 +330,7 @@ Proof.
     as Hreach'.
     eapply isReachableFromEntry_successors in Hlkup; eauto.
 
-  assert (J1:=AlgDom.dom_query_in_bound fh bs l').
+  assert (J1:=AlgDom.sdom_in_bound fh bs l').
   destruct fh as [f t i0 a v].
   apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
       getCmdsIDs nil ++ getArgsIDs a)(bs:=bs)(l0:=l')

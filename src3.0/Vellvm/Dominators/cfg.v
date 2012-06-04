@@ -526,6 +526,17 @@ Proof.
   apply reachable_is_in_cfg; auto.
 Qed.
 
+Lemma entry_doms_others: forall n (Hnentry: n <> entry),
+  strict_domination entry n.
+Proof.
+  intros.
+  intros vl al Hwk.
+  assert (J:=Hwk).
+  inv J; try congruence.
+  apply DW_iny_vl in Hwk; auto.
+    intro EQ. inv EQ.  
+Qed.
+
 End Cfg. End Cfg.
 
 Module ACfg := Cfg(ATree).
@@ -588,6 +599,11 @@ Hint Unfold ACfg.domination ACfg.reachable ACfg.non_sdomination
 Definition imm_domination (f:fdef) (l1 l2:l) : Prop :=
 strict_domination f l1 l2 /\
 forall l0, strict_domination f l0 l2 -> domination f l0 l1.
+
+Notation " f ~>* l " := (reachable f l) (at level 0): dom.
+Notation " f |= l1 >> l2 " := (strict_domination f l1 l2) (at level 0): dom.
+Notation " f |= l1 >>= l2 " := (domination f l1 l2) (at level 0): dom.
+Notation " f |= l1 >>> l2 " := (imm_domination f l1 l2) (at level 0): dom.
 
 Definition predecessors (f: fdef) : ATree.t ls :=
 XATree.make_predecessors (successors f).
@@ -1251,16 +1267,6 @@ Lemma in_bound__in_cfg : forall bs l0 (Hin: In l0 (bound_blocks bs)),
   XATree.in_cfg (successors_blocks bs) l0.
 Proof.
   intros. left. apply in_bound__in_parents; auto.
-Qed.
-
-Lemma strict_domination__getEntryLabel: forall f l1 l2
-  (Hsdom: strict_domination f l1 l2),
-  exists e, getEntryLabel f = Some e.
-Proof.
-  unfold strict_domination.
-  intros.
-  inv_mbind. symmetry in HeqR.
-  apply getEntryBlock__getEntryLabel in HeqR. eauto.
 Qed.
 
 Lemma uniqFdef__NoDup_bounds_fdef: forall f (Huniq: uniqFdef f),

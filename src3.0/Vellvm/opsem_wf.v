@@ -549,12 +549,12 @@ Proof.
   unfold inscope_of_tmn. unfold inscope_of_cmd, inscope_of_id.
   destruct F as [fh bs].
 
-  assert (incl (AlgDom.dom_query (fdef_intro fh bs) l')
-     (l3::(AlgDom.dom_query (fdef_intro fh bs) l3))) as Hsub.
+  assert (incl (AlgDom.sdom (fdef_intro fh bs) l')
+     (l3::(AlgDom.sdom (fdef_intro fh bs) l3))) as Hsub.
     clear - HBinF Hsucc Huniq HwfF.
     eapply dom_successors; eauto.
 
-  assert (J1:=AlgDom.dom_query_in_bound fh bs l').
+  assert (J1:=AlgDom.sdom_in_bound fh bs l').
   destruct fh as [f t i0 la va].
   apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
     getArgsIDs la)(fh:=fheader_intro f t i0 la va)(bs:=bs) (l0:=l') in J1.

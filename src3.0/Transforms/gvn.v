@@ -717,7 +717,7 @@ Definition opt_fdef (f:fdef) : fdef :=
 match getEntryBlock f, reachablity_analysis f with
 | Some (block_intro root _ _ _), Some rd =>
     let b := bound_fdef f in
-    let dts := AlgDom.dom_query f in
+    let dts := AlgDom.sdom f in
     let chains := compute_sdom_chains dts rd in
     let dt :=
       fold_left

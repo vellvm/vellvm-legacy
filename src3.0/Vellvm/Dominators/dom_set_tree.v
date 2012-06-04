@@ -132,7 +132,7 @@ end.
 Definition create_dtree (f: fdef) : option DTree :=
 match getEntryLabel f, reachablity_analysis f with
 | Some root, Some rd =>
-    let dt := AlgDom.dom_query f in
+    let dt := AlgDom.sdom f in
     let chains := compute_sdom_chains dt rd in
     Some (create_dtree_from_chains eq_atom_dec root chains)
 | _, _ => None
@@ -166,9 +166,9 @@ Lemma gt_dom_prop_trans : forall S M f l1 l2 l3
   (HBinF1: In l1 (bound_fdef f))
   (HBinF2: In l2 (bound_fdef f))
   (HBinF3: In l3 (bound_fdef f))
-  (H1 : gt_dom_prop (AlgDom.dom_query f) l1 l2)
-  (H2 : gt_dom_prop (AlgDom.dom_query f) l2 l3),
-  gt_dom_prop (AlgDom.dom_query f) l1 l3.
+  (H1 : gt_dom_prop (AlgDom.sdom f) l1 l2)
+  (H2 : gt_dom_prop (AlgDom.sdom f) l2 l3),
+  gt_dom_prop (AlgDom.sdom f) l1 l3.
 Proof.
   unfold gt_dom_prop, gt_sdom.
   intros.
@@ -210,9 +210,9 @@ Lemma gt_sdom_prop_trans : forall S M f l1 l2 l3
   (HBinF1: In l1 (bound_fdef f))
   (HBinF2: In l2 (bound_fdef f))
   (HBinF3: In l3 (bound_fdef f))
-  (H1 : gt_sdom (AlgDom.dom_query f) l1 l2 = true)
-  (H2 : gt_sdom (AlgDom.dom_query f)  l2 l3 = true),
-  gt_sdom (AlgDom.dom_query f)  l1 l3 = true.
+  (H1 : gt_sdom (AlgDom.sdom f) l1 l2 = true)
+  (H2 : gt_sdom (AlgDom.sdom f)  l2 l3 = true),
+  gt_sdom (AlgDom.sdom f)  l1 l3 = true.
 Proof.
   unfold gt_sdom.
   intros.
@@ -251,10 +251,10 @@ Lemma gt_dom_dec_aux: forall S M f (HwfF: wf_fdef S M f)
   (HBinF1: In l1 (bound_fdef f))
   (HBinF2: In l2 (bound_fdef f))
   (HBinF3: In l3 (bound_fdef f)),
-  gt_sdom (AlgDom.dom_query f) l1 l3 ->
-  gt_sdom (AlgDom.dom_query f) l2 l3 ->
-  gt_dom_prop (AlgDom.dom_query f) l1 l2 \/
-  gt_dom_prop (AlgDom.dom_query f) l2 l1.
+  gt_sdom (AlgDom.sdom f) l1 l3 ->
+  gt_sdom (AlgDom.sdom f) l2 l3 ->
+  gt_dom_prop (AlgDom.sdom f) l1 l2 \/
+  gt_dom_prop (AlgDom.sdom f) l2 l1.
 Proof.
   unfold gt_dom_prop, gt_sdom. intros.
   destruct (l_dec l1 l2); auto.
@@ -283,12 +283,12 @@ Proof.
     apply DecDom.sdom_reachable in Hsdom13; auto.
   destruct (l_dec l1 entry); subst.
     left. left.
-    assert (set_In entry (AlgDom.dom_query f l2)) as G.
+    assert (set_In entry (AlgDom.sdom f l2)) as G.
       eapply dom_analysis__entry_doms_others; eauto.
     solve_in_dec.
   destruct (l_dec l2 entry); subst.
     right. left.
-    assert (set_In entry (AlgDom.dom_query f l1)) as G.
+    assert (set_In entry (AlgDom.sdom f l1)) as G.
       eapply dom_analysis__entry_doms_others; eauto.
     solve_in_dec.
   eapply DecDom.sdom_ordered with (l1:=l2) in Hsdom13; eauto 1.
@@ -297,7 +297,7 @@ Proof.
     eapply sdom_is_complete in Hsdom21; eauto 1.
       left. solve_in_dec.
 
-      assert (set_In entry (AlgDom.dom_query f l1)) as G.
+      assert (set_In entry (AlgDom.sdom f l1)) as G.
         eapply dom_analysis__entry_doms_others; eauto.
       intro J. rewrite J in G. auto.
 
@@ -305,7 +305,7 @@ Proof.
     eapply sdom_is_complete in Hsdom12; eauto 1.
       left. solve_in_dec.
 
-      assert (set_In entry (AlgDom.dom_query f l2)) as G.
+      assert (set_In entry (AlgDom.sdom f l2)) as G.
         eapply dom_analysis__entry_doms_others; eauto.
       intro J. rewrite J in G. auto.
 Qed.
@@ -316,10 +316,10 @@ Lemma gt_dom_dec: forall S M f (HwfF: wf_fdef S M f)
   (HBinF1: In l1 (bound_fdef f))
   (HBinF2: In l2 (bound_fdef f))
   (HBinF3: In l3 (bound_fdef f)),
-  gt_dom_prop (AlgDom.dom_query f) l1 l3 ->
-  gt_dom_prop (AlgDom.dom_query f) l2 l3 ->
-  gt_dom_prop (AlgDom.dom_query f) l1 l2 \/
-  gt_dom_prop (AlgDom.dom_query f) l2 l1.
+  gt_dom_prop (AlgDom.sdom f) l1 l3 ->
+  gt_dom_prop (AlgDom.sdom f) l2 l3 ->
+  gt_dom_prop (AlgDom.sdom f) l1 l2 \/
+  gt_dom_prop (AlgDom.sdom f) l2 l1.
 Proof.
   intros.
   destruct H as [H | H]; subst; auto.
@@ -335,10 +335,10 @@ Lemma gt_sdom_dec: forall S M f (HwfF: wf_fdef S M f)
   (HBinF1: In l1 (bound_fdef f))
   (HBinF2: In l2 (bound_fdef f))
   (HBinF3: In l3 (bound_fdef f)),
-  gt_sdom (AlgDom.dom_query f) l1 l3 ->
-  gt_sdom (AlgDom.dom_query f) l2 l3 ->
-  gt_sdom (AlgDom.dom_query f) l1 l2 \/
-  gt_sdom (AlgDom.dom_query f) l2 l1.
+  gt_sdom (AlgDom.sdom f) l1 l3 ->
+  gt_sdom (AlgDom.sdom f) l2 l3 ->
+  gt_sdom (AlgDom.sdom f) l1 l2 \/
+  gt_sdom (AlgDom.sdom f) l2 l1.
 Proof.
   intros.
   apply gt_dom_dec with (l1:=l1) (l2:=l2) (l3:=l3) in HwfF; auto.
@@ -430,15 +430,15 @@ Qed.
 Lemma insert_sort_sdom_iter_sorted: forall S M f (HwfF: wf_fdef S M f) 
   (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
   l0 (Hin0: In l0 (bound_fdef f))
-  (Hsd03: gt_dom_prop (AlgDom.dom_query f) l0 l3) suffix prefix
+  (Hsd03: gt_dom_prop (AlgDom.sdom f) l0 l3) suffix prefix
   (G: forall l', In l' (prefix ++ suffix) ->
-      gt_dom_prop (AlgDom.dom_query f) l' l3 /\ In l' (bound_fdef f)),
-  Sorted (gt_dom_prop (AlgDom.dom_query f))
+      gt_dom_prop (AlgDom.sdom f) l' l3 /\ In l' (bound_fdef f)),
+  Sorted (gt_dom_prop (AlgDom.sdom f))
     (List.rev prefix ++ suffix) ->
   (forall l1 prefix', prefix = l1 :: prefix' ->
-      gt_dom_prop (AlgDom.dom_query f) l1 l0) ->
-  Sorted (gt_dom_prop (AlgDom.dom_query f))
-    (insert_sort_sdom_iter (AlgDom.dom_query f) l0 prefix suffix).
+      gt_dom_prop (AlgDom.sdom f) l1 l0) ->
+  Sorted (gt_dom_prop (AlgDom.sdom f))
+    (insert_sort_sdom_iter (AlgDom.sdom f) l0 prefix suffix).
 Proof.
   induction suffix; simpl; intros.
     simpl_env in *.
@@ -448,7 +448,7 @@ Proof.
         rewrite <- rev_involutive at 1.
         rewrite H1. rewrite rev_unit. auto.
 
-    remember (gt_sdom (AlgDom.dom_query f) l0 a) as R.
+    remember (gt_sdom (AlgDom.sdom f) l0 a) as R.
     destruct R.
       simpl_env. simpl.
       apply sorted_insert; auto.
@@ -470,8 +470,8 @@ Proof.
         simpl. simpl_env. simpl. auto.
 
         intros. inv H1.
-        assert (gt_dom_prop (AlgDom.dom_query f) l1 l0 \/
-                gt_dom_prop (AlgDom.dom_query f) l0 l1) as J.
+        assert (gt_dom_prop (AlgDom.sdom f) l1 l0 \/
+                gt_dom_prop (AlgDom.sdom f) l0 l1) as J.
           assert (In l1 (prefix'++l1::suffix)) as Hin1. apply in_middle.
           apply G in Hin1. destruct Hin1 as [J1 J2].
           eapply gt_dom_dec; eauto.
@@ -486,10 +486,10 @@ Lemma insert_sort_sdom_sorted: forall S M f (HwfF: wf_fdef S M f)
   (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
   data acc
   (G: forall l', In l' (data++acc) ->
-      gt_dom_prop (AlgDom.dom_query f) l' l3 /\ In l' (bound_fdef f)),
-  Sorted (gt_dom_prop (AlgDom.dom_query f)) acc ->
-  Sorted (gt_dom_prop (AlgDom.dom_query f))
-         (insert_sort_sdom (AlgDom.dom_query f) data acc).
+      gt_dom_prop (AlgDom.sdom f) l' l3 /\ In l' (bound_fdef f)),
+  Sorted (gt_dom_prop (AlgDom.sdom f)) acc ->
+  Sorted (gt_dom_prop (AlgDom.sdom f))
+         (insert_sort_sdom (AlgDom.sdom f) data acc).
 Proof.
   induction data; simpl; intros; auto.
     apply IHdata.
@@ -513,9 +513,9 @@ Lemma sort_sdom_sorted: forall S M f (HwfF: wf_fdef S M f)
   (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
   input
   (G: forall l', In l' input ->
-      gt_dom_prop (AlgDom.dom_query f) l' l3 /\ In l' (bound_fdef f)),
-  Sorted (gt_dom_prop (AlgDom.dom_query f))
-         (sort_sdom (AlgDom.dom_query f) input).
+      gt_dom_prop (AlgDom.sdom f) l' l3 /\ In l' (bound_fdef f)),
+  Sorted (gt_dom_prop (AlgDom.sdom f))
+         (sort_sdom (AlgDom.sdom f) input).
 Proof.
   intros. unfold sort_sdom.
   eapply insert_sort_sdom_sorted; simpl_env; eauto.
@@ -639,7 +639,7 @@ Qed.
 
 Lemma gt_sdom_prop_irrefl: forall S M f (HwfF : wf_fdef S M f) 
   (HuniqF: uniqFdef f) a (Hreach : reachable f a),
-  gt_sdom (AlgDom.dom_query f) a a = false.
+  gt_sdom (AlgDom.sdom f) a a = false.
 Proof.
   unfold gt_sdom.
   intros.
@@ -647,7 +647,7 @@ Proof.
   apply reachable__in_bound in Hreach; eauto 2 using branches_in_bound_fdef.
   apply In_bound_fdef__blockInFdefB in Hreach.
   destruct Hreach as [ps [cs [tnn HBinF]]].
-  destruct (in_dec l_dec a (AlgDom.dom_query f a)); simpl; auto.
+  destruct (in_dec l_dec a (AlgDom.sdom f a)); simpl; auto.
   eapply sdom_is_sound with (l':=a) in HBinF; eauto 1.
     apply DecDom.sdom_isnt_refl in HBinF; auto.
       congruence.
@@ -689,7 +689,7 @@ Proof.
 Qed.
 
 Lemma in_gt_sdom__in_bound_fdef: forall f l1 l2
-  (Hin: gt_sdom (AlgDom.dom_query f) l1 l2 = true),
+  (Hin: gt_sdom (AlgDom.sdom f) l1 l2 = true),
   In l1 (bound_fdef f).
 Proof.
   unfold gt_sdom.
@@ -700,9 +700,9 @@ Qed.
 Lemma gt_sdom_prop_trans1 : forall S M f l1 l2 l3
   (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) (Hreach: reachable f l3)
   (HBinF2: In l2 (bound_fdef f))
-  (H1 : gt_sdom (AlgDom.dom_query f) l1 l2 = true)
-  (H2 : gt_dom_prop (AlgDom.dom_query f) l2 l3),
-  gt_sdom (AlgDom.dom_query f) l1 l3 = true.
+  (H1 : gt_sdom (AlgDom.sdom f) l1 l2 = true)
+  (H2 : gt_dom_prop (AlgDom.sdom f) l2 l3),
+  gt_sdom (AlgDom.sdom f) l1 l3 = true.
 Proof.
   intros.
   assert (HBinF1: In l1 (bound_fdef f)).
@@ -741,11 +741,11 @@ Lemma compute_sdom_chains_aux_sorted: forall S M f
   l0 chain0 bd (Hinc: incl bd (bound_fdef f))
   (Hreach: forall x, In x bd -> reachable f x) acc,
   (forall l0 chain0, In (l0, chain0) acc ->
-    Sorted (gt_dom_prop (AlgDom.dom_query f)) chain0 /\
+    Sorted (gt_dom_prop (AlgDom.sdom f)) chain0 /\
     NoDup chain0) ->
   In (l0, chain0)
-    (compute_sdom_chains_aux (AlgDom.dom_query f) bd acc) ->
-  Sorted (gt_dom_prop (AlgDom.dom_query f)) chain0 /\ NoDup chain0.
+    (compute_sdom_chains_aux (AlgDom.sdom f) bd acc) ->
+  Sorted (gt_dom_prop (AlgDom.sdom f)) chain0 /\ NoDup chain0.
 Proof.
   induction bd as [|a bd]; simpl; intros; eauto.
     apply IHbd in H0; auto.
@@ -759,8 +759,8 @@ Proof.
       assert (In l1 (bound_fdef f)) as G1.
         apply Hinc; simpl; auto.
       assert (forall l' : l,
-        In l' (l1 :: AlgDom.dom_query f l1) ->
-        gt_dom_prop (AlgDom.dom_query f) l' l1 /\ In l' (bound_fdef f))
+        In l' (l1 :: AlgDom.sdom f l1) ->
+        gt_dom_prop (AlgDom.sdom f) l' l1 /\ In l' (bound_fdef f))
         as G2.
         intros l' Hin.
         simpl in Hin.
@@ -778,7 +778,7 @@ Proof.
           eapply sort_sdom_sorted; eauto.
       SCase "2.2".
         apply remove_redundant_NoDup with
-          (R:=gt_dom_prop (AlgDom.dom_query f)); auto.
+          (R:=gt_dom_prop (AlgDom.sdom f)); auto.
         SSCase "2.2.1".
           intros.
           destruct H5; subst; try congruence.
@@ -800,8 +800,8 @@ Ltac find_in_bound_fdef :=
 match goal with
 | G1 : In ?l1 (bound_fdef ?f),
   H2 : In ?b
-         (sort_sdom (AlgDom.dom_query ?f)
-            (?l1 :: AlgDom.dom_query ?f ?l1)) |-
+         (sort_sdom (AlgDom.sdom ?f)
+            (?l1 :: AlgDom.sdom ?f ?l1)) |-
   In ?b (bound_fdef ?f) =>
   apply sort_sdom_safe in H2;
   destruct_in H2; eauto using AlgDomProps.in_bound_dom__in_bound_fdef
@@ -824,9 +824,9 @@ end.
 Qed.
 
 Lemma NoDup_gt_dom_prop_sorted__gt_dsom_prop_sorted: forall f chain
-  (Hsorted: Sorted (gt_dom_prop (AlgDom.dom_query f)) chain)
+  (Hsorted: Sorted (gt_dom_prop (AlgDom.sdom f)) chain)
   (Huniq: NoDup chain),
-  Sorted (gt_sdom_prop (AlgDom.dom_query f)) chain.
+  Sorted (gt_sdom_prop (AlgDom.sdom f)) chain.
 Proof.
   intros.
   induction Hsorted; simpl; intros; auto.
@@ -842,8 +842,8 @@ Lemma compute_sdom_chains_sorted: forall S M f
   (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
   rd (Hinc: incl rd (bound_fdef f)) (Hreach: forall x, In x rd -> reachable f x)
   l0 chain,
-  In (l0, chain) (compute_sdom_chains (AlgDom.dom_query f) rd) ->
-  Sorted (gt_sdom_prop (AlgDom.dom_query f)) chain /\ NoDup chain.
+  In (l0, chain) (compute_sdom_chains (AlgDom.sdom f) rd) ->
+  Sorted (gt_sdom_prop (AlgDom.sdom f)) chain /\ NoDup chain.
 Proof.
   intros.
   unfold compute_sdom_chains in H.
@@ -890,7 +890,7 @@ Qed.
 
 Lemma gt_sdom_prop_entry: forall f l1 entry
   (H: getEntryLabel f = Some entry)
-  (H4: gt_sdom_prop (AlgDom.dom_query f) l1 entry),
+  (H4: gt_sdom_prop (AlgDom.sdom f) l1 entry),
   False.
 Proof.
   intros.
@@ -926,7 +926,7 @@ Qed.
 
 Lemma compute_sdom_chains__in_bound: forall l0 chain0 f rd
   (Hinc: incl rd (bound_fdef f)),
-  In (l0, chain0) (compute_sdom_chains (AlgDom.dom_query f) rd) ->
+  In (l0, chain0) (compute_sdom_chains (AlgDom.sdom f) rd) ->
   incl chain0 (bound_fdef f).
 Proof.
   intros.
@@ -945,14 +945,14 @@ Lemma entry_is_head_of_compute_sdom_chains: forall S M f
   (H:getEntryLabel f = Some entry)
   (H0:reachablity_analysis f = Some rd)
   (H1:In (l0, chain0)
-    (compute_sdom_chains (AlgDom.dom_query f) rd))
+    (compute_sdom_chains (AlgDom.sdom f) rd))
   (G:(length chain0 > 1)%nat),
   exists chain0', chain0 = entry :: chain0'.
 Proof.
   intros.
   assert (forall b,
     b <> entry /\ In b rd ->
-    match AlgDom.dom_query f b with
+    match AlgDom.sdom f b with
     | dts => In entry dts
     end) as J.
     intros b Hp.
@@ -991,7 +991,7 @@ Qed.
 Definition wf_chain f dt (chain:list l) : Prop :=
 match chain with
 | entry :: _ :: _ =>
-   let res := (AlgDom.dom_query f) in
+   let res := (AlgDom.sdom f) in
    entry = get_dtree_root dt /\
    Sorted (gt_sdom_prop res) chain /\ NoDup chain
 | _ => True
@@ -1001,7 +1001,7 @@ Lemma compute_sdom_chains__wf_chain: forall S M f
   (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) l0 chain0 entry rd,
   getEntryLabel f = Some entry ->
   reachablity_analysis f =  Some rd ->
-  In (l0, chain0) (compute_sdom_chains (AlgDom.dom_query f) rd) ->
+  In (l0, chain0) (compute_sdom_chains (AlgDom.sdom f) rd) ->
   wf_chain f (DT_node entry DT_nil) chain0.
 Proof.
   intros.
@@ -1022,7 +1022,7 @@ Lemma create_dtree__wf_dtree: forall f dt,
   create_dtree f = Some dt ->
   match getEntryLabel f, reachablity_analysis f with
   | Some root, Some rd =>
-      let dt' := AlgDom.dom_query f in
+      let dt' := AlgDom.sdom f in
       let chains := compute_sdom_chains dt' rd in
       forall p0 ch0,
         (is_dtree_edge eq_atom_dec dt p0 ch0 ->

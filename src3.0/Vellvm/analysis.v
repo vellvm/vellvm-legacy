@@ -26,13 +26,13 @@ Import LLVMinfra.
 Definition blockDominates (f: fdef) (b1 b2: block) : Prop :=
 let '(block_intro l1 _ _ _) := b1 in
 let '(block_intro l2 _ _ _) := b2 in
-let 'els := AlgDom.dom_query f l2 in
+let 'els := AlgDom.sdom f l2 in
 set_In l1 els \/ l1 = l2.
 
 Definition blockStrictDominates (f: fdef) (b1 b2: block) : Prop :=
 let '(block_intro l1 _ _ _) := b1 in
 let '(block_intro l2 _ _ _) := b2 in
-let 'els := AlgDom.dom_query f l2 in
+let 'els := AlgDom.sdom f l2 in
 set_In l1 els.
 
 Definition insnDominates (id1:id) (i2:insn) (b:block) : Prop :=
@@ -333,7 +333,7 @@ else
 
 Definition inscope_of_id (f:fdef) (b1:block) (id0:id) : option (list atom) :=
 let '(block_intro l1 ps cs _) := b1 in
-let 'els := AlgDom.dom_query f l1 in
+let 'els := AlgDom.sdom f l1 in
 fold_left (inscope_of_block f l1) els (Some (init_scope f ps cs id0))
 .
 
@@ -373,7 +373,7 @@ let id0 := getCmdLoc c in inscope_of_id f b1 id0.
 Definition inscope_of_tmn (f:fdef) (b1:block) (tmn:terminator)
   : option (list atom) :=
 let '(block_intro l1 ps cs _) := b1 in
-let 'els := AlgDom.dom_query f l1 in
+let 'els := AlgDom.sdom f l1 in
 fold_left (inscope_of_block f l1) els
   (Some (getPhiNodesIDs ps ++ getCmdsIDs cs ++ getArgsIDsOfFdef f))
 .
@@ -1204,7 +1204,7 @@ Proof.
   unfold inscope_of_id in HeqR0.
   destruct b as [l1 ps cs tmn].
   destruct f as [[fa ty fid la va] bs].
-  remember (AlgDom.dom_query (fdef_intro (fheader_intro fa ty fid la va) bs)
+  remember (AlgDom.sdom (fdef_intro (fheader_intro fa ty fid la va) bs)
                l1) as R0.
   symmetry in HeqR0.
   apply fold_left__spec in HeqR0.
@@ -1313,7 +1313,7 @@ Proof.
   inv_mbind. symmetry_ctx.
   unfold inscope_of_id in *.
   destruct b0 as [l1 p c t].
-  remember (AlgDom.dom_query f l1) as R0.
+  remember (AlgDom.sdom f l1) as R0.
   apply fold_left__spec in HeqR0.
   destruct HeqR0 as [J1 [J2 J3]].
   apply J3 in H.
@@ -1385,7 +1385,7 @@ Qed.
 
 Lemma cmd_in_scope__block_in_scope: forall (l' : l) (F : fdef) 
   (ids0' ids1 : list atom) (HuniqF : uniqFdef F) (contents' : ListSet.set atom)
-  (Heqdefs' : contents' = AlgDom.dom_query F l')
+  (Heqdefs' : contents' = AlgDom.sdom F l')
   (Hinscope : fold_left (inscope_of_block F l') contents' (ret ids1) = ret ids0')
   (id1 : atom) (Hid1 : In id1 ids0') (Hnotin' : ~ In id1 ids1) insn1
   (Hlkc1 : lookupInsnViaIDFromFdef F id1 = ret insn1)
@@ -1424,7 +1424,7 @@ Lemma domination__block_in_scope: forall (l' : l) (ps' : phinodes) (cs' : cmds)
           (block_intro l0 p c t0))
   (Hneq : l0 <> l')
   (HbInF0 : blockInFdefB (block_intro l0 p c t0) F = true),
-  In l' (AlgDom.dom_query F l0).
+  In l' (AlgDom.sdom F l0).
 Proof.
   intros.
   destruct H7 as [H7 | H7]; try congruence.
@@ -1433,7 +1433,7 @@ Proof.
   
     clear - H7.
     unfold blockStrictDominates in H7.
-    destruct (AlgDom.dom_query F l0); simpl; auto.
+    destruct (AlgDom.sdom F l0); simpl; auto.
 Qed.
 
 Lemma insnDominates_spec6: forall (l1 : l) (ps1 : phinodes) (cs1 : cmds)
@@ -1615,12 +1615,12 @@ Lemma inscope_of_block_cmds_dominates_cmd__inscope_of_cmd: forall
   (f : fdef) (t : list atom) (l1 : l) (ps1 : phinodes) (cs1 : cmds) (cs : cmds)
   (tmn1 : terminator) id1 (c : cmd) (id2 : id) (HwfF : uniqFdef f)
   (bs_contents : ListSet.set atom)
-  (HeqR3 : bs_contents = AlgDom.dom_query f l1)
+  (HeqR3 : bs_contents = AlgDom.sdom f l1)
   (HbInF : blockInFdefB (block_intro l1 ps1 (cs1 ++ c :: cs) tmn1) f = true)
   (l2 : l) (p : phinodes) (c2 : cmds) (t0 : terminator)
   (HeqR1 : ret block_intro l2 p c2 t0 = lookupBlockViaIDFromFdef f id2)
   (bs_contents0 : ListSet.set atom)
-  (HeqR4 : bs_contents0 = AlgDom.dom_query f l2)
+  (HeqR4 : bs_contents0 = AlgDom.sdom f l2)
   (b1 : block) (l1' : atom)
   (J10 : In l1' (ListSet.set_diff eq_atom_dec bs_contents0 [l2]))
   (J11 : lookupBlockViaLabelFromFdef f l1' = ret b1)
@@ -1671,12 +1671,12 @@ Lemma inscope_of_block_cmds_dominates_cmd__inscope_of_tmn: forall
   (f : fdef) (t : list atom) (l1 : l) (ps1 : phinodes) (cs1 : cmds)
   (tmn1 : terminator) id1 (id2 : id) (HwfF : uniqFdef f)
   (bs_contents : ListSet.set atom)
-  (HeqR3 : bs_contents = AlgDom.dom_query f l1)
+  (HeqR3 : bs_contents = AlgDom.sdom f l1)
   (HbInF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
   (l2 : l) (p : phinodes) (c0 : cmds) (t0 : terminator)
   (HeqR1 : ret block_intro l2 p c0 t0 = lookupBlockViaIDFromFdef f id2)
   (bs_contents0 : ListSet.set atom)
-  (HeqR4 : bs_contents0 = AlgDom.dom_query f l2)
+  (HeqR4 : bs_contents0 = AlgDom.sdom f l2)
   (b1 : block) (l1' : atom)
   (J10 : In l1' (ListSet.set_diff eq_atom_dec bs_contents0 [l2]))
   (J11 : lookupBlockViaLabelFromFdef f l1' = ret b1)
@@ -1741,7 +1741,7 @@ Proof.
   unfold inscope_of_id. 
   destruct f as [fh bs]. destruct b.
   intros. 
-  assert (J:=AlgDom.dom_query_in_bound fh bs l5).
+  assert (J:=AlgDom.sdom_in_bound fh bs l5).
   eapply fold_left__bound_blocks 
     with (fh:=fh)(l0:=l5)(init:=init_scope (fdef_intro fh bs) phinodes5 cmds5 id0) 
     in J; eauto.
@@ -1891,7 +1891,7 @@ Qed.
 
 Lemma inscope_of_cmd_at_beginning__idDominates__phinode : forall f l' contents' 
   pid ids0 i0 ps' cs' tmn' 
-  (Heqdefs' : contents' = AlgDom.dom_query f l')
+  (Heqdefs' : contents' = AlgDom.sdom f l')
   (Hinscope : fold_left (inscope_of_block f l') contents'
                (ret (getPhiNodesIDs ps' ++ getArgsIDsOfFdef f)) = 
              ret ids0) (Hin1: In i0 ids0) 
@@ -1911,10 +1911,10 @@ Proof.
   unfold inscope_of_id, init_scope.
   destruct_if; try solve [contradict Hin0; auto].
   assert (exists r,
-    fold_left (inscope_of_block f l') (AlgDom.dom_query f l') (ret getArgsIDsOfFdef f) 
+    fold_left (inscope_of_block f l') (AlgDom.sdom f l') (ret getArgsIDsOfFdef f) 
       = Some r) as G.
     destruct f.
-    apply fold_left__bound_blocks; auto using AlgDom.dom_query_in_bound.
+    apply fold_left__bound_blocks; auto using AlgDom.sdom_in_bound.
   destruct G as [r G]. rewrite G.
   apply fold_left__opt_union with (init2:=getPhiNodesIDs ps') in G.
   destruct G as [r' [G1 G2]].
@@ -2007,7 +2007,7 @@ Qed.
 
 Lemma blockStrictDominates__non_empty_contents: forall (f : fdef)
   (b be : block) (Hentry_dom : blockStrictDominates f be b),
-  AlgDom.dom_query f (getBlockLabel b) <> nil.
+  AlgDom.sdom f (getBlockLabel b) <> nil.
 Proof.
   intros.
   unfold blockStrictDominates in Hentry_dom.

@@ -17,13 +17,19 @@ Require Import infrastructure_props.
 Import LLVMsyntax.
 Import LLVMinfra.
 
+Notation "x {+} y" := (x :: y) (at level 0): dom.
+Notation "x {<=} y" := (incl x y) (at level 0): dom.
+Notation "{}" := nil (at level 0): dom.
+Notation "x `in` y" := (In x y) (at level 70): dom.
+Local Open Scope dom.
+
 Module Type ALGDOM.
 
-Parameter dom_query : fdef -> atom -> set atom.
+Parameter sdom : fdef -> atom -> set atom.
 
 Axiom dom_entrypoint : forall f l0 ps cs tmn
   (Hentry : getEntryBlock f = Some (block_intro l0 ps cs tmn)),
-  dom_query f l0 = nil.
+  sdom f l0 = {}.
 
 Definition branchs_in_fdef f :=
   forall (p : l) (ps0 : phinodes) (cs0 : cmds) 
@@ -31,22 +37,16 @@ Definition branchs_in_fdef f :=
   blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
   In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f).
 
-Axiom entry_doms_others: forall (f:fdef) 
-  (Hbinf: branchs_in_fdef f) (Huniq: uniqFdef f) entry
-  (H: getEntryLabel f = Some entry),
-  (forall b (H0: b <> entry /\ reachable f b),
-     ListSet.set_In entry (dom_query f b)).
-
-Axiom dom_query_in_bound: forall fh bs l5, 
-  incl (dom_query (fdef_intro fh bs) l5) (bound_blocks bs).
+Axiom sdom_in_bound: forall fh bs l5, 
+  (sdom (fdef_intro fh bs) l5) {<=} (bound_blocks bs).
 
 Axiom dom_successors : forall
   (l3 : l) (l' : l) f
   (contents3 contents': ListSet.set atom)
-  (Hinscs : In l' (successors f) !!! l3)
-  (Heqdefs3 : contents3 = dom_query f l3)
-  (Heqdefs' : contents' = dom_query f l'),
-  incl contents' (l3 :: contents3).
+  (Hinscs : l' `in` (successors f) !!! l3)
+  (Heqdefs3 : contents3 = sdom f l3)
+  (Heqdefs' : contents' = sdom f l'),
+  contents' {<=} (l3 {+} contents3).
 
 Axiom sdom_is_complete: forall (f:fdef)
   (Hbinf: branchs_in_fdef f) 
@@ -54,8 +54,8 @@ Axiom sdom_is_complete: forall (f:fdef)
   (HuniqF : uniqFdef f)
   (HBinF' : blockInFdefB (block_intro l' ps' cs' tmn') f = true)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hsdom: strict_domination f l' l3),
-  In l' (dom_query f l3).
+  (Hsdom: f |= l' >> l3),
+  l' `in` (sdom f l3).
 
 Axiom dom_unreachable: forall (f:fdef)
   (Hbinf: branchs_in_fdef f) 
@@ -63,10 +63,10 @@ Axiom dom_unreachable: forall (f:fdef)
   (l3 : l) (l' : l) ps cs tmn
   (HuniqF: uniqFdef f)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hunreach: ~ reachable f l3),
-  dom_query f l3 = bound_fdef f.
+  (Hunreach: ~ f ~>* l3),
+  sdom f l3 = bound_fdef f.
 
-Axiom pres_dom_query: forall 
+Axiom pres_sdom: forall 
   (ftrans: fdef -> fdef) 
   (btrans: block -> block)
   (ftrans_spec: forall fh bs, 
@@ -75,18 +75,38 @@ Axiom pres_dom_query: forall
   (btrans_eq_tmn: forall b, 
     terminator_match (getBlockTmn b) (getBlockTmn (btrans b)))
   (f : fdef) (l5 l0 : l),
-  ListSet.set_In l5 (dom_query f l0) <->
-  ListSet.set_In l5 (dom_query (ftrans f) l0).
+  ListSet.set_In l5 (sdom f l0) <->
+  ListSet.set_In l5 (sdom (ftrans f) l0).
 
 End ALGDOM.
 
 Module AlgDom_Properties(adom: ALGDOM).
 
-Lemma in_bound_dom__in_bound_fdef: forall l' f l1
-  (Hin: In l' (adom.dom_query f l1)),
-  In l' (bound_fdef f).
+Lemma entry_doms_others: forall (f:fdef) 
+  (Hbinf: adom.branchs_in_fdef f) (Huniq: uniqFdef f) entry
+  (H: getEntryLabel f = Some entry),
+  (forall b (H0: b <> entry /\ reachable f b),
+     entry `in` (adom.sdom f b)).
 Proof.
-  intros. destruct f. eapply adom.dom_query_in_bound; eauto.
+  intros.
+  assert (Hsdom: strict_domination f entry b).
+    apply DecDom.entry_doms_others; auto.
+  destruct H0 as [Hneq Hreach].
+  apply reachable__in_bound in Hreach; auto.
+  apply In_bound_fdef__blockInFdefB in Hreach.
+  destruct Hreach as [ps [cs [tmn HBinF]]].
+  apply getEntryLabel__getEntryBlock in H.
+  destruct H as [be [Hentry EQ]]; subst.
+  apply entryBlockInFdef in Hentry.
+  destruct be; simpl in *.
+  eapply adom.sdom_is_complete; eauto.
+Qed.
+
+Lemma in_bound_dom__in_bound_fdef: forall l' f l1
+  (Hin: l' `in` (adom.sdom f l1)),
+  l' `in` (bound_fdef f).
+Proof.
+  intros. destruct f. eapply adom.sdom_in_bound; eauto.
 Qed.
 
 Section sound.
@@ -97,8 +117,8 @@ Hypothesis Hhasentry: getEntryBlock f <> None.
 Lemma dom_is_sound : forall
   (l3 : l) (l' : l) ps cs tmn
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin : In l' (l3::(adom.dom_query f l3))),
-  domination f l' l3.
+  (Hin : l' `in` (l3 {+} (adom.sdom f l3))),
+  f |= l' >>= l3.
 Proof.
   unfold domination. autounfold with cfg.
   intros. destruct f as [fh bs].
@@ -132,9 +152,9 @@ Proof.
     destruct (id_dec l' l3); subst; auto.
     left.
     assert (In l'
-      (a0 :: (adom.dom_query (fdef_intro fh bs) a0))) as J.
-      assert (incl (adom.dom_query (fdef_intro fh bs) l3)
-                   (a0 :: (adom.dom_query (fdef_intro fh bs) a0))) as Hinc.
+      (a0 :: (adom.sdom (fdef_intro fh bs) a0))) as J.
+      assert (incl (adom.sdom (fdef_intro fh bs) l3)
+                   (a0 :: (adom.sdom (fdef_intro fh bs) a0))) as Hinc.
         eapply adom.dom_successors; eauto.
       simpl in Hin. destruct Hin; try congruence.
       apply Hinc; auto.
@@ -146,8 +166,8 @@ Qed.
 Lemma sdom_is_sound : forall
   (l3 : l) (l' : l) ps cs tmn
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin : In l' (adom.dom_query f l3)),
-  strict_domination f l' l3.
+  (Hin : l' `in` (adom.sdom f l3)),
+  f |= l' >> l3.
 Proof. 
   intros.
   eapply dom_is_sound with (l':=l') in HBinF; simpl; eauto.
@@ -174,8 +194,8 @@ Proof.
         In l3 (successors_terminator tmn0)) as J.
         eapply successors__blockInFdefB; eauto.
       destruct J as [ps0 [cs0 [tmn0 [HBinF' Hinsucc]]]].
-      assert (In l3 (a0 :: (adom.dom_query f a0))) as J.
-        assert (incl (adom.dom_query f l3) (a0 :: (adom.dom_query f a0))) as Hinc.
+      assert (In l3 (a0 :: (adom.sdom f a0))) as J.
+        assert (incl (adom.sdom f l3) (a0 :: (adom.sdom f a0))) as Hinc.
           destruct f. eapply adom.dom_successors; eauto.
         simpl in Hin.
         apply Hinc; auto.
@@ -199,7 +219,7 @@ Lemma sdom_isnt_refl : forall
   f (l3 : l) (l' : l) ps cs tmn
   (Hreach : reachable f l3)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin : In l' (adom.dom_query f l3)),
+  (Hin : In l' (adom.sdom f l3)),
   l' <> l3.
 Proof. 
   intros.
@@ -228,8 +248,8 @@ Lemma sdom_acyclic: forall f
   reachable f l2 ->
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
   blockInFdefB (block_intro l2 ps2 cs2 tmn2) f = true ->
-  In l1 (adom.dom_query f l2) ->
-  In l2 (adom.dom_query f l1) ->
+  l1 `in` (adom.sdom f l2) ->
+  l2 `in` (adom.sdom f l1) ->
   l1 <> l2 ->
   False.
 Proof.
@@ -255,10 +275,7 @@ Axiom dtree_edge_iff_idom: forall (f:fdef)
   (Hcreate: create_dom_tree f = Some dt)
   (le:l) (Hentry: getEntryLabel f = Some le)
   (Hnopreds: (XATree.make_predecessors (successors f)) !!! le = nil)
-  (Hwfcfg: forall (p : l) (ps0 : phinodes) (cs0 : cmds) 
-                  (tmn0 : terminator) (l2 : l),
-           blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
-           In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f))
+  (Hwfcfg: branchs_in_fdef f)
   (Huniq: uniqFdef f),
   forall p0 ch0,
     is_dtree_edge eq_atom_dec dt p0 ch0 = true <-> 
@@ -269,10 +286,7 @@ Axiom create_dom_tree__wf_dtree: forall (f:fdef)
   (Hcreate: create_dom_tree f = Some dt)
   (le:l) (Hentry: getEntryLabel f = Some le)
   (Hnopreds: (XATree.make_predecessors (successors f)) !!! le = nil)
-  (Hwfcfg: forall (p : l) (ps0 : phinodes) (cs0 : cmds) 
-                  (tmn0 : terminator) (l2 : l),
-           blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
-           In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f))
+  (Hwfcfg: branchs_in_fdef f)
   (Huniq: uniqFdef f),
   ADProps.wf_dtree (successors f) le eq_atom_dec dt.
 

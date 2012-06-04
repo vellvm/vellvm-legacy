@@ -15,7 +15,7 @@ let slow_dom f =
   match LLVMinfra.getEntryBlock f with
     | Some b ->
        let b0 = Cfg.bound_fdef f in
-       let dts = Dom_set.AlgDom.dom_query f in
+       let dts = Dom_set.AlgDom.sdom f in
        ignore(print_dominators b0 dts);
        if !gen_dtree then
            (match Analysis.reachablity_analysis f with
