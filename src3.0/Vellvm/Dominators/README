@@ -1,0 +1,52 @@
+The directory includes source code for the CPP12 submission.
+
+1) cfg.v
+   Basic definitions and properties of control-flow-graphs: vertices, arcs,
+   successors, reachability and dominance.
+
+2) reach.v 
+   Metatheory of reachablity.
+
+3) dom_decl.v 
+   Metatheory of dominance.
+
+4) dom_type.v
+   The specification of dominance algorithm.
+
+5) dom_set.v
+   The Correctness of the AC algorithm.
+
+6) dom_libs.v
+   Definitions and properties used by the CHK algorithm.
+
+7) dfs.v
+   Depth-first-search.
+
+7) push_iter.v
+   The low-level design and metatheory of CHK algorithm.
+
+8) dom_list.v
+   The Correctness of the CHK algorithm.
+
+9) dom_tree.v
+   Basic definitions and properties of dominator trees constructions. 
+
+10) dom_list_tree.v
+   The correctness of CHK-tree algorithm.
+
+11) dom_set_tree.v
+   The implementation of AC-tree algorithm. Note: we did not prove the correct
+   of AC-tree fully. We implemented the algorithm to compare its performance
+   with CHK-tree.
+
+Misc:
+1) pull_iter.v
+   This is an implementation of Kildall that, at each iteration, pulls
+   information from the predeccessors of a node to the node. The Kildall
+   algorithm we use push information from a node to its successors at each
+   iteration. We implemented pull_iter.v to evaluate some design trade-offs of
+   Kildall, do not present pull_iter.v in our paper submission.
+
+2) cpdt_tactics.v
+   Tactics copied from Adam Chlipala's book.
+
