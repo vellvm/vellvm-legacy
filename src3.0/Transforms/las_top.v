@@ -10,7 +10,6 @@ Require Import promotable_props.
 Require Import primitives.
 Require Import palloca_props.
 Require Import alive_store.
-Require Import id_rhs_val.
 Require Import subst_inv.
 Require Import mem2reg.
 Require Import program_sim.
@@ -87,11 +86,12 @@ Proof.
       (vev_State (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo) 
          (PI_f pinfo) cfg IS)).
   apply SubstSim.sim with (ctx_inv:=ctx_inv); auto.
+  Case "1".
     intros. 
     rewrite <- Heq in *. 
     destruct Hp as [maxb [stinfo [Hp [G1 [G2 [G3 [G4 [G5 [G6 [G7 G8]]]]]]]]]].
-    eapply id_rhs_val.preservation; eauto.
-  
+    eapply subst_inv.preservation; eauto.
+  Case "2".  
     intros.
     destruct H2 as [maxb [stinfo [Hp [G1 [G2 [G3 [G4 [G5 [G6 [G7 G8]]]]]]]]]].
     exists maxb. exists stinfo. exists Hp. 
@@ -99,16 +99,16 @@ Proof.
       eapply Promotability.preservation; eauto.
       eapply alive_store.preservation; eauto.
       eapply vev_State_preservation; eauto.
-
+  Case "3".  
     intros.
     rewrite <- Heq in *.  
-    eapply s_genInitState__id_rhs_val; eauto.
+    eapply subst_inv.s_genInitState__wf_State; eauto.
       destruct cfg. simpl.
       eapply LAS_substable_values; eauto.
-
+  Case "4".  
     intros. subst.
     eapply las_wfS; eauto.
-
+  Case "5".  
     intros.
     rewrite <- Heq in *.  
     assert (OpsemPP.wf_Config cfg /\ OpsemPP.wf_State cfg IS) as Hwfst';

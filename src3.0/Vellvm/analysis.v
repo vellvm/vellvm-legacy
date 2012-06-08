@@ -2015,6 +2015,17 @@ Proof.
   intro EQ. rewrite EQ in Hentry_dom. tauto.
 Qed.
 
+Lemma idDominates__lookupInsnViaIDFromFdef : forall f id1 id2 (Huniq: uniqFdef f)
+  (Hdom: idDominates f id1 id2),
+  exists instr2, 
+    lookupInsnViaIDFromFdef f id2 = Some instr2 /\ getInsnID instr2 = ret id2.
+Proof.
+  unfold idDominates.
+  intros.
+  inv_mbind. symmetry_ctx.
+  apply lookupBlockViaIDFromFdef__lookupInsnViaIDFromFdef in HeqR; auto.
+Qed.
+
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     list (value * l) -> Prop :=
 | wf_phi_operands_nil : wf_phi_operands f b id0 t0 nil

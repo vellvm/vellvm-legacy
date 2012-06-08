@@ -9,7 +9,7 @@ Require Import promotable_props.
 Require Import primitives.
 Require Import palloca_props.
 Require Import alive_alloca.
-Require Import id_rhs_val.
+Require Import subst_inv.
 Require Import mem2reg.
 Require Import memory_props.
 Require Import trans_tactic.

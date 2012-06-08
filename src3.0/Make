@@ -124,7 +124,6 @@
 ./Transforms/memory_props.v
 ./Transforms/palloca_props.v
 ./Transforms/alive_store.v
-./Transforms/id_rhs_val.v
 ./Transforms/las.v
 ./Transforms/las_top.v
 ./Transforms/las_wfS.v

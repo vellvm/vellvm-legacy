@@ -122,29 +122,6 @@ Proof.
      eapply assigned_phi__wf_value; eauto 1.
 Qed. 
 
-Lemma assigned_phi__substing_value: forall S M p f l0 ps0 cs0 tmn0
-  (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
-  (HBinF: blockInFdefB (block_intro l0 ps0 cs0 tmn0) f = true) 
-  (Hin: In p ps0) v (Hassign: assigned_phi v p),
-  substing_value f v.
-Proof.
-  intros.
-  assert (Hwfp:=HBinF).
-  eapply wf_fdef__wf_phinodes in Hwfp; eauto.
-  eapply wf_phinodes__wf_phinode in Hwfp; eauto.
-  inv Hwfp.
-  inv Hassign.
-  destruct Hex as [lv Hinlist].
-  apply in_split_l in Hinlist.
-  rewrite fst_split__map_fst in Hinlist. 
-  apply H0 in Hinlist.
-  unfold substing_value.
-  simpl in Hinlist.
-  inv Hinlist; auto.
-  apply lookupTypViaIDFromFdef_elim' in H2; auto.
-  destruct H2 as [H2 | [instr [J1 [J2 J3]]]]; subst; eauto.
-Qed.
-
 Lemma subst_phi_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
@@ -169,13 +146,29 @@ Proof.
   assert (substing_value f v) as Hsubst.
     eapply assigned_phi__substing_value; eauto.
   set (pi:=mkPEInfo f (block_intro l0 ps0 cs0 tmn0) p v Hlkup Hsubst Hassign).
+  assert (substable_value
+           (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+           (value_id (getPhiNodeID p)) v) as Hsubst'.
+    subst. eapply assigned_phi__substable_value; eauto.
   subst.
   set (ctx_inv := fun (cfg:OpsemAux.Config) (St:@Opsem.State DGVs) => True).
   apply SubstSim.sim with (ctx_inv:=ctx_inv); auto.
+  Case "1".
     intros ? ? ? ? ? ? ? ? Hop ?. 
-    apply phisubst_inv.preservation with (pi:=pi) in Hop; auto.
+    eapply subst_inv.preservation; eauto.
+    SCase "1.1".
+      split; auto.
+    SCase "1.2".      
+      replace (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) 
+        with (PEI_f pi); auto.
+      replace v with (PEI_v pi); auto.
+      replace p with (PEI_p pi); auto.
+      apply PEInfo__vev; auto.
+  Case "2".
     intros ? ? ? ? ? ? Hinit. 
-    apply phisubst_inv.s_genInitState__inv with (pi:=pi) in Hinit; auto.
+    eapply subst_inv.s_genInitState__wf_State in Hinit; eauto.
+      split; auto.
+  Case "3".
     intros. subst. eapply subst_phi_wfS; eauto.
     unfold ctx_inv. auto.
 Qed.
