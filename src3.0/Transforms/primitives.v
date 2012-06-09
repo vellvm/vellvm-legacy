@@ -430,11 +430,6 @@ Parameter print_reachablity : list l -> bool.
 Parameter print_dominators : list l -> (l -> ListSet.set l) -> bool.
 Parameter print_adtree: @DTree atom -> bool.
 
-Variable TNAME: Type.
-Parameter init_expected_name : unit -> TNAME.
-Parameter check_bname : l -> TNAME -> option (l * TNAME).
-Parameter check_vname : id -> TNAME -> option (id * TNAME).
-
 Fixpoint renamel_list_value_l (l1 l2:l) (l0:list (value * l)) : list (value * l) :=
 match l0 with
 | nil => nil
@@ -466,76 +461,6 @@ Definition renamel_fdef (l1 l2:l) (f:fdef) : fdef :=
 match f with
 | fdef_intro fh bs =>
     fdef_intro fh (List.map (renamel_block l1 l2) bs)
-end.
-
-Definition fix_temporary_block (f:fdef) (b:block) (eid:TNAME)
-  : option (fdef * TNAME) :=
-let '(block_intro l0 ps cs _) := b in
-match check_bname l0 eid with
-| Some (l0', eid5) =>
-  let st :=
-  fold_left
-    (fun st p =>
-     match st with
-     | Some (f0, eid0) =>
-         let 'pid := getPhiNodeID p in
-         match check_vname pid eid0 with
-         | None => None
-         | Some (pid', eid') =>
-             if (id_dec pid pid') then Some (f0, eid')
-             else Some (rename_fdef pid pid' f0, eid')
-         end
-     | _ => None
-     end) ps (Some ((renamel_fdef l0 l0' f), eid5)) in
-  fold_left
-    (fun st c =>
-     match st with
-     | Some (f0, eid0) =>
-         match getCmdID c with
-         | None => Some (f0, eid0)
-         | Some cid =>
-           match check_vname cid eid0 with
-           | None => None
-           | Some (cid', eid') =>
-               if (id_dec cid cid') then Some (f0, eid')
-               else Some (rename_fdef cid cid' f0, eid')
-           end
-         end
-     | _ => None
-     end) cs st
-| None => None
-end.
-
-Definition fix_temporary_fdef (f:fdef) : option fdef :=
-let '(fdef_intro (fheader_intro _ _ _ ars _) bs) := f in
-(* arguments can also contain temporaries, scan args first *)
-let st0 := fold_left 
-  (fun st ar =>
-   match st with
-   | None => None
-   | Some eid0 =>
-      let '(_, aid) := ar in
-      match check_vname aid eid0 with
-      | None => None
-      | Some (_, eid1) => Some eid1
-      end
-    end) ars (Some (init_expected_name tt)) in
-match st0 with
-| None => None
-| Some eid =>
-  match fold_left 
-    (fun st b => 
-     match st with
-     | Some (f0, eid0) =>
-         match fix_temporary_block f0 b eid0 with
-         | Some (f1, eid1) => Some (f1, eid1)
-         | None => None
-         end
-     | _ => None
-     end) bs (Some (f, eid)) with
-  | Some (f', _) => Some f'
-  | None => None
-  end
 end.
 
 Definition getFdefLocs fdef : ids :=
@@ -1886,4 +1811,320 @@ Proof.
     destruct J1 as [J1 | J1]; auto.
       apply phinodeEqB_inv in J1. subst. auto.
 Qed.
+
+Definition transf_from_module (transf:fdef -> fdef) (m:module) :=
+let '(module_intro los nts ps) := m in
+module_intro los nts
+  (List.map (fun p =>
+             match p with
+             | product_fdef f => product_fdef (transf f)
+             | _ => p
+             end) ps).
+
+(*************************************************************)
+(* remove lifetime intrinsics                                *)
+
+Parameter is_llvm_lifetime : id -> bool.
+
+Fixpoint remove_lifetime_from_cmds (cs:cmds) : cmds :=
+match cs with
+| nil => nil
+| (insn_cast _ castop_bitcast _ _ _) as c1::
+  (insn_call _ _ _ _ _ (value_const (const_gid _ fid)) _) as c2:: tl =>
+    if is_llvm_lifetime fid then remove_lifetime_from_cmds tl
+    else c1::c2::remove_lifetime_from_cmds tl
+| hd::tl => hd::remove_lifetime_from_cmds tl
+end.
+
+Definition remove_lifetime_from_fdef (f:fdef) : fdef :=
+let '(fdef_intro fh bs) := f in
+  fdef_intro fh
+       (List.map (fun b =>
+                  let '(block_intro l0 ps0 cs tmn0) := b in
+                  block_intro l0 ps0 (remove_lifetime_from_cmds cs) tmn0) bs).
+
+Definition remove_lifetime_from_module := 
+  transf_from_module remove_lifetime_from_fdef.
+
+(*********************************************************************)
+(* remove allocas for dbg intrinsics, which prevents from identifying 
+   promotable allocas. *)
+
+Parameter is_llvm_dbg_declare : id -> bool.
+
+Definition remove_dbg_declare (pid:id) (f:fdef) : fdef :=
+  let uses := find_uses_in_fdef pid f in
+  let re := List.fold_left
+    (fun acc i =>
+     match acc with
+     | None => None
+     | Some (bldst, ocid, orid) =>
+         match i with 
+         | insn_cmd (insn_load _ _ _ _) => Some (true, ocid, orid)
+         | insn_cmd (insn_store _ _ v _ _) => 
+             if valueEqB v (value_id pid) 
+             then None else Some (true, ocid, orid)
+         | insn_cmd (insn_cast cid castop_bitcast _ _ _) =>
+             match ocid with
+             | Some _ => 
+                 (* not remove if used by multiple bitcast *)
+                 None
+             | None =>
+                 match find_uses_in_fdef cid f with
+                 | insn_cmd 
+                     (insn_call rid _ _ _ _ (value_const (const_gid _ fid)) _)
+                     ::nil =>
+                     if is_llvm_dbg_declare fid then 
+                       Some (bldst, Some cid, Some rid)
+                     else None
+                 | _ => None
+                 end
+              end
+         | _ => None
+         end
+     end)
+    uses (Some (false, None, None)) in
+  match re with
+  | Some (true, Some cid, Some rid) => 
+      (* if pid is used by ld/st and a simple dbg *)
+      remove_fdef cid (remove_fdef rid f)
+  | _ => f
+  end.
+ 
+Fixpoint remove_dbg_declares (f:fdef) (cs:cmds) : fdef :=
+match cs with
+| nil => f
+| insn_alloca pid _ _ _ :: cs' =>
+    remove_dbg_declares (remove_dbg_declare pid f) cs'
+| _ :: cs' => remove_dbg_declares f cs'
+end.
+
+Definition remove_dbg_declares_from_fdef (f:fdef) : fdef :=
+match getEntryBlock f with
+| Some (block_intro _ _ cs _) => remove_dbg_declares f cs
+| _ => f
+end.
+
+Definition remove_dbg_declares_from_module := 
+  transf_from_module remove_dbg_declares_from_fdef.
+
+(*********************************************************************)
+(* fix temporary names when pp-printing                              *)
+
+Variable TNAME:Type.
+Parameter init_expected_name : unit -> TNAME.
+Parameter check_vname : id -> TNAME -> option (id * TNAME).
+Parameter check_bname : l -> TNAME -> option (l * TNAME).
+
+Definition fix_temporary_block (f:fdef) (b:block) (eid:TNAME) : 
+  option (fdef * TNAME) :=
+  let '(block_intro l0 ps cs _) := b in
+  match check_bname l0 eid with
+  | Some (l0', eid5) =>
+    let st :=
+    fold_left
+      (fun st p =>
+       match st with
+       | Some (f0, eid0) =>
+           let pid := getPhiNodeID p in
+           match check_vname pid eid0 with
+           | None => None
+           | Some (pid', eid') =>
+               if (id_dec pid pid') then Some (f0, eid')
+               else Some (rename_fdef pid pid' f0, eid')
+           end
+       | _ => None
+       end) 
+       ps (Some ((renamel_fdef l0 l0' f), eid5)) in
+    fold_left
+      (fun st c =>
+       match st with
+       | Some (f0, eid0) =>
+           match getCmdID c with
+           | None => Some (f0, eid0)
+           | Some cid =>
+              match check_vname cid eid0 with
+              | None => None
+              | Some (cid', eid') =>
+                  if (id_dec cid cid') then Some (f0, eid')
+                  else Some (rename_fdef cid cid' f0, eid')
+              end
+           end
+       | _ => None
+       end) cs st
+  | None => None
+  end.
+
+Definition fix_temporary_fdef (f:fdef) : option fdef :=
+  let '(fdef_intro (fheader_intro _ _ _ ars _) bs) := f in
+  (* arguments can also contain temporaries, scan args first *)
+  let st0 := fold_left 
+    (fun st ar =>
+     match st with
+     | None => None
+     | Some eid0 =>
+        let '(_, aid) := ar in
+        match check_vname aid eid0 with
+        | None => None
+        | Some (_, eid1) => Some eid1
+        end
+     end) ars (Some (init_expected_name tt)) in
+  match st0 with
+  | None => None
+  | Some eid =>
+    match fold_left 
+      (fun st b => 
+       match st with
+       | Some (f0, eid0) =>
+           match fix_temporary_block f0 b eid0 with
+           | Some (f1, eid1) => Some (f1, eid1)
+           | None => None
+           end
+       | _ => None
+       end) bs (Some (f, eid)) with
+    | Some (f', _) => Some f'
+    | None => None
+    end
+  end.
+
+Definition fix_temporary_module := 
+  transf_from_module (fun f => 
+                      match fix_temporary_fdef f with
+		      | Some f' => f'
+                      | _ => f
+                      end).
+
+(*
+Definition fix_temporary_ps (ps:phinodes) (eid:TNAME)
+  : option (phinodes * TNAME) :=
+match fold_left
+      (fun st p =>
+       match st with
+       | Some (ps0, eid0) =>
+           let pid := getPhiNodeID p in
+           match check_vname pid eid0 with
+           | None => None
+           | Some (pid', eid') =>
+               if (id_dec pid pid') then Some (p::ps0, eid')
+               else Some ((rename_phi pid pid' p)::ps0, eid')
+           end
+       | _ => None
+       end) 
+       ps (Some (nil, eid)) with
+| Some (ps', eid') => Some (rev ps', eid')
+| None => None
+end.
+
+Definition fix_temporary_cs (cs:cmds) (eid:TNAME) : option (cmds * TNAME) :=
+match fold_left
+      (fun st c =>
+       match st with
+       | Some (cs0, eid0) =>
+           match getCmdID c with
+           | None => Some (c::cs0, eid0)
+           | Some cid =>
+              match check_vname cid eid0 with
+              | None => None
+              | Some (cid', eid') =>
+                  if (id_dec cid cid') then Some (c::cs0, eid')
+                  else Some ((rename_cmd cid cid' c)::cs0, eid')
+              end
+           end
+       | _ => None
+       end) cs (Some (nil, eid)) with
+| Some (cs', eid') => Some (rev cs', eid')
+| None => None
+end.
+
+Definition fix_temporary_block (b:block) (eid:TNAME) (mp: AssocList l)
+  : option (block * TNAME * AssocList l) :=
+  let '(block_intro l0 ps cs tmn) := b in
+  match check_bname l0 eid with
+  | Some (l0', eid5) =>
+    match fix_temporary_ps ps eid5 with
+    | None => None
+    | Some (ps', eid5') =>
+        match fix_temporary_cs cs eid5' with
+        | None => None
+        | Some (cs', eid5'') => 
+            Some (block_intro l0 ps' cs' tmn, eid5'', (l0,l0')::mp)
+        end
+    end
+  | None => None
+  end.
+
+Definition renamels_l (mp: AssocList l) (id0:l) : l :=
+match lookupAL _ mp id0 with
+| Some id1 => id1
+| _ => id0
+end.
+
+Fixpoint renamels_list_value_l (mp: AssocList l) (l0:list (value * l)) 
+  : list (value * l) :=
+match l0 with
+| nil => nil
+| (v0, l0) :: tl =>
+   (v0, (renamels_l mp l0)) :: (renamels_list_value_l mp tl)
+end.
+
+Definition renamels_phi (mp: AssocList l) (pn:phinode) : phinode :=
+match pn with
+| insn_phi id0 t0 vls =>
+    insn_phi id0 t0 (renamels_list_value_l mp vls)
+end.
+
+Definition renamels_tmn (mp: AssocList l) (tmn:terminator) : terminator :=
+match tmn with
+| insn_br bid c lt lf => insn_br bid c (renamels_l mp lt) (renamels_l mp lf)
+| insn_br_uncond bid ln => insn_br_uncond bid (renamels_l mp ln)
+| _ => tmn
+end.
+
+Definition renamels_block (mp: AssocList l) (b:block) : block := 
+match b with
+| block_intro l0 ps0 cs0 tmn0 =>
+  block_intro (renamels_l mp l0) (List.map (renamels_phi mp) ps0) cs0 
+    (renamels_tmn mp tmn0)
+end.
+
+Definition renamels_fdef (mp: AssocList l) (f:fdef) : fdef :=
+match f with
+| fdef_intro fh bs =>
+    fdef_intro fh (List.map (renamels_block mp) bs)
+end.
+
+Definition fix_temporary_fdef (f:fdef) : option fdef :=
+  let '(fdef_intro ((fheader_intro _ _ _ ars _) as fh) bs) := f in
+  (* arguments can also contain temporaries, scan args first *)
+  let st0 := fold_left 
+    (fun st ar =>
+     match st with
+     | None => None
+     | Some eid0 =>
+        let '(_, aid) := ar in
+        match check_vname aid eid0 with
+        | None => None
+        | Some (_, eid1) => Some eid1
+        end
+     end) ars (Some (init_expected_name tt)) in
+  match st0 with
+  | None => None
+  | Some eid =>
+    match fold_left 
+      (fun st b => 
+       match st with
+       | Some (bs0, eid0, mp0) =>
+           match fix_temporary_block b eid0 mp0 with
+           | Some (b1, eid1, mp1) => Some (b1::bs0, eid1, mp1)
+           | None => None
+           end
+       | _ => None
+       end) bs (Some (nil, eid, nil)) with
+    | Some (bs', _, mp) => Some (renamels_fdef mp (fdef_intro fh (rev bs')))
+    | None => None
+    end
+  end.
+
+*)
+
 

@@ -521,57 +521,6 @@ Definition ElimPhi := mkIterPass (list id) unit eliminate_block nil.
 Parameter does_phi_elim : unit -> bool.
 Parameter does_macro_m2r : unit -> bool.
 
-Parameter is_llvm_dbg_declare : id -> bool.
-
-(* remove allocas for dbg intrinsics, which prevents from identifying 
-   promotable allocas, should be extended to remove lifetime intrinsics too.
- *)
-Definition remove_dbg_declare (pid:id) (f:fdef) : fdef :=
-let uses := find_uses_in_fdef pid f in
-let re :=List.fold_left
-  (fun acc i =>
-   match acc with
-   | None => None
-   | Some (bldst, ocid, orid) =>
-       match i with 
-       | insn_cmd (insn_load _ _ _ _) => Some (true, ocid, orid)
-       | insn_cmd (insn_store _ _ v _ _) => 
-           if valueEqB v (value_id pid) then None else Some (true, ocid, orid)
-       | insn_cmd (insn_cast cid castop_bitcast _ _ _) =>
-           match ocid with
-           | Some _ => 
-               (* not remove if used by multiple bitcast *)
-               None
-           | None =>
-               match find_uses_in_fdef cid f with
-               | insn_cmd 
-                   (insn_call rid _ _ _ _ (value_const (const_gid _ fid)) _)
-                   ::nil =>
-                   if is_llvm_dbg_declare fid then 
-                     Some (bldst, Some cid, Some rid)
-                   else None
-               | _ => None
-               end
-           end
-       | _ => None
-       end
-   end)
-  uses (Some (false, None, None)) in
-match re with
-| Some (true, Some cid, Some rid) => 
-    (* if pid is used by ld/st and a simple dbg *)
-    remove_fdef cid (remove_fdef rid f)
-| _ => f
-end.
-
-Fixpoint remove_dbg_declares (f:fdef) (cs:cmds) : fdef :=
-match cs with
-| nil => f
-| insn_alloca pid _ _ _ :: cs' =>
-    remove_dbg_declares (remove_dbg_declare pid f) cs'
-| _ :: cs' => remove_dbg_declares f cs'
-end.
-
 (* The two kinds of mem2reg algorithm for each function
    1) when does_macro_m2r tt = true
       A pipelined algorithm based on a group of primitives, which is
@@ -585,11 +534,10 @@ match getEntryBlock f, reachablity_analysis f with
   if print_reachablity rd then
     let '(f1, _) :=
       if (does_macro_m2r tt) then
-        let f0 := remove_dbg_declares f cs in
-        let succs := successors f0 in
+        let succs := successors f in
         let preds := XATree.make_predecessors succs in
         SafePrimIter.iterate _ 
-          (macro_mem2reg_fdef_step rd succs preds) (f0, nil) 
+          (macro_mem2reg_fdef_step rd succs preds) (f, nil) 
       else
         let b := bound_fdef f in
         let dts := AlgDom.sdom f in
@@ -604,13 +552,8 @@ match getEntryBlock f, reachablity_analysis f with
            SafePrimIter.iterate _ (mem2reg_fdef_step dt rd) (f, nil)
         else (f, nil)
     in
-    let f2 :=
-      if does_phi_elim tt 
-      then fst (IterationPass.iter ElimPhi tt rd f1) else f1 in
-    match fix_temporary_fdef f2 with
-    | Some f' => f'
-    | None => f
-    end
+    if does_phi_elim tt 
+    then fst (IterationPass.iter ElimPhi tt rd f1) else f1
   else f
 | _, _ => f
 end.

@@ -727,12 +727,7 @@ match getEntryBlock f, reachablity_analysis f with
       chains (DT_node root DT_nil) in
     if print_reachablity rd && print_dominators b dts &&
        print_adtree dt && read_aa_from_fun (getFdefID f) then
-       match fix_temporary_fdef
-               (SafePrimIter.iterate _ (opt_step dt dts rd)
-                 (dce_fdef f)) with
-       | Some f' => f'
-       | _ => f
-       end
+       SafePrimIter.iterate _ (opt_step dt dts rd) (dce_fdef f)
     else f
 | _, _ => f
 end.

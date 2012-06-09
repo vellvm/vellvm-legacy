@@ -580,30 +580,6 @@ Proof.
         apply remove_successors; auto.
 Qed.
 
-Axiom fix_temporary_fdef_sim_wfS: forall f1 f2 Ps1 Ps2 los nts main VarArgs
-  (Hpass: ret f2 = fix_temporary_fdef f1) S1 S2
-  (Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
-  (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
-  (HwfS : wf_system S2) (Hok: defined_program S2 main VarArgs),
-  program_sim S1 S2 main VarArgs /\ wf_system S1 /\
-    defined_program S1 main VarArgs.
-
-Axiom remove_dbg_declares_sim_wfS: forall cs Ps1 Ps2 los nts main
-  VarArgs f S1 S2
-  (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
-  (Heq1: S1 = [module_intro los nts 
-                 (Ps1 ++ product_fdef (remove_dbg_declares f cs) :: Ps2)]),
-  program_sim S2 S2 main VarArgs ->
-  wf_system S2 ->
-  defined_program S2 main VarArgs ->
-  program_sim S1 S2 main VarArgs /\ wf_system S1 /\
-    defined_program S1 main VarArgs.
-
-Axiom remove_dbg_declares_sim_reachablity_successors: forall f cs,
-  reachablity_analysis f 
-    = reachablity_analysis (remove_dbg_declares f cs) /\
-  successors f = successors (remove_dbg_declares f cs).
-
 Lemma mem2reg_fdef_sim_wfS: forall (main : id) (VarArgs : list (GVsT DGVs))
   (los : layouts) (nts : namedts) (f : fdef) (Ps2 Ps1 : products) S1 S2
   (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
@@ -622,40 +598,18 @@ Proof.
   rewrite does_macro_m2r_is_true.
   remember (SafePrimIter.iterate (fdef * list id)
                    (macro_mem2reg_fdef_step rd 
-                      (successors (remove_dbg_declares f cs))
+                      (successors f)
                       (XATree.make_predecessors 
-                        (successors (remove_dbg_declares f cs)))) 
-                   ((remove_dbg_declares f cs), nil)) as R.
+                        (successors f))) 
+                   (f, nil)) as R.
   destruct R as [f1 dones]; auto using program_sim_refl.
   rewrite does_phi_elim_is_true.
-  remember (fix_temporary_fdef (fst (IterationPass.iter ElimPhi tt rd f1)))
-    as R.
-  destruct R as [f2|]; auto using program_sim_refl.
   apply program_sim_wfS_trans with (P2:=
     [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]); auto; intros.
-    apply program_sim_wfS_trans with (P2:=
-      [module_intro los nts
-        (Ps1 ++ product_fdef (fst (IterationPass.iter ElimPhi tt rd f1))
-          :: Ps2)]); auto; intros.
-      eapply fix_temporary_fdef_sim_wfS; eauto.
-      eapply elimphi_sim_wfS with (f:=f1); eauto.
-        assert (reachablity_analysis f = 
-          reachablity_analysis (remove_dbg_declares f cs)) as Hreacheq.
-          eapply remove_dbg_declares_sim_reachablity_successors; eauto.
-        eapply remove_dbg_declares_sim_wfS in HwfS; eauto using program_sim_refl.
-        destruct HwfS as [Hpsim [HwfS Hdefined]].
-        eapply macro_mem2reg_fdef_sim_wfS with (f1:=remove_dbg_declares f cs) 
-          in HwfS; eauto.
-          destruct HwfS as [_ [Hreach _]]. congruence.
-          congruence.
-
-  apply program_sim_wfS_trans with (P2:=
-    [module_intro los nts 
-       (Ps1 ++ product_fdef (remove_dbg_declares f cs) :: Ps2)]); auto; intros.
-    eapply macro_mem2reg_fdef_sim_wfS with (f1:=remove_dbg_declares f cs); eauto.
-      rewrite HeqR.
-      eapply remove_dbg_declares_sim_reachablity_successors; eauto.
-    eapply remove_dbg_declares_sim_wfS; eauto using program_sim_refl.
+    eapply elimphi_sim_wfS with (f:=f1); eauto.
+      eapply macro_mem2reg_fdef_sim_wfS with (f1:=f) in HwfS; eauto.
+      destruct HwfS as [_ [Hreach _]]. congruence.
+    eapply macro_mem2reg_fdef_sim_wfS with (f1:=f); eauto.
 Qed.
 
 Lemma mem2reg_run_sim_wfS_aux: forall (main : id) (VarArgs : list (GVsT DGVs))

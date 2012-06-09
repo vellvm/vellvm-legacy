@@ -6,6 +6,7 @@ open Arg
 let nullpass = ref false
 let mem2reg = ref true
 let does_remove_lifetime = ref false
+let does_remove_dbg = ref false
 
 let main in_filename =
   (* Read bitcode [in_filename] into LLVM module [im] *)
@@ -28,13 +29,18 @@ let main in_filename =
     Coq2ll.travel_module coqim
   else
     (if !mem2reg then 
-      (* GVN [coqim], output [coqom]  *)
-      let coqim' = 
+      (* M2R [coqim], output [coqom]  *)
+      let coqim0 =
         if !does_remove_lifetime then 
-          Transforms_aux.remove_lifetime_from_module coqim 
-        else coqim
+          Primitives.remove_lifetime_from_module coqim 
+        else coqim 
       in
-      let coqom = Mem2reg.run coqim' in
+      let coqim1 =
+        if !does_remove_dbg then 
+          Primitives.remove_dbg_declares_from_module coqim0
+        else coqim0 
+      in
+      let coqom = Primitives.fix_temporary_module (Mem2reg.run coqim1) in
       (* Print [coqom] *)
       (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
       (* Translate [coqom] to a *.ll file *)
@@ -42,7 +48,7 @@ let main in_filename =
 
     else
       (* GVN [coqim], output [coqom]  *)
-      let coqom = Gvn.opt coqim in
+      let coqom = Primitives.fix_temporary_module (Gvn.opt coqim) in
       (* Print [coqom] *)
       (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
       (* Translate [coqom] to a *.ll file *)
@@ -59,6 +65,7 @@ let argspec = [
   ("-composed", Clear Globalstates.does_macro_m2r, "composed mem2reg");
   ("-prune", Set Globalstates.does_dead_phi_elim, "pruned");
   ("-remove-lifetime", Set does_remove_lifetime, "remove lifetime intrinsics");
+  ("-remove-dbg", Set does_remove_dbg, "remove debug intrinsics");
   ("-no-stld-elim", Clear Globalstates.does_stld_elim, "do not remove st/ld pairs");
   ("-maximal", Clear Globalstates.does_phi_elim, "maximal");
 ]
