@@ -28,16 +28,11 @@ Require Import phiplacement_bsim_wfS.
 Require Import phiplacement_bsim_top.
 Require Import iter_pass.
 Require Import iter_pass_correct.
+Require Import pass_combinators.
 Require Import phielim_top.
 
 (* We are proving the macro-based m2r pass *)
 Parameter does_macro_m2r_is_true: mem2reg.does_macro_m2r tt = true.
-
-Parameter print_reachablity_is_true: forall rd, print_reachablity rd = true.
-
-Parameter does_phi_elim_is_true: does_phi_elim tt = true.
-
-Parameter does_stld_elim_is_true: does_stld_elim tt = true.
 
 Lemma las_die_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo)
@@ -388,9 +383,31 @@ Qed.
 
 Hint Unfold keep_pinfo.
 
-Lemma macro_mem2reg_fdef_sim_wfS: forall rd f1 dones1 f2 dones2 Ps1 Ps2 los
-  nts main VarArgs (Hreach: ret rd = reachablity_analysis f1)
-  S1 S2
+Section Macro_mem2reg_fdef_sim_wfS.
+
+Variable (Ps1 Ps2:products) (los:layouts) (nts:namedts) (main:id) 
+         (VarArgs:list (GVsT DGVs)) (f1:fdef).
+
+Definition Pmm2r' :=
+  fun (f:fdef) =>
+       (program_sim [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
+         [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)] main VarArgs
+       /\
+       wf_system
+         [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] /\
+       defined_program 
+         [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] main VarArgs) /\
+       reachablity_analysis f1 = reachablity_analysis f /\
+       successors f1 = successors f.
+
+Definition Pmm2r :=
+   fun (re:(fdef * list id)) => let '(f, _) := re in Pmm2r' f.
+
+Lemma Pmm2r'_Pmm2r: forall f ds, Pmm2r' f -> Pmm2r (f, ds).
+Proof. simpl. auto. Qed.
+
+Lemma macro_mem2reg_fdef_sim_wfS: forall rd dones1 f2 dones2 
+  (Hreach: ret rd = reachablity_analysis f1) S1 S2
   (Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
   (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
   (HwfS : wf_system S2) (Hok: defined_program S2 main VarArgs)
@@ -404,21 +421,9 @@ Lemma macro_mem2reg_fdef_sim_wfS: forall rd f1 dones1 f2 dones2 Ps1 Ps2 los
   successors f1 = successors f2.
 Proof.
   intros. subst.
-  set (P:=fun (re:(fdef * list id)) =>
-          let '(f, _) := re in
-          (program_sim [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
-            [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)] main VarArgs
-          /\
-          wf_system
-            [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] /\
-          defined_program 
-            [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] main VarArgs) /\
-          reachablity_analysis f1 = reachablity_analysis f /\
-          successors f1 = successors f
-      ).
-  assert (P (f1, dones1)) as HPf1.
-    unfold P. split; auto using program_sim_refl.
-  apply SafePrimIter.iterate_prop with (P:=P) in Hiter; auto.
+  assert (Pmm2r (f1, dones1)) as HPf1.
+    unfold Pmm2r. split; auto using program_sim_refl.
+  apply SafePrimIter.iterate_prop with (P:=Pmm2r) in Hiter; auto.
     unfold macro_mem2reg_fdef_step.
     intros a HPa.
     destruct a as [f dones].
@@ -428,157 +433,166 @@ Proof.
     remember (find_promotable_alloca f cs0 dones) as R.
     destruct R as [[[[pid ty] num] al]|]; auto.
     set (pinfo:=mkPhiInfo f rd pid ty num al).
-
+ 
+    assert (HPa':=HPa).
     destruct HPa as [HPa [EQ2 EQ1]].
     rewrite EQ2 in Hreach.
-
     assert (WF_PhiInfo pinfo) as HwfPI.
       eapply find_promotable_alloca__WF_PhiInfo; eauto.
 
-    rewrite does_stld_elim_is_true.
-    remember (IterationPass.iter ElimStld pid rd
+    case_eq (IterationPass.iter ElimStld pid rd
                (phinodes_placement rd pid ty al (successors f1)
-                  (XATree.make_predecessors (successors f1)) f)) as R.
-    destruct R as [f0 dones0].
-    unfold IterationPass.iter in HeqR1.
+                  (XATree.make_predecessors (successors f1)) f)).
+    intros f0 dones0 HeqElimStld.
+    unfold IterationPass.iter in HeqElimStld.
 
-    assert (P (f0, dones0)) as HPf0.
-      symmetry in HeqR1.
-      unfold P.
+    apply Pmm2r'_Pmm2r.
+    set (Pmm2r'' := 
+           fun f => Pmm2r' f /\
+           exists pinfo', WF_PhiInfo pinfo' /\ keep_pinfo f pinfo pinfo').
+    repeat (rewrite seq_trans_assoc).
+    apply seq_trans_pres_strengthen_P with (Pcom':=Pmm2r''); auto.
+    assert (Pmm2r'' f) as HPa''. 
+      split; auto.
+        instantiate_pinfo.
+    compass_tac.
+    Case "1".
+    split.
       split.
-      Case "1".
+      SCase "1.1".
         apply program_sim_wfS_trans with (P2:=
-            [module_intro los nts (Ps1 ++
-              product_fdef
-                 (phinodes_placement rd pid ty al (successors f1)
-                   (XATree.make_predecessors (successors f1)) f) :: Ps2)]); auto; intros.
+                [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]); auto.
+        intros.
+        rewrite EQ1.
+        split.
+          eapply phinodes_placement_sim; eauto.
+        split.
+          eapply phinodes_placement_wfS; eauto.
+          eapply program_sim__preserves__defined_program; 
+             eauto using phinodes_placement_sim. 
+    
+      SCase "1.2".
+        rewrite EQ1. rewrite EQ2.
+        rewrite <- phinodes_placement_reachablity_analysis.
+        rewrite <- phinodes_placement_successors. auto.
+    
+      SCase "1.3".
+        destruct HPa as [HPa1 [HPa2 HPa3]].
+        eapply phinodes_placement_wfPI in Hreach; eauto.
+        rewrite EQ1. 
+        match goal with
+        | _: WF_PhiInfo 
+              {| PI_f := ?f; PI_rd := ?rd; PI_id := ?pid;
+                 PI_typ := ?ty; PI_num := ?num; PI_align := ?al |} |-
+            exists _ : _, WF_PhiInfo _ /\ keep_pinfo ?f _ _ =>
+            exists {| PI_f := f; PI_rd := rd; PI_id := pid;
+                    PI_typ := ty; PI_num := num; PI_align := al |};
+            repeat (split; auto)
+        end.
+    
+    Case "2".
+    unfold IterationPass.iter.
+    rewrite HeqElimStld.
+    destruct HPf as [[HPf21 HPf22] HPf23].
+    split.
+      split.
+      SCase "2.1".
+        apply program_sim_wfS_trans with (P2:=
+                [module_intro los nts (Ps1 ++
+                  product_fdef
+                     (phinodes_placement rd pid ty al (successors f1)
+                       (XATree.make_predecessors (successors f1)) f) :: Ps2)]); 
+          auto; intros.
+        SSCase "2.1.1".
           eapply elim_stld_sim_wfS_wfPI with
-            (pinfo:=mkPhiInfo (phinodes_placement rd pid ty al
-              (successors f1) (XATree.make_predecessors (successors f1)) f)
-                rd pid ty num al); eauto.
+                (pinfo:=mkPhiInfo (phinodes_placement rd pid ty al
+                  (successors f1) (XATree.make_predecessors (successors f1)) f)
+                    rd pid ty num al); eauto. 
             rewrite EQ1. destruct HPa as [Hpa1 [Hpa2 Hpa3]].
             eapply phinodes_placement_wfPI; eauto.
-
-        apply program_sim_wfS_trans with (P2:=
-          [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]); auto.
-          intros. rewrite EQ1.
-          split.
-            eapply phinodes_placement_sim; eauto.
-          split.
-            eapply phinodes_placement_wfS; eauto.
-            eapply program_sim__preserves__defined_program; 
-              eauto using phinodes_placement_sim.          
-
-      Case "2".
-        apply IterationPassCorrect.iter_reachablity_successors in HeqR1; 
-          try solve [auto | elim_stld_block_tac]. 
-
-        destruct HeqR1.
-        split.
-          transitivity (reachablity_analysis
-            (phinodes_placement rd pid ty al (successors f1)
-              (XATree.make_predecessors (successors f1)) f)); auto.
-            rewrite EQ1. rewrite EQ2.
-            apply phinodes_placement_reachablity_analysis.
-
-          transitivity (successors
-            (phinodes_placement rd pid ty al (successors f1)
-              (XATree.make_predecessors (successors f1)) f)); auto.
-            rewrite EQ1.
-
-            apply phinodes_placement_successors.
-
-    assert (exists pinfo', WF_PhiInfo pinfo' /\ keep_pinfo f0 pinfo pinfo') 
-      as HwfPIf0.
-     apply change_keep_pinfo with (pinfo1:=
-               (update_pinfo pinfo
-                 (phinodes_placement rd pid ty al (successors f)
-                   (XATree.make_predecessors (successors f)) f))); auto.
-     destruct HPa as [HPa1 [HPa2 HPa3]].
-     eapply elim_stld_sim_wfS_wfPI; eauto.
-       simpl. rewrite EQ1. auto.
-       eapply phinodes_placement_wfPI; eauto.
-       rewrite EQ1. simpl. eapply phinodes_placement_wfS; eauto.
-       eapply program_sim__preserves__defined_program; eauto.
-         rewrite EQ1. simpl.
-         eapply phinodes_placement_sim; eauto.
-
-    destruct HwfPIf0 as [pinfo' [HwfPIf0 Hkeep]].
-    assert (P (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0,
-              nil) /\
-            WF_PhiInfo (update_pinfo pinfo'
-              (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)))
-      as HPf.
-      remember (load_in_fdef pid f0) as R.
-      destruct R; try solve [erewrite update_pinfo_refl; eauto 2].
-      destruct HPf0 as [HPf0 HPf0'].
-      split.
-      Case "1".
-        split.
-        SCase "1.1".
-          apply program_sim_wfS_trans with (P2:=
-                  [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)]); auto.
-            intros.
-            split.
-              eapply dse_sim with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
-            split.
-              eapply dse_wfS with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
-              eapply program_sim__preserves__defined_program; eauto.
-                eapply dse_sim with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
-        SCase "1.2".
-          destruct HPf0' as [J1 J2].
-          split.
-            transitivity (reachablity_analysis f0); auto.
-              apply elim_dead_st_fdef_reachablity_analysis.
-            transitivity (successors f0); auto.
-              apply elim_dead_st_fdef_successors.
-
-      Case "2".
-        destruct HPf0 as [HPf00 [HPf01 HPf02]].
-        eapply dse_wfPI; eauto; solve_keep_pinfo.
-
-    destruct HPf as [HPf HwfPI0].
-    remember (used_in_fdef pid
-        (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)) as R.
-    destruct R; auto.
-    destruct HPf as [HPf HPf'].
-    split.
-    Case "1".
-      apply program_sim_wfS_trans with (P2:=
-                 [module_intro los nts
-                   (Ps1 ++ product_fdef
-                   (if load_in_fdef pid f0 then f0
-                    else elim_dead_st_fdef pid f0) :: Ps2)]); auto.
-        intros.
-        split.
-          eapply dae_sim with
-            (pinfo:=update_pinfo pinfo'
-              (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)); eauto 1;
-            simpl; solve_keep_pinfo.
-        split.
-          eapply dae_wfS with
-            (pinfo:=update_pinfo pinfo'
-              (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)); eauto 1;
-            simpl; solve_keep_pinfo.
+    
+      SCase "2.2".
+        apply IterationPassCorrect.iter_reachablity_successors in HeqElimStld; 
+              try solve [auto | elim_stld_block_tac]. 
+        destruct HeqElimStld.
+        destruct HPf22.
+        split; etransitivity; eauto.
+    
+      SCase "2.3".
+        apply change_keep_pinfo with (pinfo1:=
+                   (update_pinfo pinfo
+                     (phinodes_placement rd pid ty al (successors f)
+                       (XATree.make_predecessors (successors f)) f))); auto.
+        destruct HPa as [HPa1 [HPa2 HPa3]].
+        eapply elim_stld_sim_wfS_wfPI; eauto.
+          simpl. rewrite EQ1. auto.
+          eapply phinodes_placement_wfPI; eauto.
+          rewrite EQ1. simpl. eapply phinodes_placement_wfS; eauto.
           eapply program_sim__preserves__defined_program; eauto.
-            eapply dae_sim with
-              (pinfo:=update_pinfo pinfo'
-                (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)); eauto 1;
-            simpl; solve_keep_pinfo.
-
-    Case "2".
-      destruct HPf' as [Hreach' Hsucc'].
-      split.
-        transitivity
-          (reachablity_analysis
-            (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0));auto.
-        apply remove_reachablity_analysis; auto.
-
-        transitivity
-          (successors
-            (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0));auto.
-        apply remove_successors; auto.
+            rewrite EQ1. simpl.
+            eapply phinodes_placement_sim; eauto.
+    
+    Case "3".
+    match goal with
+    | _: load_in_fdef _ ?f = _ |- _ => remember f as f0'
+    end.
+  
+    destruct HPf as [[HPf10 HPf20] [pinfo' [HwfPIf0 Hkeep]]].
+    
+    split.
+      split.   
+      SCase "3.1".
+        apply program_sim_wfS_trans with (P2:=
+                 [module_intro los nts (Ps1 ++ product_fdef f0' :: Ps2)]); auto.
+        intros.
+        split. eapply dse_sim with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
+        split. eapply dse_wfS with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
+               eapply program_sim__preserves__defined_program; eauto.
+                 eapply dse_sim with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
+      SCase "3.2".
+        destruct HPf20 as [J1 J2].
+        split; etransitivity; eauto.
+          apply elim_dead_st_fdef_reachablity_analysis.
+          apply elim_dead_st_fdef_successors.
+    
+      SCase "3.3".
+        destruct HPf10 as [? [? ?]].
+        exists (update_pinfo pinfo' (elim_dead_st_fdef pid f0')).
+        split.
+          eapply dse_wfPI; eauto; solve_keep_pinfo.
+          solve_keep_pinfo.
+    
+    Case "4".
+      intros [HPf2 [pinfo' [HwfPIf2 Hkeep]]].
+      apply cond_trans_pres_P; try solve [compass_tac | auto].
+      intros Hfalse.
+      match goal with
+      | _: used_in_fdef _ ?f = _ |- _ => remember f as f0'
+      end.
+      destruct HPf2 as [HPf12 HPf22].
+      split.   
+      SCase "4.1".
+        apply program_sim_wfS_trans with (P2:=
+                     [module_intro los nts
+                       (Ps1 ++ product_fdef f0' :: Ps2)]); auto.
+          intros.
+          assert (f0' = PI_f pinfo') as EQ3. solve_keep_pinfo.
+          assert (pid = PI_id pinfo') as EQ4. solve_keep_pinfo.
+          rewrite EQ3, EQ4 in Hfalse.
+          split.
+            eapply dae_sim with (pinfo:=pinfo'); eauto 1.
+          split.
+            eapply dae_wfS with (pinfo:=pinfo'); eauto 1.
+            eapply program_sim__preserves__defined_program; eauto.
+              eapply dae_sim with (pinfo:=pinfo'); eauto 1.
+      SCase "4.2".
+        destruct HPf22 as [Hreach' Hsucc'].
+        split; etransitivity; eauto.
+          apply remove_reachablity_analysis; auto.
+          apply remove_successors; auto.
 Qed.
+
+End Macro_mem2reg_fdef_sim_wfS.
 
 Lemma mem2reg_fdef_sim_wfS: forall (main : id) (VarArgs : list (GVsT DGVs))
   (los : layouts) (nts : namedts) (f : fdef) (Ps2 Ps1 : products) S1 S2
@@ -594,22 +608,30 @@ Proof.
   destruct b as [[root ps cs tmn]|]; auto using program_sim_refl.
   remember (reachablity_analysis f) as R.
   destruct R as [rd|]; auto using program_sim_refl.
-  rewrite print_reachablity_is_true.
-  rewrite does_macro_m2r_is_true.
-  remember (SafePrimIter.iterate (fdef * list id)
-                   (macro_mem2reg_fdef_step rd 
-                      (successors f)
-                      (XATree.make_predecessors 
-                        (successors f))) 
-                   (f, nil)) as R.
-  destruct R as [f1 dones]; auto using program_sim_refl.
-  rewrite does_phi_elim_is_true.
-  apply program_sim_wfS_trans with (P2:=
-    [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]); auto; intros.
-    eapply elimphi_sim_wfS with (f:=f1); eauto.
-      eapply macro_mem2reg_fdef_sim_wfS with (f1:=f) in HwfS; eauto.
-      destruct HwfS as [_ [Hreach _]]. congruence.
-    eapply macro_mem2reg_fdef_sim_wfS with (f1:=f); eauto.
+  destruct (print_reachablity rd).
+  Case "1".
+    rewrite does_macro_m2r_is_true.
+    remember (SafePrimIter.iterate (fdef * list id)
+                     (macro_mem2reg_fdef_step rd 
+                        (successors f)
+                        (XATree.make_predecessors 
+                          (successors f))) 
+                     (f, nil)) as R.
+    destruct R as [f1 dones]; auto using program_sim_refl.
+    destruct (does_phi_elim tt).
+    SCase "1.1".
+      apply program_sim_wfS_trans with (P2:=
+        [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]); auto; intros.
+      SSCase "1.1.1".
+        eapply elimphi_sim_wfS with (f:=f1); eauto.
+          eapply macro_mem2reg_fdef_sim_wfS with (f1:=f) in HwfS; eauto.
+          destruct HwfS as [_ [Hreach _]]. congruence.
+      SSCase "1.1.2".
+        eapply macro_mem2reg_fdef_sim_wfS with (f1:=f); eauto.
+    SCase "1.2".
+      eapply macro_mem2reg_fdef_sim_wfS with (f1:=f); eauto.      
+  Case "2".
+    split; auto using program_sim_refl.
 Qed.
 
 Lemma mem2reg_run_sim_wfS_aux: forall (main : id) (VarArgs : list (GVsT DGVs))

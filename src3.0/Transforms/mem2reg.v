@@ -8,6 +8,7 @@ Require Import primitives.
 Require Import dom_tree.
 Require Import dom_set_tree.
 Require Import iter_pass.
+Require Import pass_combinators.
 
 (*********************************************************************)
 (* This file includes two kinds of mem2reg algorithm.
@@ -433,17 +434,22 @@ match getEntryBlock f with
     match find_promotable_alloca f cs dones with
     | None => (f, false, dones)
     | Some (pid, ty, num, al) =>
-        let f1 := phinodes_placement rd pid ty al succs preds f in
-        let '(f2, _) :=
-          if does_stld_elim tt then
-            IterationPass.iter ElimStld pid rd f1
-          else (f1, nil)
-        in
-        let f3 :=
-          if load_in_fdef pid f2 then f2 else elim_dead_st_fdef pid f2
-        in
-        (if used_in_fdef pid f3 then f3 else remove_fdef pid f3,
-         true, pid::dones)
+       ((seq_trans
+          (phinodes_placement rd pid ty al succs preds)
+        (seq_trans
+          (cond_trans
+            (fun _ => does_stld_elim tt)
+            (fun f1 => fst (IterationPass.iter ElimStld pid rd f1))
+            (@Datatypes.id fdef))
+        (seq_trans
+          (cond_trans
+            (load_in_fdef pid)
+            (@Datatypes.id fdef)  
+            (elim_dead_st_fdef pid))
+          (cond_trans
+            (used_in_fdef pid)
+            (@Datatypes.id fdef)
+            (remove_fdef pid))))) f, true, pid::dones)
     end
 | _ => (f, false, dones)
 end.

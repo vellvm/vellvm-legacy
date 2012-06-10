@@ -17,6 +17,16 @@ Hint Unfold keep_pinfo.
 
 Ltac instantiate_pinfo :=
 match goal with
+| pinfo := {|
+           PI_f := ?f;
+           PI_rd := _;
+           PI_id := _;
+           PI_typ := _;
+           PI_num := _;
+           PI_align := _ |} : PhiInfo, 
+  HwfS : WF_PhiInfo ?pi |- 
+  exists _ : _, WF_PhiInfo _ /\ keep_pinfo ?f ?pi _ =>
+  exists pi; repeat (split; auto)
 | HwfS : WF_PhiInfo (update_pinfo ?f ?pi) |- _ => 
   exists (update_pinfo f pi); repeat (split; auto)
 | HwfS : WF_PhiInfo ?pi, Heq: (PI_f ?pi) = ?f |- 
@@ -61,6 +71,13 @@ Qed.
 
 Ltac solve_keep_pinfo :=
 match goal with
+| Hkeep : keep_pinfo ?f ?pinfo ?pinfo' |- ?f = PI_f ?pinfo' =>
+  destruct Hkeep as [? ?]; auto
+| Hkeep : keep_pinfo _ ?pinfo ?pinfo' |-
+    keep_pinfo ?f ?pinfo (update_pinfo ?pinfo' ?f) =>
+  destruct Hkeep as [? [? [? [? ?]]]];
+  unfold update_pinfo;
+  repeat split; simpl; auto
 | Hkeep : keep_pinfo _ ?pinfo ?pinfo' |- PI_id ?pinfo = PI_id ?pinfo' =>
   destruct Hkeep as [? [? [? ?]]]; auto
 | Hkeep : keep_pinfo _ ?pinfo ?pinfo' |- PI_id ?pinfo' = PI_id ?pinfo =>

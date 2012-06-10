@@ -155,6 +155,7 @@
 ./Transforms/phielim_spec.v
 ./Transforms/phisubst_inv.v
 ./Transforms/phielim_top.v
+./Transforms/pass_combinators.v
 
 ./Vellvm/Dominators/dom_type.v
 ./Vellvm/Dominators/dom_libs.v
