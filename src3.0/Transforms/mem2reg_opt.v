@@ -133,62 +133,6 @@ let pairs := List.flat_map Datatypes.id (List.map (find_stld_pairs_block pid) bs
 apply_actions f pairs.
 
 (************************************************)
-
-Definition find_stld_pair_cmd' (pid:id) 
-  (acc:stld_state * (AssocList action * cmds)) 
-  (c:cmd) : stld_state * (AssocList action * cmds) :=
-let '(st, (actions, cs)) := acc in
-match c with
-| insn_alloca qid ty value5 align5 =>
-    if id_dec pid qid
-    then (STLD_alloca ty, (actions, c::cs))
-    else (st, (actions, c::cs))
-| insn_store sid typ5 v0 value2 align5 =>
-    match value2 with
-    | value_id qid =>
-       if id_dec pid qid
-       then 
-         match st with
-         | STLD_store sid' _ => 
-             (STLD_store sid v0, (actions, cs))
-         | _ => (STLD_store sid v0, (actions, c::cs))
-         end
-      else (st, (actions, c::cs))
-    | value_const const5 => (st, (actions, c::cs))
-    end
-| insn_load lid typ5 value1 align5 =>
-    match value1 with
-    | value_id qid =>
-       if id_dec pid qid
-       then 
-         match st with
-         | STLD_store _ v' => (st, ((lid, AC_vsubst v')::actions, c::cs))
-         | STLD_alloca ty' => (st, ((lid, AC_tsubst ty')::actions, c::cs))
-         | _ => (st, (actions, c::cs))
-         end
-       else (st, (actions, c::cs))
-    | value_const const5 => (st, (actions, c::cs))
-    end
-| _ => (st, (actions, c::cs))
-end.
-
-Definition find_stld_pairs_cmds' (cs:cmds) (actions: AssocList action) (pid:id) 
-  : AssocList action * cmds :=
-snd (List.fold_left (find_stld_pair_cmd' pid) cs (STLD_init, (actions, nil))).
-
-Definition find_stld_pairs_block' (pid:id) (acc: AssocList action * blocks) 
-  (b : block) : AssocList action * blocks :=
-let '(actions, bs) := acc in
-let '(block_intro l5 phinodes5 cs terminator5) := b in
-let '(actions', cs') := find_stld_pairs_cmds' cs actions pid in
-(actions', block_intro l5 phinodes5 (List.rev cs') terminator5 :: bs).
-
-Definition elim_stld_fdef' (pid:id) (f:fdef) : fdef :=
-let '(fdef_intro fh bs) := f in
-let '(pairs, bs') := fold_left (find_stld_pairs_block' pid) bs (nil,nil) in
-apply_actions (fdef_intro fh (List.rev bs')) pairs.
-
-(************************************************)
 (* in function [f], given its reachable blocks [rd], CFG represented by
    successors [succs] and predecessors [preds]. Do the following in sequence
    1) find a promotable alloca
@@ -279,56 +223,6 @@ Definition elim_phi_step f :=
 match elim_phi_fdef f with
 | nil => inl f
 | pairs => inr (apply_actions f pairs)
-end.
-
-(************************************************)
-
-Definition elim_phi_phi' (f:fdef) (acc : AssocList action * phinodes) (p:phinode)
-  : AssocList action * phinodes :=
-let '(actions, ps) := acc in
-let '(insn_phi pid _ vls) := p in 
-let ndpvs := 
-  remove_redundancy nil (value_id pid::List.map fst vls) 
-in
-match ndpvs with
-| value_id id1 as v1::v2::nil =>
-    if (id_dec pid id1) then 
-      (* if v1 is pid, then v2 cannot be pid*)
-      ((pid, AC_vsubst v2)::actions, p::ps)
-    else  
-      (* if v1 isnt pid, then v2 must be pid*)
-      ((pid, AC_vsubst v1)::actions, p::ps)
-| value_const _ as v1::_::nil =>
-    (* if v1 is const, then v2 must be pid*)
-    ((pid, AC_vsubst v1)::actions, p::ps)
-| v1::nil => 
-    (* v1 must be pid, so pn:= pid = phi [pid, ..., pid] *)
-    (actions, ps)
-| _ => 
-   if does_dead_phi_elim tt then
-      if used_in_fdef pid f then (actions, p::ps) else (actions, ps)
-   else (actions, p::ps)
-end.
-
-Definition elim_phi_phis' f actions ps : AssocList action * phinodes :=
-List.fold_left (elim_phi_phi' f) ps (actions, nil).
-
-Definition elim_phi_block' f acc b :=
-let '(actions, bs) := acc in 
-let '(block_intro l5 ps cmds5 terminator5) := b in
-let '(actions', ps') := elim_phi_phis' f actions ps in 
-(actions', block_intro l5 (List.rev ps') cmds5 terminator5 :: bs).
-
-Definition elim_phi_fdef' f :=
-let '(fdef_intro fh bs) := f in
-let '(actions, bs') := List.fold_left (elim_phi_block' f) bs (nil, nil) in
-(actions, fdef_intro fh (List.rev bs')).
-
-Definition elim_phi_step' f :=
-let '(actions, f') := elim_phi_fdef' f in
-match actions with
-| nil => inl f'
-| pairs => inr (apply_actions f' pairs)
 end.
 
 (************************************************)
