@@ -48,7 +48,7 @@ Proof.
     congruence.
 
     destruct_cmd a; try solve [apply IHcs in H; destruct H as [H1 H2]; eauto].
-    remember (is_promotable f i0 && negb (in_dec id_dec i0 nids)) as R.
+    remember (negb (in_dec id_dec i0 nids) && is_promotable f i0) as R.
     destruct R; try solve [apply IHcs in H; destruct H as [H1 H2]; eauto].
     inv H.
     symmetry in HeqR. apply andb_true_iff in HeqR. destruct HeqR.

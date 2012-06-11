@@ -49,7 +49,7 @@ Fixpoint find_promotable_alloca (f:fdef) (cs:cmds) (dones:list id)
 match cs with
 | nil => None
 | insn_alloca pid ty num al :: cs' =>
-    if is_promotable f pid && negb (In_dec id_dec pid dones)
+    if negb (In_dec id_dec pid dones) && is_promotable f pid
     then Some (pid, ty, num, al)
     else find_promotable_alloca f cs' dones
 | _ :: cs' => find_promotable_alloca f cs' dones
