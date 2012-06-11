@@ -5,6 +5,7 @@ open Arg
 
 let nullpass = ref false
 let mem2reg = ref true
+let mem2reg_opt = ref false
 let does_remove_lifetime = ref false
 let does_remove_dbg = ref false
 
@@ -40,7 +41,8 @@ let main in_filename =
           Primitives.remove_dbg_declares_from_module coqim0
         else coqim0 
       in
-      let coqom = Primitives.fix_temporary_module (Mem2reg.run coqim1) in
+      let vm2r = if !mem2reg_opt then Mem2reg_opt.run else Mem2reg.run in
+      let coqom = Primitives.fix_temporary_module (vm2r coqim1) in
       (* Print [coqom] *)
       (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
       (* Translate [coqom] to a *.ll file *)
@@ -62,6 +64,7 @@ let argspec = [
   ("-null", Set nullpass, "null pass");
   ("-d", Set Globalstates.debug, "debug");
   ("-mem2reg", Set mem2reg, "mem2reg (pipelined by default)");
+  ("-opt", Set mem2reg_opt, "optimized mem2reg");
   ("-composed", Clear Globalstates.does_macro_m2r, "composed mem2reg");
   ("-prune", Set Globalstates.does_dead_phi_elim, "pruned");
   ("-remove-lifetime", Set does_remove_lifetime, "remove lifetime intrinsics");

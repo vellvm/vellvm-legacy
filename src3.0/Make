@@ -114,6 +114,7 @@
 ./Transforms/iter_pass.v
 ./Transforms/iter_pass_correct.v
 ./Transforms/mem2reg.v
+./Transforms/mem2reg_opt.v
 ./Transforms/promotable_props.v
 ./Transforms/top_sim.v
 ./Transforms/top_wfS.v

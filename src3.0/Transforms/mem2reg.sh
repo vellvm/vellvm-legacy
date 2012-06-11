@@ -89,16 +89,21 @@ DEBUG="$1"
 
 Compiling ()
 {
+  opt="-opt"
+  if [[ $DEBUG != "opt" ]]; then
+    opt=""
+  fi  
+
   echo -e $2": \c" ;
 
   echo -e "Pre"; time opt -f $PRE_OPT_FLAG $1 -o $2"o.bc"
 
-  echo -e "Coq M2R"; time $M2R -mem2reg $2"o.bc" >& $2"a.ll"
+  echo -e "Coq M2R"; time $M2R -mem2reg $opt $2"o.bc" >& $2"a.ll"
   llvm-as -f $2"a.ll" -o $2"a.bc"
   echo -e "  LLVM ld1"; time llvm-ld -native -lm $LD_FLAG $2"a.bc" -o $2"a.exe"
 
   if [[ $DEBUG != "debug" ]]; then
-  echo -e "Coq M2R pruned"; time $M2R -mem2reg -prune $2"o.bc" >& $2"c.ll"
+  echo -e "Coq M2R pruned"; time $M2R -mem2reg -prune $opt $2"o.bc" >& $2"c.ll"
   llvm-as -f $2"c.ll" -o $2"c.bc"
   echo -e "  LLVM ld"; time llvm-ld -native -lm $LD_FLAG $2"c.bc" -o $2"c.exe"
  
