@@ -147,6 +147,7 @@
 ./Transforms/die_top.v
 ./Transforms/die_wfS.v
 ./Transforms/mem2reg_correct.v
+./Transforms/mem2reg_opt_correct.v
 ./Transforms/program_sim.v
 ./Transforms/subst.v
 ./Transforms/subst_inv.v

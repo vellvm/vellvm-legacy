@@ -10,15 +10,24 @@ S95_DIR=./testcases/spec95-ccured/
 S95_CASES="129.compress 099.go 130.li 132.ijpeg"
 S00_DIR=../../softbound_test/spec2k/
 S00_CASES="177.mesa/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-mesa.bc
-           164.gzip/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-gzip-prefix.bc
-           175.vpr/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-vpr-prefix.bc
-           179.art/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-art-prefix.bc
-           188.ammp/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-ammp-prefix.bc
-           183.equake-modified/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-equake-modified-prefix.bc
-           256.bzip2/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-bzip2-prefix.bc
-           197.parser/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-parser-prefix.bc
-           300.twolf/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-twolf-prefix.bc
+           164.gzip/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-gzip.bc
+           175.vpr/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-vpr.bc
+           179.art/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-art.bc
+           188.ammp/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-ammp.bc
+           183.equake-modified/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-equake-modified.bc
+           256.bzip2/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-bzip2.bc
+           197.parser/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-parser.bc
+           300.twolf/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-twolf.bc
           "
+S06_DIR=../../softbound_test/spec2k6/
+S06_CASES="401.bzip2/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-bzip2.bc
+           429.mcf/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-mcf.bc
+           456.hmmer/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-hmmer.bc
+           462.libquantum/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-libquantum.bc
+           470.lbm/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-lbm.bc
+           433.milc/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-milc.bc
+           458.sjeng/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-sjeng.bc
+           464.h264ref/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-h264.bc"
 LD_FLAG="-disable-opt"
 
 #opt -mem2reg -debug-pass=Arguments -disable-output bho.bc
@@ -80,6 +89,10 @@ Compiling0 ()
 
 for name in $S00_CASES; do 
   Compiling0 $S00_DIR$name $name
+done
+
+for name in $S06_CASES; do 
+  Compiling0 $S06_DIR$name $name
 done
 
 if [[ $DEBUG != "debug" ]]; then
