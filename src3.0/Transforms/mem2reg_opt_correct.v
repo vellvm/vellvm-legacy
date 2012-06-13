@@ -32,6 +32,34 @@ Require Import phielim_top.
 Require Import mem2reg_correct.
 Require Import mem2reg_opt.
 
+Lemma avl_substs_removes_fdef__avl_removes_fdef_removes_fdef: forall actions f1,
+  AVLComposedPass.substs_removes_fdef actions f1 =
+  AVLComposedPass.removes_fdef actions (AVLComposedPass.substs_fdef actions f1).
+Admitted.
+
+Definition apply_remove_action (f:fdef) (elt:id * action): fdef :=
+let '(id1, ac1) := elt in remove_fdef id1 f.
+
+Definition apply_subst_action (f:fdef) (elt:id * action): fdef :=
+let '(id1, ac1) := elt in
+match ac1 with
+| AC_vsubst v1 => subst_fdef id1 v1 f
+| AC_tsubst t1 => subst_fdef id1 (value_const (const_undef t1)) f
+| _ => f
+end.
+
+Lemma list_apply_remove_subst_action__list_apply_action: forall actions f,
+  ListMap.fold _ _ apply_remove_action actions
+    (ListMap.fold _ _ apply_subst_action actions f) =
+  ListMap.fold _ _ apply_action actions f.
+Admitted.
+
+Lemma avl_removes_fdef__list_removes_fdef: forall actions f1,
+  AVLComposedPass.removes_fdef (AVLComposedPass.compose_actions actions) f1 = 
+    ListMap.fold _ _ apply_remove_action 
+      (ListComposedPass.substs_actions actions) f1.
+Admitted.
+
 Lemma elim_stld_sim_wfS_wfPI: forall f1 f2 Ps1 Ps2 los nts main
   VarArgs pid rd (pinfo:PhiInfo)
   (Hpass: elim_stld_fdef pid f1 = f2)
@@ -43,6 +71,14 @@ Lemma elim_stld_sim_wfS_wfPI: forall f1 f2 Ps1 Ps2 los nts main
   (program_sim S1 S2 main VarArgs /\ wf_system S1 /\
     defined_program S1 main VarArgs) /\
   exists pinfo', WF_PhiInfo pinfo' /\ keep_pinfo f2 pinfo pinfo'.
+Proof.
+  intros.
+  unfold elim_stld_fdef in Hpass.
+  destruct f1 as [fh bs1].
+  remember (flat_map Datatypes.id (List.map (find_stld_pairs_block pid) bs1))
+    as actions.
+  unfold AVLComposedPass.run in Hpass.
+  rewrite avl_substs_removes_fdef__avl_removes_fdef_removes_fdef in Hpass.
 Admitted.
 
 Lemma elim_stld_reachablity_successors: forall pid f1 f2
