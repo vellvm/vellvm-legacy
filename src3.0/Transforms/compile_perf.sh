@@ -28,6 +28,7 @@ S06_CASES="401.bzip2/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-bzip2.bc
            433.milc/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-milc.bc
            458.sjeng/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-sjeng.bc
            464.h264ref/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-h264.bc"
+# 403.gcc/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-gcc.bc
 LD_FLAG="-disable-opt"
 
 #opt -mem2reg -debug-pass=Arguments -disable-output bho.bc
@@ -51,12 +52,16 @@ Compiling ()
   echo -e "Pre"; time opt -f $PRE_OPT_FLAG $1 -o $2"o.bc"
 
   echo -e "Coq only insert phis"; time $M2R -mem2reg -maximal -no-stld-elim $opt $2"o.bc" >& $2"f.ll"
+  llvm-as -f $2"f.ll" -o /dev/null
 
   echo -e "Coq max"; time $M2R -mem2reg -maximal $opt $2"o.bc" >& $2"e.ll"
+  llvm-as -f $2"e.ll" -o /dev/null
 
   echo -e "Coq M2R"; time $M2R -mem2reg $opt $2"o.bc" >& $2"a.ll"
+  llvm-as -f $2"a.ll" -o /dev/null
 
   echo -e "Coq M2R pruned"; time $M2R -mem2reg -prune $opt $2"o.bc" >& $2"c.ll"
+  llvm-as -f $2"c.ll" -o /dev/null
 
   echo -e "LLVM M2R"; time opt -f $M2R_OPT_FLAG $1 -o $2"d.bc"
   llvm-dis -f $2"d.bc" -o $2"d.ll" 
@@ -76,12 +81,16 @@ Compiling0 ()
   echo -e $2": \c" ;
 
   echo -e "Coq only insert phis"; time $M2R -mem2reg -maximal -no-stld-elim $opt $1 >& $1"f.ll"
+  llvm-as -f $1"f.ll" -o /dev/null
 
   echo -e "Coq max"; time $M2R -mem2reg -maximal $opt $1 >& $1"e.ll"
+  llvm-as -f $1"e.ll" -o /dev/null
 
   echo -e "Coq M2R"; time $M2R -mem2reg $opt $1 >& $1"a.ll"
+  llvm-as -f $1"a.ll" -o /dev/null
 
   echo -e "Coq M2R pruned"; time $M2R -mem2reg -prune $opt $1 >& $1"c.ll"
+  llvm-as -f $1"c.ll" -o /dev/null
  
   echo -e "LLVM M2R"; time opt -f $M2R_OPT_FLAG $1 -o $1"d.bc"
   llvm-dis -f $1"d.bc" -o $1"d.ll" 

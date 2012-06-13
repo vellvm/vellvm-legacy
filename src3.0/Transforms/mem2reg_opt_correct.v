@@ -209,10 +209,10 @@ Proof.
         apply program_sim_wfS_trans with (P2:=
                  [module_intro los nts (Ps1 ++ product_fdef f0' :: Ps2)]); auto.
         intros.
-        split. eapply dse_sim with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
-        split. eapply dse_wfS with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
+        split. eapply dse_sim with (pinfo:=pinfo'); eauto 1; solve_keep_pinfo.
+        split. eapply dse_wfS with (pinfo:=pinfo'); eauto 1; solve_keep_pinfo.
                eapply program_sim__preserves__defined_program; eauto.
-                 eapply dse_sim with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
+                 eapply dse_sim with (pinfo:=pinfo'); eauto 1; solve_keep_pinfo.
       SCase "3.2".
         destruct HPf20 as [J1 J2].
         split; etransitivity; eauto.
@@ -223,7 +223,7 @@ Proof.
         destruct HPf10 as [? [? ?]].
         exists (update_pinfo pinfo' (mem2reg.elim_dead_st_fdef pid f0')).
         split.
-          eapply dse_wfPI; eauto; solve_keep_pinfo.
+          eapply dse_wfPI; eauto 1; solve_keep_pinfo.
           solve_keep_pinfo.
     
     Case "4".
