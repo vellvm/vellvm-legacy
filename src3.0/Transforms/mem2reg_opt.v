@@ -53,9 +53,9 @@ Inductive action : Set :=
 Definition apply_action (f:fdef) (elt:id * action): fdef :=
 let '(id1, ac1) := elt in
 match ac1 with
-| AC_vsubst v1 => subst_remove_fdef id1 v1 f
+| AC_vsubst v1 => remove_fdef id1 (subst_fdef id1 v1 f)
 | AC_tsubst t1 => 
-    subst_remove_fdef id1 (value_const (const_undef t1)) f
+    remove_fdef id1 (subst_fdef id1 (value_const (const_undef t1)) f)
 | AC_remove => remove_fdef id1 f
 end.
 
@@ -220,19 +220,23 @@ match f with
 | fdef_intro fh bs => fdef_intro fh (List.map (substs_block mp) bs)
 end.
 
+Definition filters_phinode (mp:M.t action) :=
+fun p => match M.find _ (getPhiNodeID p) mp with
+         | Some _ => false
+         | None => true
+         end.
+
 Definition removes_phinodes (mp:M.t action) (ps:phinodes) : phinodes :=
-  List.filter 
-    (fun p => match M.find _ (getPhiNodeID p) mp with
-              | Some _ => false
-              | None => true
-              end) ps.
+  List.filter (filters_phinode mp) ps.
+
+Definition filters_cmd (mp:M.t action) :=
+fun c => match M.find _ (getCmdLoc c) mp with
+         | Some _ => false
+         | None => true
+         end.
 
 Definition removes_cmds (mp:M.t action) (cs:cmds) : cmds :=
-  List.filter 
-    (fun c => match M.find _ (getCmdLoc c) mp with
-              | Some _ => false
-              | None => true
-              end) cs.
+  List.filter (filters_cmd mp) cs.
 
 Definition removes_block (mp:M.t action) (b:block) : block :=
 match b with
@@ -244,6 +248,17 @@ Definition removes_fdef (mp:M.t action) (f:fdef) : fdef :=
 match f with
 | fdef_intro fh bs => fdef_intro fh (List.map (removes_block mp) bs)
 end.
+
+Definition substs_removes_block (mp:M.t action) b :=
+let '(block_intro l0 ps0 cs0 tmn0) := b in
+block_intro l0
+  (map_filter (filters_phinode mp) (substs_phi mp) ps0)
+  (map_filter (filters_cmd mp) (substs_cmd mp) cs0) 
+  (substs_tmn mp tmn0).
+
+Definition substs_removes_fdef (mp:M.t action) f :=
+let '(fdef_intro fh bs) := f in
+fdef_intro fh (List.map (substs_removes_block mp) bs).
 
 Definition subst_actions (id0:id) (ac0:action) (pairs: M.t action) :
   M.t action :=
@@ -279,7 +294,7 @@ end.
 
 Definition run (f:fdef) (pairs: AssocList action) : fdef :=
 let mp := compose_actions pairs in
-removes_fdef mp (substs_fdef mp f).
+substs_removes_fdef mp f.
 
 Fixpoint substs_actions (pairs: AssocList action) : M.t action :=
 match pairs with 
