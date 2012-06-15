@@ -66,6 +66,12 @@ match ac with
 | _ => None
 end.
 
+Definition subst_action (id0:id) (v0:value) (ac:action): action :=
+match ac with
+| AC_vsubst v1 => AC_vsubst (subst_value id0 v0 v1)
+| _ => ac
+end.
+
 (************************************************)
 
 Module Type XMap.
@@ -77,6 +83,12 @@ Parameter add : forall (A:Type), id -> A -> t A -> t A.
 Parameter find : forall (A:Type), id -> t A -> option A.
 Parameter map : forall A B : Type, (A -> B) -> t A -> t B.
 Parameter fold : forall A B : Type, (B -> (id * A) -> B) -> t A -> B -> B.
+
+Implicit Arguments empty [A].
+Implicit Arguments add [A].
+Implicit Arguments find [A].
+Implicit Arguments map [A B].
+Implicit Arguments fold [A B].
 
 End XMap. 
 
@@ -104,17 +116,21 @@ Require Import FMapAVL.
 
 Module AVLMap <: XMap. 
 
-Module AtomFMapVAL := FMapAVL.Make (AtomOT).
+Module AtomFMapAVL := FMapAVL.Make (AtomOT).
 
-Definition t := AtomFMapVAL.t.
+Definition t := AtomFMapAVL.t.
 
-Definition empty (A:Type) : t A := AtomFMapVAL.empty A.
-Definition add := AtomFMapVAL.add.
-Definition find := AtomFMapVAL.find.
+Definition empty (A:Type) : t A := AtomFMapAVL.empty A.
+Definition add := AtomFMapAVL.add.
+Definition find := AtomFMapAVL.find.
 Definition map (A B : Type) (f: A -> B) (mp: t A) : t B :=
-  AtomFMapVAL.map f mp.
+  AtomFMapAVL.map f mp.
 Definition fold (A B : Type) (f: B -> (id * A) -> B) (mp:t A) (init: B) : B :=
-  AtomFMapVAL.fold (fun k v acc => f acc (k, v)) mp init.
+  AtomFMapAVL.fold (fun k v acc => f acc (k, v)) mp init.
+
+Implicit Arguments empty [A].
+Implicit Arguments map [A B].
+Implicit Arguments fold [A B].
 
 End AVLMap.
 
@@ -130,6 +146,12 @@ Definition map (A B : Type) (f: A -> B) (mp: t A) : t B :=
 Definition fold (A B : Type) (f: B -> (id * A) -> B) (mp:t A) (init: B) : B :=
   List.fold_left f mp init.
 
+Implicit Arguments empty [A].
+Implicit Arguments add [A].
+Implicit Arguments find [A].
+Implicit Arguments map [A B].
+Implicit Arguments fold [A B].
+
 End ListMap.
 
 Module ComposedPass (M:XMap).
@@ -137,9 +159,12 @@ Module ComposedPass (M:XMap).
 Definition substs_value (mp:M.t action) (v:value) : value :=
 match v with
 | value_id id1 => 
-    match M.find _ id1 mp with
-    | Some (AC_vsubst v1) => v1
-    | Some (AC_tsubst t1) => value_const (const_undef t1)
+    match M.find id1 mp with
+    | Some ac1 => 
+       match action2value ac1 with
+       | Some v1 => v1
+       | _ => v
+       end
     | _ => v
     end
 | _ => v
@@ -221,7 +246,7 @@ match f with
 end.
 
 Definition filters_phinode (mp:M.t action) :=
-fun p => match M.find _ (getPhiNodeID p) mp with
+fun p => match M.find (getPhiNodeID p) mp with
          | Some _ => false
          | None => true
          end.
@@ -230,7 +255,7 @@ Definition removes_phinodes (mp:M.t action) (ps:phinodes) : phinodes :=
   List.filter (filters_phinode mp) ps.
 
 Definition filters_cmd (mp:M.t action) :=
-fun c => match M.find _ (getCmdLoc c) mp with
+fun c => match M.find (getCmdLoc c) mp with
          | Some _ => false
          | None => true
          end.
@@ -260,24 +285,29 @@ Definition substs_removes_fdef (mp:M.t action) f :=
 let '(fdef_intro fh bs) := f in
 fdef_intro fh (List.map (substs_removes_block mp) bs).
 
+(* If subst_actions calls subst_action directly, but not the unfolded 
+   version, the extractable will have a heisenbug. *)
 Definition subst_actions (id0:id) (ac0:action) (pairs: M.t action) :
   M.t action :=
 match action2value ac0 with
 | None => pairs 
-| Some v0 =>
-    M.map _ _
-      (fun elt => 
-       match elt with
-       | AC_vsubst v1 => AC_vsubst (subst_value id0 v0 v1)
-       | _ => elt
-       end) pairs
+| Some v0 => 
+    M.map (fun ac => 
+           match ac with
+           | AC_vsubst v1 => AC_vsubst (subst_value id0 v0 v1)
+           | _ => ac
+           end) pairs
 end.
 
 Definition find_parent_action (ac1:action) (mac: M.t action) : action :=
 match ac1 with 
 | AC_vsubst (value_id id1) =>
-    match M.find _ id1 mac with
-    | Some ac1' => ac1'
+    match M.find id1 mac with
+    | Some ac1' => 
+        match ac1' with
+        | AC_remove => ac1
+        | _ => ac1'
+        end
     | _ => ac1
     end
 | _ => ac1
@@ -285,11 +315,11 @@ end.
 
 Fixpoint compose_actions (pairs: AssocList action) : M.t action :=
 match pairs with 
-| nil => M.empty _
+| nil => M.empty
 | (id1, ac2)::pairs' => 
   let acc := compose_actions pairs' in 
   let ac2' := find_parent_action ac2 acc in
-  M.add _ id1 ac2' (subst_actions id1 ac2' acc)
+  M.add id1 ac2' (subst_actions id1 ac2' acc)
 end.
 
 Definition run (f:fdef) (pairs: AssocList action) : fdef :=
@@ -298,13 +328,70 @@ substs_removes_fdef mp f.
 
 Fixpoint substs_actions (pairs: AssocList action) : M.t action :=
 match pairs with 
-| nil => M.empty _ 
+| nil => M.empty
 | (id1, ac1)::pairs' => 
-    M.add _ id1 ac1 (subst_actions id1 ac1 (substs_actions pairs'))
+    M.add id1 ac1 (subst_actions id1 ac1 (substs_actions pairs'))
 end.
 
 Definition pipelined_actions (f:fdef) (pairs: AssocList action) : fdef :=
-M.fold _ _ apply_action (substs_actions pairs) f.
+M.fold apply_action (substs_actions pairs) f.
+
+Lemma filters_phinode__substs_phi: forall actions p,
+  filters_phinode actions p = filters_phinode actions (substs_phi actions p).
+Proof.
+  destruct p; unfold filters_phinode; simpl; auto.
+Qed.
+
+Lemma substs_removes_phinodes__commute: 
+  forall actions ps,
+  map_filter (filters_phinode actions) (substs_phi actions) ps =
+    removes_phinodes actions (List.map (substs_phi actions) ps).
+Proof.
+  induction ps as [|p ps]; simpl; auto.
+    rewrite IHps. rewrite filters_phinode__substs_phi; auto.
+Qed.
+
+Lemma filters_cmd__substs_cmd: forall actions c,
+  filters_cmd actions c = filters_cmd actions (substs_cmd actions c).
+Proof.
+  destruct c; unfold filters_cmd; simpl; auto.
+Qed.
+
+Lemma substs_removes_cmds__commute: forall actions cs,
+  map_filter (filters_cmd actions) (substs_cmd actions) cs =
+    removes_cmds actions (List.map (substs_cmd actions) cs).
+Proof.
+  induction cs as [|c cs]; simpl; auto.
+    rewrite IHcs. rewrite filters_cmd__substs_cmd; auto.
+Qed.
+
+Lemma substs_removes_fdef__commute: forall actions f1,
+  substs_removes_fdef actions f1 = removes_fdef actions (substs_fdef actions f1).
+Proof.
+  destruct f1 as [fh1 bs1]. simpl.
+  f_equal.
+  induction bs1 as [|[l1 ps1 cs1 tmn1] bs1]; simpl; auto.
+    f_equal; auto.
+    f_equal; auto.
+      apply substs_removes_phinodes__commute.
+      apply substs_removes_cmds__commute.
+    Qed.
+
+Lemma find_parent_action_inv: forall ac1 mac ac2 
+  (Hfind: find_parent_action ac1 mac = ac2),
+  ac1 = ac2 \/ 
+  exists id1, 
+    ac1 = AC_vsubst (value_id id1) /\ M.find id1 mac = Some ac2 /\ 
+    ac2 <> AC_remove.
+Proof.
+  intros. subst.
+  destruct ac1; auto.
+  destruct v; auto.
+  simpl.
+  case_eq (M.find id5 mac); eauto.
+  intros [] Hfind; try solve 
+    [auto | right; exists id5; repeat split; auto; congruence].
+Qed.
 
 End ComposedPass.
 

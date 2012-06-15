@@ -29,32 +29,23 @@ let main in_filename =
     (* Translate [coqim] to a *.ll file *)
     Coq2ll.travel_module coqim
   else
-    (if !mem2reg then 
-      (* M2R [coqim], output [coqom]  *)
-      let coqim0 =
-        if !does_remove_lifetime then 
-          Primitives.remove_lifetime_from_module coqim 
-        else coqim 
-      in
-      let coqim1 =
-        if !does_remove_dbg then 
-          Primitives.remove_dbg_declares_from_module coqim0
-        else coqim0 
-      in
-      let vm2r = if !mem2reg_opt then Mem2reg_opt.run else Mem2reg.run in
-      let coqom = Primitives.fix_temporary_module (vm2r coqim1) in
-      (* Print [coqom] *)
-      (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
-      (* Translate [coqom] to a *.ll file *)
-      Coq2ll.travel_module coqom
-
-    else
-      (* GVN [coqim], output [coqom]  *)
-      let coqom = Primitives.fix_temporary_module (Gvn.opt coqim) in
-      (* Print [coqom] *)
-      (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
-      (* Translate [coqom] to a *.ll file *)
-      Coq2ll.travel_module coqom);
+    (* M2R [coqim], output [coqom]  *)
+    let coqim0 =
+      if !does_remove_lifetime then 
+        Primitives.remove_lifetime_from_module coqim 
+      else coqim 
+    in
+    let coqim1 =
+      if !does_remove_dbg then 
+        Primitives.remove_dbg_declares_from_module coqim0
+      else coqim0 
+    in
+    let vm2r = if !mem2reg_opt then Mem2reg_opt.run else Mem2reg.run in
+    let coqom = Primitives.fix_temporary_module (vm2r coqim1) in
+    (* Print [coqom] *)
+    (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
+    (* Translate [coqom] to a *.ll file *)
+    Coq2ll.travel_module coqom
   );
 
   SlotTracker.dispose ist;
