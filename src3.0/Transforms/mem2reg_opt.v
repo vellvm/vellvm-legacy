@@ -322,19 +322,9 @@ match pairs with
   M.add id1 ac2' (subst_actions id1 ac2' acc)
 end.
 
-Definition run (f:fdef) (pairs: AssocList action) : fdef :=
+Definition run (pairs: AssocList action) (f:fdef) : fdef :=
 let mp := compose_actions pairs in
 substs_removes_fdef mp f.
-
-Fixpoint substs_actions (pairs: AssocList action) : M.t action :=
-match pairs with 
-| nil => M.empty
-| (id1, ac1)::pairs' => 
-    M.add id1 ac1 (subst_actions id1 ac1 (substs_actions pairs'))
-end.
-
-Definition pipelined_actions (f:fdef) (pairs: AssocList action) : fdef :=
-M.fold apply_action (substs_actions pairs) f.
 
 Lemma filters_phinode__substs_phi: forall actions p,
   filters_phinode actions p = filters_phinode actions (substs_phi actions p).
@@ -393,6 +383,16 @@ Proof.
     [auto | right; exists id5; repeat split; auto; congruence].
 Qed.
 
+Fixpoint substs_actions (pairs: AssocList action) : M.t action :=
+match pairs with 
+| nil => M.empty
+| (id1, ac1)::pairs' => 
+    M.add id1 ac1 (subst_actions id1 ac1 (substs_actions pairs'))
+end.
+
+Definition pipelined_actions (pairs: AssocList action) (f:fdef) : fdef :=
+M.fold apply_action (substs_actions pairs) f.
+
 End ComposedPass.
 
 Module AVLComposedPass := ComposedPass (AVLMap).
@@ -446,7 +446,7 @@ find_stld_pairs_cmds cs pid.
 Definition elim_stld_fdef (pid:id) (f:fdef) : fdef :=
 let '(fdef_intro _ bs) := f in
 let pairs := List.flat_map Datatypes.id (List.map (find_stld_pairs_block pid) bs) in
-AVLComposedPass.run f pairs.
+AVLComposedPass.run pairs f.
 
 (************************************************)
 (* in function [f], given its reachable blocks [rd], CFG represented by
@@ -538,7 +538,7 @@ List.flat_map Datatypes.id (List.map (elim_phi_block f) bs).
 Definition elim_phi_step f :=
 match elim_phi_fdef f with
 | nil => inl f
-| pairs => inr (AVLComposedPass.run f pairs)
+| pairs => inr (AVLComposedPass.run pairs f)
 end.
 
 (************************************************)
