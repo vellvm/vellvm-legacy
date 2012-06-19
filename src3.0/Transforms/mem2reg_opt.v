@@ -383,16 +383,6 @@ Proof.
     [auto | right; exists id5; repeat split; auto; congruence].
 Qed.
 
-Fixpoint substs_actions (pairs: AssocList action) : M.t action :=
-match pairs with 
-| nil => M.empty
-| (id1, ac1)::pairs' => 
-    M.add id1 ac1 (subst_actions id1 ac1 (substs_actions pairs'))
-end.
-
-Definition pipelined_actions (pairs: AssocList action) (f:fdef) : fdef :=
-M.fold apply_action (substs_actions pairs) f.
-
 End ComposedPass.
 
 Module AVLComposedPass := ComposedPass (AVLMap).
