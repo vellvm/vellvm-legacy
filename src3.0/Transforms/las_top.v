@@ -11,7 +11,7 @@ Require Import primitives.
 Require Import palloca_props.
 Require Import alive_store.
 Require Import subst_inv.
-Require Import mem2reg.
+Require Import vmem2reg.
 Require Import program_sim.
 Require Import memory_props.
 Require Import trans_tactic.

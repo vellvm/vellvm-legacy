@@ -1,7 +1,7 @@
 Require Import vellvm.
 Require Import iter_pass.
 Require Import iter_pass_correct.
-Require Import mem2reg.
+Require Import vmem2reg.
 Require Import program_sim.
 Require Import primitives.
 Require Import die_wfS.
@@ -29,7 +29,7 @@ Proof.
   destruct p as [pid pty pvls].
   unfold eliminate_phi.
   intros. 
-  remember (mem2reg.remove_redundancy nil 
+  remember (vmem2reg.remove_redundancy nil 
              (value_id pid :: List.map fst pvls)) as vs.
   destruct vs as [|v1 vs']; try solve [repeat destruct_if; auto].
   destruct v1 as [vid1 | vc1].

@@ -9,7 +9,7 @@ Require Import promotable_props.
 Require Import primitives.
 Require Import palloca_props.
 Require Import memory_props.
-Require Import mem2reg.
+Require Import vmem2reg.
 Require Import trans_tactic.
 Require Import sas_msim.
 Require Import memory_sim.

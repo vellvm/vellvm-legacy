@@ -6,7 +6,7 @@ Require Import Lattice.
 Require Import Iteration.
 Require Import primitives.
 Require Import palloca_props.
-Require Import mem2reg.
+Require Import vmem2reg.
 Require Import sas.
 Require Import filter.
 

@@ -8,7 +8,7 @@ Require Import program_sim.
 Require Import promotable_props.
 Require Import primitives.
 Require Import palloca_props.
-Require Import mem2reg.
+Require Import vmem2reg.
 Require Import memory_props.
 Require Import program_sim.
 Require Import subst.
@@ -30,9 +30,6 @@ Require Import iter_pass.
 Require Import iter_pass_correct.
 Require Import pass_combinators.
 Require Import phielim_top.
-
-(* We are proving the macro-based m2r pass *)
-Parameter does_macro_m2r_is_true: mem2reg.does_macro_m2r tt = true.
 
 Lemma las_die_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo)
@@ -610,7 +607,6 @@ Proof.
   destruct R as [rd|]; auto using program_sim_refl.
   destruct (print_reachablity rd).
   Case "1".
-    rewrite does_macro_m2r_is_true.
     remember (SafePrimIter.iterate (fdef * list id)
                      (macro_mem2reg_fdef_step rd 
                         (successors f)
@@ -669,11 +665,11 @@ Qed.
 
 Lemma mem2reg_run_sim_wfS: forall (m:module) (main:id) (VarArgs:list (GVsT DGVs))
   (HwfS : wf_system [m]) (Hok: defined_program [m] main VarArgs),
-  program_sim [mem2reg.run m] [m] main VarArgs /\ wf_system [mem2reg.run m] /\
-    defined_program [mem2reg.run m] main VarArgs.
+  program_sim [vmem2reg.run m] [m] main VarArgs /\ wf_system [vmem2reg.run m] /\
+    defined_program [vmem2reg.run m] main VarArgs.
 Proof.
   destruct m as [los nts Ps].
-  unfold mem2reg.run.
+  unfold vmem2reg.run.
   intros.
   assert (J:=@mem2reg_run_sim_wfS_aux main VarArgs los nts Ps nil).
   auto.

@@ -5,7 +5,7 @@ Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
 Require Import primitives.
-Require Import mem2reg.
+Require Import vmem2reg.
 Require Import opsem_props.
 Require Import palloca_props.
 Require Import phiplacement_bsim_defs.

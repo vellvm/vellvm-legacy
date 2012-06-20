@@ -1,6 +1,6 @@
 Require Import vellvm.
 Require Import primitives.
-Require Import mem2reg.
+Require Import vmem2reg.
 Require Import top_wfS.
 Require Import palloca_props.
 Require Import trans_tactic.

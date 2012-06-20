@@ -41,7 +41,7 @@ let main in_filename =
         Primitives.remove_dbg_declares_from_module coqim0
       else coqim0 
     in
-    let vm2r = if !mem2reg_opt then Mem2reg_opt.run else Mem2reg.run in
+    let vm2r = if !mem2reg_opt then Vmem2reg_opt.run else Vmem2reg.run in
     let coqom = Primitives.fix_temporary_module (vm2r coqim1) in
     (* Print [coqom] *)
     (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
@@ -57,7 +57,7 @@ let argspec = [
   ("-d", Set Globalstates.debug, "debug");
   ("-mem2reg", Set mem2reg, "mem2reg (pipelined by default)");
   ("-opt", Set mem2reg_opt, "optimized mem2reg");
-  ("-composed", Clear Globalstates.does_macro_m2r, "composed mem2reg");
+(*  ("-composed", Clear Globalstates.does_macro_m2r, "composed mem2reg"); *)
   ("-prune", Set Globalstates.does_dead_phi_elim, "pruned");
   ("-remove-lifetime", Set does_remove_lifetime, "remove lifetime intrinsics");
   ("-remove-dbg", Set does_remove_dbg, "remove debug intrinsics");

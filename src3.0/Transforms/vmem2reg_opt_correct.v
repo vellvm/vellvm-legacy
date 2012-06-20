@@ -22,8 +22,8 @@ Require Import iter_pass.
 Require Import iter_pass_correct.
 Require Import pass_combinators.
 Require Import phielim_top.
-Require Import mem2reg_correct.
-Require Import mem2reg_opt.
+Require Import vmem2reg_correct.
+Require Import vmem2reg_opt.
 
 Lemma action_dec: forall (ac1 ac2: action), {ac1 = ac2} + {ac1 <> ac2}.
 Proof. decide equality; auto using value_dec, typ_dec. Qed.
@@ -2019,7 +2019,7 @@ Proof.
     unfold macro_mem2reg_fdef_iter.
     remember (getEntryBlock f) as R.
     destruct R as [[l0 ps0 cs0 tmn0]|]; auto.
-    remember (mem2reg.find_promotable_alloca f cs0 dones) as R.
+    remember (vmem2reg.find_promotable_alloca f cs0 dones) as R.
     destruct R as [[[[pid ty] num] al]|]; auto.
     set (pinfo:=mkPhiInfo f rd pid ty num al).
  
@@ -2081,12 +2081,12 @@ Proof.
         apply program_sim_wfS_trans with (P2:=
                 [module_intro los nts (Ps1 ++
                   product_fdef
-                     (mem2reg.phinodes_placement rd pid ty al (successors f1)
+                     (vmem2reg.phinodes_placement rd pid ty al (successors f1)
                        (XATree.make_predecessors (successors f1)) f) :: Ps2)]); 
           auto; intros.
         SSCase "2.1.1".
           eapply elim_stld_sim_wfS_wfPI with
-                (pinfo:=mkPhiInfo (mem2reg.phinodes_placement rd pid ty al
+                (pinfo:=mkPhiInfo (vmem2reg.phinodes_placement rd pid ty al
                   (successors f1) (XATree.make_predecessors (successors f1)) f)
                     rd pid ty num al); eauto. 
             rewrite EQ1. destruct HPa as [Hpa1 [Hpa2 Hpa3]].
@@ -2104,7 +2104,7 @@ Proof.
       SCase "2.3".
         apply change_keep_pinfo with (pinfo1:=
                    (update_pinfo pinfo
-                     (mem2reg.phinodes_placement rd pid ty al (successors f)
+                     (vmem2reg.phinodes_placement rd pid ty al (successors f)
                        (XATree.make_predecessors (successors f)) f))); auto.
         destruct HPa as [HPa1 [HPa2 HPa3]].
         eapply elim_stld_sim_wfS_wfPI; eauto.
@@ -2140,7 +2140,7 @@ Proof.
     
       SCase "3.3".
         destruct HPf10 as [? [? ?]].
-        exists (update_pinfo pinfo' (mem2reg.elim_dead_st_fdef pid f0')).
+        exists (update_pinfo pinfo' (vmem2reg.elim_dead_st_fdef pid f0')).
         split.
           eapply dse_wfPI; eauto 1; solve_keep_pinfo.
           solve_keep_pinfo.
@@ -2210,7 +2210,7 @@ Proof.
                           (successors f))) 
                      (f, nil)) as R.
     destruct R as [f1 dones]; auto using program_sim_refl.
-    destruct (mem2reg.does_phi_elim tt).
+    destruct (vmem2reg.does_phi_elim tt).
     SCase "1.1".
       apply program_sim_wfS_trans with (P2:=
         [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]); auto; intros.
@@ -2261,11 +2261,11 @@ Qed.
 
 Lemma mem2reg_run_sim_wfS: forall (m:module) (main:id) (VarArgs:list (GVsT DGVs))
   (HwfS : wf_system [m]) (Hok: defined_program [m] main VarArgs),
-  program_sim [mem2reg_opt.run m] [m] main VarArgs /\ wf_system [mem2reg_opt.run m] /\
-    defined_program [mem2reg_opt.run m] main VarArgs.
+  program_sim [vmem2reg_opt.run m] [m] main VarArgs /\ wf_system [vmem2reg_opt.run m] /\
+    defined_program [vmem2reg_opt.run m] main VarArgs.
 Proof.
   destruct m as [los nts Ps].
-  unfold mem2reg_opt.run.
+  unfold vmem2reg_opt.run.
   intros.
   assert (J:=@mem2reg_run_sim_wfS_aux main VarArgs los nts Ps nil).
   auto.

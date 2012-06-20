@@ -5,7 +5,7 @@ Require Import Lattice.
 Require Import Iteration.
 Require Import primitives.
 Require Import Maps.
-Require Import mem2reg.
+Require Import vmem2reg.
 Require Import opsem_props.
 Require Import trans_tactic.
 

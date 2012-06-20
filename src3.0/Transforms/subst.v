@@ -1758,7 +1758,7 @@ Proof.
 Qed.
 
 Require Import palloca_props.
-Require Import mem2reg.
+Require Import vmem2reg.
 
 Section SubstUsed.
 

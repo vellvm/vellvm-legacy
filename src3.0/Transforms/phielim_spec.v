@@ -1,6 +1,6 @@
 Require Import vellvm.
 Require Import primitives.
-Require Import mem2reg.
+Require Import vmem2reg.
 Require Import trans_tactic.
 Require Import Dipaths.
 
@@ -583,7 +583,7 @@ Proof.
   bdestruct HPinF as HPinB HBinF.
   destruct b as [l0 ps0 cs0 tmn0].
   simpl in HPinB. apply InPhiNodesB_In in HPinB.
-  remember (mem2reg.remove_redundancy nil 
+  remember (vmem2reg.remove_redundancy nil 
              (value_id pid :: List.map fst pvls)) as vs.
   apply remove_redundancy in Heqvs.
   destruct Heqvs as [Hinc Hnodup].

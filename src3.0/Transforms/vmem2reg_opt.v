@@ -9,7 +9,7 @@ Require Import dom_tree.
 Require Import dom_set_tree.
 Require Import iter_pass.
 Require Import pass_combinators.
-Require Import mem2reg.
+Require Import vmem2reg.
 
 (************************************************)
 

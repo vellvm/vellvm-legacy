@@ -11,16 +11,16 @@ Require Import primitives.
 Require Import palloca_props.
 Require Import alive_store.
 Require Import subst_inv.
-Require Import mem2reg.
+Require Import vmem2reg.
 Require Import memory_props.
 Require Import trans_tactic.
 Require Import top_sim.
 
-(* We define a special las used by mem2reg that only considers local commands.
+(* We define a special las used by vmem2reg that only considers local commands.
    In general, it should be extended to the las defined w.r.t domination and
    memory dependency (which we are aiming in the future work)
 
-   The current mem2reg also does SAS eliminations before all loads are removed.
+   The current vmem2reg also does SAS eliminations before all loads are removed.
    For example,
      st v1 p; ...; st v2 p; ...
    if there are no other lds in the first ..., the first ``st v1 p'' can be
@@ -30,15 +30,15 @@ Require Import top_sim.
    also does store to the promotable alloca.
 
    An alternative approach is that we only consider such elimination after all
-   possible removed loads are removed, as what the paper presents. mem2reg does
+   possible removed loads are removed, as what the paper presents. vmem2reg does
    not check if there are any unremoved loads in unreachable blocks. If so,
-   some stores cannot be removed. We need to let mem2reg ignore the loads of
+   some stores cannot be removed. We need to let vmem2reg ignore the loads of
    unreachable blocks to remove what SAS can eliminate.
 
    For this reason, here, we give the abstract properties that las needs to hold.
-   The properties do not depend on the concrete design in mem2reg, such as
+   The properties do not depend on the concrete design in vmem2reg, such as
    find_init_stld, find_next_stld, ... So the proofs can still work if we change
-   mem2reg. We should prove that the design in mem2reg satisfy the properties.
+   vmem2reg. We should prove that the design in vmem2reg satisfy the properties.
 
    We allow the pair of load/store use different alignments from the 
    promotable's. See the comments in alive_store

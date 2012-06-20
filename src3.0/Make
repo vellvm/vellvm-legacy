@@ -113,8 +113,9 @@
 ./Transforms/gvn.v
 ./Transforms/iter_pass.v
 ./Transforms/iter_pass_correct.v
-./Transforms/mem2reg.v
-./Transforms/mem2reg_opt.v
+./Transforms/vmem2reg.v
+./Transforms/vmem2reg_tree.v
+./Transforms/vmem2reg_opt.v
 ./Transforms/promotable_props.v
 ./Transforms/top_sim.v
 ./Transforms/top_wfS.v
@@ -146,8 +147,8 @@
 ./Transforms/filter.v
 ./Transforms/die_top.v
 ./Transforms/die_wfS.v
-./Transforms/mem2reg_correct.v
-./Transforms/mem2reg_opt_correct.v
+./Transforms/vmem2reg_correct.v
+./Transforms/vmem2reg_opt_correct.v
 ./Transforms/program_sim.v
 ./Transforms/subst.v
 ./Transforms/subst_inv.v
