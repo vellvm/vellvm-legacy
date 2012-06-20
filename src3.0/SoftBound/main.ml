@@ -24,7 +24,7 @@ let main in_filename =
 
   (if !nosbpass then 
     (* Translate [coqim] to a *.ll file *)
-    Coq2ll.travel_module coqim
+    Coq2ll.travel_module stdout coqim
   else
     (* Instrument [coqim], output [coqom]  *)
     match SB_ds_pass.trans_module coqim with
@@ -32,7 +32,7 @@ let main in_filename =
        (* Print [coqom] *)
        (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
        (* Translate [coqom] to a *.ll file *)
-       Coq2ll.travel_module coqom
+       Coq2ll.travel_module stdout coqom
     | None -> failwith "failed");
 
   SlotTracker.dispose ist;

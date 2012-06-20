@@ -8,6 +8,7 @@ let mem2reg = ref true
 let mem2reg_opt = ref false
 let does_remove_lifetime = ref false
 let does_remove_dbg = ref false
+let out_file = ref stdout
 
 let main in_filename =
   (* Read bitcode [in_filename] into LLVM module [im] *)
@@ -27,7 +28,7 @@ let main in_filename =
 
   (if !nullpass then 
     (* Translate [coqim] to a *.ll file *)
-    Coq2ll.travel_module coqim
+    Coq2ll.travel_module !out_file coqim
   else
     (* M2R [coqim], output [coqom]  *)
     let coqim0 =
@@ -45,7 +46,7 @@ let main in_filename =
     (* Print [coqom] *)
     (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
     (* Translate [coqom] to a *.ll file *)
-    Coq2ll.travel_module coqom
+    Coq2ll.travel_module !out_file coqom
   );
 
   SlotTracker.dispose ist;
@@ -62,6 +63,12 @@ let argspec = [
   ("-remove-dbg", Set does_remove_dbg, "remove debug intrinsics");
   ("-no-stld-elim", Clear Globalstates.does_stld_elim, "do not remove st/ld pairs");
   ("-maximal", Clear Globalstates.does_phi_elim, "maximal");
+  ("-o", String (fun s -> 
+                 try 
+                   out_file := open_out s
+                 with
+     	           | Sys_error _ -> failwith ("cannot open " ^ s)), 
+         "output file")
 ]
 
 let worklist = ref []
