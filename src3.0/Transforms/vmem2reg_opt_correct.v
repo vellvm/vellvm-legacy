@@ -16,12 +16,15 @@ Require Import dse_wfS.
 Require Import dae_top.
 Require Import dae_wfS.
 Require Import die_wfS.
+Require Import sas_top.
+Require Import sas_wfS.
 Require Import phiplacement_bsim_wfS.
 Require Import phiplacement_bsim_top.
 Require Import iter_pass.
 Require Import iter_pass_correct.
 Require Import pass_combinators.
 Require Import phielim_top.
+Require Import vmem2reg.
 Require Import vmem2reg_correct.
 Require Import vmem2reg_opt.
 
@@ -1880,11 +1883,433 @@ Qed.
 
 (***************************************************************)
 
+Definition wf_cs_action (cs:cmds) (pid:id) (elt:id * action): Prop :=
+let '(id', ac') := elt in
+match ac' with
+| AC_remove =>  
+    exists v0, exists cs0, exists id1, exists v1, exists dones,
+      Some (inl (id', v0, cs0)) = vmem2reg.find_init_stld cs pid dones /\
+      Some (inr (id1, v1)) = vmem2reg.find_next_stld cs0 pid
+| AC_vsubst v' =>  
+    exists id0, exists cs0, exists dones,
+      Some (inl (id0, v', cs0)) = vmem2reg.find_init_stld cs pid dones /\
+      Some (inl id') = vmem2reg.find_next_stld cs0 pid
+| AC_tsubst t' =>
+    exists cs0, exists dones,
+      Some (inr (value_const (const_undef t'), cs0)) = 
+        vmem2reg.find_init_stld cs pid dones /\
+      Some (inl id') = vmem2reg.find_next_stld cs0 pid
+end.
+
+Lemma find_stld_pairs_cmds__wf_cs_actions: forall cs pid,
+  Forall (wf_cs_action cs pid) (find_stld_pairs_cmds cs pid).
+Admitted.
+
+Definition wf_block_action (b:block) (pid:id) (elt: id * action): Prop :=
+let '(block_intro _ _ cs _) := b in
+wf_cs_action cs pid elt.
+
+Lemma find_stld_pairs_block__wf_block_actions: forall b pid rd,
+  Forall (wf_block_action b pid) (find_stld_pairs_block pid rd b).
+Admitted.
+
+Definition wf_action (bs:blocks) (pid:id) (rd:list l) (elt: id * action)
+  : Prop :=
+exists b, In b bs /\ In (getBlockLabel b) rd /\ wf_block_action b pid elt.
+
+Definition wf_actions (bs:blocks) (pid:id) (rd:list l) 
+  (acs: AssocList action): Prop :=
+Forall (wf_action bs pid rd) acs.
+
+Lemma find_stld_pairs_blocks__wf_actions_uniq: forall pid rd bs actions
+  (Hfind: actions = flat_map Datatypes.id 
+                      (List.map (find_stld_pairs_block pid rd) bs)),
+  wf_actions bs pid rd actions /\ uniq actions.
+Admitted.
+
+Ltac destruct_sasinfo :=
+match goal with
+| sasinfo: sas.SASInfo _ |- _ =>
+  let SAS_sid1 := fresh "SAS_sid1" in
+  let SAS_sid2 := fresh "SAS_sid2" in 
+  let SAS_align1 := fresh "SAS_align1" in 
+  let SAS_align2 := fresh "SAS_align2" in 
+  let SAS_value1 := fresh "SAS_value1" in 
+  let SAS_value2 := fresh "SAS_value2" in 
+  let SAS_tail0 := fresh "SAS_tail0" in
+  let SAS_l0 := fresh "SAS_l0" in 
+  let SAS_ps0 := fresh "SAS_ps0" in 
+  let SAS_cs0 := fresh "SAS_cs0" in 
+  let SAS_tmn0 := fresh "SAS_tmn0" in 
+  let SAS_prop0 := fresh "SAS_prop0" in
+  let SAS_BInF0 := fresh "SAS_BInF0" in 
+  let SAS_ldincmds0 := fresh "SAS_ldincmds0" in 
+  let SAS_cs1 := fresh "SAS_cs1" in
+  let SAS_cs3 := fresh "SAS_cs3" in 
+  let SAS_EQ := fresh "SAS_EQ" in
+  destruct sasinfo as [SAS_sid1 SAS_sid2 SAS_align1 SAS_align2 SAS_value1 
+                       SAS_value2 SAS_tail0
+                       [SAS_l0 SAS_ps0 SAS_cs0 SAS_tmn0] SAS_prop0];
+  destruct SAS_prop0 as 
+    [SAS_BInF0 [SAS_ldincmds0 [SAS_cs1 [SAS_cs3 SAS_EQ]]]]; subst; simpl
+end.
+
+(*
+  SAS_ldincmds1 : load_in_cmds (PI_id pinfo) SAS_tail1 = false
+
+exists v0 : value,
+     exists cs1 : cmds,
+       exists id1 : id,
+         exists v1 : value,
+           ret inl (SAS_sid0, v0, cs1) =
+           find_init_stld
+             (remove_cmds SAS_sid1
+                (SAS_cs2 ++
+                 insn_store SAS_sid0 (PI_typ pinfo) SAS_value0
+                   (value_id (PI_id pinfo)) SAS_align0
+                 :: SAS_tail1 ++
+                    insn_store SAS_sid3 (PI_typ pinfo) SAS_value3
+                      (value_id (PI_id pinfo)) SAS_align3 :: SAS_cs4))
+             (PI_id pinfo) nil /\
+           ret inr (id1, v1) = find_next_stld cs1 (PI_id pinfo)
+*)
+
+Lemma sas__wf_actions: forall l5 ps5 cs5 tmn5 id' v0 cs0 id1 v1 fh actions
+  bs1 fh' bs1' dones pinfo (Hwfpi: WF_PhiInfo pinfo) 
+  (Hnotin: id' `notin` dom actions)
+  s m (HwfF: wf_fdef s m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo))
+  (Hfind1 : ret inl (id', v0, cs0) = find_init_stld cs5 (PI_id pinfo) dones)
+  (Hfind2 : ret inr (id1, v1) = find_next_stld cs0 (PI_id pinfo))
+  (HBinF : blockInFdefB (block_intro l5 ps5 cs5 tmn5) (PI_f pinfo) = true) rd
+  (Hwf_actions : wf_actions bs1 (PI_id pinfo) rd actions)
+  (Heq: PI_f pinfo = fdef_intro fh bs1)
+  (Hrm: remove_fdef id' (fdef_intro fh bs1) = fdef_intro fh' bs1'),
+  wf_actions bs1' (PI_id pinfo) rd actions.
+Proof.
+  intros.
+  eapply find_st_ld__sasinfo in HBinF; eauto.
+  destruct HBinF as [sinfo [EQ1 [EQ2 [EQ3 [EQ4 EQ5]]]]]; subst.
+  destruct_sasinfo. simpl in *.
+  inv Hrm. inv EQ5.
+  apply Forall_forall.
+  intros [id2 ac2] Hin.
+  assert (id2 <> SAS_sid1) as Hneq.
+    intro EQ. subst.
+    apply binds_dom_contradiction in Hin; auto.
+  eapply Forall_forall in Hwf_actions; eauto.
+  destruct Hwf_actions as [b1 [Hin' [Hrd J]]].
+  assert (HBinF: blockInFdefB b1 (PI_f pinfo) = true).
+    rewrite Heq. simpl. solve_in_list.
+  exists (remove_block SAS_sid1 b1).
+  destruct b1 as [l1 ps1 cs1 tmn1].
+  split.
+  Case "1".
+    apply in_map; auto.
+  split.
+  Case "2".
+    simpl. auto.
+  Case "3".
+    simpl in *.
+    destruct ac2 as [|v2|t2].
+    SCase "3.1".
+      destruct J as [v2 [cs2 [id1 [v1 [dones' [J1 J2]]]]]].
+      assert (J1':=J1).
+      eapply find_st_ld__sasinfo in J1'; eauto 1. 
+      destruct J1' as [sinfo' [EQ1 [EQ2 [EQ3 [EQ4 EQ5]]]]]; subst.
+      destruct_sasinfo. simpl in *.
+      inv EQ5.
+      admit.
+    SCase "3.2". admit.
+    SCase "3.3". admit.
+Qed.
+
+Lemma las_die__wf_actions: forall l5 ps5 cs5 tmn5 pid id' v' cs0 fh actions
+  bs1 fh' bs1' bs11 bs21 id0 dones
+  (Hfind1 : ret inl (id0, v', cs0) = find_init_stld cs5 pid dones)
+  (Hfind2 : ret inl id' = find_next_stld cs0 pid)
+  (Heq: bs1 = bs11 ++ block_intro l5 ps5 cs5 tmn5 :: bs21) rd
+  (Hwf_actions : wf_actions bs1 pid rd actions)
+  (Hopt: remove_fdef id' (subst_fdef id' v' (fdef_intro fh bs1)) 
+          = fdef_intro fh' bs1'),
+  wf_actions bs1' pid rd
+    (ListComposedPass.subst_actions id' (AC_vsubst v') actions).
+Admitted.
+
+Lemma laa_die__wf_actions: forall l5 ps5 cs5 tmn5 pid id' t' cs0 fh actions
+  bs1 fh' bs1' bs11 bs21 dones
+  (Hfind1 : ret inr (value_const (const_undef t'), cs0) = 
+              find_init_stld cs5 pid dones)
+  (Hfind2 : ret inl id' = find_next_stld cs0 pid)
+  (Heq: bs1 = bs11 ++ block_intro l5 ps5 cs5 tmn5 :: bs21) rd
+  (Hwf_actions : wf_actions bs1 pid rd actions)
+  (Hopt: remove_fdef id' 
+          (subst_fdef id' (value_const (const_undef t')) (fdef_intro fh bs1)) 
+          = fdef_intro fh' bs1'),
+  wf_actions bs1' pid rd
+    (ListComposedPass.subst_actions id' (AC_tsubst t') actions).
+Admitted.
+
+Lemma sas_sim_wfS_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
+  (dones : list id) (pinfo : PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
+  (v : value) (cs : cmds)
+  (Hst1 : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (v0 : value)
+  (Hst2 : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Hwfpi: WF_PhiInfo pinfo) f1 f2
+  (Heqf2: f2 = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Heqf1: f1 = (fdef_intro fh
+                 (List.map (remove_block i0)
+                 (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))
+  S2 S1 (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
+  (Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
+  (Hok: defined_program S2 main VarArgs)
+  (HwfS : wf_system S2),
+  (program_sim S1 S2 main VarArgs /\
+    wf_system S1 /\ defined_program S1 main VarArgs) /\
+   (exists pinfo' : PhiInfo, WF_PhiInfo pinfo' /\ keep_pinfo f1 pinfo pinfo').
+Proof.
+  intros.
+  subst.
+  split.
+    split.
+      eapply sas_sim; eauto.
+    split.
+      eapply sas_wfS; eauto.
+      eapply program_sim__preserves__defined_program; eauto using sas_sim.    
+
+      eapply sas_wfPI with (pinfo:=pinfo) in HwfS; eauto.
+      instantiate_pinfo.
+Qed.
+
+Lemma las_die_sim_wfS_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
+  (dones : list id) (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
+  (v : value) (cs : cmds) (Hreach:  In l0 (PI_rd pinfo))
+  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Hwfpi: WF_PhiInfo pinfo) f1 f2
+  (Heqf1: f1 = fdef_intro fh
+                (List.map (remove_block i1)
+                  (List.map (subst_block i1 v)
+                    (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))
+  (Heqf2: f2 = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  S1 S2
+  (Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
+  (Heq2: S2 =  [module_intro los nts (Ps1 ++ product_fdef f2:: Ps2)])
+  (HwfS: wf_system S2) (Hok: defined_program S2 main VarArgs),
+  (program_sim S1 S2 main VarArgs /\
+    wf_system S1 /\ defined_program S1 main VarArgs) /\
+   (exists pinfo' : PhiInfo, WF_PhiInfo pinfo' /\ keep_pinfo f1 pinfo pinfo').
+Proof.
+  intros.
+  subst.
+  split.
+    eapply las_die_sim_wfS; eauto.
+    eapply las_die_wfPI with (pinfo:=pinfo) in HwfS; eauto.
+    instantiate_pinfo.
+Qed.
+
+Lemma laa_die_sim_wfS_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
+  (dones : list id) (pinfo : PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (v : value)
+  (cs : cmds)
+  (Hst : ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Hwfpi: WF_PhiInfo pinfo) f1 f2
+  (Heqf1: f1 = fdef_intro fh
+                (List.map (remove_block i1)
+                  (List.map (subst_block i1 v)
+                    (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))
+  (Heqf2: f2 = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  S1 S2
+  (Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
+  (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
+  (HwfS: wf_system S2) (Hok: defined_program S2 main VarArgs),
+  (program_sim S1 S2 main VarArgs /\ wf_system S1 /\ 
+    defined_program S1 main VarArgs) /\
+   (exists pinfo' : PhiInfo, WF_PhiInfo pinfo' /\ keep_pinfo f1 pinfo pinfo').
+Proof.
+  intros.
+  subst.
+  split.
+    eapply laa_die_sim_wfS; eauto.
+    eapply laa_die_wfPI with (pinfo:=pinfo) in HwfS; eauto.
+    instantiate_pinfo.
+Qed.
+
+Definition pipelined_elim_stld_sim_wfS_wfPI_prop Ps1 Ps2 los nts main
+  VarArgs pid rd (n:nat) := forall actions
+  (Hlen: (length actions = n)%nat)  
+  (pinfo : PhiInfo) f1 fh bs1 f2 
+  (Heqactions : wf_actions bs1 pid rd actions) (Huniq: uniq actions)
+  (Heq: f1 = fdef_intro fh bs1)
+  (Hpass : pipelined_actions actions f1 = f2)
+  (Heq1 : PI_f pinfo = fdef_intro fh bs1) (Heq2 : PI_id pinfo = pid)
+  (Heq0 : PI_rd pinfo = rd) (Hwfpi : WF_PhiInfo pinfo) S1 S2
+  (Heq3 : S1 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
+  (Heq4 : S2 = [module_intro los nts
+                 (Ps1 ++ product_fdef (fdef_intro fh bs1) :: Ps2)])
+  (HwfS : wf_system S2) (Hok : defined_program S2 main VarArgs),
+  (program_sim S1 S2 main VarArgs /\
+    wf_system S1 /\ defined_program S1 main VarArgs) /\
+   (exists pinfo' : PhiInfo, WF_PhiInfo pinfo' /\ keep_pinfo f2 pinfo pinfo').
+
+Lemma pipelined_elim_stld_sim_wfS_wfPI_aux: forall Ps1 Ps2 los nts main
+  VarArgs pid rd n, pipelined_elim_stld_sim_wfS_wfPI_prop  
+  Ps1 Ps2 los nts main VarArgs pid rd n.
+Proof.
+  intros until n.
+  elim n using (well_founded_induction lt_wf).
+  intros x Hrec.
+  unfold pipelined_elim_stld_sim_wfS_wfPI_prop, pipelined_actions in *.
+  destruct actions as [|[id' ac'] actions].
+  Case "base".
+    intros.
+    simpl in Hpass.
+    repeat subst.
+    split.
+      split; auto using program_sim_refl.
+      exists pinfo. split; auto. split; auto.
+  Case "ind".
+    unfold_substs_actions. simpl. 
+    intros. subst x. 
+    inversion Huniq as [|A B C Huniq' Hnotin]; subst A B C.
+    assert (Hwf:
+      wf_fdef [module_intro los nts (Ps1 ++ product_fdef (PI_f pinfo) :: Ps2)]
+              (module_intro los nts (Ps1 ++ product_fdef (PI_f pinfo) :: Ps2)) 
+              (PI_f pinfo) /\
+      uniqFdef (PI_f pinfo)).
+      apply wf_single_system__wf_uniq_fdef; auto.
+        subst. rewrite Heq1. auto.
+    destruct Hwf as [HwfF HuniqF].
+    inversion Heqactions as [|A B Hwfaction Hwf_actions]; subst A B.
+    destruct Hwfaction as [[l5 ps5 cs5 tmn5] [Hin [Hrd Hwfaction]]].
+    assert (HBinF: 
+            blockInFdefB (block_intro l5 ps5 cs5 tmn5) (PI_f pinfo) = true).
+      rewrite Heq1. simpl. solve_in_list.
+    apply in_split in Hin.
+    destruct Hin as [bs11 [bs21 EQ]]; subst bs1.
+    simpl in Hwfaction.
+    destruct ac' as [|v'|t'].
+    SCase "remove".
+      destruct Hwfaction as [v0 [cs0 [id1 [v1 [dones [Hfind1 Hfind2]]]]]].
+      subst S2 pid.
+      assert (Hok':=Hok).
+      eapply sas_sim_wfS_wfPI with (S1:=
+        [module_intro los nts 
+          (Ps1 ++ product_fdef (remove_fdef id' f1) :: Ps2)]) 
+        in Hok'; try solve [eauto | subst f1; eauto].
+      SSCase "1".
+        destruct Hok' as [[Hsim [Hwf Hok']] [pinfo' [Hwfpi' Hkeeppi']]].
+        case_eq (remove_fdef id' f1). intros fh' bs1' Heq4.
+        eapply sas__wf_actions with
+          (fh':=fh') (bs1':=bs1') in Hwf_actions; try solve [eauto | subst f1; eauto].
+        eapply Hrec with (S2:=
+          [module_intro los nts
+            (Ps1 ++ product_fdef (remove_fdef id' f1) :: Ps2)]) 
+          (fh:=fh') (bs1:=bs1') (pinfo0:=pinfo') in Hwf_actions; 
+          try solve [eauto 2 | 
+                     congruence |
+                     subst; solve_keep_pinfo | 
+                     rewrite <- Heq4; subst; simpl; solve_keep_pinfo].
+          destruct Hwf_actions as [J1 [pinfo'' [J2 J3]]].
+          split.
+            apply program_sim_wfS_trans with (P2:=
+                     [module_intro los nts
+                       (Ps1 ++ product_fdef (remove_fdef id' f1) :: Ps2)]); auto.
+            exists pinfo''.
+            split; eauto using keep_pinfo_trans.
+      SSCase "2".
+        congruence.
+    SCase "vsubst".
+      destruct Hwfaction as [id0 [cs0 [dones [Hfind1 Hfind2]]]].
+      subst S2 pid.
+      assert (Hok':=Hok).
+      eapply las_die_sim_wfS_wfPI with (S1:=
+        [module_intro los nts 
+          (Ps1 ++ product_fdef (remove_fdef id' (subst_fdef id' v' f1)) :: Ps2)]) 
+        in Hok'; try solve [eauto | subst f1; eauto].
+      SSCase "1".
+        destruct Hok' as [[Hsim [Hwf Hok']] [pinfo' [Hwfpi' Hkeeppi']]].
+        case_eq (remove_fdef id' (subst_fdef id' v' f1)). intros fh' bs1' Heq4.
+        eapply las_die__wf_actions with
+          (fh':=fh') (bs1':=bs1') in Hwf_actions; try solve [eauto | subst f1; eauto].
+        eapply Hrec with (S2:=
+          [module_intro los nts
+            (Ps1++product_fdef (remove_fdef id' (subst_fdef id' v' f1))::Ps2)]) 
+          (fh:=fh') (bs1:=bs1') (pinfo0:=pinfo') in Hwf_actions; 
+          try solve [eauto 2 | 
+                     congruence |
+                     apply list_subst_actions__uniq; auto |
+                     rewrite <- list_subst_actions__length; auto |
+                     subst; solve_keep_pinfo | 
+                     rewrite <- Heq4; subst; simpl; solve_keep_pinfo].
+          destruct Hwf_actions as [J1 [pinfo'' [J2 J3]]].
+          split.
+            apply program_sim_wfS_trans with (P2:=
+                     [module_intro los nts
+                       (Ps1 ++ product_fdef 
+                         (remove_fdef id' (subst_fdef id' v' f1)) :: Ps2)]); auto.
+            exists pinfo''.
+            split; eauto using keep_pinfo_trans.
+      SSCase "2". simpl in Hrd. subst. auto.
+      SSCase "3".
+        congruence.
+    SCase "tsubst".
+      destruct Hwfaction as [cs0 [dones [Hfind1 Hfind2]]].
+      subst S2 pid.
+      assert (Hok':=Hok).
+      eapply laa_die_sim_wfS_wfPI with (S1:=
+        [module_intro los nts 
+          (Ps1 ++
+            product_fdef 
+              (remove_fdef id' 
+                 (subst_fdef id' (value_const (const_undef t')) f1)) :: Ps2)]) 
+        in Hok'; try solve [eauto | subst f1; eauto].
+      SSCase "1".
+        destruct Hok' as [[Hsim [Hwf Hok']] [pinfo' [Hwfpi' Hkeeppi']]].
+        case_eq (remove_fdef id' (subst_fdef id' 
+                  (value_const (const_undef t')) f1)). intros fh' bs1' Heq4.
+        eapply laa_die__wf_actions with
+          (fh':=fh') (bs1':=bs1') in Hwf_actions; try solve [eauto | subst f1; eauto].
+        eapply Hrec with (S2:=
+          [module_intro los nts
+            (Ps1++product_fdef 
+              (remove_fdef id' 
+                 (subst_fdef id' (value_const (const_undef t')) f1))::Ps2)]) 
+          (fh:=fh') (bs1:=bs1') (pinfo0:=pinfo') in Hwf_actions; 
+          try solve [eauto 2 | 
+                     congruence |
+                     apply list_subst_actions__uniq; auto |
+                     rewrite <- list_subst_actions__length; auto |
+                     subst; solve_keep_pinfo | 
+                     rewrite <- Heq4; subst; simpl; solve_keep_pinfo].
+          destruct Hwf_actions as [J1 [pinfo'' [J2 J3]]].
+          split.
+            apply program_sim_wfS_trans with (P2:=
+                     [module_intro los nts
+                       (Ps1 ++ product_fdef 
+                         (remove_fdef id' 
+                           (subst_fdef id' (value_const (const_undef t')) f1)) 
+                             :: Ps2)]); auto.
+            exists pinfo''.
+            split; eauto using keep_pinfo_trans.
+      SSCase "2".
+        congruence.
+Qed.
+
 Lemma pipelined_elim_stld_sim_wfS_wfPI: forall fh bs1 f2 Ps1 Ps2 los nts main
   VarArgs pid rd (pinfo : PhiInfo) (actions : list (atom * action))
   (Heqactions : actions =
                  flat_map Datatypes.id
-                   (List.map (find_stld_pairs_block pid) bs1))
+                   (List.map (find_stld_pairs_block pid rd) bs1))
   (Hpass : pipelined_actions actions (fdef_intro fh bs1) = f2)
   (Heq1 : PI_f pinfo = fdef_intro fh bs1) (Heq2 : PI_id pinfo = pid)
   (Heq0 : PI_rd pinfo = rd) (Hwfpi : WF_PhiInfo pinfo) S1 S2
@@ -1895,11 +2320,22 @@ Lemma pipelined_elim_stld_sim_wfS_wfPI: forall fh bs1 f2 Ps1 Ps2 los nts main
   (program_sim S1 S2 main VarArgs /\
     wf_system S1 /\ defined_program S1 main VarArgs) /\
    (exists pinfo' : PhiInfo, WF_PhiInfo pinfo' /\ keep_pinfo f2 pinfo pinfo').
-Admitted.
+Proof.
+  intros.
+  assert (J:=pipelined_elim_stld_sim_wfS_wfPI_aux Ps1 Ps2 los nts main
+    VarArgs pid rd (length actions)).
+  unfold pipelined_elim_stld_sim_wfS_wfPI_prop in J.
+  apply find_stld_pairs_blocks__wf_actions_uniq in Heqactions.
+  destruct Heqactions.
+  eapply J; eauto.
+    congruence.
+Qed.
 
-Lemma find_stld_pairs_blocks_spec: forall pid bs actions
+(***************************************************************)
+
+Lemma find_stld_pairs_blocks_spec: forall pid rd bs actions
   (Hfind: actions = flat_map Datatypes.id 
-                      (List.map (find_stld_pairs_block pid) bs)),
+                      (List.map (find_stld_pairs_block pid rd) bs)),
   uniq actions /\ acyclic_actions actions.
 Admitted.
 
@@ -1915,14 +2351,14 @@ end.
 
 Ltac unfold_elim_stld_fdef_tac :=
 match goal with
-| Hpass: elim_stld_fdef ?pid ?f1 = _ |- _ =>
+| Hpass: elim_stld_fdef ?pid ?rd ?f1 = _ |- _ =>
   let fh := fresh "fh" in
   let bs1 := fresh "bs1" in
   let actions := fresh "actions" in
   let Hwf := fresh "Hwf" in
   unfold elim_stld_fdef in Hpass;
   destruct f1 as [fh bs1];
-  remember (flat_map Datatypes.id (List.map (find_stld_pairs_block pid) bs1))
+  remember (flat_map Datatypes.id (List.map (find_stld_pairs_block pid rd) bs1))
     as actions;
   match goal with
   | Heqactions: actions = _ |- _ =>
@@ -1934,7 +2370,7 @@ end.
 
 Lemma elim_stld_sim_wfS_wfPI: forall f1 f2 Ps1 Ps2 los nts main
   VarArgs pid rd (pinfo:PhiInfo)
-  (Hpass: elim_stld_fdef pid f1 = f2)
+  (Hpass: elim_stld_fdef pid rd f1 = f2)
   (Heq1: PI_f pinfo = f1) (Heq2: PI_id pinfo = pid) (Heq2: PI_rd pinfo = rd)
   (Hwfpi: WF_PhiInfo pinfo) S1 S2
   (Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
@@ -1950,17 +2386,17 @@ Proof.
   eapply pipelined_elim_stld_sim_wfS_wfPI; eauto.
 Qed.
 
-Lemma pipelined_elim_stld_reachablity_successors: forall pid fh bs1 f2 actions
+Lemma pipelined_elim_stld_reachablity_successors: forall pid rd fh bs1 f2 actions
   (Heqactions : actions =
                  flat_map Datatypes.id
-                   (List.map (find_stld_pairs_block pid) bs1))
+                   (List.map (find_stld_pairs_block pid rd) bs1))
   (Hpass : pipelined_actions actions (fdef_intro fh bs1) = f2),
   reachablity_analysis f2 = reachablity_analysis (fdef_intro fh bs1) /\
     successors f2 = successors (fdef_intro fh bs1).
 Admitted.
 
-Lemma elim_stld_reachablity_successors: forall pid f1 f2
-  (Hpass: elim_stld_fdef pid f1 = f2),
+Lemma elim_stld_reachablity_successors: forall pid rd f1 f2
+  (Hpass: elim_stld_fdef pid rd f1 = f2),
   reachablity_analysis f2 = reachablity_analysis f1 /\
     successors f2 = successors f1.
 Proof.
@@ -2094,9 +2530,9 @@ Proof.
     
       SCase "2.2".
         match goal with
-        | |- context [elim_stld_fdef ?pid ?f] =>
-          destruct (elim_stld_reachablity_successors pid f 
-                      (elim_stld_fdef pid f)); auto
+        | |- context [elim_stld_fdef ?pid ?rd ?f] =>
+          destruct (elim_stld_reachablity_successors pid rd f 
+                      (elim_stld_fdef pid rd f)); auto
         end.
         destruct HPf22.
         split; etransitivity; eauto.

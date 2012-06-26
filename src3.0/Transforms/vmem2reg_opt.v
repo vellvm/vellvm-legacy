@@ -429,13 +429,15 @@ end.
 Definition find_stld_pairs_cmds (cs:cmds) (pid:id) : AssocList action :=
 snd (List.fold_left (find_stld_pair_cmd pid) cs (STLD_init, nil)).
 
-Definition find_stld_pairs_block (pid:id) (b:block) : AssocList action :=
+Definition find_stld_pairs_block (pid:id) (rd:list l) (b:block) 
+  : AssocList action :=
 let '(block_intro l5 phinodes5 cs terminator5) := b in
-find_stld_pairs_cmds cs pid.
+if (in_dec id_dec l5 rd) then find_stld_pairs_cmds cs pid else nil.
 
-Definition elim_stld_fdef (pid:id) (f:fdef) : fdef :=
+Definition elim_stld_fdef (pid:id) (rd:list l) (f:fdef) : fdef :=
 let '(fdef_intro _ bs) := f in
-let pairs := List.flat_map Datatypes.id (List.map (find_stld_pairs_block pid) bs) in
+let pairs := 
+  List.flat_map Datatypes.id (List.map (find_stld_pairs_block pid rd) bs) in
 AVLComposedPass.run pairs f.
 
 (************************************************)
@@ -460,7 +462,7 @@ match getEntryBlock f with
         (seq_trans
           (cond_trans
             (fun _ => does_stld_elim tt)
-            (elim_stld_fdef pid)
+            (elim_stld_fdef pid rd)
             (@Datatypes.id fdef))
         (seq_trans
           (cond_trans
