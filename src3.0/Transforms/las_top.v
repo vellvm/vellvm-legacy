@@ -19,6 +19,8 @@ Require Import top_sim.
 Require Import las.
 Require Import las_wfS.
 Require Import subst_sim.
+Require Import die_wfS.
+Require Import die_top.
 
 Lemma vev_State_preservation : forall pinfo lasinfo cfg IS maxb
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg))
@@ -38,13 +40,14 @@ Proof.
     eapply alive_store.preservation in Hstep; eauto.
 Qed.
 
-Lemma las_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
-  (dones : list id) (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
+Lemma las_sim': forall (los : layouts) (nts : namedts) (fh : fheader)
+  (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
   (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo)
-  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
-  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
+  (i1 : id) (lasinfo : LASInfo pinfo)
+  (Heqi1: LAS_lid pinfo lasinfo = i1) (Heqv: LAS_value pinfo lasinfo = v)
+  (Heqb: LAS_block pinfo lasinfo = block_intro l0 ps0 cs0 tmn0)
   S2 (Heq2: S2=[module_intro los nts
                 (Ps1 ++
                   product_fdef
@@ -62,17 +65,8 @@ Lemma las_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
     S2 main VarArgs.
 Proof.
   intros. subst.
-  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true)
-    as HBinF.
-    rewrite Heq. simpl. apply InBlocksB_middle.
-  assert (wf_fdef [module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)]
-            (module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)) 
-            (PI_f pinfo) /\ uniqFdef (PI_f pinfo)) as J.
-    rewrite Heq in *.
-    apply wf_single_system__wf_uniq_fdef; auto.
-  destruct J as [HwfF HuniqF].
-  eapply find_st_ld__lasinfo in HBinF; eauto.
-  destruct HBinF as [lasinfo [J1 [J2 [J3 J4]]]]; subst.
+  assert (J:=HwfS). apply wf_single_system__wf_uniq_fdef in J; auto.
+  destruct J as [HwfF HuniqF]. rewrite <- Heq in HuniqF, HwfF.
   set (ctx_inv := fun cfg IS =>
     exists maxb, exists stinfo, exists Hp, 
       0 <= maxb /\
@@ -107,7 +101,7 @@ Proof.
       eapply LAS_substable_values; eauto.
   Case "4".  
     intros. subst.
-    eapply las_wfS; eauto.
+    eapply las_wfS'; eauto.
   Case "5".  
     intros.
     rewrite <- Heq in *.  
@@ -130,4 +124,128 @@ Proof.
     exists maxb. exists stinfo. exists Hp.
     repeat (split; auto).
       eapply las__alive_store__vev; eauto; try tauto.
+Qed.
+
+Lemma las_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
+  (dones : list id) (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
+  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo)
+  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
+  S2 (Heq2: S2=[module_intro los nts
+                (Ps1 ++
+                  product_fdef
+                    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+                  :: Ps2)])
+  (Hok: defined_program S2 main VarArgs)
+  (HwfS : wf_system S2)
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
+  program_sim
+    [module_intro los nts
+      (Ps1 ++
+       product_fdef
+         (subst_fdef i1 v
+            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)]
+    S2 main VarArgs.
+Proof.
+  intros. subst.
+  assert (J:=Hst). eapply las_wf_init in J; eauto 1.
+  destruct J as [HwfF [HuniqF [lasinfo [J1 [J2 [J3 J4]]]]]]; subst.
+  eapply las_sim'; eauto.
+Qed.
+
+Lemma las_die_sim_wfS': forall (los : layouts) (nts : namedts) (fh : fheader)
+  (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
+  (v : value) (cs : cmds) (Hreach:  In l0 (PI_rd pinfo))
+  (i1 : id) (lasinfo : LASInfo pinfo)
+  (Heqi1: LAS_lid pinfo lasinfo = i1) (Heqv: LAS_value pinfo lasinfo = v)
+  (Heqb: LAS_block pinfo lasinfo = block_intro l0 ps0 cs0 tmn0)
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Hwfpi: WF_PhiInfo pinfo) S1 S2
+  (Heq1: S1 = 
+    [module_intro los nts
+      (Ps1 ++
+       product_fdef
+         (fdef_intro fh
+           (List.map (remove_block i1)
+             (List.map (subst_block i1 v)
+               (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) :: Ps2)])
+  (Heq2: S2 = 
+    [module_intro los nts
+      (Ps1 ++
+       product_fdef (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))::
+       Ps2)])
+  (HwfS: wf_system S2) (Hok: defined_program S2 main VarArgs),
+  program_sim S1 S2 main VarArgs /\ wf_system S1 /\ 
+    defined_program S1 main VarArgs.
+Proof.
+  intros.
+  assert ((fdef_intro fh
+           (List.map (remove_block i1)
+             (List.map (subst_block i1 v)
+               (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) =
+          remove_fdef i1
+            (subst_fdef i1 v
+              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))
+    as J.
+    simpl. auto.
+  subst S2 S1. rewrite J.
+  assert (J':=HwfS). apply wf_single_system__wf_uniq_fdef in J'; auto.
+  destruct J' as [HwfF HuniqF]. rewrite <- Heq in HuniqF, HwfF.
+  assert (Hdiinfo:=HwfF).
+  eapply las_diinfo' in Hdiinfo; eauto.
+  destruct Hdiinfo as [diinfo [J1 J2]]. rewrite Heq in J1.
+  apply program_sim_wfS_trans with (P2:=
+      [module_intro los nts
+          (Ps1 ++
+           product_fdef
+             (subst_fdef i1 v
+                (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) ::
+           Ps2)]); auto; intros.
+    split.
+      eapply die_sim; eauto.
+    split.
+      eapply die_wfS; eauto.
+      eapply program_sim__preserves__defined_program; eauto using die_sim.
+      
+    split.
+      eapply las_sim'; eauto.
+    split.
+      eapply las_wfS'; eauto.
+      eapply program_sim__preserves__defined_program; eauto using las_sim'.
+Qed.
+
+Lemma las_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
+  (dones : list id) (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
+  (v : value) (cs : cmds) (Hreach:  In l0 (PI_rd pinfo))
+  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Hwfpi: WF_PhiInfo pinfo) S1 S2
+  (Heq1: S1 = 
+    [module_intro los nts
+      (Ps1 ++
+       product_fdef
+         (fdef_intro fh
+           (List.map (remove_block i1)
+             (List.map (subst_block i1 v)
+               (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) :: Ps2)])
+  (Heq2: S2 = 
+    [module_intro los nts
+      (Ps1 ++
+       product_fdef (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))::
+       Ps2)])
+  (HwfS: wf_system S2) (Hok: defined_program S2 main VarArgs),
+  program_sim S1 S2 main VarArgs /\ wf_system S1 /\ 
+    defined_program S1 main VarArgs.
+Proof.
+  intros. subst.
+  eapply las_wf_init in Hst; eauto 1.
+  destruct Hst as [HwfF [HuniqF [lasinfo [J1 [J2 [J3 J4]]]]]]; subst.
+  eapply las_die_sim_wfS'; eauto.
 Qed.

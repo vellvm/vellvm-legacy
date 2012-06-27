@@ -427,7 +427,7 @@ match c with
 end.
 
 Definition find_stld_pairs_cmds (cs:cmds) (pid:id) : AssocList action :=
-snd (List.fold_left (find_stld_pair_cmd pid) cs (STLD_init, nil)).
+rev (snd (List.fold_left (find_stld_pair_cmd pid) cs (STLD_init, nil))).
 
 Definition find_stld_pairs_block (pid:id) (rd:list l) (b:block) 
   : AssocList action :=

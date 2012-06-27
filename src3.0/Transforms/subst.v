@@ -1971,11 +1971,8 @@ Proof.
     destruct H; subst; auto.
 Qed.
 
-Lemma subst_wfPI: forall (los : layouts) (nts : namedts)
-  (dones : list id) (pinfo: PhiInfo)
-  (Ps1 : list product) (Ps2 : list product)
+Lemma subst_wfPI: forall (pinfo: PhiInfo)
   id0 (v0 : value) (Hwfpi: WF_PhiInfo pinfo) f
-  (HwfS:  wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Heq: PI_f pinfo = f) 
   (Hnused: used_in_value (PI_id pinfo) v0 = false),
   WF_PhiInfo (subst_pinfo id0 v0 pinfo).
