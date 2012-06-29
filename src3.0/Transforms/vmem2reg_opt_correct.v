@@ -2574,6 +2574,472 @@ Proof.
       destruct (id_dec id0 id0); simpl in Hnst1; try congruence.   
 Qed.
 
+Definition alloca_in_cmd (id':id) (c:cmd) : bool :=
+match c with
+| insn_alloca qid _ _ _ => id_dec id' qid
+| _ => false
+end.
+
+Definition alloca_in_cmds (id':id) (cs:cmds) : bool :=
+(List.fold_left (fun re c => re || alloca_in_cmd id' c) cs false).
+
+Lemma alloca_in_cmds_merge: forall i0 cs1 cs2,
+  alloca_in_cmds i0 cs1 = false /\ alloca_in_cmds i0 cs2 = false ->
+  alloca_in_cmds i0 (cs1++cs2) = false.
+Proof.
+  unfold alloca_in_cmds.
+  intros.
+  rewrite fold_left_app.
+  destruct H as [H1 H2].
+  rewrite H1. auto.
+Qed.
+
+Lemma find_next_stld_inr_intro: forall c0 cs01 pid cs02
+  (Hnst : store_in_cmds pid cs01 = false)
+  (Hst : store_in_cmd pid c0 = true) (Hnld : load_in_cmds pid cs01 = false),
+  exists v1 : value,
+    ret inr (getCmdLoc c0, v1) = find_next_stld (cs01 ++ c0 :: cs02) pid.
+Proof.
+  intros.
+  rewrite <- find_next_stld_strengthen; auto.
+  destruct c0; tinv Hst.
+  destruct value2; tinv Hst.
+  simpl in Hst. simpl.
+  destruct (id_dec id0 pid); subst; tinv Hst.
+  destruct_if; eauto.
+    congruence.
+Qed.
+
+Lemma find_next_stld_inl_intro: forall c0 cs01 pid cs02
+  (Hnst : store_in_cmds pid cs01 = false)
+  (Hld : load_in_cmd pid c0 = true) (Hnld : load_in_cmds pid cs01 = false),
+  ret inl (getCmdLoc c0) = find_next_stld (cs01 ++ c0 :: cs02) pid.
+Proof.
+  intros.
+  rewrite <- find_next_stld_strengthen; auto.
+  destruct c0; tinv Hld.
+  destruct value1; tinv Hld.
+  simpl in Hld. simpl.
+  destruct (id_dec id0 pid); subst; tinv Hld.
+  destruct_if; eauto.
+    congruence.
+Qed.
+
+(***************************************************************)
+
+Module TEST.
+
+Definition wf_cs_action (cs:cmds) (pid:id) (elt:id * action): Prop :=
+let '(id', ac') := elt in
+match ac' with
+| AC_remove =>  
+    exists v0, exists cs0, exists id1, exists v1, exists dones,
+      Some (inl (id', v0, cs0)) = find_init_stld cs pid dones /\
+      Some (inr (id1, v1)) = find_next_stld cs0 pid
+| AC_vsubst v' =>  
+    exists id0, exists cs0, exists dones,
+      Some (inl (id0, v', cs0)) = find_init_stld cs pid dones /\
+      Some (inl id') = find_next_stld cs0 pid
+| AC_tsubst t' =>
+    exists cs0, exists dones,
+      Some (inr (value_const (const_undef t'), cs0)) = 
+        find_init_stld cs pid dones /\
+      Some (inl id') = find_next_stld cs0 pid
+end.
+
+Definition loads_must_be_in_pre (acs: AssocList action) (pid:id) (cs:cmds)
+  : Prop :=
+Forall (fun c => load_in_cmd pid c = true -> getCmdLoc c `in` dom acs) cs.
+
+Definition wf_cs_action_pre (acs: AssocList action) (cs:cmds) (pid:id) 
+  (elt:id * action): Prop :=
+let '(id', ac') := elt in
+match ac' with
+| AC_remove =>  
+    exists v0, exists cs01, exists c0, exists cs02, exists dones,    
+      Some (inl (id', v0, cs01 ++ c0 :: cs02)) = find_init_stld cs pid dones /\
+      store_in_cmds pid cs01 = false /\
+      store_in_cmd pid c0 = true /\ loads_must_be_in_pre acs pid cs01
+| AC_vsubst v' =>  
+    exists id0, exists cs01, exists c0, exists cs02, exists dones,    
+      Some (inl (id0, v', cs01 ++ c0 :: cs02)) = find_init_stld cs pid dones /\
+      store_in_cmds pid cs01 = false /\ getCmdLoc c0 = id' /\
+      load_in_cmd pid c0 = true /\ loads_must_be_in_pre acs pid cs01
+| AC_tsubst t' =>
+    exists cs01, exists c0, exists cs02, exists dones,
+      Some (inr (value_const (const_undef t'), cs01 ++ c0 :: cs02)) = 
+        find_init_stld cs pid dones /\
+      store_in_cmds pid cs01 = false /\ getCmdLoc c0 = id' /\
+      load_in_cmd pid c0 = true /\ loads_must_be_in_pre acs pid cs01
+end.
+
+Lemma loads_must_be_in_nil__no_loads: forall pid cs 
+  (H: loads_must_be_in_pre nil pid cs), load_in_cmds pid cs = false.
+Proof.
+  induction 1; simpl; auto.
+    apply load_in_cmds_false_cons_intro; auto.
+      case_eq (load_in_cmd pid x); auto.
+        intro Heq.
+        apply H in Heq. fsetdec.
+Qed.
+
+Lemma wf_cs_action_nil__wf_cs_action: forall cs pid elt
+  (Hwf: wf_cs_action_pre nil cs pid elt), wf_cs_action cs pid elt.
+Proof.
+  unfold wf_cs_action_pre, wf_cs_action.
+  destruct elt as [id' [|v'|t']]; simpl; intros.
+  Case "1".
+    destruct Hwf as [v0 [cs01 [c0 [cs02 [dones [Hfind1 [Hnst [Hst Hnld]]]]]]]].
+    exists v0. exists (cs01 ++ c0 :: cs02). exists (getCmdLoc c0).
+    apply loads_must_be_in_nil__no_loads in Hnld.    
+    eapply find_next_stld_inr_intro with (cs02:=cs02) in Hnld; eauto.
+    destruct Hnld as [v1 Hnld]. eauto.
+  Case "2".
+    destruct Hwf 
+      as [id0 [cs01 [c0 [cs02 [dones [Hfind1 [Hnst [Heq [Hld Hnld]]]]]]]]]; subst.
+    exists id0. exists (cs01 ++ c0 :: cs02). exists dones.
+    apply loads_must_be_in_nil__no_loads in Hnld.    
+    eapply find_next_stld_inl_intro with (cs02:=cs02) in Hnld; eauto.
+  Case "3".
+    destruct Hwf 
+      as [cs01 [c0 [cs02 [dones [Hfind1 [Hnst [Heq [Hld Hnld]]]]]]]]; subst.
+    exists (cs01 ++ c0 :: cs02). exists dones.
+    apply loads_must_be_in_nil__no_loads in Hnld.    
+    eapply find_next_stld_inl_intro with (cs02:=cs02) in Hnld; eauto.
+Qed.
+
+Definition wf_stld_state (cs:cmds) (pid:id) (elt :stld_state * AssocList action)
+  : Prop :=
+let '(s, acs) := elt in
+match s with
+| STLD_init => alloca_in_cmds pid cs = false /\ store_in_cmds pid cs = false
+| STLD_store id0 v0 =>
+    exists cs1 : list cmd, exists ty0 : typ, exists al0 : align, exists cs2, 
+      cs = cs1 ++ insn_store id0 ty0 v0 (value_id pid) al0 :: cs2 /\
+      store_in_cmds pid cs2 = false /\ loads_must_be_in_pre acs pid cs2
+| STLD_alloca t0 =>
+    exists cs1, exists num, exists al, exists cs2, 
+      cs = cs1 ++ insn_alloca pid t0 num al :: cs2 /\
+      store_in_cmds pid cs2 = false /\ loads_must_be_in_pre acs pid cs2
+end.
+
+Lemma loads_must_be_in_pre_append: forall acs pid cs3 c
+  (Hlds: loads_must_be_in_pre acs pid cs3) (Hld: load_in_cmd pid c = false),
+  loads_must_be_in_pre acs pid (cs3 ++ [c]).
+Proof.
+  intros.
+  apply Forall_forall.
+  intros x Hinx H.
+  destruct_in Hinx.
+    eapply Forall_forall in Hlds; eauto.
+    destruct_in Hinx. congruence.
+Qed.
+
+Lemma wf_stld_state_append: forall st cs1 pid c 
+  (Hwf: wf_stld_state cs1 pid st)
+  (Hnot: alloca_in_cmd pid c = false /\ 
+         store_in_cmd pid c = false /\ 
+         load_in_cmd pid c = false),
+  wf_stld_state (cs1 ++ [c]) pid st.
+Proof.
+  intros.
+  destruct st as [s acs].
+  destruct Hnot as [J1 [J2 J3]].
+  destruct s; simpl in *.
+    destruct Hwf.
+    split.
+      apply alloca_in_cmds_merge; auto.
+      apply store_in_cmds_merge; auto.
+
+    destruct Hwf as [cs2 [t0 [al0 [cs3 [EQ [G1 G2]]]]]]; subst.
+    exists cs2. exists t0. exists al0. exists (cs3 ++ [c]).
+    simpl_env.
+    split; auto.
+    split.
+      apply store_in_cmds_merge; auto.
+      apply loads_must_be_in_pre_append; auto.
+
+    destruct Hwf as [cs2 [num0 [al0 [cs3 [EQ [G1 G2]]]]]]; subst.
+    exists cs2. exists num0. exists al0. exists (cs3 ++ [c]).
+    simpl_env.
+    split; auto.
+    split.
+      apply store_in_cmds_merge; auto.
+      apply loads_must_be_in_pre_append; auto.
+Qed.
+
+Lemma loads_must_be_in_pre_weaken: forall acs1 acs2 pid cs 
+  (Hlds: loads_must_be_in_pre acs2 pid cs),
+  loads_must_be_in_pre (acs1++acs2) pid cs.
+Proof.
+  induction 1; constructor; auto.
+    intro Heq. apply H in Heq. rewrite dom_app. auto.
+Qed.
+
+Lemma loads_must_be_in_pre_append': forall ac acs pid cs3 c
+  (Hlds: loads_must_be_in_pre acs pid cs3) (Hld: load_in_cmd pid c = true)
+  (Heq: fst ac = getCmdLoc c),
+  loads_must_be_in_pre ([ac]++acs) pid (cs3 ++ [c]).
+Proof.
+  intros.
+  apply Forall_forall.
+  intros x Hinx H.
+  destruct_in Hinx.
+    eapply Forall_forall in Hlds; eauto.
+    apply Hlds in H. simpl_env. auto.
+
+    destruct_in Hinx. 
+      destruct ac. simpl in *. subst. auto.
+Qed.
+
+Ltac wf_stld_state_append_tac :=
+  try solve 
+    [apply wf_stld_state_append; simpl; try solve [auto | destruct_dec]].
+
+Lemma find_stld_pair_cmd__wf_stld_state: forall (pid : id) cs c st
+  (Hwfst: wf_stld_state cs pid st),
+  wf_stld_state (cs++[c]) pid (find_stld_pair_cmd pid st c).
+Proof.
+  intros.
+  destruct st as [s acs].
+  destruct c; wf_stld_state_append_tac; simpl.
+    Case "1".        
+      destruct (id_dec pid id5); wf_stld_state_append_tac.
+        subst id5. simpl.
+        exists cs. exists value5. exists align5. exists nil.
+        unfold loads_must_be_in_pre, store_in_cmds. auto.
+    Case "2".
+      destruct value1 as [qid|]; wf_stld_state_append_tac.
+      destruct (id_dec pid qid); wf_stld_state_append_tac.
+        subst qid.
+        destruct s.
+        SCase "2.1".
+          simpl in *. destruct Hwfst.
+          split.
+            apply alloca_in_cmds_merge; auto.
+            apply store_in_cmds_merge; auto.
+        SCase "2.2".
+          simpl in *.
+          destruct Hwfst as [cs3 [ty0 [al0 [cs4 [EQ [Hnst Hnld]]]]]]; subst.
+          exists cs3. exists ty0. exists al0.
+          exists (cs4++[insn_load id5 typ5 (value_id pid) align5]).
+          simpl_env. 
+          split; auto.
+          split.
+            apply store_in_cmds_merge; auto.
+            apply loads_must_be_in_pre_append'; auto.
+              simpl. destruct_dec.
+        SCase "2.3".
+          simpl in *.
+          destruct Hwfst as [cs3 [num0 [al0 [cs4 [EQ [Hnst Hnld]]]]]]; subst.
+          exists cs3. exists num0. exists al0. 
+          exists (cs4++[insn_load id5 typ5 (value_id pid) align5]).
+          simpl_env. 
+          split; auto.
+          split.
+            apply store_in_cmds_merge; auto.
+            apply loads_must_be_in_pre_append'; auto.
+              simpl. destruct_dec.
+    Case "3".
+      destruct value2 as [qid|]; wf_stld_state_append_tac.
+      destruct (id_dec pid qid); wf_stld_state_append_tac.
+        subst qid.
+        destruct s.
+        SCase "3.1".
+          simpl. exists cs. exists typ5. exists align5. exists nil.
+          unfold loads_must_be_in_pre, store_in_cmds. auto.
+        SCase "3.2".
+          simpl in *.
+          destruct Hwfst as [cs3 [ty0 [al0 [cs4 [EQ [Hnst Hnld]]]]]]; subst.
+          exists (cs3 ++ insn_store i0 ty0 v (value_id pid) al0 :: cs4). 
+          exists typ5. exists align5. exists nil.
+          simpl_env. 
+          split; auto.
+          split; auto.
+            constructor.
+        SCase "3.3".
+          simpl in *.
+          destruct Hwfst as [cs3 [num0 [al0 [cs4 [EQ [Hnst Hnld]]]]]]; subst.
+          exists (cs3 ++ insn_alloca pid t num0 al0 :: cs4). 
+          exists typ5. exists align5. exists nil.
+          simpl_env. 
+          split; auto.
+          split; auto.
+            constructor.
+Qed.
+
+Lemma find_stld_pairs_cmds__wf_stld_state_aux: forall (pid : id) cs 
+  cs2 cs1 st1 (Heq: cs = cs1 ++ cs2)
+  (Hwfst: wf_stld_state cs1 pid st1),
+  wf_stld_state cs pid (fold_left (find_stld_pair_cmd pid) cs2 st1).
+Proof.
+  induction cs2 as [|c2 cs2]; simpl; intros; subst; auto.
+    simpl_env. auto.
+
+    apply IHcs2 with (cs3:=cs1++[c2]); simpl_env; auto.
+    clear IHcs2.
+    apply find_stld_pair_cmd__wf_stld_state; auto.
+Qed.
+
+Definition find_stld_pair_cmd' (pid:id) (acc:stld_state * AssocList action) 
+  (c:cmd) : stld_state * option (id * action) :=
+let '(st, actions) := acc in
+match c with
+| insn_alloca qid ty value5 align5 =>
+    if id_dec pid qid
+    then (STLD_alloca ty, None)
+    else (st, None)
+| insn_store sid typ5 v0 value2 align5 =>
+    match value2 with
+    | value_id qid =>
+       if id_dec pid qid
+       then 
+         match st with
+         | STLD_store sid' _ => (STLD_store sid v0, Some (sid', AC_remove))
+         | _ => (STLD_store sid v0, None)
+         end
+      else (st, None)
+    | value_const const5 => (st, None)
+    end
+| insn_load lid typ5 value1 align5 =>
+    match value1 with
+    | value_id qid =>
+       if id_dec pid qid
+       then 
+         match st with
+         | STLD_store _ v' => (st, Some (lid, AC_vsubst v'))
+         | STLD_alloca ty' => (st, Some (lid, AC_tsubst ty'))
+         | _ => (st, None)
+         end
+       else (st, None)
+    | value_const const5 => (st, None)
+    end
+| _ => (st, None)
+end.
+
+Lemma find_stld_pair_cmd__find_stld_pair_cmd': forall pid st1 c,
+  find_stld_pair_cmd pid st1 c =
+  (let (s, o) := find_stld_pair_cmd' pid st1 c in
+   match o with
+   | ret ac => (s, ac :: snd st1)
+   | merror => (s, snd st1)
+   end).
+Proof.
+  destruct st1 as [s1 acc1].
+  destruct c; simpl; intros; auto.
+    destruct_if; uniq_result; auto.
+
+    destruct value1; auto.
+    destruct_if; auto.
+    destruct s1; auto.
+
+    destruct value2; auto.
+    destruct_if; auto.
+    destruct s1; auto.
+Qed.
+
+Lemma find_stld_pairs_cmds__find_stld_pairs_cmds': forall pid cs st1,
+  fold_left (find_stld_pair_cmd pid) cs st1 =
+  fold_left (fun st c => 
+             match find_stld_pair_cmd' pid st c with
+             | (s, Some ac) => (s, ac::snd st)
+             | (s, None) => (s, snd st)
+             end) cs st1.
+Proof.
+  induction cs as [|c cs]; simpl; intros; auto.
+    rewrite IHcs.
+    f_equal.
+    apply find_stld_pair_cmd__find_stld_pair_cmd'.
+Qed.
+
+Lemma find_stld_pair_cmd'__wf_cs_action_pre: forall cs cs1 c cs2 st1 st2 pid 
+  (Heq: cs = cs1 ++ c :: cs2)
+  (Huniq: NoDup (getCmdsLocs cs))
+  (Hwfst1: wf_stld_state cs1 pid st1) ac
+  (Hfind: find_stld_pair_cmd' pid st1 c = (st2, Some ac)),
+  wf_cs_action_pre (snd st1) cs pid ac.
+Proof.
+
+Ltac find_stld_pair_cmd'__wf_cs_action_pre_tac :=
+  match goal with
+  | Huniq: NoDup _ |- context [(?A ++ ?b :: ?C) ++ ?d :: ?E] =>
+    rewrite_env (A++b::(C++d::E));
+    rewrite_env (A++b::(C++d::E)) in Huniq;
+    exists C; exists d; exists E; exists (getCmdsLocs A)
+  end.
+
+  intros. subst.
+  destruct st1 as [s1 acc1]. 
+  destruct c; simpl in Hfind; tinv Hfind.
+  Case "1".
+    destruct_if; tinv Hfind.
+  Case "2".
+    destruct value1; tinv Hfind.
+    destruct_if.
+    destruct s1; inv H0.
+    SCase "2.1".
+      simpl in *.
+      destruct Hwfst1 as [cs3 [ty0 [al0 [cs4 [EQ [Hnst Hnld]]]]]]; subst.
+      exists i0. 
+      find_stld_pair_cmd'__wf_cs_action_pre_tac.
+      split.
+        rewrite getCmdsLocs_app in Huniq. simpl in Huniq.
+        apply find_init_stld_inl_intro; auto.
+      split; auto.
+      split; auto.
+      split; simpl; auto.
+        destruct_dec.
+    SCase "2.2".
+      simpl in *.
+      destruct Hwfst1 as [cs3 [num0 [al0 [cs4 [EQ [Hnst Hnld]]]]]]; subst.
+      find_stld_pair_cmd'__wf_cs_action_pre_tac.
+      split.
+        rewrite getCmdsLocs_app in Huniq. simpl in Huniq.
+        apply find_init_stld_inr_intro; auto.
+      split; auto.
+      split; auto.
+      split; simpl; auto.
+        destruct_dec.
+  Case "3".
+    destruct value2; tinv Hfind.
+    destruct_if.
+    destruct s1; inv H0.
+    simpl in *.
+    destruct Hwfst1 as [cs3 [ty0 [al0 [cs4 [EQ [Hnst Hnld]]]]]]; subst.
+    exists v. 
+    find_stld_pair_cmd'__wf_cs_action_pre_tac.
+    split.
+      rewrite getCmdsLocs_app in Huniq. simpl in Huniq.
+      apply find_init_stld_inl_intro; auto.
+    split; auto.
+    split; simpl; auto.
+      destruct_dec.
+Qed.
+
+Lemma find_stld_pair_cmd__split: forall pid st c st' ac
+  (Hfind: find_stld_pair_cmd pid st c = st') (Hin: In ac (snd st')),
+  In ac (snd st) \/ find_stld_pair_cmd' pid st c = (fst st', Some ac).
+Admitted.
+
+Lemma find_stld_pairs_cmds__split: forall pid s0 acc0 ac cs acs s2
+  (Heq: fold_left (find_stld_pair_cmd pid) cs (s0, acc0) = 
+    (s2, acs ++ acc0))
+  (Hin: In ac acs),
+  exists acs1, exists acs2,
+  exists cs1, exists c, exists cs2, exists s1, exists s,
+    fold_left (find_stld_pair_cmd pid) cs1 (s0, acc0) = (s1, acs1 ++ acc0) /\
+    find_stld_pair_cmd' pid (s1, acs1 ++ acc0) c = (s, Some ac) /\    
+    fold_left (find_stld_pair_cmd pid) cs2 (s, ac::acs1 ++ acc0) = 
+      (s2, acs2 ++ ac :: acs1 ++ acc0).
+Proof.
+  induction cs as [|c cs]; simpl; intros; subst.
+    inversion Heq. admit.
+
+    destruct c; try solve [apply IHcs in Heq; auto].
+Admitted.
+
+End TEST.
+
 (***************************************************************)
 
 Definition wf_cs_action (cs:cmds) (pid:id) (elt:id * action): Prop :=
@@ -2594,15 +3060,6 @@ match ac' with
       Some (inl id') = find_next_stld cs0 pid
 end.
 
-Definition alloca_in_cmd (id':id) (c:cmd) : bool :=
-match c with
-| insn_alloca qid _ _ _ => id_dec id' qid
-| _ => false
-end.
-
-Definition alloca_in_cmds (id':id) (cs:cmds) : bool :=
-(List.fold_left (fun re c => re || alloca_in_cmd id' c) cs false).
-
 Definition wf_stld_state (cs:cmds) (pid:id) (s:stld_state): Prop :=
 match s with
 | STLD_init => alloca_in_cmds pid cs = false /\ store_in_cmds pid cs = false
@@ -2615,17 +3072,6 @@ match s with
       cs = cs1 ++ insn_alloca pid t0 num al :: cs2 /\
       store_in_cmds pid cs2 = false /\ load_in_cmds pid cs2 = false
 end.
-
-Lemma alloca_in_cmds_merge: forall i0 cs1 cs2,
-  alloca_in_cmds i0 cs1 = false /\ alloca_in_cmds i0 cs2 = false ->
-  alloca_in_cmds i0 (cs1++cs2) = false.
-Proof.
-  unfold alloca_in_cmds.
-  intros.
-  rewrite fold_left_app.
-  destruct H as [H1 H2].
-  rewrite H1. auto.
-Qed.
 
 Lemma wf_stld_state_append: forall cs1 pid c s (Hwf: wf_stld_state cs1 pid s)
   (Hnot: alloca_in_cmd pid c = false /\ 

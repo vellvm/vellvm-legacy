@@ -10,9 +10,7 @@ Require Import primitives.
 Require Import palloca_props.
 Require Import memory_props.
 Require Import memory_sim.
-Require Import sb_ds_trans_lib.
 Require Import genericvalues_inject.
-Require Import sb_metadata.
 Require Import program_sim.
 Require Import trans_tactic.
 Require Import top_sim.
