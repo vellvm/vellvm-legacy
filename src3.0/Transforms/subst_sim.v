@@ -2081,7 +2081,7 @@ end.
       erewrite <- s_isFinialState__subst_State_simulation in H2; 
         try solve [eauto | tauto].
     apply undefined_state__stuck' in Hundef'.
-    exists tr. exists FS1.
+    exists FS1.
     econstructor; eauto.
 Qed.
 

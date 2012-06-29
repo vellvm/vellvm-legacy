@@ -39,9 +39,9 @@ Inductive program_sim (P1 P2:system) (main:id) (VarArgs:list (GVsT DGVs)) :
     (forall Tr, 
       Opsem.s_diverges P1 main VarArgs Tr -> 
       Opsem.s_diverges P2 main VarArgs Tr) ->
-    (forall tr1 St1, 
-      Opsem.s_goeswrong P1 main VarArgs tr1 St1 -> 
-      undefined_program P2 main VarArgs) -> 
+    (forall tr St1, 
+      Opsem.s_goeswrong P1 main VarArgs tr St1 -> 
+      exists St2, Opsem.s_goeswrong P2 main VarArgs tr St2) -> 
     defined_program P2 main VarArgs ->
     program_sim P1 P2 main VarArgs
 .
@@ -63,7 +63,6 @@ Lemma program_sim_refl: forall P main VarArgs
 Proof.
   intros.
   apply program_sim_intro; intros; eauto using result_match_relf.
-    exists tr1. exists St1. auto.
 Qed.
 
 Lemma val_result_match_symm: forall v1 v2
@@ -119,6 +118,17 @@ Proof.
       congruence.
 Qed.
 
+Lemma s_goeswrong__undefined_program: forall P main VarArgs tr St
+  (Hgw: Opsem.s_goeswrong P main VarArgs tr St)
+  (Hdef: defined_program P main VarArgs),
+  False.
+Proof.
+  unfold defined_program.
+  intros.
+  contradict Hdef.
+  exists tr. exists St. auto.
+Qed.
+
 Lemma program_sim_trans: forall P1 P2 P3 main VarArgs
   (Hsim1: program_sim P1 P2 main VarArgs) 
   (Hsim2: program_sim P2 P3 main VarArgs),
@@ -130,7 +140,9 @@ Proof.
     apply H3 in J1. destruct J1 as [r3 [J3 J4]].
     exists r3. split; eauto using result_match_trans.
 
-    apply H1 in H7. unfold defined_program in H2. tauto. 
+    apply H1 in H7. destruct H7 as [St2 H7].
+    apply s_goeswrong__undefined_program in H7; auto.
+    tauto.
 Qed.
 
 Lemma val_inject__result_match: forall mi v1 v2
@@ -155,7 +167,9 @@ Lemma program_sim__preserves__defined_program: forall P1 P2 main VarArgs
 Proof.
   intros. inv Hsim. intro Hbad. 
   destruct Hbad as [tr1 [St1 Hbad]]. unfold defined_program in H2. 
-  apply H1 in Hbad. tauto.
+  apply H1 in Hbad. 
+  destruct Hbad as [St2 Hgw].
+  contradict H2. exists tr1. exists St2. auto.
 Qed.
 
 Axiom genGlobalAndInitMem__wf_global: forall initGlobal initFunTable initMem

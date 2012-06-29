@@ -805,6 +805,6 @@ end.
         try solve [eauto | tauto].
         eapply phinodes_placement_wfS in HwfS; eauto.
     apply undefined_state__stuck' in Hundef'.
-    exists tr. exists FS1.
+    exists FS1.
     econstructor; eauto.
 Qed.

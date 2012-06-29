@@ -1246,6 +1246,6 @@ end.
       eapply s_isFinialState__dse_State_simulation_None_r2l in H2; 
         try solve [eauto | tauto].
     apply undefined_state__stuck' in Hundef'.
-    exists (tr**E0). exists FS1'.
+    rewrite <- E0_right with (t:=tr). exists FS1'.
     econstructor; eauto using (@OpsemProps.sop_star_trans DGVs).   
 Qed.
