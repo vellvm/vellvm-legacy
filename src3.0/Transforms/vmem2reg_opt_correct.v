@@ -2881,6 +2881,15 @@ Proof.
     apply find_stld_pair_cmd__wf_stld_state; auto.
 Qed.
 
+Lemma find_stld_pairs_cmds__wf_stld_state: forall (pid : id) cs,
+  wf_stld_state cs pid (fold_left (find_stld_pair_cmd pid) cs (STLD_init, nil)).
+Proof.
+  intros.
+  assert (cs = nil ++ cs) as EQ. auto.
+  eapply find_stld_pairs_cmds__wf_stld_state_aux in EQ; eauto.
+  simpl. unfold alloca_in_cmds, store_in_cmds. auto.
+Qed.
+
 Definition find_stld_pair_cmd' (pid:id) (acc:stld_state * AssocList action) 
   (c:cmd) : stld_state * option (id * action) :=
 let '(st, actions) := acc in
@@ -3016,27 +3025,170 @@ Ltac find_stld_pair_cmd'__wf_cs_action_pre_tac :=
       destruct_dec.
 Qed.
 
-Lemma find_stld_pair_cmd__split: forall pid st c st' ac
-  (Hfind: find_stld_pair_cmd pid st c = st') (Hin: In ac (snd st')),
-  In ac (snd st) \/ find_stld_pair_cmd' pid st c = (fst st', Some ac).
-Admitted.
+Local Opaque find_stld_pair_cmd' find_stld_pair_cmd.
 
-Lemma find_stld_pairs_cmds__split: forall pid s0 acc0 ac cs acs s2
-  (Heq: fold_left (find_stld_pair_cmd pid) cs (s0, acc0) = 
-    (s2, acs ++ acc0))
-  (Hin: In ac acs),
-  exists acs1, exists acs2,
+Lemma find_stld_pairs_cmds_cons_inv: forall pid cs s acs s' acs'
+  (Heq: fold_left (find_stld_pair_cmd pid) cs (s, acs) = (s', acs')),
+  exists acs0, acs' = acs0 ++ acs.
+Proof.
+  induction cs as [|c cs]; simpl; intros.
+    uniq_result. exists nil. auto.
+
+    rewrite find_stld_pair_cmd__find_stld_pair_cmd' in Heq.
+    case_eq (find_stld_pair_cmd' pid (s, acs) c).
+    intros s0 o Heq'.
+    rewrite Heq' in Heq.
+    destruct o as [ac'|]; simpl in Heq. 
+      apply IHcs in Heq.
+      destruct Heq as [acs0 Heq]; subst.
+      exists (acs0 ++ [ac']). simpl_env. auto.
+    
+      apply IHcs in Heq; auto.
+Qed.
+
+Lemma find_stld_pairs_cmds__split_aux: forall pid cs acs1 ac acs2 s0 acs0 s2
+  (Heq: fold_left (find_stld_pair_cmd pid) cs (s0, acs0) = 
+          (s2, acs2 ++ ac :: acs1 ++ acs0)),
   exists cs1, exists c, exists cs2, exists s1, exists s,
-    fold_left (find_stld_pair_cmd pid) cs1 (s0, acc0) = (s1, acs1 ++ acc0) /\
-    find_stld_pair_cmd' pid (s1, acs1 ++ acc0) c = (s, Some ac) /\    
-    fold_left (find_stld_pair_cmd pid) cs2 (s, ac::acs1 ++ acc0) = 
-      (s2, acs2 ++ ac :: acs1 ++ acc0).
+    cs = cs1 ++ c :: cs2 /\
+    fold_left (find_stld_pair_cmd pid) cs1 (s0, acs0) = (s1, acs1 ++ acs0) /\
+    find_stld_pair_cmd' pid (s1, acs1 ++ acs0) c = (s, Some ac) /\    
+    fold_left (find_stld_pair_cmd pid) cs2 (s, ac::acs1 ++ acs0) = 
+      (s2, acs2 ++ ac :: acs1 ++ acs0).
 Proof.
   induction cs as [|c cs]; simpl; intros; subst.
-    inversion Heq. admit.
+  Case "base".
+    inversion Heq. anti_simpl_env.  
+  Case "ind".
+    rewrite find_stld_pair_cmd__find_stld_pair_cmd' in Heq.
+    case_eq (find_stld_pair_cmd' pid (s0, acs0) c).
+    intros s o Heq'.
+    rewrite Heq' in Heq.
+    destruct o as [ac'|]; simpl in Heq. 
+    SCase "1".
+      assert (J:=Heq).
+      apply find_stld_pairs_cmds_cons_inv in J. destruct J as [acs3 J].
+      anti_simpl_env.
+      destruct acs1 as [|ac1 acs1].
+      SSCase "1.1".
+        anti_simpl_env.
+        exists nil. exists c. exists cs. exists s0. exists s. 
+        split; auto.
+      SSCase "1.2".
+        destruct (cons_last _ ac1 acs1) as [pre [last EQ]].
+        rewrite EQ in J, Heq.
+        anti_simpl_env. 
+        rewrite_env (acs2 ++ ac :: pre ++ (ac' :: acs0)) in Heq.
+        apply IHcs in Heq; auto.
+        destruct Heq as [cs1 [c' [cs2 [s1 [s3 [J1 [J2 [J3 J4]]]]]]]].
+        exists (c::cs1). exists c'. exists cs2. exists s1. exists s3. 
+        split.
+          simpl. subst. auto.
+        split.
+          simpl. rewrite find_stld_pair_cmd__find_stld_pair_cmd'. rewrite Heq'.      
+          rewrite_env (([ac1] ++ acs1) ++ acs0). rewrite EQ. simpl_env. auto.
+        split.
+          rewrite_env (([ac1] ++ acs1) ++ acs0). rewrite EQ. simpl_env. auto.
+          rewrite_env (([ac1] ++ acs1) ++ acs0). rewrite EQ. simpl_env. auto.
 
-    destruct c; try solve [apply IHcs in Heq; auto].
-Admitted.
+    SCase "2".
+      apply IHcs in Heq; auto.
+      destruct Heq as [cs1 [c' [cs2 [s1 [s3 [J1 [J2 [J3 J4]]]]]]]].
+      exists (c::cs1). exists c'. exists cs2. exists s1. exists s3.
+      simpl. rewrite find_stld_pair_cmd__find_stld_pair_cmd'. rewrite Heq'.      
+      subst; split; auto.
+Qed.
+
+Lemma find_stld_pairs_cmds__split: forall pid cs acs1 ac acs2 s2
+  (Heq: fold_left (find_stld_pair_cmd pid) cs (STLD_init, nil) = 
+          (s2, acs2 ++ ac :: acs1)),
+  exists cs1, exists c, exists cs2, exists s1, exists s, 
+    cs = cs1 ++ c :: cs2 /\
+    fold_left (find_stld_pair_cmd pid) cs1 (STLD_init, nil) = (s1, acs1) /\
+    find_stld_pair_cmd' pid (s1, acs1) c = (s, Some ac) /\    
+    fold_left (find_stld_pair_cmd pid) cs2 (s, ac::acs1) = 
+      (s2, acs2 ++ ac :: acs1).
+Proof.
+  intros.
+  replace acs1 with (acs1++nil) in Heq; auto.
+  apply find_stld_pairs_cmds__split_aux in Heq.
+  simpl_env in *. auto.
+Qed.
+
+Lemma loads_must_be_in_pre_rev: forall acs pid cs
+  (Hwf: loads_must_be_in_pre (rev acs) pid cs),
+  loads_must_be_in_pre acs pid cs.
+Proof.
+  unfold loads_must_be_in_pre. intros.
+  apply Forall_forall. intros x Hinx Heq.
+  eapply Forall_forall in Hwf; eauto.
+  apply Hwf in Heq.
+  apply binds_In_inv in Heq.
+  destruct Heq as [ac Heq].
+  apply binds_In with (a:=ac); auto.
+  unfold binds in *.
+  apply in_rev; auto.
+Qed.
+
+Lemma wf_cs_action_pre_rev: forall acs cs pid ac 
+  (Hwf: wf_cs_action_pre (rev acs) cs pid ac),
+  wf_cs_action_pre acs cs pid ac.
+Proof.
+  unfold wf_cs_action_pre. intros.
+  destruct ac as [? []].
+    destruct Hwf as [v0 [cs01 [c0 [cs02 [dones [J1 [J2 [J3 J4]]]]]]]].
+    apply loads_must_be_in_pre_rev in J4. eauto 9.
+
+    destruct Hwf as [id0 [cs01 [c0 [cs02 [dones [J1 [J2 [J3 [J4 J5]]]]]]]]].
+    apply loads_must_be_in_pre_rev in J5. eauto 10.
+
+    destruct Hwf as [cs01 [c0 [cs02 [dones [J1 [J2 [J3 [J4 J5]]]]]]]].
+    apply loads_must_be_in_pre_rev in J5. eauto 9.
+Qed.
+
+Lemma wf_cs_action_pre_weaken: forall acs1 acs2 cs pid ac 
+  (Hwf: wf_cs_action_pre acs2 cs pid ac),
+  wf_cs_action_pre (acs1++acs2) cs pid ac.
+Proof.
+  unfold wf_cs_action_pre. intros.
+  destruct ac as [? []].
+    destruct Hwf as [v0 [cs01 [c0 [cs02 [dones [J1 [J2 [J3 J4]]]]]]]].
+    apply loads_must_be_in_pre_weaken with (acs1:=acs1) in J4. eauto 9.
+
+    destruct Hwf as [id0 [cs01 [c0 [cs02 [dones [J1 [J2 [J3 [J4 J5]]]]]]]]].
+    apply loads_must_be_in_pre_weaken with (acs1:=acs1) in J5. eauto 10.
+
+    destruct Hwf as [cs01 [c0 [cs02 [dones [J1 [J2 [J3 [J4 J5]]]]]]]].
+    apply loads_must_be_in_pre_weaken with (acs1:=acs1) in J5. eauto 9.
+Qed.
+
+Definition wf_cs_actions (acs: AssocList action) (cs:cmds) (pid:id) : Prop :=
+forall acs1 ac acs2 (Heq: acs = acs1 ++ ac :: acs2),
+  wf_cs_action_pre acs1 cs pid ac.
+
+Lemma find_stld_pairs_cmds__wf_cs_actions: forall pid cs 
+  (Huniq: NoDup (getCmdsLocs cs)),
+  wf_cs_actions (find_stld_pairs_cmds cs pid) cs pid.
+Proof.
+  unfold find_stld_pairs_cmds.
+  intros.
+  intros acs1 ac acs2 Heq.
+  case_eq (fold_left (find_stld_pair_cmd pid) cs (STLD_init, nil)).
+  intros s' ac' Hfind.
+  rewrite Hfind in Heq. simpl in Heq.
+  assert (ac' = rev acs2 ++ ac :: rev acs1) as EQ.
+    rewrite <- rev_involutive with (l:=ac').
+    rewrite Heq. rewrite rev_app_distr. simpl. simpl_env. auto.
+  subst. clear Heq.
+  apply find_stld_pairs_cmds__split in Hfind.
+  destruct Hfind as [cs1 [c [cs2 [s1 [s [J1 [J2 [J3 J4]]]]]]]].
+  eapply find_stld_pair_cmd'__wf_cs_action_pre in J3; eauto.
+    simpl in J3. apply wf_cs_action_pre_rev; auto.
+
+    rewrite <- J2. apply find_stld_pairs_cmds__wf_stld_state; auto.
+Qed.
+
+Transparent find_stld_pair_cmd' find_stld_pair_cmd.
 
 End TEST.
 
