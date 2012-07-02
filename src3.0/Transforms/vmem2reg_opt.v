@@ -436,8 +436,7 @@ if (in_dec id_dec l5 rd) then find_stld_pairs_cmds cs pid else nil.
 
 Definition elim_stld_fdef (pid:id) (rd:list l) (f:fdef) : fdef :=
 let '(fdef_intro _ bs) := f in
-let pairs := 
-  List.flat_map Datatypes.id (List.map (find_stld_pairs_block pid rd) bs) in
+let pairs := List.flat_map (find_stld_pairs_block pid rd) bs in
 AVLComposedPass.run pairs f.
 
 (************************************************)
@@ -525,7 +524,7 @@ elim_phi_phis f ps.
 
 Definition elim_phi_fdef f :=
 let '(fdef_intro fh bs) := f in
-List.flat_map Datatypes.id (List.map (elim_phi_block f) bs).
+List.flat_map (elim_phi_block f) bs.
 
 Definition elim_phi_step f :=
 match elim_phi_fdef f with
