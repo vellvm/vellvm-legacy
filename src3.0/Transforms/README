@@ -27,36 +27,30 @@ Section 3.1
   2.5 idDominates in Vminus/analysis.v 
   2.6 inscope_of_cmd, inscope_of_tmn in Vminus/analysis.v  
 
-  Lemma 1. 
-  1.1 dom_entrypoint in Vminus/analysis.v  
-  1.2 dom_successors in Vminus/typings_props.v
-  
-  Lemma 2.
-  2.1 dom_tran, sdom_tran in Vminus/typings_props.v
-  2.2 idDominates_inscope_of_cmd__inscope_of_cmd,
+  Lemma 1.
+  1.1 dom_tran, sdom_tran in Vminus/typings_props.v
+  1.2 idDominates_inscope_of_cmd__inscope_of_cmd,
       idDominates_inscope_of_tmn__inscope_of_tmn in Vminus/typings_props.v
    
-  Lemma 3. dom_acyclic in Vminus/typings_props.v
+  Lemma 2. dom_acyclic in Vminus/typings_props.v
 
-  Lemma 4. wf_insn_base__non_selfref in Vminus/typings_props.v
-
-  Lemma 5.
-  5.1 inscope_of_cmd_tmn, inscope_of_cmd_cmd in Vminus/analysis.v  
-  5.2 inscope_of_tmn__inscope_of_cmd_at_beginning in Vminus/analysis.v 
+  Lemma 3.
+  3.1 inscope_of_cmd_tmn, inscope_of_cmd_cmd in Vminus/analysis.v  
+  3.2 inscope_of_tmn__inscope_of_cmd_at_beginning in Vminus/analysis.v 
 
 Section 3.2
 
-  Lemma 6. OpsemPP.safety in Vminus/opsem_wf.v
+  Lemma 4. OpsemPP.safety in Vminus/opsem_wf.v
 
-  Lemma 7. OpsemPP.s_genInitState__wf_EC in Vminus/opsem_wf.v
+  Lemma 5. OpsemPP.s_genInitState__wf_EC in Vminus/opsem_wf.v
 
-  Lemma 8. OpsemPP.preservation in Vminus/opsem_wf.v
+  Lemma 6. OpsemPP.preservation in Vminus/opsem_wf.v
   
-  Lemma 9. OpsemPP.progress in Vminus/opsem_wf.v
+  Lemma 7. OpsemPP.progress in Vminus/opsem_wf.v
 
 Section 3.3
 
-  Lemma 10. OpsemDom.preservation in Vminus/opsem_wf.v
+  Lemma 8. OpsemDom.preservation in Vminus/opsem_wf.v
   
 Section 3.4
 
@@ -67,18 +61,18 @@ Section 3.4
   Vminus/renaming.v verifies the correctness of variable renaming.
   Vminus/insert.v verifies the correctness of instruction insertion. 
 
-  Lemma 11. 
+  Lemma 9. 
   1. TransWF.pres_blockDominates in Vminus/trans.v
   2. subst_insnDominates in Vminus/subst.v
 
-  Lemma 12. isubst_wf_fdef in Vminus/vsubst.v
+  Lemma 10. isubst_wf_fdef in Vminus/vsubst.v
 
-  Lemma 13.
+  Lemma 11.
   1. getOperandValue_inCmdOps_sim, getOperandValue_inTmnOperans_sim 
      in Vminus/vsubst.v
   2. switchToNewBasicBlock_sim in Vminus/vsubst.v
 
-  Lemma 14. backsimulation in Vminus/vsubst.v
+  Lemma 12. backsimulation in Vminus/vsubst.v
 
   Vellvm/opsem_dom.v proves Lemma 14 in the full Vellvm.
 
@@ -93,15 +87,15 @@ Section 4.2
   The algorithm of vmem2reg: Transforms/vmem2reg.v
 
 Section 5.1
-  Lemma 15. find_promotable_alloca__WF_PhiInfo in Transforms/palloca_props.v
+  Lemma 13. find_promotable_alloca__WF_PhiInfo in Transforms/palloca_props.v
 
-  Lemma 16. phinodes_placement_wfPI in Transforms/phiplacement_bsim_wfS.v
+  Lemma 14. phinodes_placement_wfPI in Transforms/phiplacement_bsim_wfS.v
 
-  Lemma 17.
+  Lemma 15.
   1. subst_wfPI in Transforms/subst.v
   2. filter_wfPI in Transforms/filter.v
 
-  Lemma 18.
+  Lemma 16.
   las_die_wfPI in Transforms/las_wfS.v
   laa_die_wfPI in Transforms/laa_wfS.v
   sas_wfPI in Transforms/sas_wfS.v
@@ -109,17 +103,17 @@ Section 5.1
 
 Section 5.2
 
-  Lemma 19. TopWFS.trans_wfS in Transforms/top_wfS.v
+  Lemma 17. TopWFS.trans_wfS in Transforms/top_wfS.v
 
-  Lemma 20. phinodes_placement_wfS in Transforms/phiplacement_bsim_wfS.v
+  Lemma 18. phinodes_placement_wfS in Transforms/phiplacement_bsim_wfS.v
 
-  Lemma 21. 
+  Lemma 19. 
   1. subst_wfS in Transforms/subst.v
   2. filter_wfS in Transforms/filter.v
 
-  Lemma 22. subst_fdef__diinfo in Transforms/die_wfS.v
+  Lemma 20. subst_fdef__diinfo in Transforms/die_wfS.v
 
-  Lemma 23.
+  Lemma 21.
   las_die_wfS in Transforms/las_wfS.v
   laa_die_wfS in Transforms/laa_wfS.v
   sas_wfS in Transforms/sas_wfS.v
@@ -131,30 +125,30 @@ Section 5.2
 
 Section 5.3
 
-  Lemma 24.
+  Lemma 22.
     Promotability.s_genInitState__wf_globals_promotable,
     Promotability.preservation_star in Transforms/promotable_props.v
 
-  Lemma 25. phinodes_placement_sim in Transforms/phiplacement_bsim_top.v
+  Lemma 23. phinodes_placement_sim in Transforms/phiplacement_bsim_top.v
 
-  Lemma 26. 
+  Lemma 24. 
   1. las__alive_store in Transforms/las.v 
   2. s_genInitState__alive_store, reservation_star in Transforms/alove_store.v
 
-  Lemma 27. die_sim in Transforms/die_top.v
+  Lemma 25. die_sim in Transforms/die_top.v
 
-  Lemma 28. las_die_sim_wfS in Transforms/las_top.v
+  Lemma 26. las_die_sim_wfS in Transforms/las_top.v
 
   laa_die_sim_wfS in Transforms/laa_top.v proves that LAA preserves semantics.
 
-  Lemma 29. PEInfo__vev in Transforms/phisubst.inv.v
+  Lemma 27. PEInfo__vev in Transforms/phisubst.inv.v
 
   elimphi_sim_wfS in Transforms/phielim_top.v proves that phi-node elimination 
   preserves semantics.
 
 Section 5.4
  
-  Lemma 30. mem2reg_run_sim_wfS in vmem2reg_correct.v
+  Lemma 28. mem2reg_run_sim_wfS in vmem2reg_correct.v
 
 **************************************************************************
 Contents
