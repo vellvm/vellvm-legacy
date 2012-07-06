@@ -31,6 +31,7 @@ Require Import phielim_top.
 Require Import vmem2reg.
 Require Import vmem2reg_correct.
 Require Import vmem2reg_opt.
+Require Import vmem2reg_opt_compose_props.
 
 (***************************************************************)
 
@@ -373,52 +374,6 @@ Proof.
   apply AtomSet.set_remove_spec1; auto.
     intro EQ. uniq_result. congruence.
 Qed.
-
-(***************************************************************)
-
-Lemma list_subst_actions__uniq: forall id0 ac0 actions (Huniq: uniq actions),
-  uniq (ListComposedPass.subst_actions id0 ac0 actions).
-Proof.
-  unfold ListComposedPass.subst_actions.
-  intros. destruct (action2value ac0); auto.
-Qed.
-
-Lemma list_subst_actions__dom: forall id0 ac0 actions,
-  dom (ListComposedPass.subst_actions id0 ac0 actions) [=] dom actions.
-Proof.
-  unfold ListComposedPass.subst_actions.
-  intros. 
-  destruct (action2value ac0); try fsetdec.
-    apply dom_map.
-Qed.
-
-Lemma list_subst_actions__length: forall id0 ac0 actions,
-  length actions = length (ListComposedPass.subst_actions id0 ac0 actions).
-Proof.
-  unfold ListComposedPass.subst_actions, ListMap.map.
-  intros. destruct (action2value ac0); auto.
-    erewrite <- List.map_length; eauto.
-Qed.
-
-(***************************************************************)
-
-Program Fixpoint substs_actions (pairs: AssocList action) 
-  {measure (length pairs)} : AssocList action :=
-match pairs with 
-| nil => nil
-| (id1, ac1)::pairs' => 
-    (id1, ac1)::substs_actions (ListComposedPass.subst_actions id1 ac1 pairs')
-end.
-Next Obligation.
-  rewrite <- list_subst_actions__length; simpl; auto.
-Qed.
-
-Ltac unfold_substs_actions :=
-match goal with
-| |- appcontext [substs_actions ?arg] =>
-   unfold substs_actions;
-   Program.Wf.WfExtensionality.unfold_sub substs_actions arg
-end.
 
 (***************************************************************)
 
@@ -1130,33 +1085,6 @@ Qed.
 
 (***************************************************************)
 
-Definition subst_action_action (ac:action) (elt:id * action): action :=
-let '(id1, ac1) := elt in
-match action2value ac1 with
-| Some v1 => subst_action id1 v1 ac
-| _ => ac
-end.
-
-Definition pipelined_actions_action (actions: list (id*action)) (ac:action) 
-  : action :=
-List.fold_left subst_action_action actions ac.
-
-Definition pipelined_actions (pairs: AssocList action) (f:fdef) : fdef :=
-List.fold_left apply_action (substs_actions pairs) f.
-
-Fixpoint pipelined_actions__composed_actions (actions: list (id*action))
-  : list (id*action) :=
-match actions with
-| nil => nil
-| (id0,ac0)::actions' => 
-    (id0, pipelined_actions_action actions' ac0)::
-      pipelined_actions__composed_actions actions'
-end.
-
-Definition composed_pipelined_actions (pairs: AssocList action) (f:fdef): fdef :=
-ListComposedPass.substs_fdef 
-  (pipelined_actions__composed_actions (substs_actions pairs)) f.
-
 Definition subst_action_value (v:value) (elt:id * action): value :=
 let '(id1, ac1) := elt in
 match action2value ac1 with
@@ -1566,6 +1494,21 @@ Qed.
 
 (***************************************************************)
 
+Lemma lookupAL_map_iff: forall A f m id0 ac0,
+  lookupAL A (ListMap.map f m) id0 = Some ac0 <->
+    exists ac1, ac0 = f ac1 /\ lookupAL A m id0 = Some ac1.
+Proof.
+  induction m as [|[id1 v1] m]; simpl; intros.
+    split; intro J; try congruence.
+      destruct J as [ac1 [? J]]; congruence.
+
+    destruct_if.
+    split; intro J.
+      uniq_result. eauto.
+
+      destruct J as [ac1 [? ?]]; uniq_result; auto.
+Qed.
+
 Definition avl_actions__iff_mapsto__list_actions 
   A (actions1:AVLMap.t A) (actions2:ListMap.t A): Prop :=
 forall id0 ac0, 
@@ -1574,19 +1517,210 @@ forall id0 ac0,
 
 Implicit Arguments avl_actions__iff_mapsto__list_actions [A].
 
-Lemma avl_substs_fdef__iff_mapsto__list_substs_fdef: forall actions2 actions1 f
-  (Hiff: avl_actions__iff_mapsto__list_actions actions1 actions2),
+Section avl_substs__iff_mapsto__list_substs.
+
+Variable (actions1:AVLMap.t action) (actions2:ListMap.t action).
+Hypothesis (Hiff : avl_actions__iff_mapsto__list_actions actions1 actions2).
+
+Lemma iff_mapsto__find_none: forall id1
+  (Hfind1 : ListMap.find id1 actions2 = merror),
+  AVLMap.find action id1 actions1 = merror.
+Proof.
+  intros.
+  case_eq (AVLMap.find action id1 actions1); auto.
+  intros ac Heq.
+  apply AVLFacts.find_mapsto_iff in Heq.
+  apply Hiff in Heq. unfold ListMap.find in Hfind1.
+  congruence.
+Qed.
+
+Lemma avl_substs_value__iff_mapsto__list_substs_value: forall v0,
+  AVLComposedPass.substs_value actions1 v0 =
+    ListComposedPass.substs_value actions2 v0.
+Proof.
+  unfold avl_actions__iff_mapsto__list_actions in *.
+  destruct v0 as [id0|]; simpl; auto.
+  unfold AVLMap.find, ListMap.find.
+  case_eq (lookupAL action actions2 id0).
+    intros ac Heq.
+    apply Hiff in Heq.
+    apply AVLFacts.find_mapsto_iff in Heq.
+    rewrite Heq. auto.
+
+    intros Hneq.
+    rewrite iff_mapsto__find_none; auto.
+Qed.
+
+Lemma avl_substs_list_value_l__iff_mapsto__list_substs_list_value_l: forall l0,
+  AVLComposedPass.substs_list_value_l actions1 l0 =
+    ListComposedPass.substs_list_value_l actions2 l0.
+Proof.
+  induction l0 as [|[v0 vls0] l0]; simpl; auto.
+    f_equal; auto.
+    f_equal; auto.
+      apply avl_substs_value__iff_mapsto__list_substs_value.
+Qed.
+
+Lemma avl_substs_phi__iff_mapsto__list_substs_phi: forall p,
+  AVLComposedPass.substs_phi actions1 p = 
+    ListComposedPass.substs_phi actions2 p.
+Proof.
+  intros.
+  destruct p. simpl.
+  f_equal; auto.
+    apply avl_substs_list_value_l__iff_mapsto__list_substs_list_value_l.
+Qed.
+
+Lemma avl_substs_list_value__iff_mapsto__list_substs_list_value: forall l0,
+  AVLComposedPass.substs_list_value actions1 l0 =
+    ListComposedPass.substs_list_value actions2 l0.
+Proof.
+  induction l0 as [|[sz0 v0] l0]; simpl; auto.
+    f_equal; auto.
+    f_equal; auto.
+      apply avl_substs_value__iff_mapsto__list_substs_value.
+Qed.
+
+Lemma avl_substs_pars__iff_mapsto__list_substs_pars: forall ps,
+  List.map
+     (fun p : typ * attributes * value =>
+      let '(t, v) := p in (t, AVLComposedPass.substs_value actions1 v))
+     ps =
+   List.map
+     (fun p : typ * attributes * value =>
+      let '(t, v) := p in (t, ListComposedPass.substs_value actions2 v))
+     ps.
+Proof.
+  induction ps as [|[[t0 a0] v0] ps]; simpl; auto.
+    f_equal; auto.
+    f_equal; auto.
+      apply avl_substs_value__iff_mapsto__list_substs_value.
+Qed.
+
+Lemma avl_substs_cmd__iff_mapsto__list_substs_cmd: forall c,
+  AVLComposedPass.substs_cmd actions1 c = 
+    ListComposedPass.substs_cmd actions2 c.
+Proof.
+  intros.
+  destruct c; simpl; f_equal; 
+    auto using avl_substs_list_value_l__iff_mapsto__list_substs_list_value_l,
+               avl_substs_value__iff_mapsto__list_substs_value,
+               avl_substs_list_value__iff_mapsto__list_substs_list_value,
+               avl_substs_pars__iff_mapsto__list_substs_pars.
+Qed.
+
+Lemma avl_substs_tmn__iff_mapsto__list_substs_tmn: forall tmn,
+  AVLComposedPass.substs_tmn actions1 tmn = 
+    ListComposedPass.substs_tmn actions2 tmn.
+Proof.
+  intros.
+  destruct tmn; simpl; f_equal; 
+    auto using avl_substs_value__iff_mapsto__list_substs_value.
+Qed.
+
+Lemma avl_substs_fdef__iff_mapsto__list_substs_fdef: forall f,
   AVLComposedPass.substs_fdef actions1 f = 
     ListComposedPass.substs_fdef actions2 f.
-Admitted.
+Proof.
+  intros.
+  destruct f as [fh bs]. simpl.
+  f_equal.
+  induction bs as [|[l1 ps1 cs1 tmn1] bs]; simpl; auto.
+    f_equal; auto.
+    f_equal; auto.
+      apply map_ext. intro p.
+      apply avl_substs_phi__iff_mapsto__list_substs_phi; auto.
+
+      apply map_ext. intro c.
+      apply avl_substs_cmd__iff_mapsto__list_substs_cmd; auto.
+
+      apply avl_substs_tmn__iff_mapsto__list_substs_tmn; auto.
+Qed.
+
+Lemma iff_mapsto__find_parent_action: forall (ac : action),
+  ListComposedPass.find_parent_action ac actions2 =
+    AVLComposedPass.find_parent_action ac actions1.
+Proof.
+  intros.
+  destruct ac as [|v1|t1]; simpl; auto.
+  destruct v1 as [id1|]; simpl; auto.
+  case_eq (ListMap.find id1 actions2).
+    intros ac1 Hfind1.
+    apply Hiff in Hfind1. 
+    apply AVLFacts.find_mapsto_iff in Hfind1. 
+    unfold AVLMap.find.
+    rewrite Hfind1; auto.
+
+    intros Hfind1.
+    erewrite iff_mapsto__find_none; eauto.
+Qed.
+
+Lemma iff_mapsto__subst_actions_find1: forall id1 id0 ac0 ac2
+  (J : AVLMap.AtomFMapAVL.MapsTo id0 ac0
+         (AVLComposedPass.subst_actions id1 ac2 actions1)),
+  lookupAL action (ListComposedPass.subst_actions id1 ac2 actions2) id0 = 
+    ret ac0.
+Proof.
+  intros.
+  unfold AVLComposedPass.subst_actions, ListComposedPass.subst_actions in *.
+  destruct (action2value ac2) as [v0|].
+    apply AVLFacts.map_mapsto_iff in J.
+    apply lookupAL_map_iff.
+    destruct J as [a [EQ J]]; subst.
+    exists a. 
+    split; auto.
+      apply Hiff; auto.
+
+    apply Hiff; auto.
+Qed.
+
+Lemma iff_mapsto__subst_actions_find2: forall id1 id0 ac0 ac2
+  (J: lookupAL action (ListComposedPass.subst_actions id1 ac2 actions2) id0 = 
+        ret ac0),
+  AVLMap.AtomFMapAVL.MapsTo id0 ac0 
+    (AVLComposedPass.subst_actions id1 ac2 actions1).
+Proof.
+  intros.
+  unfold AVLComposedPass.subst_actions, ListComposedPass.subst_actions in *.
+  destruct (action2value ac2) as [v0|].
+    apply lookupAL_map_iff in J.
+    apply AVLFacts.map_mapsto_iff.
+    destruct J as [a [EQ J]]; subst.
+    exists a. 
+    split; auto.
+      apply Hiff; auto.
+
+    apply Hiff; auto.
+Qed.
+
+End avl_substs__iff_mapsto__list_substs.
 
 (***************************************************************)
 
 Lemma avl_compose_actions__iff_mapsto__list_compose_actions: forall actions,
   avl_actions__iff_mapsto__list_actions
-     (AVLComposedPass.compose_actions actions)
-     (ListComposedPass.compose_actions actions).
-Admitted.
+    (AVLComposedPass.compose_actions actions)
+    (ListComposedPass.compose_actions actions).
+Proof.
+  induction actions as [|[id1 ac1] actions]; simpl; intros.
+    split; simpl; intro J; try congruence.
+      apply AVLFacts.empty_mapsto_iff in J. tauto.
+
+    assert (Heqfind:=IHactions).
+    apply iff_mapsto__find_parent_action with (ac:=ac1) in Heqfind; auto.
+    split; simpl; intro J.
+      apply AVLFacts.add_mapsto_iff in J.
+      destruct J as [[Heq J]|[Hneq J]]; subst; destruct_if; try congruence. 
+        rewrite Heqfind. clear Heqfind.
+        eapply iff_mapsto__subst_actions_find1; eauto.
+
+      apply AVLFacts.add_mapsto_iff.
+      destruct_if.
+        left. split; auto.
+        right. split; auto.
+          rewrite <- Heqfind. clear Heqfind.
+          eapply iff_mapsto__subst_actions_find2; eauto.
+Qed.
 
 (***************************************************************)
 
@@ -1597,331 +1731,6 @@ Proof.
   intros.
   apply avl_substs_fdef__iff_mapsto__list_substs_fdef.
   apply avl_compose_actions__iff_mapsto__list_compose_actions.
-Qed.
-
-(***************************************************************)
-
-Require Import Paths.
-
-Section ActionGraph.
-
-Variable actions: AssocList action.
-
-Definition avertexes : V_set :=
-fun (v:Vertex) => 
-  let '(index n) := v in 
-  n `in` dom actions \/ exists id0, In (id0, AC_vsubst (value_id n)) actions.
-
-Definition aarcs : A_set :=
-fun (arc:Arc) =>
-  let '(A_ends (index n2) (index n1)) := arc in
-  In (n2, AC_vsubst (value_id n1)) actions. 
-
-Definition acyclic_actions : Prop :=
-  forall x y vl al p,
-    Cycle avertexes aarcs x y vl al p -> vl = V_nil.
-
-End ActionGraph.
-
-Lemma list_substs_actions__acyclic : forall actions 
-  (Hacyclic: acyclic_actions actions),
-  acyclic_actions (substs_actions actions).
-Admitted.
-
-Lemma pipelined_actions__composed_actions__acyclic : forall actions 
-  (Hacyclic: acyclic_actions actions),
-  acyclic_actions (pipelined_actions__composed_actions actions).
-Admitted.
-
-Lemma list_compose_actions__acyclic : forall actions 
-  (Hacyclic: acyclic_actions actions),
-  acyclic_actions (ListComposedPass.compose_actions actions).
-Admitted.
-
-Lemma acyclic_actions_cons_inv: forall id0 ac0 actions
-  (Hacyclic: acyclic_actions ((id0, ac0) :: actions)),
-  acyclic_actions actions.
-Admitted.
-
-Lemma list_subst_actions_app: forall id0 ac0 actions2 actions1,
-  ListComposedPass.subst_actions id0 ac0 (actions1++actions2) = 
-    ListComposedPass.subst_actions id0 ac0 actions1++
-      ListComposedPass.subst_actions id0 ac0 actions2.
-Proof.
-  unfold ListComposedPass.subst_actions.
-  intros.
-  destruct (action2value ac0); auto.
-  apply map_app.
-Qed.
-
-Lemma list_subst_actions_Some_cons: forall id0 ac0 v0 id1 ac1 actions
-  (Heq: action2value ac0 = Some v0),
-  ListComposedPass.subst_actions id0 ac0 ((id1, ac1)::actions) = 
-    (id1, subst_action id0 v0 ac1)::
-      ListComposedPass.subst_actions id0 (AC_vsubst v0) actions.
-Proof.
-  unfold ListComposedPass.subst_actions.
-  intros. rewrite Heq. auto.
-Qed.
-
-Lemma list_subst_actions_None_cons: forall id0 ac0 actions
-  (Heq: action2value ac0 = None),
-  ListComposedPass.subst_actions id0 ac0 actions = actions.
-Proof.
-  unfold ListComposedPass.subst_actions.
-  intros. rewrite Heq. auto.
-Qed.
-
-Inductive segment (id0:id) (v0:value) : list (id*action) -> Prop :=
-| seqment_base: segment id0 v0 [(id0, AC_vsubst v0)]
-| seqment_int: forall id1 ac1 actions 
-    (Hneq: id1 <> id0) (Hseg: segment id0 v0 actions),
-    segment id0 v0 ((id1,ac1)::actions)
-.
-
-Inductive segments (v:value) : list id -> list (id*action) -> Prop := 
-| segments_hd: forall id0 actions1 actions2 
-    (Hseg: segment id0 v actions1),
-    segments v (id0::nil) (actions1 ++ actions2)
-| segments_cons: forall id0 id1 tl actions1 actions2
-    (Hseg: segment id0 (value_id id1) actions1) 
-    (Hsegs: segments v (id1::tl) actions2),
-    segments v (id0::id1::tl) (actions1++actions2)
-.
-
-Lemma pipelined_actions_action_AC_vsubst_in: forall vid actions 
-  (Hin: vid `in` dom actions),
-  exists v, exists vids, 
-    pipelined_actions_action actions (AC_vsubst (value_id vid)) = 
-      AC_vsubst v /\ segments v (vid::vids) actions.
-Admitted.
-
-Lemma list_compose_actions__eq__list_composed_substs1: forall 
-  id0 ac0 (actions : list (atom * action))
-  (Hacyclic : acyclic_actions ((id0, ac0) :: actions))
-  (Huniq : uniq actions) (Hnotin: id0 `notin` dom actions),
-  ListComposedPass.find_parent_action ac0
-    (pipelined_actions__composed_actions (substs_actions actions)) =
-  pipelined_actions_action
-    (ListComposedPass.subst_actions id0 ac0 (substs_actions actions)) ac0.
-Admitted.
-(*
-Proof.
-  intros.
-  remember (ListComposedPass.substs_actions actions) as A.
-  destruct ac0; simpl.
-  Case "1". rewrite pipelined_actions_action_AC_remove; auto.
-  Case "2". 
-    destruct v; simpl.
-    SCase "2.1". 
-      case_eq (ListMap.find id5 (pipelined_actions__composed_actions A)).
-      SSCase "2.1.1".
-        intros ac Hfind.
-        assert (J:=Hfind).
-        apply pipelined_actions__composed_actions_Some_elim in J.
-        destruct J as [actions1 [ac5 [actions2 [EQ1 [EQ2 Hnotint]]]]]; 
-          subst ac.
-        rewrite EQ1.
-        rewrite list_subst_actions_app. simpl.
-        erewrite list_subst_actions_Some_cons; simpl; eauto.
-        rewrite pipelined_actions_action_tail;
-          try solve [rewrite list_subst_actions__dom; auto].
-        simpl.
-        destruct_if; try congruence.
-        destruct ac5; simpl.
-        SSSCase "2.1.1.1". 
-          rewrite pipelined_actions_action_AC_remove; auto.
-          rewrite pipelined_actions_action_AC_vsubst_notin; auto.
-            rewrite list_subst_actions__dom.
-            apply list_substs_actions__uniq in Huniq.
-            rewrite EQ1 in Huniq.
-            destruct_uniq; auto.
-        SSSCase "2.1.1.2".
-          destruct v as [vid|]; simpl.
-          SSSSCase "2.1.1.2.1". 
-            destruct_if.
-            SSSSSCase "2.1.1.2.1.1". admit. (*cyclic*)
-            SSSSSCase "2.1.1.2.1.2". 
-              destruct (AtomSetProperties.In_dec vid (dom actions2)) 
-                as [Hin | Hnotin'].
-              SSSSSSCase "in". 
-                assert (J:=Hin).
-                apply pipelined_actions_action_AC_vsubst_in in J.
-                destruct J as [v [vids [G1 G2]]].
-                rewrite G1.
-                assert (J:=Hin).
-                rewrite <- list_subst_actions__dom with (id0:=id0)
-                  (ac0:=AC_vsubst (value_id id5)) in J.
-                apply pipelined_actions_action_AC_vsubst_in in J.
-                destruct J as [v' [vids' [G1' G2']]].
-                rewrite G1'.
-                admit. (*cyclic*)
-              SSSSSSCase "notin". 
-                rewrite pipelined_actions_action_AC_vsubst_notin; auto.
-                rewrite pipelined_actions_action_AC_vsubst_notin; auto.
-                  rewrite list_subst_actions__dom; auto.
-          SSSSCase "2.1.1.2.2". 
-            repeat rewrite pipelined_actions_action_AC_vsubst_const; auto.
-        SSSCase "2.1.1.3". 
-          repeat rewrite pipelined_actions_action_AC_vsubst_const; auto.
-          rewrite pipelined_actions_action_AC_tsubst.
-          admit. (* tvsubst = vundef *)
-      SSCase "2.1.2". 
-        intro Hfind.
-        assert (J:=Hfind).
-        apply pipelined_actions__composed_actions_None_elim in J;
-          try solve [rewrite HeqA; apply list_substs_actions__uniq; auto].
-        rewrite pipelined_actions_action_AC_vsubst_notin; auto.
-          rewrite list_subst_actions__dom.
-          apply lookupAL_None_notindom in Hfind.
-          rewrite pipelined_actions__composed_actions__dom in Hfind; auto.
-    SCase "2.2". repeat rewrite pipelined_actions_action_AC_vsubst_const; auto.
-  Case "3".
-    rewrite pipelined_actions_action_AC_tsubst; auto.
-Qed.
-*)
-
-Lemma pipelined_actions_value_AC_vsubst__commute: forall actions v,
-  AC_vsubst (pipelined_actions_value actions v) =
-     pipelined_actions_action actions (AC_vsubst v).
-Admitted.
-
-Lemma list_composed_subst_actions_nil: forall id0 ac0,
-  ListComposedPass.subst_actions id0 ac0 nil = nil.
-Admitted.
-
-Definition list_compose_actions__eq__list_composed_substs_prop' (n:nat) := 
-  forall actions (Hlen: (length actions = n)%nat) id0 ac0,
-  ListComposedPass.subst_actions id0
-     (pipelined_actions_action (substs_actions actions) ac0)
-     (pipelined_actions__composed_actions (substs_actions actions)) =
-  pipelined_actions__composed_actions
-     (substs_actions (ListComposedPass.subst_actions id0 ac0 actions)).
-
-Lemma action2value__subst_action__subst_value: forall ac0 
-  v0 (Heq: action2value ac0 = ret v0) id1 v1,
-  action2value (subst_action id1 v1 ac0) = ret (subst_value id1 v1 v0).
-Admitted.
-
-Lemma substs_actions_cons: forall id0 ac0 actions,
-  substs_actions ((id0,ac0)::actions) =
-    (id0, ac0)::substs_actions (ListComposedPass.subst_actions id0 ac0 actions).
-Admitted.
-
-Lemma list_compose_actions__eq__list_composed_substs_aux': forall n,
-  list_compose_actions__eq__list_composed_substs_prop' n.
-Proof.
-  intro n.
-  elim n using (well_founded_induction lt_wf).
-  intros x Hrec.
-  unfold list_compose_actions__eq__list_composed_substs_prop' in *; intros.
-  destruct actions as [|[id1 ac1] actions].
-    simpl.
-    repeat rewrite list_composed_subst_actions_nil. simpl. auto.
-
-    unfold_substs_actions. simpl.
-    case_eq (action2value ac0).
-Case "1".
-    intros v0 Ha2v0.
-    erewrite list_subst_actions_Some_cons at 1; eauto.
-    case_eq (action2value ac1).
-SCase "1.1".
-      intros v1 Ha2v1.
-      assert (Ha2v0':=Ha2v0).
-      apply action2value__subst_action__subst_value 
-        with (id1:=id1)(v1:=v1) in Ha2v0'.
-      apply action2value__pipelined_actions_action__pipelined_actions_value
-        with (actions:=substs_actions 
-                (ListComposedPass.subst_actions id1 ac1 actions)) in Ha2v0'.
-      erewrite list_subst_actions_Some_cons; eauto.
-      rewrite substs_actions_cons. simpl.
-      f_equal.
-        f_equal.
-        admit.
-
-        erewrite <- Hrec; eauto; try solve [subst x; simpl; omega].
-        rewrite <- Hrec with 
-          (y:=length 
-            (ListComposedPass.subst_actions id0 (AC_vsubst v0) actions));     
-          auto; try solve [subst x; simpl; omega].
-          admit.
-          admit.
-
-Admitted.
-
-Lemma list_compose_actions__eq__list_composed_substs': forall actions id0 ac0,
-  ListComposedPass.subst_actions id0
-     (pipelined_actions_action (substs_actions actions) ac0)
-     (pipelined_actions__composed_actions (substs_actions actions)) =
-  pipelined_actions__composed_actions
-     (substs_actions (ListComposedPass.subst_actions id0 ac0 actions)).
-Proof.
-  intros.
-  assert (J:=@list_compose_actions__eq__list_composed_substs_aux' 
-                (length actions)).
-  unfold list_compose_actions__eq__list_composed_substs_prop' in J.
-  auto.
-Qed.
-
-Definition list_compose_actions__eq__list_composed_substs_prop (n:nat) := 
-  forall actions 
-  (Hlen: (length actions = n)%nat) (Hacyclic: acyclic_actions actions) 
-  (Huniq: uniq actions),
-  ListComposedPass.compose_actions actions = 
-    pipelined_actions__composed_actions (substs_actions actions).
-
-Lemma list_compose_actions__eq__list_composed_substs_aux: forall n,
-  list_compose_actions__eq__list_composed_substs_prop n.
-Proof.
-  intro n.
-  elim n using (well_founded_induction lt_wf).
-  intros x Hrec.
-  unfold list_compose_actions__eq__list_composed_substs_prop in *; intros.
-  destruct actions as [|[id0 ac0] actions].
-    simpl; auto.
-
-    unfold_substs_actions. simpl. unfold ListMap.add.
-    assert (Hacyclic':=Hacyclic).
-    apply acyclic_actions_cons_inv in Hacyclic'.
-    inv Huniq.
-    rewrite Hrec with (y:=length actions); auto.
-    assert (pipelined_actions_action
-              (substs_actions (ListComposedPass.subst_actions id0 ac0 actions)) 
-                ac0 =
-            pipelined_actions_action (substs_actions actions) ac0) as EQ.
-      admit.
-    rewrite EQ. clear EQ.
-    assert (ListComposedPass.find_parent_action ac0
-              (pipelined_actions__composed_actions
-                 (substs_actions actions)) =
-            pipelined_actions_action
-              (substs_actions actions) ac0) as EQ.
-      admit.
-      (* apply list_compose_actions__eq__list_composed_substs1; auto. *)
-    rewrite EQ. clear EQ.
-    f_equal.
-    apply list_compose_actions__eq__list_composed_substs'.
-Qed.
-
-Lemma list_compose_actions__eq__list_composed_substs: forall 
-  actions (Hacyclic: acyclic_actions actions) (Huniq: uniq actions),
-  ListComposedPass.compose_actions actions = 
-    pipelined_actions__composed_actions (substs_actions actions).
-Proof.
-  intros.
-  assert (J:=@list_compose_actions__eq__list_composed_substs_aux 
-                (length actions)).
-  unfold list_compose_actions__eq__list_composed_substs_prop in J.
-  auto.
-Qed.
-
-Lemma list_compose_actions__list_composed_substs: forall actions 
-  (Hacyclic: acyclic_actions actions) (Huniq: uniq actions) f,
-  ListComposedPass.substs_fdef (ListComposedPass.compose_actions actions) f =
-  composed_pipelined_actions actions f.
-Proof.
-  intros.
-  rewrite list_compose_actions__eq__list_composed_substs; auto.
 Qed.
 
 (***************************************************************)
@@ -2766,14 +2575,6 @@ Proof.
   induction cs; simpl; auto.
     rewrite <- subst_pres_store_in_cmd; auto.
 Qed.
-
-(***************************************************************)
-
-Lemma find_stld_pairs_blocks__uniq: forall pid rd bs actions
-  (Huniq: NoDup (getBlocksLocs bs))
-  (Hfind: actions = flat_map (find_stld_pairs_block pid rd) bs),
-  uniq actions.
-Admitted.
 
 (***************************************************************)
 
@@ -4261,6 +4062,8 @@ Lemma find_stld_pairs_blocks_spec: forall pid rd bs actions
   (Hfind: actions = flat_map (find_stld_pairs_block pid rd) bs),
   uniq actions /\ acyclic_actions actions.
 Admitted.
+
+(***************************************************************)
 
 Ltac avl_to_list_tac :=
 match goal with

@@ -148,6 +148,7 @@
 ./Transforms/die_top.v
 ./Transforms/die_wfS.v
 ./Transforms/vmem2reg_correct.v
+./Transforms/vmem2reg_opt_compose_props.v
 ./Transforms/vmem2reg_opt_correct.v
 ./Transforms/program_sim.v
 ./Transforms/subst.v

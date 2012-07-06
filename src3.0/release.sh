@@ -26,6 +26,7 @@ cp Transforms/*.ml $target/Transforms/
 cp Transforms/_tags $target/Transforms/
 cp Transforms/README $target/Transforms/
 rm -rf $target/Transforms/vmem2reg_opt_correct.v
+rm -rf $target/Transforms/vmem2reg_opt_compose_props.v
 cp Extraction/extraction_core.v $target/Extraction/
 cp Extraction/extraction_trans.v $target/Extraction/
 cp Extraction/*.ml $target/Extraction/

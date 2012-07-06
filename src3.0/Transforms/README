@@ -48,9 +48,13 @@ Section 3.2
   
   Lemma 7. OpsemPP.progress in Vminus/opsem_wf.v
 
+  Vellvm/opsem_wf.v proves Lemma 4 in the full Vellvm.
+
 Section 3.3
 
   Lemma 8. OpsemDom.preservation in Vminus/opsem_wf.v
+
+  Vellvm/opsem_dom.v proves Lemma 8 in the full Vellvm.
   
 Section 3.4
 
@@ -73,8 +77,6 @@ Section 3.4
   2. switchToNewBasicBlock_sim in Vminus/vsubst.v
 
   Lemma 12. backsimulation in Vminus/vsubst.v
-
-  Vellvm/opsem_dom.v proves Lemma 14 in the full Vellvm.
 
 Section 4.
 
