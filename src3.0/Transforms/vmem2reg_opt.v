@@ -6,7 +6,6 @@ Require Import Lattice.
 Require Import Iteration.
 Require Import primitives.
 Require Import dom_tree.
-Require Import dom_set_tree.
 Require Import iter_pass.
 Require Import pass_combinators.
 Require Import vmem2reg.
@@ -92,31 +91,7 @@ Implicit Arguments fold [A B].
 
 End XMap. 
 
-Module AtomOT <: OrderedType with Definition t := id.
-
-  Definition t := id.
-
-  Definition eq := @eq t.
-  Definition eq_refl := @refl_equal t.
-  Definition eq_sym := @sym_eq t.
-  Definition eq_trans := @trans_eq t.
-
-  Definition eq_dec := eq_atom_dec.
-
-  Parameter lt : t -> t -> Prop.
-  
-  Axiom lt_trans : forall x y z : t, lt x y -> lt y z -> lt x z.
-  Axiom lt_not_eq : forall x y : t, lt x y -> ~ eq x y.
-
-  Parameter compare : forall x y : t, Compare lt eq x y.
-
-End AtomOT.
-
-Require Import FMapAVL.
-
 Module AVLMap <: XMap. 
-
-Module AtomFMapAVL := FMapAVL.Make (AtomOT).
 
 Definition t := AtomFMapAVL.t.
 

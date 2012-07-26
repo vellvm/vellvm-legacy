@@ -6,7 +6,7 @@ Require Import Lattice.
 Require Import Iteration.
 Require Import primitives.
 Require Import dom_tree.
-Require Import dom_set_tree.
+Require Import dom_list.
 Require Import iter_pass.
 Require Import pass_combinators.
 Require Import vmem2reg.
@@ -37,7 +37,7 @@ List.fold_right
 Definition vm_get_alloca (vm:vmap): value := vm.(alloca).
 
 Definition vm_set_others (vm:vmap) id0 v0: vmap :=
-mkVMap vm.(alloca) (ATree.set id0 v0 vm.(others)).
+mkVMap vm.(alloca) (ATree'.set id0 v0 vm.(others)).
 
 Definition vm_set_alloca (vm:vmap) v0: vmap :=
 mkVMap v0 vm.(others).
@@ -149,7 +149,7 @@ match dts with
 end.
 
 Definition vm_init (ty:typ) :=
-  mkVMap (value_const (const_undef ty)) (ATree.empty value).
+  mkVMap (value_const (const_undef ty)) (ATree'.empty value).
 
 Definition ssa_renaming (f:fdef) (dt:DTree) (pid:id) (ty:typ)
   (newpids:list id) : fdef:=
@@ -200,27 +200,19 @@ let '(f1, changed1, dones1) := mem2reg_fdef_iter f dt rd dones in
 if changed1 then inr _ (f1, dones1) else inl _ (f1, dones1).
 
 Definition mem2reg_fdef (f:fdef) : fdef :=
-match getEntryBlock f, reachablity_analysis f with
-| Some (block_intro root _ cs _), Some rd =>
+match getEntryBlock f, reachablity_analysis f, AlgDom.create_dom_tree f with
+| Some (block_intro root _ cs _), Some rd, Some dt =>
   if print_reachablity rd then
     let '(f1, _) :=
       let b := bound_fdef f in
-      let dts := AlgDom.sdom f in
-      let chains := compute_sdom_chains dts rd in
-      let dt :=
-        fold_left
-          (fun acc elt =>
-           let '(_, chain):=elt in
-           create_dtree_from_chain eq_atom_dec acc chain)
-          chains (DT_node root DT_nil) in
-      if print_dominators b dts && print_adtree dt then
+      if print_adtree dt then
          SafePrimIter.iterate _ (mem2reg_fdef_step dt rd) (f, nil)
       else (f, nil)
     in
     if does_phi_elim tt 
     then fst (IterationPass.iter ElimPhi tt rd f1) else f1
   else f
-| _, _ => f
+| _, _, _ => f
 end.
 
 (* the top entry *)

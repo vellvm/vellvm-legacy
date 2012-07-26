@@ -6,6 +6,7 @@ Require Import Lattice.
 Require Import Iteration.
 Require Import dom_tree.
 Require Import dom_set_tree.
+Require Import dom_list.
 Require Import primitives.
 
 Definition cmds_from_block (f:fdef) (lbl:l) : option cmds :=
@@ -714,22 +715,15 @@ fold_left (fun f1 b => dce_block f1 b) bs f.
 Parameter read_aa_from_fun: id -> bool.
 
 Definition opt_fdef (f:fdef) : fdef :=
-match getEntryBlock f, reachablity_analysis f with
-| Some (block_intro root _ _ _), Some rd =>
+match getEntryBlock f, reachablity_analysis f, AlgDom.create_dom_tree f with
+| Some (block_intro root _ _ _), Some rd, Some dt =>
     let b := bound_fdef f in
     let dts := AlgDom.sdom f in
-    let chains := compute_sdom_chains dts rd in
-    let dt :=
-      fold_left
-      (fun acc elt =>
-        let '(_, chain):=elt in
-        create_dtree_from_chain eq_atom_dec acc chain)
-      chains (DT_node root DT_nil) in
     if print_reachablity rd && print_dominators b dts &&
        print_adtree dt && read_aa_from_fun (getFdefID f) then
        SafePrimIter.iterate _ (opt_step dt dts rd) (dce_fdef f)
     else f
-| _, _ => f
+| _, _, _ => f
 end.
 
 Parameter open_aa_db : unit -> bool.

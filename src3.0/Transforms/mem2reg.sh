@@ -1,12 +1,13 @@
 #!/bin/bash
 
+RELEASE=~/SVN/sol/vol/src3.0/Transforms/
 DIRS="../Interpreter/testcases/ ../Interpreter/testcases/llvm \
 	../Interpreter/testcases/softbound/"
 M2R=../_build/Transforms/main.native
-BC_DIR=./testcases/
-OC_DIR=./testcases/olden-ccured/
+BC_DIR=$RELEASE/testcases/
+OC_DIR=$RELEASE/testcases/olden-ccured/
 OC_CASES="bh bisort em3d health mst perimeter power treeadd tsp"
-S95_DIR=./testcases/spec95-ccured/
+S95_DIR=$RELEASE/testcases/spec95-ccured/
 S95_CASES="129.compress 099.go 130.li 132.ijpeg"
 
 # We need to rerun
@@ -138,7 +139,7 @@ done;
 for name in $OC_CASES; do 
   Compiling $OC_DIR$name"/test.bc" $name
 done;
-Running "bh" "< ./testcases/olden-ccured/bh/slow_input";
+Running "bh" "< "$RELEASE"/testcases/olden-ccured/bh/slow_input";
 Running "bisort" "5000000 0";
 Running "em3d" "30000 300 50";
 Running "health" "8 250 1";
@@ -153,8 +154,8 @@ for name in $S95_CASES; do
 done;
 Running "099.go" "100 15"
 #Running "130.li" "./testcases/spec95-ccured/130.li/src/ref.lsp";
-Running "129.compress" "< ./testcases/spec95-ccured/129.compress/src/slow_input.data";
-Running "132.ijpeg" "-image_file testcases/spec95-ccured/132.ijpeg/data/ref/input/vigo.ppm -compression.quality 90 -compression.optimize_coding 0 -compression.smoothing_factor 90 -difference.image 1 -difference.x_stride 10 -difference.y_stride 10 -verbose 1 -GO.findoptcomp"
+Running "129.compress" "< "$RELEASE"/testcases/spec95-ccured/129.compress/src/slow_input.data";
+Running "132.ijpeg" "-image_file "$RELEASE"/testcases/spec95-ccured/132.ijpeg/data/ref/input/vigo.ppm -compression.quality 90 -compression.optimize_coding 0 -compression.smoothing_factor 90 -difference.image 1 -difference.x_stride 10 -difference.y_stride 10 -verbose 1 -GO.findoptcomp"
 
 if [[ $DEBUG != "debug" ]]; then
 rm -f bisort* em3d* health* mst* treeadd* 129.compress* test-softbound.bc \

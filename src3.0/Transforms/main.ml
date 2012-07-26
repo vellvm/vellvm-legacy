@@ -5,12 +5,16 @@ open Arg
 
 let nullpass = ref false
 let mem2reg = ref true
-let mem2reg_opt = ref false
+let mem2reg_opt = ref 0
 let does_remove_lifetime = ref false
 let does_remove_dbg = ref false
 let out_file = ref stdout
+let net_time = ref false
 
 let main in_filename =
+  let parse_time = ref 0.0 in
+  let work_time = ref 0.0 in
+  let print_time = ref 0.0 in
   (* Read bitcode [in_filename] into LLVM module [im] *)
   let ic = global_context () in
   let imbuf = MemoryBuffer.of_file in_filename in
@@ -23,6 +27,7 @@ let main in_filename =
   (if !Globalstates.debug then Llvm_pretty_printer.travel_module ist im);
   (* Translate LLVM module [im] to Coq module [coqim] *)
   let coqim = Llvm2coq.translate_module !Globalstates.debug ist im in
+  parse_time := Sys.time ();
   (* Print [coqim] *)
   (if !Globalstates.debug then Coq_pretty_printer.travel_module coqim);
 
@@ -41,22 +46,31 @@ let main in_filename =
         Primitives.remove_dbg_declares_from_module coqim0
       else coqim0 
     in
-    let vm2r = if !mem2reg_opt then Vmem2reg_opt.run else Vmem2reg.run in
+    let vm2r = (match !mem2reg_opt with
+      | 2 -> Vmem2reg_opt2.run 
+      | 1 -> Vmem2reg_opt.run 
+      | _ -> Vmem2reg.run) in
     let coqom = Primitives.fix_temporary_module (vm2r coqim1) in
+    work_time := Sys.time () -. !parse_time;
     (* Print [coqom] *)
     (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
     (* Translate [coqom] to a *.ll file *)
-    Coq2ll.travel_module !out_file coqom
+    Coq2ll.travel_module !out_file coqom;
+    print_time := Sys.time () -. !work_time;
+    (if !net_time then 
+       printf "parse:%f work:%f print:%f\n" !parse_time !work_time !print_time)
   );
 
   SlotTracker.dispose ist;
   dispose_module im
 
 let argspec = [
+  ("-net-time", Set net_time, "print time of parse/work/print");
   ("-null", Set nullpass, "null pass");
   ("-d", Set Globalstates.debug, "debug");
   ("-mem2reg", Set mem2reg, "mem2reg (pipelined by default)");
-  ("-opt", Set mem2reg_opt, "optimized mem2reg");
+  ("-opt", Unit (fun () -> mem2reg_opt:=1), "optimized mem2reg");
+  ("-O", Set_int mem2reg_opt, "optimized mem2reg");
 (*  ("-composed", Clear Globalstates.does_macro_m2r, "composed mem2reg"); *)
   ("-prune", Set Globalstates.does_dead_phi_elim, "pruned");
   ("-remove-lifetime", Set does_remove_lifetime, "remove lifetime intrinsics");

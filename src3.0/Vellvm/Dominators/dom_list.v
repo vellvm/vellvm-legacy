@@ -8,9 +8,10 @@ Require Import Metatheory.
 Require Import Program.Tactics.
 Require Import dom_libs.
 Require Import dfs.
-Require Import cfg.
+Require Export cfg.
+Require Export reach.
+Require Export dom_decl.
 Require Import push_iter.
-Require Import dom_decl.
 Require Import dom_tree.
 Require Import dom_list_tree.
 
@@ -1461,7 +1462,7 @@ match goal with
              ((?pe, _)::_) ?ni] |- _ => foo a2p f pe
 end.
 
-Module AlgDom' : ALGDOM_WITH_TREE.
+Module AlgDom : ALGDOM_WITH_TREE.
 
 Definition p2a_dom p2a bd (res: LDoms.t) : list atom :=
 match res with
@@ -1993,36 +1994,7 @@ Qed.
 
 End create_dom_tree_correct.
 
-End AlgDom'.
+End AlgDom.
 
-Module AlgDomProps' := AlgDom_Properties (AlgDom').
+Module AlgDomProps := AlgDom_Properties (AlgDom).
 
-Require Import typings_props.
-Require Import typings.
-Import LLVMtypings.
-
-Section wf_fdef__create_dom_tree_correct.
-
-Variable (S:system) (M:module) (f:fdef) (dt:@DTree l) (le:l).
-Hypothesis (Hwfdef: wf_fdef S M f) (Huniq: uniqFdef f)
-           (Hcreate: AlgDom'.create_dom_tree f = Some dt)
-           (Hentry: getEntryLabel f = Some le).
-
-Lemma wf_fdef__dtree_edge_iff_idom: forall p0 ch0,
-    is_dtree_edge eq_atom_dec dt p0 ch0 = true <-> 
-      (imm_domination f p0 ch0 /\ reachable f ch0).
-Proof.
-  intros.
-  eapply AlgDom'.dtree_edge_iff_idom; unfold AlgDom'.branchs_in_fdef;
-    intros; eauto using entry_no_preds, branches_in_bound_fdef.
-Qed.
-
-Lemma wf_fdef__create_dom_tree__wf_dtree: 
-  ADProps.wf_dtree (successors f) le eq_atom_dec dt.
-Proof.
-  intros.
-  eapply AlgDom'.create_dom_tree__wf_dtree; unfold AlgDom'.branchs_in_fdef;
-    intros; eauto using entry_no_preds, branches_in_bound_fdef.
-Qed.
-
-End wf_fdef__create_dom_tree_correct.

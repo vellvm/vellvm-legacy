@@ -48,7 +48,7 @@ let push_dom f =
   if (!Globalstates.print_dtree) then (ignore (print_doms dts))
 
 let push_adtree f =
-  match Dom_list.AlgDom'.create_dom_tree f with
+  match Dom_list.AlgDom.create_dom_tree f with
   | Some dt -> if (!Globalstates.print_dtree) 
                then ignore (print_dtree (fun a -> a) dt)
   | None -> ()
@@ -70,16 +70,30 @@ let push_pdtree f =
       | None -> ())
   | None -> ()
 
+let print_df (dfs: LLVMsyntax.l list ATree.t) =
+  eprintf "DF:\n";
+  ignore (ATree.map (fun key df ->
+                     eprintf "%s <<" key;
+                     List.iter (fun d -> eprintf "%s " d) df;
+                     eprintf "\n") dfs);
+  eprintf "\n"
+
+let push_df f =
+  let (dfs, _) = Dom_list_df.dom_frontier f false in
+  if !Globalstates.print_dtree then print_df dfs
+
 let dom_product g =
   match g with
   | LLVMsyntax.Coq_product_fdef 
       (LLVMsyntax.Coq_fdef_intro 
         (LLVMsyntax.Coq_fheader_intro (_, _, fid, _, _), _) as f) -> 
-      (if (!Globalstates.print_dtree) then eprintf "Dom %s:\n" fid);
+      (if (!Globalstates.print_dtree && !dom_type <= 2) 
+       then eprintf "Dom %s:\n" fid);
       (match !dom_type with
-	| 0 -> if !gen_dtree then 
+	| 0 -> (if !gen_dtree then 
                  (if !only_pdtree then push_pdtree f else push_adtree f)
-               else push_dom f 
+                else push_dom f);
+               if !Globalstates.gen_llvm_df then push_df f
 	| 1 -> pull_dom f 
 	| 2 -> slow_dom f      
 	| _ -> ())
@@ -107,9 +121,15 @@ let main in_filename =
 
 let argspec = [
   ("-d", Set Globalstates.print_dtree, "debug. Default=false");
-  ("-type", Set_int dom_type, "0:push; 1:pull; 2:slow; others:llvm. Default=0");
+  ("-type", 
+      Int (fun i -> 
+           dom_type := i; 
+           if i>2 then Globalstates.gen_llvm_dtree := true),
+      "0:push; 1:pull; 2:slow; others:llvm. Default=0");
   ("-notree", Clear gen_dtree, "Do not generate dom-tree explicitly. Default=true");
   ("-only-pdtree", Set only_pdtree, "Only generate positive dtree. Default=false");
+  ("-df", Unit (fun () -> Globalstates.gen_llvm_df := true), 
+      "Generate dominance frontier. Default=false");
 ]
 
 let worklist = ref []

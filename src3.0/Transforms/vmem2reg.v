@@ -6,7 +6,6 @@ Require Import Lattice.
 Require Import Iteration.
 Require Import primitives.
 Require Import dom_tree.
-Require Import dom_set_tree.
 Require Import iter_pass.
 Require Import pass_combinators.
 

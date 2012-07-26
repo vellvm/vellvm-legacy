@@ -116,6 +116,7 @@
 ./Transforms/vmem2reg.v
 ./Transforms/vmem2reg_tree.v
 ./Transforms/vmem2reg_opt.v
+./Transforms/vmem2reg_opt2.v
 ./Transforms/promotable_props.v
 ./Transforms/top_sim.v
 ./Transforms/top_wfS.v
@@ -175,4 +176,6 @@
 ./Vellvm/Dominators/dom_tree.v
 ./Vellvm/Dominators/dom_list_tree.v
 ./Vellvm/Dominators/dom_set_tree.v
+./Vellvm/Dominators/dom_list_tree_wf.v
+./Vellvm/Dominators/dom_list_df.v
 

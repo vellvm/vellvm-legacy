@@ -2,7 +2,7 @@ Require Import Ensembles.
 Require Import syntax.
 Require Import infrastructure.
 Require Import infrastructure_props.
-Require Import dom_set.
+Require Import dom_list.
 Require Import analysis.
 Require Import typings.
 Require Import typings_props.

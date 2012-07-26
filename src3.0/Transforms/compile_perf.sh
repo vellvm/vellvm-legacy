@@ -1,14 +1,10 @@
 #!/bin/bash
 
-DIRS="../Interpreter/testcases/ ../Interpreter/testcases/llvm \
-	../Interpreter/testcases/softbound/"
 M2R=../_build/Transforms/main.native
-BC_DIR=./testcases/
-OC_DIR=./testcases/olden-ccured/
-OC_CASES="bh bisort em3d health mst perimeter power treeadd tsp"
-S95_DIR=./testcases/spec95-ccured/
+RELEASE=~/SVN/sol/vol/
+S95_DIR=$RELEASE/src3.0/Transforms/testcases/spec95-ccured/
 S95_CASES="129.compress 099.go 130.li 132.ijpeg"
-S00_DIR=../../softbound_test/spec2k/
+S00_DIR=$RELEASE/softbound_test/spec2k/
 S00_CASES="177.mesa/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-mesa.bc
            164.gzip/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-gzip.bc
            175.vpr/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-vpr.bc
@@ -19,7 +15,7 @@ S00_CASES="177.mesa/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-mesa.bc
            197.parser/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-parser.bc
            300.twolf/src/obj/zjzzjz/llvm-mem2reg-test/spec2k-twolf.bc
           "
-S06_DIR=../../softbound_test/spec2k6/
+S06_DIR=$RELEASE/softbound_test/spec2k6/
 S06_CASES="401.bzip2/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-bzip2.bc
            429.mcf/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-mcf.bc
            456.hmmer/src/obj/zjzzjz/llvm-mem2reg-test/spec2k6-hmmer.bc
@@ -42,26 +38,28 @@ DEBUG="$1"
 
 Compiling ()
 {
-  opt="-opt"
-  if [[ $DEBUG != "opt" ]]; then
-    opt=""
+  opt="-O 0"
+  if [[ $DEBUG = "1" ]]; then
+    opt="-O 1"
+  elif [[ $DEBUG = "2" ]]; then
+    opt="-O 2"
   fi  
 
   echo -e $2": \c" ;
 
   echo -e "Pre"; time opt -f $PRE_OPT_FLAG $1 -o $2"o.bc"
 
-  echo -e "Coq only insert phis"; time $M2R -mem2reg -maximal -no-stld-elim $opt $2"o.bc" >& $2"f.ll"
+  echo -e "Coq only insert phis"; time $M2R -mem2reg -maximal -no-stld-elim -net-time $opt $2"o.bc" -o $2"f.ll"
   llvm-as -f $2"f.ll" -o /dev/null
 
-  echo -e "Coq max"; time $M2R -mem2reg -maximal $opt $2"o.bc" >& $2"e.ll"
-  llvm-as -f $2"e.ll" -o /dev/null
+#  echo -e "Coq max"; time $M2R -mem2reg -maximal $opt $2"o.bc" -o $2"e.ll"
+#  llvm-as -f $2"e.ll" -o /dev/null
 
-  echo -e "Coq M2R"; time $M2R -mem2reg $opt $2"o.bc" >& $2"a.ll"
-  llvm-as -f $2"a.ll" -o /dev/null
+#  echo -e "Coq M2R"; time $M2R -mem2reg $opt $2"o.bc" -o $2"a.ll"
+#  llvm-as -f $2"a.ll" -o /dev/null
 
-  echo -e "Coq M2R pruned"; time $M2R -mem2reg -prune $opt $2"o.bc" >& $2"c.ll"
-  llvm-as -f $2"c.ll" -o /dev/null
+#  echo -e "Coq M2R pruned"; time $M2R -mem2reg -prune $opt $2"o.bc" -o $2"c.ll"
+#  llvm-as -f $2"c.ll" -o /dev/null
 
   echo -e "LLVM M2R"; time opt -f $M2R_OPT_FLAG $1 -o $2"d.bc"
   llvm-dis -f $2"d.bc" -o $2"d.ll" 
@@ -73,24 +71,26 @@ done
 
 Compiling0 ()
 {
-  opt="-opt"
-  if [[ $DEBUG != "opt" ]]; then
-    opt=""
+  opt="-O 0"
+  if [[ $DEBUG = "1" ]]; then
+    opt="-O 1"
+  elif [[ $DEBUG = "2" ]]; then
+    opt="-O 2"
   fi  
 
   echo -e $2": \c" ;
 
-  echo -e "Coq only insert phis"; time $M2R -mem2reg -maximal -no-stld-elim $opt $1 >& $1"f.ll"
+  echo -e "Coq only insert phis"; time $M2R -mem2reg -maximal -no-stld-elim -net-time $opt $1 -o $1"f.ll"
   llvm-as -f $1"f.ll" -o /dev/null
 
-  echo -e "Coq max"; time $M2R -mem2reg -maximal $opt $1 >& $1"e.ll"
-  llvm-as -f $1"e.ll" -o /dev/null
+#  echo -e "Coq max"; time $M2R -mem2reg -maximal $opt $1 -o $1"e.ll"
+#  llvm-as -f $1"e.ll" -o /dev/null
 
-  echo -e "Coq M2R"; time $M2R -mem2reg $opt $1 >& $1"a.ll"
-  llvm-as -f $1"a.ll" -o /dev/null
+#  echo -e "Coq M2R"; time $M2R -mem2reg $opt $1 -o $1"a.ll"
+#  llvm-as -f $1"a.ll" -o /dev/null
 
-  echo -e "Coq M2R pruned"; time $M2R -mem2reg -prune $opt $1 >& $1"c.ll"
-  llvm-as -f $1"c.ll" -o /dev/null
+#  echo -e "Coq M2R pruned"; time $M2R -mem2reg -prune $opt $1 -o $1"c.ll"
+#  llvm-as -f $1"c.ll" -o /dev/null
  
   echo -e "LLVM M2R"; time opt -f $M2R_OPT_FLAG $1 -o $1"d.bc"
   llvm-dis -f $1"d.bc" -o $1"d.ll" 

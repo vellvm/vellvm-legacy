@@ -6,16 +6,12 @@ Require Import infrastructure_props.
 Require Import Metatheory.
 Require Import Program.Tactics.
 Require Import dom_tree.
-Require Import Lattice.
 Require Import ListSet.
 Require Import dom_set.
 Require Import Sorted.
-Require Import typings_props.
-Require Import typings.
 Require Import analysis.
 Import LLVMsyntax.
 Import LLVMinfra.
-Import LLVMtypings.
 
 Fixpoint dtree_dom (dt: DTree) : atoms :=
 match dt with
@@ -161,192 +157,6 @@ match goal with
   rewrite H in i0; auto
 end.
 
-Lemma gt_dom_prop_trans : forall S M f l1 l2 l3
-  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
-  (HBinF1: In l1 (bound_fdef f))
-  (HBinF2: In l2 (bound_fdef f))
-  (HBinF3: In l3 (bound_fdef f))
-  (H1 : gt_dom_prop (AlgDom.sdom f) l1 l2)
-  (H2 : gt_dom_prop (AlgDom.sdom f) l2 l3),
-  gt_dom_prop (AlgDom.sdom f) l1 l3.
-Proof.
-  unfold gt_dom_prop, gt_sdom.
-  intros.
-  apply In_bound_fdef__blockInFdefB in HBinF1.
-  apply In_bound_fdef__blockInFdefB in HBinF2.
-  apply In_bound_fdef__blockInFdefB in HBinF3.
-  destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
-  destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
-  destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
-  destruct (l_dec l1 l3); auto.
-  destruct H2 as [H2 | H2]; subst; auto.
-  Case "l2 in sdom(l3)".
-    simpl_in_dec.
-    left.
-    assert (domination f l2 l3) as Hdom23.
-      eapply dom_is_sound; simpl; eauto.
-    destruct H1 as [H1 | H1]; subst.
-    SCase "l1 in sdom(l2)".
-      simpl_in_dec.
-      assert (domination f l1 l2) as Hdom12.
-        eapply dom_is_sound; simpl; eauto.
-      assert (strict_domination f l1 l3) as Hsdom13.
-        apply DecDom.dom_sdom; auto.
-        eapply DecDom.dom_tran; eauto.
-      eapply sdom_is_complete in Hsdom13; eauto 1.
-        solve_in_dec.
-        elim_in_nil.
-
-    SCase "l1=l2".
-      assert (strict_domination f l2 l3) as Hsdom23.
-        apply DecDom.dom_sdom; auto.
-      eapply sdom_is_complete in Hsdom23; eauto 1.
-        solve_in_dec.
-        elim_in_nil.
-Qed.
-
-Lemma gt_sdom_prop_trans : forall S M f l1 l2 l3
-  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
-  (HBinF1: In l1 (bound_fdef f))
-  (HBinF2: In l2 (bound_fdef f))
-  (HBinF3: In l3 (bound_fdef f))
-  (H1 : gt_sdom (AlgDom.sdom f) l1 l2 = true)
-  (H2 : gt_sdom (AlgDom.sdom f)  l2 l3 = true),
-  gt_sdom (AlgDom.sdom f)  l1 l3 = true.
-Proof.
-  unfold gt_sdom.
-  intros.
-  repeat simpl_in_dec.
-  apply In_bound_fdef__blockInFdefB in HBinF1.
-  apply In_bound_fdef__blockInFdefB in HBinF2.
-  apply In_bound_fdef__blockInFdefB in HBinF3.
-  destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
-  destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
-  destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
-  destruct (reachable_dec f l3).
-    assert (strict_domination f l2 l3) as Hsdom23.
-      eapply sdom_is_sound; eauto.
-    assert (reachable f l2) as Hreach2.
-      apply DecDom.sdom_reachable in Hsdom23; auto.
-    assert (strict_domination f l1 l2) as Hsdom12.
-      eapply sdom_is_sound; eauto.
-    assert (strict_domination f l1 l3) as Hsdom13.
-      eapply sdom_tran with (l2:=l2); eauto.
-    eapply sdom_is_complete in Hsdom13; eauto 1.
-      solve_in_dec.
-      elim_in_nil.
-
-    eapply dom_unreachable in H; eauto 1.
-      apply blockInFdefB_in_bound_fdef in HBinF1.
-      unfold vertexes_fdef in HBinF1.
-      rewrite H.
-      solve_in_dec.
-
-      elim_in_nil.
-Qed.
-
-Lemma gt_dom_dec_aux: forall S M f (HwfF: wf_fdef S M f) 
-  (Huniq: uniqFdef f) l1 l2 l3
-  (Hreach: reachable f l3)
-  (HBinF1: In l1 (bound_fdef f))
-  (HBinF2: In l2 (bound_fdef f))
-  (HBinF3: In l3 (bound_fdef f)),
-  gt_sdom (AlgDom.sdom f) l1 l3 ->
-  gt_sdom (AlgDom.sdom f) l2 l3 ->
-  gt_dom_prop (AlgDom.sdom f) l1 l2 \/
-  gt_dom_prop (AlgDom.sdom f) l2 l1.
-Proof.
-  unfold gt_dom_prop, gt_sdom. intros.
-  destruct (l_dec l1 l2); auto.
-  repeat simpl_in_dec.
-  apply In_bound_fdef__blockInFdefB in HBinF1.
-  apply In_bound_fdef__blockInFdefB in HBinF2.
-  apply In_bound_fdef__blockInFdefB in HBinF3.
-  destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
-  destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
-  destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
-  assert (strict_domination f l1 l3) as Hsdom13.
-    eapply sdom_is_sound; eauto.
-  assert (strict_domination f l2 l3) as Hsdom23.
-    eapply sdom_is_sound; eauto.
-  assert (exists entry, getEntryLabel f = Some entry) as Hentry.
-    inv HwfF.
-    match goal with
-    | H1: getEntryBlock _ = Some _ |- _ => 
-      clear - H1; simpl in *;
-      destruct blocks5; inv H1; destruct block5; eauto
-    end.
-  destruct Hentry as [entry Hentry].
-  assert (reachable f l2) as Hreach2.
-    apply DecDom.sdom_reachable in Hsdom23; auto.
-  assert (reachable f l1) as Hreach1.
-    apply DecDom.sdom_reachable in Hsdom13; auto.
-  destruct (l_dec l1 entry); subst.
-    left. left.
-    assert (set_In entry (AlgDom.sdom f l2)) as G.
-      eapply dom_analysis__entry_doms_others; eauto.
-    solve_in_dec.
-  destruct (l_dec l2 entry); subst.
-    right. left.
-    assert (set_In entry (AlgDom.sdom f l1)) as G.
-      eapply dom_analysis__entry_doms_others; eauto.
-    solve_in_dec.
-  eapply DecDom.sdom_ordered with (l1:=l2) in Hsdom13; eauto 1.
-  destruct Hsdom13 as [Hsdom21 | Hsdom12].
-    right.
-    eapply sdom_is_complete in Hsdom21; eauto 1.
-      left. solve_in_dec.
-
-      assert (set_In entry (AlgDom.sdom f l1)) as G.
-        eapply dom_analysis__entry_doms_others; eauto.
-      intro J. rewrite J in G. auto.
-
-    left.
-    eapply sdom_is_complete in Hsdom12; eauto 1.
-      left. solve_in_dec.
-
-      assert (set_In entry (AlgDom.sdom f l2)) as G.
-        eapply dom_analysis__entry_doms_others; eauto.
-      intro J. rewrite J in G. auto.
-Qed.
-
-Lemma gt_dom_dec: forall S M f (HwfF: wf_fdef S M f) 
-  (Huniq: uniqFdef f) l1 l2 l3
-  (Hreach: reachable f l3)
-  (HBinF1: In l1 (bound_fdef f))
-  (HBinF2: In l2 (bound_fdef f))
-  (HBinF3: In l3 (bound_fdef f)),
-  gt_dom_prop (AlgDom.sdom f) l1 l3 ->
-  gt_dom_prop (AlgDom.sdom f) l2 l3 ->
-  gt_dom_prop (AlgDom.sdom f) l1 l2 \/
-  gt_dom_prop (AlgDom.sdom f) l2 l1.
-Proof.
-  intros.
-  destruct H as [H | H]; subst; auto.
-  destruct H0 as [H0 | H0]; subst.
-    eapply gt_dom_dec_aux; eauto.
-    left. left. auto.
-Qed.
-
-Lemma gt_sdom_dec: forall S M f (HwfF: wf_fdef S M f) 
-  (Huniq: uniqFdef f) l1 l2 l3
-  (Hneq: l1 <> l2)
-  (Hreach: reachable f l3)
-  (HBinF1: In l1 (bound_fdef f))
-  (HBinF2: In l2 (bound_fdef f))
-  (HBinF3: In l3 (bound_fdef f)),
-  gt_sdom (AlgDom.sdom f) l1 l3 ->
-  gt_sdom (AlgDom.sdom f) l2 l3 ->
-  gt_sdom (AlgDom.sdom f) l1 l2 \/
-  gt_sdom (AlgDom.sdom f) l2 l1.
-Proof.
-  intros.
-  apply gt_dom_dec with (l1:=l1) (l2:=l2) (l3:=l3) in HwfF; auto.
-    destruct HwfF as [[J | J] | [J | J]]; subst; auto; try congruence.
-    left. auto.
-    left. auto.
-Qed.
-
 Lemma insert_sort_sdom_iter_safe: forall res l0 suffix l1 prefix,
   (In l0 (prefix ++ suffix) \/ l0 = l1) <->
   In l0 (insert_sort_sdom_iter res l1 prefix suffix).
@@ -425,100 +235,6 @@ Proof.
   destruct (@insert_sort_sdom_safe res input nil l0) as [J1 J2].
   split; intro; auto.
     apply J2 in H. destruct H as [H | H]; auto. inv H.
-Qed.
-
-Lemma insert_sort_sdom_iter_sorted: forall S M f (HwfF: wf_fdef S M f) 
-  (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
-  l0 (Hin0: In l0 (bound_fdef f))
-  (Hsd03: gt_dom_prop (AlgDom.sdom f) l0 l3) suffix prefix
-  (G: forall l', In l' (prefix ++ suffix) ->
-      gt_dom_prop (AlgDom.sdom f) l' l3 /\ In l' (bound_fdef f)),
-  Sorted (gt_dom_prop (AlgDom.sdom f))
-    (List.rev prefix ++ suffix) ->
-  (forall l1 prefix', prefix = l1 :: prefix' ->
-      gt_dom_prop (AlgDom.sdom f) l1 l0) ->
-  Sorted (gt_dom_prop (AlgDom.sdom f))
-    (insert_sort_sdom_iter (AlgDom.sdom f) l0 prefix suffix).
-Proof.
-  induction suffix; simpl; intros.
-    simpl_env in *.
-    apply sorted_append; auto.
-      intros.
-      apply H0 with (prefix':=rev l1'); auto.
-        rewrite <- rev_involutive at 1.
-        rewrite H1. rewrite rev_unit. auto.
-
-    remember (gt_sdom (AlgDom.sdom f) l0 a) as R.
-    destruct R.
-      simpl_env. simpl.
-      apply sorted_insert; auto.
-        intros.
-        apply H0 with (prefix':=rev l1'); auto.
-          rewrite <- rev_involutive at 1.
-          rewrite H1. rewrite rev_unit. auto.
-
-        intros.
-        inv H1.
-        unfold gt_dom_prop. auto.
-
-      apply IHsuffix.
-        intros. apply G.
-        apply in_or_app. simpl.
-        apply in_app_or in H1. simpl in H1.
-        destruct H1 as [[H1 | H1] | H1]; auto.
-
-        simpl. simpl_env. simpl. auto.
-
-        intros. inv H1.
-        assert (gt_dom_prop (AlgDom.sdom f) l1 l0 \/
-                gt_dom_prop (AlgDom.sdom f) l0 l1) as J.
-          assert (In l1 (prefix'++l1::suffix)) as Hin1. apply in_middle.
-          apply G in Hin1. destruct Hin1 as [J1 J2].
-          eapply gt_dom_dec; eauto.
-        destruct J; auto.
-        unfold gt_dom_prop in H1. unfold gt_dom_prop.
-        destruct (l_dec l0 l1); auto.
-        destruct H1 as [H1 | H1]; auto.
-        rewrite <- HeqR in H1. congruence.
-Qed.
-
-Lemma insert_sort_sdom_sorted: forall S M f (HwfF: wf_fdef S M f) 
-  (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
-  data acc
-  (G: forall l', In l' (data++acc) ->
-      gt_dom_prop (AlgDom.sdom f) l' l3 /\ In l' (bound_fdef f)),
-  Sorted (gt_dom_prop (AlgDom.sdom f)) acc ->
-  Sorted (gt_dom_prop (AlgDom.sdom f))
-         (insert_sort_sdom (AlgDom.sdom f) data acc).
-Proof.
-  induction data; simpl; intros; auto.
-    apply IHdata.
-      intros. apply G.
-      apply in_app_or in H0.
-      destruct H0 as [H0 | H0].
-        right. apply in_or_app; auto.
-        apply insert_sort_sdom_iter_safe in H0.
-        destruct H0 as [H0 | H0]; auto.
-          right. apply in_or_app. simpl_env in H0. auto.
-
-      assert (a = a \/ In a (data++acc)) as Hin. auto.
-      apply G in Hin. destruct Hin as [J1 J2].
-      eapply insert_sort_sdom_iter_sorted with (l3:=l3); eauto.
-        intros. apply G. right. apply in_or_app. simpl_env in H0. auto.
-
-        intros. inv H0.
-Qed.
-
-Lemma sort_sdom_sorted: forall S M f (HwfF: wf_fdef S M f) 
-  (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
-  input
-  (G: forall l', In l' input ->
-      gt_dom_prop (AlgDom.sdom f) l' l3 /\ In l' (bound_fdef f)),
-  Sorted (gt_dom_prop (AlgDom.sdom f))
-         (sort_sdom (AlgDom.sdom f) input).
-Proof.
-  intros. unfold sort_sdom.
-  eapply insert_sort_sdom_sorted; simpl_env; eauto.
 Qed.
 
 Lemma remove_redundant_safe: forall l0 input,
@@ -637,22 +353,6 @@ Proof.
         destruct H; auto.
 Qed.
 
-Lemma gt_sdom_prop_irrefl: forall S M f (HwfF : wf_fdef S M f) 
-  (HuniqF: uniqFdef f) a (Hreach : reachable f a),
-  gt_sdom (AlgDom.sdom f) a a = false.
-Proof.
-  unfold gt_sdom.
-  intros.
-  assert (J:=Hreach).
-  apply reachable__in_bound in Hreach; eauto 2 using branches_in_bound_fdef.
-  apply In_bound_fdef__blockInFdefB in Hreach.
-  destruct Hreach as [ps [cs [tnn HBinF]]].
-  destruct (in_dec l_dec a (AlgDom.sdom f a)); simpl; auto.
-  eapply sdom_is_sound with (l':=a) in HBinF; eauto 1.
-    apply DecDom.sdom_isnt_refl in HBinF; auto.
-      congruence.
-Qed.
-
 Lemma compute_sdom_chains_aux__dom : forall res l0 chain0 rd acc,
   In (l0, chain0) (compute_sdom_chains_aux res rd acc) ->
   In l0 rd \/ In (l0, chain0) acc.
@@ -697,132 +397,6 @@ Proof.
   eapply AlgDomProps.in_bound_dom__in_bound_fdef; eauto.
 Qed.
 
-Lemma gt_sdom_prop_trans1 : forall S M f l1 l2 l3
-  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) (Hreach: reachable f l3)
-  (HBinF2: In l2 (bound_fdef f))
-  (H1 : gt_sdom (AlgDom.sdom f) l1 l2 = true)
-  (H2 : gt_dom_prop (AlgDom.sdom f) l2 l3),
-  gt_sdom (AlgDom.sdom f) l1 l3 = true.
-Proof.
-  intros.
-  assert (HBinF1: In l1 (bound_fdef f)).
-    eapply in_gt_sdom__in_bound_fdef; eauto.
-  assert (HBinF3: In l3 (bound_fdef f)).
-    eapply reachable__in_bound; eauto 2 using branches_in_bound_fdef.
-  unfold gt_dom_prop, gt_sdom in *.
-  destruct (in_dec l_dec l1); inv H1.
-  apply In_bound_fdef__blockInFdefB in HBinF1.
-  apply In_bound_fdef__blockInFdefB in HBinF2.
-  apply In_bound_fdef__blockInFdefB in HBinF3.
-  destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
-  destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
-  destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
-  assert (domination f l2 l3) as Hdom23.
-    eapply dom_is_sound; eauto.
-      destruct H2 as [H2 | H2]; simpl; auto.
-        simpl_in_dec; auto.
-  assert (reachable f l2) as Hreach2.
-     apply DecDom.dom_reachable in Hdom23; auto.
-  assert (strict_domination f l1 l2) as Hsdom12.
-    eapply sdom_is_sound; eauto.
-  eapply sdom_tran1 with (l3:=l3) in Hsdom12; eauto 1.
-  eapply sdom_is_complete in Hsdom12; eauto 1.
-    solve_in_dec.
-
-    destruct H2 as [H2 | H2]; subst.
-      simpl_in_dec.
-      elim_in_nil.
-
-      elim_in_nil.
-Qed.
-
-Lemma compute_sdom_chains_aux_sorted: forall S M f 
-  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
-  l0 chain0 bd (Hinc: incl bd (bound_fdef f))
-  (Hreach: forall x, In x bd -> reachable f x) acc,
-  (forall l0 chain0, In (l0, chain0) acc ->
-    Sorted (gt_dom_prop (AlgDom.sdom f)) chain0 /\
-    NoDup chain0) ->
-  In (l0, chain0)
-    (compute_sdom_chains_aux (AlgDom.sdom f) bd acc) ->
-  Sorted (gt_dom_prop (AlgDom.sdom f)) chain0 /\ NoDup chain0.
-Proof.
-  induction bd as [|a bd]; simpl; intros; eauto.
-    apply IHbd in H0; auto.
-    Case "1".
-      simpl_env in Hinc.
-      apply AtomSet.incl_app_invr in Hinc; auto.
-    Case "2".
-      intros l1 chain1 H1.
-      destruct H1 as [H1 | H1]; eauto.
-      inv H1.
-      assert (In l1 (bound_fdef f)) as G1.
-        apply Hinc; simpl; auto.
-      assert (forall l' : l,
-        In l' (l1 :: AlgDom.sdom f l1) ->
-        gt_dom_prop (AlgDom.sdom f) l' l1 /\ In l' (bound_fdef f))
-        as G2.
-        intros l' Hin.
-        simpl in Hin.
-        destruct Hin as [EQ | Hin]; subst.
-          unfold gt_dom_prop. split; auto.
-
-          split.
-            unfold gt_dom_prop, gt_sdom.
-            left. solve_in_dec.
-
-            eapply AlgDomProps.in_bound_dom__in_bound_fdef; eauto.
-      split.
-      SCase "2.1".
-        apply remove_redundant_sorted; auto.
-          eapply sort_sdom_sorted; eauto.
-      SCase "2.2".
-        apply remove_redundant_NoDup with
-          (R:=gt_dom_prop (AlgDom.sdom f)); auto.
-        SSCase "2.2.1".
-          intros.
-          destruct H5; subst; try congruence.
-          assert (reachable f c) as Hreachc.
-            apply sort_sdom_safe in H3.
-              simpl in H3.
-              destruct H3 as [H3 | H3]; subst.
-                apply Hreach; auto.
-
-                assert (reachable f l1) as Hreach1. apply Hreach; auto.
-                eapply DecDom.sdom_reachable; eauto.
-                  assert (In l1 (bound_fdef f)) as Hin.
-                    apply Hinc; simpl; auto.
-                  apply In_bound_fdef__blockInFdefB in Hin.
-                  destruct Hin as [ps [cs [tmn HBinF]]].
-                  eapply sdom_is_sound; eauto.
-
-Ltac find_in_bound_fdef :=
-match goal with
-| G1 : In ?l1 (bound_fdef ?f),
-  H2 : In ?b
-         (sort_sdom (AlgDom.sdom ?f)
-            (?l1 :: AlgDom.sdom ?f ?l1)) |-
-  In ?b (bound_fdef ?f) =>
-  apply sort_sdom_safe in H2;
-  destruct_in H2; eauto using AlgDomProps.in_bound_dom__in_bound_fdef
-end.
-
-          eapply gt_sdom_prop_trans1 with (l1:=a) in H6;
-            eauto using compute_sdom_chains_aux_sorted__helper;
-            try find_in_bound_fdef.
-            intro EQ; subst.
-            apply gt_sdom_prop_irrefl with (a:=c) in HwfF; auto.
-            rewrite HwfF in H6. congruence.
-
-         SSCase "2.2.2".
-          apply strict_Sorted_StronglySorted.
-            intros.
-            eapply gt_dom_prop_trans with (l2:=y);
-              eauto using compute_sdom_chains_aux_sorted__helper;
-              try find_in_bound_fdef.
-            eapply sort_sdom_sorted; eauto.
-Qed.
-
 Lemma NoDup_gt_dom_prop_sorted__gt_dsom_prop_sorted: forall f chain
   (Hsorted: Sorted (gt_dom_prop (AlgDom.sdom f)) chain)
   (Huniq: NoDup chain),
@@ -836,23 +410,6 @@ Proof.
       constructor.
         destruct H0; subst; auto.
           contradict H2; simpl; auto.
-Qed.
-
-Lemma compute_sdom_chains_sorted: forall S M f 
-  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
-  rd (Hinc: incl rd (bound_fdef f)) (Hreach: forall x, In x rd -> reachable f x)
-  l0 chain,
-  In (l0, chain) (compute_sdom_chains (AlgDom.sdom f) rd) ->
-  Sorted (gt_sdom_prop (AlgDom.sdom f)) chain /\ NoDup chain.
-Proof.
-  intros.
-  unfold compute_sdom_chains in H.
-  eapply compute_sdom_chains_aux_sorted in H; eauto.
-    destruct H as [H1 H2].
-    split; auto.
-      apply NoDup_gt_dom_prop_sorted__gt_dsom_prop_sorted; auto.
-
-    simpl. intros. tauto.
 Qed.
 
 Lemma compute_sdom_chains_aux_safe: forall (res:l -> set l)
@@ -940,6 +497,452 @@ Proof.
     eapply AlgDomProps.in_bound_dom__in_bound_fdef; eauto.
 Qed.
 
+Section GtDomProps.
+
+Variable (f:fdef).
+Hypothesis (Hentry: getEntryBlock f <> None).
+Hypothesis (Hbranch: AlgDom.branchs_in_fdef f).
+Hypothesis (Huniq: uniqFdef f).
+
+Lemma gt_dom_prop_trans : forall l1 l2 l3
+  (HBinF1: In l1 (bound_fdef f))
+  (HBinF2: In l2 (bound_fdef f))
+  (HBinF3: In l3 (bound_fdef f))
+  (H1 : gt_dom_prop (AlgDom.sdom f) l1 l2)
+  (H2 : gt_dom_prop (AlgDom.sdom f) l2 l3),
+  gt_dom_prop (AlgDom.sdom f) l1 l3.
+Proof.
+  unfold gt_dom_prop, gt_sdom.
+  intros.
+  apply In_bound_fdef__blockInFdefB in HBinF1.
+  apply In_bound_fdef__blockInFdefB in HBinF2.
+  apply In_bound_fdef__blockInFdefB in HBinF3.
+  destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
+  destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
+  destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
+  destruct (l_dec l1 l3); auto.
+  destruct H2 as [H2 | H2]; subst; auto.
+  Case "l2 in sdom(l3)".
+    simpl_in_dec.
+    left.
+    assert (domination f l2 l3) as Hdom23.
+      eapply AlgDomProps.dom_is_sound; simpl; eauto.
+    destruct H1 as [H1 | H1]; subst.
+    SCase "l1 in sdom(l2)".
+      simpl_in_dec.
+      assert (domination f l1 l2) as Hdom12.
+        eapply AlgDomProps.dom_is_sound; simpl; eauto.
+      assert (strict_domination f l1 l3) as Hsdom13.
+        apply DecDom.dom_sdom; auto.
+        eapply DecDom.dom_tran; eauto.
+      eapply AlgDom.sdom_is_complete in Hsdom13; eauto 1.
+        solve_in_dec.
+
+    SCase "l1=l2".
+      assert (strict_domination f l2 l3) as Hsdom23.
+        apply DecDom.dom_sdom; auto.
+      eapply AlgDom.sdom_is_complete in Hsdom23; eauto 1.
+        solve_in_dec.
+Qed.
+
+Lemma gt_dom_dec_aux: forall l1 l2 l3
+  (Hreach: reachable f l3)
+  (HBinF1: In l1 (bound_fdef f))
+  (HBinF2: In l2 (bound_fdef f))
+  (HBinF3: In l3 (bound_fdef f)),
+  gt_sdom (AlgDom.sdom f) l1 l3 ->
+  gt_sdom (AlgDom.sdom f) l2 l3 ->
+  gt_dom_prop (AlgDom.sdom f) l1 l2 \/
+  gt_dom_prop (AlgDom.sdom f) l2 l1.
+Proof.
+  unfold gt_dom_prop, gt_sdom. intros.
+  destruct (l_dec l1 l2); auto.
+  repeat simpl_in_dec.
+  apply In_bound_fdef__blockInFdefB in HBinF1.
+  apply In_bound_fdef__blockInFdefB in HBinF2.
+  apply In_bound_fdef__blockInFdefB in HBinF3.
+  destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
+  destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
+  destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
+  assert (strict_domination f l1 l3) as Hsdom13.
+    eapply AlgDomProps.sdom_is_sound; eauto.
+  assert (strict_domination f l2 l3) as Hsdom23.
+    eapply AlgDomProps.sdom_is_sound; eauto.
+  assert (Hentry':=Hentry).
+  apply nonempty_getEntryBlock__getEntryLabel in Hentry'.
+  destruct Hentry' as [entry Hentry'].
+  assert (reachable f l2) as Hreach2.
+    apply DecDom.sdom_reachable in Hsdom23; auto.
+  assert (reachable f l1) as Hreach1.
+    apply DecDom.sdom_reachable in Hsdom13; auto.
+  destruct (l_dec l1 entry); subst.
+    left. left.
+    assert (set_In entry (AlgDom.sdom f l2)) as G.
+      eapply AlgDomProps.entry_doms_others; eauto.
+    solve_in_dec.
+  destruct (l_dec l2 entry); subst.
+    right. left.
+    assert (set_In entry (AlgDom.sdom f l1)) as G.
+      eapply AlgDomProps.entry_doms_others; eauto.
+    solve_in_dec.
+  eapply DecDom.sdom_ordered with (l1:=l2) in Hsdom13; eauto 1.
+  destruct Hsdom13 as [Hsdom21 | Hsdom12].
+  Case "1".
+    right.
+    eapply AlgDom.sdom_is_complete in Hsdom21; eauto 1.
+      left. solve_in_dec.
+  Case "2".
+    left.
+    eapply AlgDom.sdom_is_complete in Hsdom12; eauto 1.
+      left. solve_in_dec.
+Qed.
+
+Lemma gt_dom_dec: forall l1 l2 l3
+  (Hreach: reachable f l3)
+  (HBinF1: In l1 (bound_fdef f))
+  (HBinF2: In l2 (bound_fdef f))
+  (HBinF3: In l3 (bound_fdef f)),
+  gt_dom_prop (AlgDom.sdom f) l1 l3 ->
+  gt_dom_prop (AlgDom.sdom f) l2 l3 ->
+  gt_dom_prop (AlgDom.sdom f) l1 l2 \/
+  gt_dom_prop (AlgDom.sdom f) l2 l1.
+Proof.
+  intros.
+  destruct H as [H | H]; subst; auto.
+  destruct H0 as [H0 | H0]; subst.
+    eapply gt_dom_dec_aux; eauto.
+    left. left. auto.
+Qed.
+
+Lemma gt_sdom_dec: forall l1 l2 l3
+  (Hneq: l1 <> l2)
+  (Hreach: reachable f l3)
+  (HBinF1: In l1 (bound_fdef f))
+  (HBinF2: In l2 (bound_fdef f))
+  (HBinF3: In l3 (bound_fdef f)),
+  gt_sdom (AlgDom.sdom f) l1 l3 ->
+  gt_sdom (AlgDom.sdom f) l2 l3 ->
+  gt_sdom (AlgDom.sdom f) l1 l2 \/
+  gt_sdom (AlgDom.sdom f) l2 l1.
+Proof.
+  intros.
+  apply gt_dom_dec with (l1:=l1) (l2:=l2) (l3:=l3) in Hreach; auto.
+    destruct Hreach as [[J | J] | [J | J]]; subst; auto; try congruence.
+    left. auto.
+    left. auto.
+Qed.
+
+Lemma gt_sdom_prop_irrefl: forall a (Hreach : reachable f a),
+  gt_sdom (AlgDom.sdom f) a a = false.
+Proof.
+  unfold gt_sdom.
+  intros.
+  assert (J:=Hreach).
+  apply reachable__in_bound in Hreach; eauto 2.
+  apply In_bound_fdef__blockInFdefB in Hreach.
+  destruct Hreach as [ps [cs [tnn HBinF]]].
+  destruct (in_dec l_dec a (AlgDom.sdom f a)); simpl; auto.
+  eapply AlgDomProps.sdom_is_sound with (l':=a) in HBinF; eauto 1.
+    apply DecDom.sdom_isnt_refl in HBinF; auto.
+      congruence.
+Qed.
+
+Hypothesis getEntryBlock_inv : forall
+  (l3 : l)
+  (l' : l)
+  (ps : phinodes)
+  (cs : cmds)
+  (tmn : terminator)
+  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
+  (Hsucc : In l' (successors_terminator tmn)) a ps0 cs0 tmn0
+  (H : getEntryBlock f = Some (block_intro a ps0 cs0 tmn0)),
+  l' <> a.
+
+Lemma gt_sdom_prop_trans : forall 
+  l1 l2 l3
+  (HBinF1: In l1 (bound_fdef f))
+  (HBinF2: In l2 (bound_fdef f))
+  (HBinF3: In l3 (bound_fdef f))
+  (H1 : gt_sdom (AlgDom.sdom f) l1 l2 = true)
+  (H2 : gt_sdom (AlgDom.sdom f)  l2 l3 = true),
+  gt_sdom (AlgDom.sdom f)  l1 l3 = true.
+Proof.
+  unfold gt_sdom.
+  intros.
+  repeat simpl_in_dec.
+  apply In_bound_fdef__blockInFdefB in HBinF1.
+  apply In_bound_fdef__blockInFdefB in HBinF2.
+  apply In_bound_fdef__blockInFdefB in HBinF3.
+  destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
+  destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
+  destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
+  destruct (reachable_dec f l3).
+  Case "1".
+    assert (strict_domination f l2 l3) as Hsdom23.
+      eapply AlgDomProps.sdom_is_sound; eauto.
+    assert (reachable f l2) as Hreach2.
+      apply DecDom.sdom_reachable in Hsdom23; auto.
+    assert (strict_domination f l1 l2) as Hsdom12.
+      eapply AlgDomProps.sdom_is_sound; eauto.
+    assert (strict_domination f l1 l3) as Hsdom13.
+      eapply DecDom.sdom_tran with (l2:=l2); eauto.
+    eapply AlgDom.sdom_is_complete in Hsdom13; eauto 1.
+      solve_in_dec.
+  Case "2".
+    eapply AlgDom.dom_unreachable in H; eauto 1.
+      apply blockInFdefB_in_bound_fdef in HBinF1.
+      unfold vertexes_fdef in HBinF1.
+      rewrite H.
+      solve_in_dec.
+Qed.
+
+Lemma gt_sdom_prop_trans1 : forall l1 l2 l3
+  (Hreach: reachable f l3)
+  (HBinF2: In l2 (bound_fdef f))
+  (H1 : gt_sdom (AlgDom.sdom f) l1 l2 = true)
+  (H2 : gt_dom_prop (AlgDom.sdom f) l2 l3),
+  gt_sdom (AlgDom.sdom f) l1 l3 = true.
+Proof.
+  intros.
+  assert (HBinF1: In l1 (bound_fdef f)).
+    eapply in_gt_sdom__in_bound_fdef; eauto.
+  assert (HBinF3: In l3 (bound_fdef f)).
+    eapply reachable__in_bound; eauto 2.
+  unfold gt_dom_prop, gt_sdom in *.
+  destruct (in_dec l_dec l1); inv H1.
+  apply In_bound_fdef__blockInFdefB in HBinF1.
+  apply In_bound_fdef__blockInFdefB in HBinF2.
+  apply In_bound_fdef__blockInFdefB in HBinF3.
+  destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
+  destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
+  destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
+  assert (domination f l2 l3) as Hdom23.
+    eapply AlgDomProps.dom_is_sound; eauto.
+      destruct H2 as [H2 | H2]; simpl; auto.
+        simpl_in_dec; auto.
+  assert (reachable f l2) as Hreach2.
+     apply DecDom.dom_reachable in Hdom23; auto.
+  assert (strict_domination f l1 l2) as Hsdom12.
+    eapply AlgDomProps.sdom_is_sound; eauto.
+  eapply DecDom.sdom_tran1 with (l3:=l3) in Hsdom12; eauto 1.
+  eapply AlgDom.sdom_is_complete in Hsdom12; eauto 1.
+    solve_in_dec.
+Qed.
+
+End GtDomProps.
+
+Require Import typings_props.
+Require Import typings.
+Import LLVMtypings.
+
+Ltac solve_dom :=
+try solve [
+  eauto 1 |
+  unfold AlgDomProps.getEntryBlock_inv; eapply getEntryBlock_inv'; eauto 1 | 
+  eapply wf_fdef__non_entry; eauto 1 |
+  eapply branches_in_vertexes; eauto 1 |
+  eapply wf_fdef__wf_entry; eauto 1 |
+  unfold AlgDom.branchs_in_fdef; eapply branches_in_bound_fdef; eauto 1
+].
+
+Lemma insert_sort_sdom_iter_sorted: forall S M f (HwfF: wf_fdef S M f) 
+  (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
+  l0 (Hin0: In l0 (bound_fdef f))
+  (Hsd03: gt_dom_prop (AlgDom.sdom f) l0 l3) suffix prefix
+  (G: forall l', In l' (prefix ++ suffix) ->
+      gt_dom_prop (AlgDom.sdom f) l' l3 /\ In l' (bound_fdef f)),
+  Sorted (gt_dom_prop (AlgDom.sdom f))
+    (List.rev prefix ++ suffix) ->
+  (forall l1 prefix', prefix = l1 :: prefix' ->
+      gt_dom_prop (AlgDom.sdom f) l1 l0) ->
+  Sorted (gt_dom_prop (AlgDom.sdom f))
+    (insert_sort_sdom_iter (AlgDom.sdom f) l0 prefix suffix).
+Proof.
+  induction suffix; simpl; intros.
+    simpl_env in *.
+    apply sorted_append; auto.
+      intros.
+      apply H0 with (prefix':=rev l1'); auto.
+        rewrite <- rev_involutive at 1.
+        rewrite H1. rewrite rev_unit. auto.
+
+    remember (gt_sdom (AlgDom.sdom f) l0 a) as R.
+    destruct R.
+      simpl_env. simpl.
+      apply sorted_insert; auto.
+        intros.
+        apply H0 with (prefix':=rev l1'); auto.
+          rewrite <- rev_involutive at 1.
+          rewrite H1. rewrite rev_unit. auto.
+
+        intros.
+        inv H1.
+        unfold gt_dom_prop. auto.
+
+      apply IHsuffix.
+        intros. apply G.
+        apply in_or_app. simpl.
+        apply in_app_or in H1. simpl in H1.
+        destruct H1 as [[H1 | H1] | H1]; auto.
+
+        simpl. simpl_env. simpl. auto.
+
+        intros. inv H1.
+        assert (gt_dom_prop (AlgDom.sdom f) l1 l0 \/
+                gt_dom_prop (AlgDom.sdom f) l0 l1) as J.
+          assert (In l1 (prefix'++l1::suffix)) as Hin1. apply in_middle.
+          apply G in Hin1. destruct Hin1 as [J1 J2].
+          eapply gt_dom_dec; solve_dom.
+        destruct J; auto.
+        unfold gt_dom_prop in H1. unfold gt_dom_prop.
+        destruct (l_dec l0 l1); auto.
+        destruct H1 as [H1 | H1]; auto.
+        rewrite <- HeqR in H1. congruence.
+Qed.
+
+Lemma insert_sort_sdom_sorted: forall S M f (HwfF: wf_fdef S M f) 
+  (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
+  data acc
+  (G: forall l', In l' (data++acc) ->
+      gt_dom_prop (AlgDom.sdom f) l' l3 /\ In l' (bound_fdef f)),
+  Sorted (gt_dom_prop (AlgDom.sdom f)) acc ->
+  Sorted (gt_dom_prop (AlgDom.sdom f))
+         (insert_sort_sdom (AlgDom.sdom f) data acc).
+Proof.
+  induction data; simpl; intros; auto.
+    apply IHdata.
+      intros. apply G.
+      apply in_app_or in H0.
+      destruct H0 as [H0 | H0].
+        right. apply in_or_app; auto.
+        apply insert_sort_sdom_iter_safe in H0.
+        destruct H0 as [H0 | H0]; auto.
+          right. apply in_or_app. simpl_env in H0. auto.
+
+      assert (a = a \/ In a (data++acc)) as Hin. auto.
+      apply G in Hin. destruct Hin as [J1 J2].
+      eapply insert_sort_sdom_iter_sorted with (l3:=l3); eauto.
+        intros. apply G. right. apply in_or_app. simpl_env in H0. auto.
+
+        intros. inv H0.
+Qed.
+
+Lemma sort_sdom_sorted: forall S M f (HwfF: wf_fdef S M f) 
+  (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
+  input
+  (G: forall l', In l' input ->
+      gt_dom_prop (AlgDom.sdom f) l' l3 /\ In l' (bound_fdef f)),
+  Sorted (gt_dom_prop (AlgDom.sdom f))
+         (sort_sdom (AlgDom.sdom f) input).
+Proof.
+  intros. unfold sort_sdom.
+  eapply insert_sort_sdom_sorted; simpl_env; eauto.
+Qed.
+
+Lemma compute_sdom_chains_aux_sorted: forall S M f 
+  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
+  l0 chain0 bd (Hinc: incl bd (bound_fdef f))
+  (Hreach: forall x, In x bd -> reachable f x) acc,
+  (forall l0 chain0, In (l0, chain0) acc ->
+    Sorted (gt_dom_prop (AlgDom.sdom f)) chain0 /\
+    NoDup chain0) ->
+  In (l0, chain0)
+    (compute_sdom_chains_aux (AlgDom.sdom f) bd acc) ->
+  Sorted (gt_dom_prop (AlgDom.sdom f)) chain0 /\ NoDup chain0.
+Proof.
+  induction bd as [|a bd]; simpl; intros; eauto.
+    apply IHbd in H0; auto.
+    Case "1".
+      simpl_env in Hinc.
+      apply AtomSet.incl_app_invr in Hinc; auto.
+    Case "2".
+      intros l1 chain1 H1.
+      destruct H1 as [H1 | H1]; eauto.
+      inv H1.
+      assert (In l1 (bound_fdef f)) as G1.
+        apply Hinc; simpl; auto.
+      assert (forall l' : l,
+        In l' (l1 :: AlgDom.sdom f l1) ->
+        gt_dom_prop (AlgDom.sdom f) l' l1 /\ In l' (bound_fdef f))
+        as G2.
+        intros l' Hin.
+        simpl in Hin.
+        destruct Hin as [EQ | Hin]; subst.
+          unfold gt_dom_prop. split; auto.
+
+          split.
+            unfold gt_dom_prop, gt_sdom.
+            left. solve_in_dec.
+
+            eapply AlgDomProps.in_bound_dom__in_bound_fdef; eauto.
+      split.
+      SCase "2.1".
+        apply remove_redundant_sorted; auto.
+          eapply sort_sdom_sorted; eauto.
+      SCase "2.2".
+        apply remove_redundant_NoDup with
+          (R:=gt_dom_prop (AlgDom.sdom f)); auto.
+        SSCase "2.2.1".
+          intros.
+          destruct H5; subst; try congruence.
+          assert (reachable f c) as Hreachc.
+            apply sort_sdom_safe in H3.
+              simpl in H3.
+              destruct H3 as [H3 | H3]; subst.
+                apply Hreach; auto.
+
+                assert (reachable f l1) as Hreach1. apply Hreach; auto.
+                eapply DecDom.sdom_reachable; eauto.
+                  assert (In l1 (bound_fdef f)) as Hin.
+                    apply Hinc; simpl; auto.
+                  apply In_bound_fdef__blockInFdefB in Hin.
+                  destruct Hin as [ps [cs [tmn HBinF]]].
+                  eapply AlgDomProps.sdom_is_sound; solve_dom.
+
+Ltac find_in_bound_fdef :=
+match goal with
+| G1 : In ?l1 (bound_fdef ?f),
+  H2 : In ?b
+         (sort_sdom (AlgDom.sdom ?f)
+            (?l1 :: AlgDom.sdom ?f ?l1)) |-
+  In ?b (bound_fdef ?f) =>
+  apply sort_sdom_safe in H2;
+  destruct_in H2; eauto using AlgDomProps.in_bound_dom__in_bound_fdef
+end.
+
+          eapply gt_sdom_prop_trans1 with (l1:=a) in H6;
+            eauto using compute_sdom_chains_aux_sorted__helper;
+            try find_in_bound_fdef; solve_dom.
+            intro EQ; subst.
+            apply gt_sdom_prop_irrefl with (a:=c) in Hreachc; solve_dom.
+            rewrite Hreachc in H6. congruence.
+
+         SSCase "2.2.2".
+          apply strict_Sorted_StronglySorted.
+            intros.
+            eapply gt_dom_prop_trans with (l2:=y);
+              eauto using compute_sdom_chains_aux_sorted__helper;
+              try find_in_bound_fdef; solve_dom.
+            eapply sort_sdom_sorted; eauto.
+Qed.
+
+Lemma compute_sdom_chains_sorted: forall S M f 
+  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
+  rd (Hinc: incl rd (bound_fdef f)) (Hreach: forall x, In x rd -> reachable f x)
+  l0 chain,
+  In (l0, chain) (compute_sdom_chains (AlgDom.sdom f) rd) ->
+  Sorted (gt_sdom_prop (AlgDom.sdom f)) chain /\ NoDup chain.
+Proof.
+  intros.
+  unfold compute_sdom_chains in H.
+  eapply compute_sdom_chains_aux_sorted in H; eauto.
+    destruct H as [H1 H2].
+    split; auto.
+      apply NoDup_gt_dom_prop_sorted__gt_dsom_prop_sorted; auto.
+
+    simpl. intros. tauto.
+Qed.
+
 Lemma entry_is_head_of_compute_sdom_chains: forall S M f 
   (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) entry rd l0 chain0
   (H:getEntryLabel f = Some entry)
@@ -958,7 +961,7 @@ Proof.
     intros b Hp.
     destruct Hp as [Hp1 Hp2].
     eapply reachablity_analysis__reachable in Hp2; eauto.
-    eapply dom_analysis__entry_doms_others in H; eauto.
+    eapply AlgDomProps.entry_doms_others; solve_dom; eauto.
       
   assert (J0:=H0).
   apply reachablity_analysis__in_bound in H0.
@@ -985,7 +988,7 @@ Proof.
         apply gt_sdom_prop_entry in H5; tauto.
 
         intros.
-        eapply gt_sdom_prop_trans with (l2:=y); eauto.
+        eapply gt_sdom_prop_trans with (l2:=y); solve_dom; eauto.
 Qed.
 
 Definition wf_chain f dt (chain:list l) : Prop :=

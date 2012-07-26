@@ -12,7 +12,7 @@ Require Import Lattice.
 Require Import Iteration.
 Require Import Kildall.
 Require Import ListSet.
-Require Import dom_set.
+Require Import dom_list.
 
 (**********************************)
 (* Dom and Reaching analysis *)

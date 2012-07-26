@@ -6286,3 +6286,12 @@ Proof.
   destruct bs as [|[]]; simpl; intros; split; try solve [auto | congruence].
 Qed.
 
+Lemma nonempty_getEntryBlock__getEntryLabel: forall f,
+  getEntryBlock f <> None ->
+  exists entry, getEntryLabel f = Some entry.
+Proof.
+  destruct f as [? bs]. simpl.
+  destruct bs as [|[]]; simpl; intros; eauto.
+    congruence.
+Qed.
+
