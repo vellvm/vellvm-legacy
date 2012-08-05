@@ -34,7 +34,7 @@ Proof.
   inv_mbind'. 
   destruct m as [los nts ps].
   inv_mbind'.
-  destruct b as [l0 ps0 cs0 tmn0].
+  destruct s as [ps0 cs0 tmn0].
   destruct f as [[fa rt fid la va] bs].
   inv_mbind'. symmetry_ctx.
   assert (HlkF2FromS2:=HeqR).
@@ -52,7 +52,7 @@ Proof.
   eapply RemoveSim.getEntryBlock__simulation in J; eauto.
   destruct J as [b1 [J5 J6]].
   fill_ctxhole.
-  destruct b1 as [l2 ps2 cs2 tmn2].
+  destruct b1 as [l2 [ps2 cs2 tmn2]].
   destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1].
   assert (J:=Hfsim).
   apply RemoveSim.fdef_simulation__eq_fheader in J.
@@ -70,7 +70,7 @@ Proof.
   apply block_simulation_inv in J; 
     eauto using entryBlockInFdef, wf_system__uniqFdef.
   destruct J as [J1 [J2 [J3 J7]]]; subst.
-  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0)
+  assert (blockInFdefB (l0, stmts_intro ps0 cs0 tmn0)
            (fdef_intro (fheader_intro fa rt fid la va) bs) = true) as HBinF.
     apply entryBlockInFdef; auto.
   split; auto.
@@ -344,7 +344,7 @@ Ltac undefined_state__State_simulation_r2l_tac1 :=
 Ltac undefined_state__State_simulation_r2l_tac3 :=
   match goal with
   | Hstsim: State_simulation _ _ _ ?St1 _ ?St2 |- _ =>
-    destruct St2 as [[|[? [? ? ? tmn] CurCmds tmn' ?] ?] ?]; try tauto;
+    destruct St2 as [[|[? [? [? ? tmn]] CurCmds tmn' ?] ?] ?]; try tauto;
     destruct tmn; try tauto;
     destruct CurCmds; try tauto;
     destruct tmn'; try tauto;
@@ -379,8 +379,8 @@ Ltac undefined_state__d_State_simulation_r2l_tac43 :=
 Lemma stacked_frame__unremovable: forall cfg EC1 EC2 ECS Mem0 pinfo sasinfo
   (Huniq: uniqEC EC2) 
   (HBinF: match Opsem.CurBB EC1 with 
-   | block_intro _ _ _ (insn_return _ _ _) => True
-   | block_intro _ _ _ (insn_return_void _) => True
+   | (_, stmts_intro _ _ (insn_return _ _ _)) => True
+   | (_, stmts_intro _ _ (insn_return_void _)) => True
    | _ => False
    end)
   (Hwfpp1 : OpsemPP.wf_State cfg
@@ -395,12 +395,12 @@ Proof.
   destruct Hwfpp1 as 
      [_ [[_ [HbInF1 [_ [_ [_ _]]]]] [_ Hiscall]]].
   apply Hiscall in HbInF1.
-  destruct CurBB as [? ? ? []]; tinv HBinF;
+  destruct CurBB as [? [? ? []]]; tinv HBinF;
     destruct CurCmds0 as [|[]]; try solve [
       inv HbInF1 |
       simpl; destruct_if; destruct_if;
       eapply unstore_loc__neq__SAS_sid1 in J2; 
-        eauto using in_middle; simpl; auto
+        eauto 4 using in_middle; simpl; auto
     ].
 Qed.
 
@@ -822,12 +822,12 @@ Lemma sas_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Hst1 : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (v0 : value)
   (Hst2 : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
-  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
   (Hwfpi: WF_PhiInfo pinfo)
   S2 (Heq2: S2 = [module_intro los nts
                    (Ps1 ++
                      product_fdef
-                     (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) :: Ps2)])
+                     (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)) :: Ps2)])
   (Hok: defined_program S2 main VarArgs)
   (HwfS : wf_system S2),
   program_sim
@@ -836,11 +836,11 @@ Lemma sas_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
        product_fdef
          (fdef_intro fh
            (List.map (remove_block i0)
-             (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)]
+             (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))) :: Ps2)]
     S2 main VarArgs.
 Proof.
   intros.
-  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true)
+  assert (blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) (PI_f pinfo) = true)
     as HBinF.
     rewrite Heq. simpl. apply InBlocksB_middle.
   assert (wf_fdef [module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)]
@@ -856,12 +856,12 @@ Proof.
      [module_intro los nts
         (Ps1 ++
          product_fdef
-           (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) :: Ps2)]
+           (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)) :: Ps2)]
      [module_intro los nts
         (Ps1 ++
          product_fdef
            (remove_fdef (SAS_sid1 pinfo sasinfo)
-              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))
+              (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)))
          :: Ps2)]) as Hssim.
     constructor; auto.
     repeat split; auto.

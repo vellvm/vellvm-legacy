@@ -57,7 +57,7 @@ Definition is_promotable_cmd pid :=
 
 Definition is_promotable_fun pid :=
   (fun acc b =>
-     let '(block_intro l0 ps cs tmn) := b in
+     let '(l0, stmts_intro ps cs tmn) := b in
      if (List.fold_left (fun re p => re || used_in_phi pid p) ps
           (used_in_tmn pid tmn)) then (false, snd acc)
      else
@@ -134,7 +134,7 @@ Definition gen_phinode (pid':id) (ty:typ)
 Definition phinodes_placement_block (pid:id) (ty:typ) (al:align)
   (nids:AVLMap.t (option id* option (id*id))) 
   (preds:AVLMap.t (list l)) (b:block) : block :=
-  let '(block_intro l0 ps cs tmn) := b in
+  let '(l0, stmts_intro ps cs tmn) := b in
   match AVLMap.find _ l0 nids with
   | Some (olid, opsid) =>
     let cs' :=
@@ -144,11 +144,11 @@ Definition phinodes_placement_block (pid:id) (ty:typ) (al:align)
       end in
     match opsid, AVLMap.find _ l0 preds with
     | Some (pid', sid), Some ((_ :: _) as pds) =>
-        block_intro l0
+        (l0, stmts_intro
           ((gen_phinode pid' ty nids pds)::ps)
           (insn_store sid ty (value_id pid') (value_id pid) al::
-           cs ++ cs') tmn
-    | _, _ => block_intro l0 ps (cs ++ cs') tmn
+           cs ++ cs') tmn)
+    | _, _ => (l0, stmts_intro ps (cs ++ cs') tmn)
     end
  | _ => b
  end.
@@ -176,7 +176,7 @@ with CsDTrees : Set :=
 
 Definition block_list_2_cmds_map (bs: blocks) : AVLMap.t cmds :=
 fold_left (fun acc b => 
-           let '(block_intro l0 _ cs0 _) := b in 
+           let '(l0, stmts_intro _ cs0 _) := b in 
            AVLMap.add _ l0 cs0 acc) bs AVLMap.empty.
 
 Fixpoint DTree_2_CsDTree (csmap: AVLMap.t cmds) (dt: @DTree id) : option CsDTree :=
@@ -278,7 +278,7 @@ Definition macro_mem2reg_fdef_iter (f:fdef) (rd:list l)
   (dfs : ATree.t (list id)) (dt:DTree) 
   (succs preds:AVLMap.t (list l)) (dones:list id) : fdef * bool * list id := 
 match getEntryBlock f with
-| Some (block_intro le _ cs _) =>
+| Some (le, stmts_intro _ cs _) =>
     match find_promotable_alloca f le cs dones with
     | None => (f, false, dones)
     | Some (pid, ty, num, al, defs) =>
@@ -324,7 +324,7 @@ if changed1 then inr _ (f1, dones1) else inl _ (f1, dones1).
 Fixpoint successors_blocks (bs: blocks) : AVLMap.t ls :=
 match bs with
 | nil => AVLMap.empty
-| block_intro l0 _ _ tmn :: bs' =>
+| (l0, stmts_intro _ _ tmn) :: bs' =>
     AVLMap.add _ l0 (successors_terminator tmn) (successors_blocks bs')
 end.
 
@@ -359,8 +359,8 @@ else acc.
 Definition elim_phi_phis f ps : AssocList action :=
 List.fold_left (elim_phi_phi f) ps nil.
 
-Definition elim_phi_block f b :=
-let '(block_intro l5 ps cmds5 terminator5) := b in
+Definition elim_phi_block f (b:block) :=
+let '(l5, stmts_intro ps cmds5 terminator5) := b in
 elim_phi_phis f ps.
 
 Definition elim_phi_fdef f :=
@@ -384,7 +384,7 @@ end.
 
 Definition mem2reg_fdef (f:fdef) : fdef :=
 match getEntryBlock f, reachablity_analysis f, dom_frontier f true with
-| Some (block_intro root _ cs _), Some rd, (dfs, Some dtree) =>
+| Some (root, stmts_intro _ cs _), Some rd, (dfs, Some dtree) =>
   if print_reachablity rd then
     let '(f1, _) :=
       let succs := successors f in

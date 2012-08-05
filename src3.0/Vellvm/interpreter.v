@@ -68,20 +68,21 @@ match state with
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) with
         | None => None
-        | Some (block_intro l' ps' cs' tmn') =>
-            do lc' <- (switchToNewBasicBlock TD (block_intro l' ps' cs'
-                      tmn') B gl lc);
-               ret ((mkState ((mkEC F (block_intro l' ps' cs' tmn') cs'
+        | Some (stmts_intro ps' cs' tmn') =>
+            let l' := if isGVZero TD cond0 then l2 else l1 in
+            do lc' <- (switchToNewBasicBlock TD (l', 
+                         stmts_intro ps' cs' tmn') B gl lc);
+               ret ((mkState ((mkEC F (l', stmts_intro ps' cs' tmn') cs'
                      tmn' lc' als)::EC) Mem0), E0)
         end
     | insn_br_uncond bid l0 =>
       (* look up the target block *)
       match (lookupBlockViaLabelFromFdef F l0) with
       | None => None
-      | Some (block_intro l' ps' cs' tmn') =>
-          do lc' <- (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn')
+      | Some (stmts_intro ps' cs' tmn') =>
+          do lc' <- (switchToNewBasicBlock TD (l0, stmts_intro ps' cs' tmn')
                      B gl lc);
-          ret ((mkState ((mkEC F (block_intro l' ps' cs' tmn') cs'
+          ret ((mkState ((mkEC F (l0, stmts_intro ps' cs' tmn') cs'
                  tmn' lc' als)::EC) Mem0), E0)
       end
     | insn_unreachable _ => None
@@ -206,12 +207,12 @@ match state with
             match (getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb))
               with
             | None => None
-            | Some (block_intro l' ps' cs' tmn') =>
+            | Some (l', stmts_intro ps' cs' tmn') =>
                 do gvs <- params2GVs TD lp lc gl;
                 do lc0 <- initLocals TD la gvs;
                 ret ((mkState ((mkEC (fdef_intro
                       (fheader_intro fa rt fid la va) lb)
-                      (block_intro l' ps' cs' tmn') cs' tmn' lc0
+                      (l', stmts_intro ps' cs' tmn') cs' tmn' lc0
                       nil)::
                     (mkEC F B 
                       ((insn_call rid noret0 tailc0 rt1 va1 fv lp)::cs) tmn
@@ -315,29 +316,34 @@ Proof.
           remember (isGVZero CurTargetData0 g) as R3.
           destruct R3.
             remember (lookupBlockViaLabelFromFdef F l1) as R2.
-            destruct R2; tinv HinterInsn.
-              destruct b as [l2 p c t].
+            destruct R2 as [[p c t]|]; tinv HinterInsn.
               remember (switchToNewBasicBlock CurTargetData0
-                (block_intro l2 p c t) B Globals0 lc) as R4.
+                (l1, stmts_intro p c t) B Globals0 lc) as R4.
               destruct R4; inv HinterInsn.
-              eapply sBranch; simpl; eauto.
+              replace (l1, stmts_intro p c t) with 
+                (if isGVZero CurTargetData0 g then l1 else l0, 
+                 stmts_intro p c t).
+                eapply sBranch; simpl; eauto.
+                  rewrite <- HeqR3. auto.
                 rewrite <- HeqR3. auto.
 
             remember (lookupBlockViaLabelFromFdef F l0) as R2.
-            destruct R2; inversion HinterInsn; subst.
-              destruct b as [l2 p c t].
+            destruct R2 as [[p c t]|]; inversion HinterInsn; subst.
               remember (switchToNewBasicBlock CurTargetData0
-                (block_intro l2 p c t) B Globals0 lc) as R4.
+                (l0, stmts_intro p c t) B Globals0 lc) as R4.
               destruct R4; inv HinterInsn.
+              replace (l0, stmts_intro p c t) with 
+                (if isGVZero CurTargetData0 g then l1 else l0, 
+                 stmts_intro p c t).
               eapply sBranch; simpl; eauto.
                 rewrite <- HeqR3. auto.
+              rewrite <- HeqR3. auto.
 
       Case "insn_br_uncond".
         remember (lookupBlockViaLabelFromFdef F l0) as R2.
-        destruct R2; inversion HinterInsn; subst.
-          destruct b as [l1 p c t].
+        destruct R2 as [[p c t]|]; inversion HinterInsn; subst.
           remember (switchToNewBasicBlock CurTargetData0
-            (block_intro l1 p c t) B Globals0 lc) as R3.
+            (l0, stmts_intro p c t) B Globals0 lc) as R3.
           destruct R3; inversion HinterInsn; subst.
           inversion HinterInsn; subst; eauto.
 
@@ -475,7 +481,7 @@ Proof.
           destruct f as [f b]. destruct f as [fnattrs5 typ5 id5 args5 varg5].
           destruct (id_dec i1 id5); try solve [inversion HinterInsn]; subst.
           destruct b; try solve [inversion HinterInsn].
-          destruct b as [l0 ? ? ?].
+          destruct b as [l0 []].
           remember (params2GVs CurTargetData0 p lc Globals0) as R10.
           destruct R10 as [l1|]; try solve [inversion HinterInsn]. 
           simpl in HinterInsn.

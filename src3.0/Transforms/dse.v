@@ -71,10 +71,10 @@ Definition EC_simulation (pinfo: PhiInfo) (EC1 EC2:@Opsem.ExecutionContext DGVs)
        als1 = als2 /\
        block_simulation pinfo f1 b1 b2 /\
        (exists l1, exists ps1, exists cs11,
-         b1 = block_intro l1 ps1 (cs11++cs1) tmn1)
+         b1 = (l1, stmts_intro ps1 (cs11++cs1) tmn1))
          /\
        (exists l2, exists ps2, exists cs21,
-         b2 = block_intro l2 ps2 (cs21++cs2) tmn2) /\
+         b2 = (l2, stmts_intro ps2 (cs21++cs2) tmn2)) /\
        lc1 = lc2 /\
        cmds_simulation pinfo f1 cs1 cs2
   end.
@@ -215,62 +215,7 @@ Proof.
   apply H0 in EQ.
   destruct (id_dec (PI_id pinfo) (PI_id pinfo)); simpl in *; congruence.
 Qed.
-(*
-Lemma no_alias_head_tail_and_app: forall pinfo ptr ECs1 ECs2,
-  no_alias_head_tail pinfo ptr ECs1 ->
-  no_alias_head_tail pinfo ptr ECs2 ->
-  no_alias_head_tail pinfo ptr (ECs1 ++ ECs2).
-Proof.
-  intros.
-  unfold no_alias_head_tail in *.
-  intros.
-  apply in_app_or in Hin.
-  destruct Hin as [Hin | Hin]; eauto.
-Qed.
 
-Lemma no_alias_head_tail_and_cons: forall pinfo ptr EC ECs,
-  no_alias_head_in_tail pinfo ptr EC ->
-  no_alias_head_tail pinfo ptr ECs ->
-  no_alias_head_tail pinfo ptr (EC :: ECs).
-Proof.
-  intros.
-  simpl_env.
-  apply no_alias_head_tail_and_app; auto.
-  unfold no_alias_head_tail.
-  intros.
-  simpl in Hin.
-  destruct Hin as [Hin | Hin]; subst; auto.
-    inv Hin.
-Qed.
-
-Lemma no_alias_head_in_tail__return: forall pinfo F maxb TD M lc als M' EC ptr
-  ty al gvs
-  (Hinscope1':
-   if fdef_dec (PI_f pinfo) F
-   then Promotability.wf_defs maxb pinfo TD M lc als
-   else True)
-  (H0:free_allocas TD M als = Some M')
-  (Hld1:mload TD M' ptr ty al = Some gvs)
-  (EQ1:Opsem.CurFunction EC = F) (EQ2:Opsem.Locals EC = lc),
-  no_alias_head_in_tail pinfo ptr EC.
-Proof.
-  intros.
-  unfold no_alias_head_in_tail. intros.
-  rewrite Heq in EQ1. subst.
-  destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-  destruct (MemProps.no_alias_dec ptr gvsa) as [Hnalias' | Halias]; auto.
-  apply Hinscope1' in Hlkup.
-  destruct Hlkup as [[_ [[mb [EQ [Hin _]]] _]] _]; subst.
-  assert (Hld1':=Hld1).
-  apply mload_inv in Hld1.
-  destruct Hld1 as [b [ofs [m [mc [EQ [J1 Hld1]]]]]]; subst.
-  rewrite Promotability.simpl_blk2GV in Halias.
-  simpl in Halias.
-  destruct (Z_eq_dec b mb); subst; try (contradict Halias; auto).
-  erewrite load_free_allocas_none in Hld1'; eauto.
-  congruence.
-Qed.
-*)
 Ltac destruct_ctx_return :=
 match goal with
 | Hwfcfg : OpsemPP.wf_Config
@@ -334,23 +279,22 @@ match goal with
 end.
 
 Lemma fdef_sim__lookupAL_genLabel2Block_elim_dead_st_block : 
-  forall id0 l0 bs b b',
-  lookupAL _ (genLabel2Block_blocks bs) l0 = Some b ->
-  lookupAL _ (genLabel2Block_blocks (List.map (elim_dead_st_block id0) bs)) l0
-    = Some b' ->
-  elim_dead_st_block id0 b = b'.
+  forall id0 l0 bs s s',
+  lookupAL _ bs l0 = Some s ->
+  lookupAL _ (List.map (elim_dead_st_block id0) bs) l0
+    = Some s' ->
+  elim_dead_st_block id0 (l0,s) = (l0,s').
 Proof.
   intros.
-  eapply fdef_sim__lookupAL_genLabel2Block_block; eauto.
-  destruct b0; simpl; auto.
+  eapply fdef_sim__lookupAL_block; eauto.
 Qed.
 
 (* generalized? *)
-Lemma fdef_sim__block_sim : forall pinfo f1 f2 b1 b2 l0,
+Lemma fdef_sim__block_sim : forall pinfo f1 f2 s1 s2 l0,
   fdef_simulation pinfo f1 f2 ->
-  lookupBlockViaLabelFromFdef f1 l0 = Some b1 ->
-  lookupBlockViaLabelFromFdef f2 l0 = Some b2 ->
-  block_simulation pinfo f1 b1 b2.
+  lookupBlockViaLabelFromFdef f1 l0 = Some s1 ->
+  lookupBlockViaLabelFromFdef f2 l0 = Some s2 ->
+  block_simulation pinfo f1 (l0,s1) (l0,s2).
 Proof.
   intros.
   unfold fdef_simulation in H.
@@ -364,8 +308,8 @@ Qed.
 
 Lemma block_simulation_inv : forall pinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
   tmn2,
-  block_simulation pinfo F (block_intro l1 ps1 cs1 tmn1)
-    (block_intro l2 ps2 cs2 tmn2) ->
+  block_simulation pinfo F (l1, stmts_intro ps1 cs1 tmn1)
+    (l2, stmts_intro ps2 cs2 tmn2) ->
   l1 = l2 /\ ps1 = ps2 /\
   cmds_simulation pinfo F cs1 cs2 /\ tmn1 = tmn2.
 Proof.
@@ -413,20 +357,20 @@ Qed.
 Lemma switchToNewBasicBlock_sim : forall TD l1 l2 ps cs1 cs2 tmn1 tmn2 B1 B2
   gl lc lc1 lc2 F pinfo
   (H23 : @Opsem.switchToNewBasicBlock DGVs TD
-          (block_intro l1 ps cs1 tmn1) B1 gl lc =
+          (l1, stmts_intro ps cs1 tmn1) B1 gl lc =
          ret lc1)
   (Hbsim2 : block_simulation pinfo F B1 B2)
   (H2 : Opsem.switchToNewBasicBlock TD
-         (block_intro l2 ps cs2 tmn2) B2 gl lc =
+         (l2, stmts_intro ps cs2 tmn2) B2 gl lc =
         ret lc2), lc1 = lc2.
 Proof.
   intros.
-  destruct B1, B2.
+  destruct B1 as [? []], B2 as [l3 []].
   apply block_simulation_inv in Hbsim2; auto.
   destruct Hbsim2 as [J1 [J2 [J3 J4]]]; subst.
   unfold Opsem.switchToNewBasicBlock in *. simpl in *.
   rewrite (@OpsemProps.getIncomingValuesForBlockFromPHINodes_eq 
-    DGVs ps TD l0 phinodes0 cmds0 terminator0
+    DGVs ps TD l3 phinodes0 cmds0 terminator0
                   phinodes0 cmds5 terminator0) in H2; auto.
   rewrite H2 in H23. congruence.
 Qed.
@@ -656,18 +600,6 @@ Proof.
         induction bs2; simpl; constructor; auto.
 Qed.
 
-(*
-Lemma no_alias_head_tail_cons_and: forall pinfo ptr EC ECs,
-  no_alias_head_tail pinfo ptr (EC :: ECs) ->
-  no_alias_head_in_tail pinfo ptr EC /\ no_alias_head_tail pinfo ptr ECs.
-Proof.
-  intros.
-  unfold no_alias_head_tail in *.
-  split.
-    apply H; simpl; auto.
-    intros. apply H; simpl; auto.
-Qed.
-*)
 Axiom callExternalFunction__mem_simulation_l2r: forall pinfo TD St1 M1 M2 fid0 gvss0
   oresult1 M1' dck tr1 gl tret targs,
   mem_simulation pinfo TD St1 M1 M2 ->
@@ -759,14 +691,13 @@ Lemma mem_simulation__malloc: forall (pinfo : PhiInfo)
            exists ps1 : phinodes,
              exists cs11 : list cmd,
                B =
-               block_intro l1 ps1 (cs11 ++ c :: cs)
-                 tmn2)
+               (l1, stmts_intro ps1 (cs11 ++ c :: cs) tmn2))
   (Hmalloc: match c with
             | insn_malloc _ _ _ _ | insn_alloca _ _ _ _ => True
             | _ => False
             end) (Hwfpi: WF_PhiInfo pinfo)
   (Hexeq: exists l1 : l, exists ps1 : phinodes,exists cs11 : list cmd,
-              B = block_intro l1 ps1 (cs11 ++ c :: cs) tmn2)
+              B = (l1, stmts_intro ps1 (cs11 ++ c :: cs) tmn2))
   (HBinF: blockInFdefB B F = true) (Huniq: uniqFdef F)
   (Hpalloca : palloca_props.wf_State pinfo
                 ({| Opsem.ECS := {|
@@ -1104,15 +1035,15 @@ Lemma mem_simulation__return: forall (pinfo : PhiInfo)
             exists ps1 : phinodes,
               exists cs11 : list cmd,
                 B' =
-                block_intro l1 ps1 (cs11 ++ insn_call i0 n c t0 v0 v p :: cs')
-                  tmn3)
+                (l1, stmts_intro ps1 (cs11 ++ insn_call i0 n c t0 v0 v p :: cs')
+                  tmn3))
   (Hinscope: if fdef_dec (PI_f pinfo) F
              then Promotability.wf_defs maxb pinfo (los,nts) Mem lc2 als2
              else True)
   (Hmsim : mem_simulation pinfo (los, nts)
             ({|
              Opsem.CurFunction := F;
-             Opsem.CurBB := block_intro l3 ps3 (cs0 ++ nil) tmn;
+             Opsem.CurBB := (l3, stmts_intro ps3 (cs0 ++ nil) tmn);
              Opsem.CurCmds := nil;
              Opsem.Terminator := tmn;
              Opsem.Locals := lc2;
@@ -1147,7 +1078,7 @@ Proof.
     intros ombs Hin.
     destruct (@no_alias_head_in_tail_ex pinfo 
                 {| Opsem.CurFunction := F;
-                   Opsem.CurBB := block_intro l3 ps3 (cs0 ++ nil) tmn;
+                   Opsem.CurBB := (l3, stmts_intro ps3 (cs0 ++ nil) tmn);
                    Opsem.CurCmds := nil;
                    Opsem.Terminator := tmn;
                    Opsem.Locals := lc2;
@@ -1155,7 +1086,7 @@ Proof.
     assert (no_alias_head_tail pinfo (omb::ombs)
              ({|
               Opsem.CurFunction := F;
-              Opsem.CurBB := block_intro l3 ps3 (cs0 ++ nil) tmn;
+              Opsem.CurBB := (l3, stmts_intro ps3 (cs0 ++ nil) tmn);
               Opsem.CurCmds := nil;
               Opsem.Terminator := tmn;
               Opsem.Locals := lc2;
@@ -1332,8 +1263,8 @@ Lemma load_notin_fdef__unused_in_value: forall F v t id0 align0 cs B tmn2 vid0
            exists ps1 : phinodes,
              exists cs11 : list cmd,
                B =
-               block_intro l1 ps1
-                 (cs11 ++ insn_load id0 t v align0 :: cs) tmn2),
+               (l1, stmts_intro ps1
+                 (cs11 ++ insn_load id0 t v align0 :: cs) tmn2)),
   used_in_value vid0 v = false.
 Proof.
   destruct F as [fh bs]. simpl. intros.
@@ -1375,8 +1306,8 @@ Lemma no_alias_head_tail__notin_ignores_with_size: forall maxb pinfo
            exists ps1 : phinodes,
              exists cs11 : list cmd,
                B =
-               block_intro l1 ps1
-                 (cs11 ++ insn_load id0 t v align0 :: cs) tmn2)
+               (l1, stmts_intro ps1
+                 (cs11 ++ insn_load id0 t v align0 :: cs) tmn2))
   (Hin: no_alias_head_tail pinfo ombs 
         ({|
          Opsem.CurFunction := F;
@@ -1423,8 +1354,8 @@ Lemma mem_simulation__mload: forall (maxb : Z) (pinfo : PhiInfo)
            exists ps1 : phinodes,
              exists cs11 : list cmd,
                B =
-               block_intro l1 ps1
-                 (cs11 ++ insn_load id0 t v align0 :: cs) tmn2)
+               (l1, stmts_intro ps1
+                 (cs11 ++ insn_load id0 t v align0 :: cs) tmn2))
   (Hmsim : mem_simulation pinfo (los, nts)
             ({|
              Opsem.CurFunction := F;
@@ -1478,8 +1409,8 @@ Lemma mstore_unremovable_mem_simulation: forall (maxb : Z) (pinfo : PhiInfo)
            exists ps1 : phinodes,
              exists cs11 : list cmd,
                B =
-               block_intro l1 ps1
-                 (cs11 ++ insn_store sid t v1 v2 align0 :: cs) tmn2)
+               (l1, stmts_intro ps1
+                 (cs11 ++ insn_store sid t v1 v2 align0 :: cs) tmn2))
   (Hmsim : mem_simulation pinfo (los, nts)
             ({|
              Opsem.CurFunction := F;
@@ -1681,8 +1612,10 @@ Focus.
   inv Hop2.
   uniq_result.
 
-  assert (block_simulation pinfo F (block_intro l' ps' cs' tmn')
-           (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
+  assert (block_simulation pinfo F 
+           (if (isGVZero (los, nts) c) then l2 else l1, stmts_intro ps' cs' tmn')
+           (if (isGVZero (los, nts) c) then l2 else l1, stmts_intro ps'0 cs'0 tmn'0)) 
+    as Hbsim.
     clear - H22 H1 Hfsim2.
     destruct (isGVZero (los, nts) c); eauto using fdef_sim__block_sim.
   assert (Hbsim':=Hbsim).
@@ -1695,11 +1628,15 @@ Focus.
   subst.
 
   repeat_solve.
-    exists l'0. exists ps'0. exists nil. auto.
-    exists l'0. exists ps'0. exists nil. auto.
+    exists (if (isGVZero (los, nts) c) then l2 else l1). 
+    exists ps'0. exists nil. auto.
+
+    exists (if (isGVZero (los, nts) c) then l2 else l1). 
+    exists ps'0. exists nil. auto.
 
     assert (uniqFdef F) as Huniq by eauto using wf_system__uniqFdef.
-    assert (blockInFdefB (block_intro l'0 ps'0 cs' tmn'0) F = true) as HBinF.
+    assert (blockInFdefB ((if (isGVZero (los, nts) c) then l2 else l1), 
+                          stmts_intro ps'0 cs' tmn'0) F = true) as HBinF.
       solve_blockInFdefB. 
     assert (F = PI_f pinfo ->
             lookupAL (GVsT DGVs) lc2 (PI_id pinfo) =
@@ -1718,8 +1655,8 @@ Focus.
   inv Hop2.
   uniq_result.
 
-  assert (block_simulation pinfo F (block_intro l' ps' cs' tmn')
-           (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
+  assert (block_simulation pinfo F (l0, stmts_intro ps' cs' tmn')
+           (l0, stmts_intro ps'0 cs'0 tmn'0)) as Hbsim.
     eauto using fdef_sim__block_sim.
   assert (Hbsim':=Hbsim).
   apply block_simulation_inv in Hbsim'.
@@ -1731,11 +1668,11 @@ Focus.
   subst.
 
   repeat_solve.
-    exists l'0. exists ps'0. exists nil. auto.
-    exists l'0. exists ps'0. exists nil. auto.
+    exists l0. exists ps'0. exists nil. auto.
+    exists l0. exists ps'0. exists nil. auto.
 
     assert (uniqFdef F) as Huniq by eauto using wf_system__uniqFdef.
-    assert (blockInFdefB (block_intro l'0 ps'0 cs' tmn'0) F = true) as HBinF.
+    assert (blockInFdefB (l0, stmts_intro ps'0 cs' tmn'0) F = true) as HBinF.
       solve_blockInFdefB. 
     assert (F = PI_f pinfo ->
             lookupAL (GVsT DGVs) lc2 (PI_id pinfo) =

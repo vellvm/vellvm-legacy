@@ -23,7 +23,7 @@ Definition sas (sid1 sid2: id) (align1 align2: align) (v1 v2:value) (cs2:cmds)
   (b:block) (pinfo:PhiInfo) : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\
 load_in_cmds (PI_id pinfo) cs2 = false /\
-let '(block_intro _ _ cs _) := b in
+let '(_, stmts_intro _ cs _) := b in
 exists cs1, exists cs3,
   cs =
   cs1 ++
@@ -81,10 +81,10 @@ Definition EC_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo)
        als1 = als2 /\
        block_simulation pinfo sasinfo f1 b1 b2 /\
        (exists l1, exists ps1, exists cs11,
-         b1 = block_intro l1 ps1 (cs11++cs1) tmn1)
+         b1 = (l1, stmts_intro ps1 (cs11++cs1) tmn1))
          /\
        (exists l2, exists ps2, exists cs21,
-         b2 = block_intro l2 ps2 (cs21++cs2) tmn2) /\
+         b2 = (l2, stmts_intro ps2 (cs21++cs2) tmn2)) /\
        lc1 = lc2 /\
        cmds_simulation pinfo sasinfo f1 cs1 cs2
   end.
@@ -101,7 +101,7 @@ end.
 
 Definition cs_follow_dead_store (pinfo:PhiInfo) (sasinfo: SASInfo pinfo)
   (cs:cmds) : Prop :=
-let '(block_intro _ _ cs0 _) := SAS_block pinfo sasinfo in
+let '(_, stmts_intro _ cs0 _) := SAS_block pinfo sasinfo in
 forall cs1 cs3,
   cs0 =
   cs1 ++
@@ -190,7 +190,7 @@ Proof.
     unfold cs_follow_dead_store in J3.
     destruct sasinfo. simpl in *.
     destruct SAS_prop0 as [J4 [J5 J6]].
-    destruct SAS_block0 as [? ? cs0 ?].
+    destruct SAS_block0 as [? [? cs0 ?]].
     destruct J6 as [cs2 [cs3 J6]]; subst.
     destruct (@J3 cs2 
                 (insn_store SAS_sid4 (PI_typ pinfo) SAS_value4
@@ -211,13 +211,13 @@ match goal with
 | sasinfo: SASInfo _ |- _ =>
   destruct sasinfo as [SAS_sid1 SAS_sid2 SAS_align1 SAS_align2 SAS_value1 
                        SAS_value2 SAS_tail0
-                       [SAS_l0 SAS_ps0 SAS_cs0 SAS_tmn0] SAS_prop0];
+                       [SAS_l0 [SAS_ps0 SAS_cs0 SAS_tmn0]] SAS_prop0];
   destruct SAS_prop0 as 
     [SAS_BInF0 [SAS_ldincmds0 [SAS_cs1 [SAS_cs3 SAS_EQ]]]]; subst; simpl
 end.
 
 Lemma SAS_lid1__in_SAS_block_locs: forall pinfo sasinfo,
-  In (SAS_sid1 pinfo sasinfo) (getBlockLocs (SAS_block pinfo sasinfo)).
+  In (SAS_sid1 pinfo sasinfo) (getStmtsLocs (snd (SAS_block pinfo sasinfo))).
 Proof.
   intros.
   destruct_sasinfo.
@@ -226,7 +226,7 @@ Proof.
 Qed.
 
 Lemma SAS_lid2__in_SAS_block_locs: forall pinfo sasinfo,
-  In (SAS_sid2 pinfo sasinfo) (getBlockLocs (SAS_block pinfo sasinfo)).
+  In (SAS_sid2 pinfo sasinfo) (getStmtsLocs (snd (SAS_block pinfo sasinfo))).
 Proof.
   intros.
   destruct_sasinfo.
@@ -236,8 +236,8 @@ Qed.
 
 Lemma SAS_block_spec: forall B pinfo sasinfo (Huniq: uniqFdef (PI_f pinfo))
   (HBinF: blockInFdefB B (PI_f pinfo))
-  (Hin: In (SAS_sid1 pinfo sasinfo) (getBlockLocs B) \/
-          In (SAS_sid2 pinfo sasinfo) (getBlockLocs B)),
+  (Hin: In (SAS_sid1 pinfo sasinfo) (getStmtsLocs (snd B)) \/
+          In (SAS_sid2 pinfo sasinfo) (getStmtsLocs (snd B))),
   B = SAS_block pinfo sasinfo.
 Proof.
   intros.
@@ -250,14 +250,14 @@ Qed.
 
 Lemma lookup_SAS_lid1__store: forall l1 ps1 cs1 pinfo sasinfo
   (HuniqF: uniqFdef (PI_f pinfo)) tmn1
-  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) (PI_f pinfo)) c
+  (HBinF: blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) (PI_f pinfo)) c
   (Hin: In c cs1) (Heq: getCmdLoc c = SAS_sid1 pinfo sasinfo),
   c = insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
         (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) 
         (SAS_align1 pinfo sasinfo).
 Proof.
   intros.
-  assert (block_intro l1 ps1 cs1 tmn1 = SAS_block pinfo sasinfo) as EQ.
+  assert ((l1, stmts_intro ps1 cs1 tmn1) = SAS_block pinfo sasinfo) as EQ.
     apply SAS_block_spec; auto.
       rewrite <- Heq.
       simpl. left. xsolve_in_list.
@@ -269,14 +269,14 @@ Qed.
 
 Lemma lookup_SAS_lid2__store: forall l1 ps1 cs1 pinfo sasinfo
   (HuniqF: uniqFdef (PI_f pinfo)) tmn1
-  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) (PI_f pinfo)) c
+  (HBinF: blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) (PI_f pinfo)) c
   (Hin: In c cs1) (Heq: getCmdLoc c = SAS_sid2 pinfo sasinfo),
   c = insn_store (SAS_sid2 pinfo sasinfo) (PI_typ pinfo) 
         (SAS_value2 pinfo sasinfo) (value_id (PI_id pinfo))
         (SAS_align2 pinfo sasinfo).
 Proof.
   intros.
-  assert (block_intro l1 ps1 cs1 tmn1 = SAS_block pinfo sasinfo) as EQ.
+  assert ((l1, stmts_intro ps1 cs1 tmn1) = SAS_block pinfo sasinfo) as EQ.
     apply SAS_block_spec; auto.
       rewrite <- Heq.
       simpl. right. xsolve_in_list.
@@ -295,9 +295,9 @@ Qed.
 
 Lemma SAS_block_inv1: forall l1 ps1 cs11 t1 v1 v2 cs tmn2 align0 pinfo
   sasinfo (Huniq: uniqFdef (PI_f pinfo))
-  (EQ : block_intro l1 ps1
+  (EQ : (l1, stmts_intro ps1
          (cs11 ++
-          insn_store (SAS_sid1 pinfo sasinfo) t1 v1 v2 align0 :: cs) tmn2 =
+          insn_store (SAS_sid1 pinfo sasinfo) t1 v1 v2 align0 :: cs) tmn2) =
         SAS_block pinfo sasinfo),
   insn_store (SAS_sid1 pinfo sasinfo) t1 v1 v2 align0 =
     insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
@@ -338,11 +338,11 @@ Lemma SAS_sid1_is_in_SAS_tail: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo
            exists ps1 : phinodes,
              exists cs11 : list cmd,
                B =
-               block_intro l1 ps1
+               (l1, stmts_intro ps1
                  (cs11 ++
                   insn_store (SAS_sid1 pinfo sasinfo) 
                     (PI_typ pinfo) v1 (value_id (PI_id pinfo)) align0 :: cs)
-                 tmn2)
+                 tmn2))
   (H25 : lookupAL (GVsT DGVs) lc2 (PI_id pinfo) =
         ret ($ blk2GV (los, nts) b' # typ_pointer (PI_typ pinfo) $)) y
   (Hin: in_SAS_tail pinfo sasinfo y (los, nts)
@@ -361,10 +361,10 @@ Proof.
   apply J1. clear J1.
   destruct Heq3 as [l1 [ps1 [cs11 Heq3]]]. subst.
   split; auto. 
-  assert (block_intro l1 ps1
+  assert ((l1, stmts_intro ps1
             (cs11 ++
               insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) v1
-              (value_id (PI_id pinfo)) align0 :: cs) tmn2 = 
+              (value_id (PI_id pinfo)) align0 :: cs) tmn2) = 
             SAS_block pinfo sasinfo) as EQ.
     apply SAS_block_spec; auto.
     simpl. repeat simpl_locs. left.
@@ -390,7 +390,7 @@ Proof.
   intros.
   unfold cs_follow_dead_store in H.
   destruct sasinfo. simpl in *.
-  destruct SAS_block0.
+  destruct SAS_block0 as [? []].
   destruct SAS_prop0 as [J1 [J4 [cs1 [cs2 EQ]]]].
   apply H in EQ.
   destruct EQ as [csa [csb [EQ1 EQ2]]].
@@ -424,7 +424,7 @@ Proof.
   unfold cs_follow_dead_store.
   intros. 
   remember (SAS_block pinfo sasinfo) as R.
-  destruct R as [? ? cs0 ?]. intros. subst.
+  destruct R as [? [? cs0 ?]]. intros. subst.
   eapply SAS_block_inv1 in HeqR; eauto.
   destruct HeqR as [EQa [cs4 EQb]]; subst.
   inv EQa. 
@@ -451,7 +451,7 @@ Qed.
 Lemma cs_follow_dead_store_tail': forall pinfo sasinfo c cs
   (Huniq: uniqFdef (PI_f pinfo))
   (Hex: exists l0, exists ps0, exists tmn0, exists cs0,
-          SAS_block pinfo sasinfo = block_intro l0 ps0 (cs0++c::cs) tmn0),
+          SAS_block pinfo sasinfo = (l0, stmts_intro ps0 (cs0++c::cs) tmn0)),
   getCmdLoc c <> SAS_sid1 pinfo sasinfo ->
   cs_follow_dead_store pinfo sasinfo cs ->
   cs_follow_dead_store pinfo sasinfo (c :: cs).
@@ -459,7 +459,7 @@ Proof.
   unfold cs_follow_dead_store.
   intros. 
   remember (SAS_block pinfo sasinfo) as R.
-  destruct R as [? ? cs0 ?]. intros. subst.
+  destruct R as [? [? cs0 ?]]. intros. subst.
   eapply SAS_block_inv1 in HeqR; eauto.
   destruct HeqR as [EQa [cs4 EQb]]; subst.
   inv EQa. 
@@ -545,7 +545,7 @@ Qed.
 Lemma EC_follow_dead_store_tail'':forall pinfo sasinfo c cs B tmn3 lc1 als3 als3'
   lc2 F
   (Hex: exists l0, exists ps0, exists cs0,
-          B = block_intro l0 ps0 (cs0++c::cs) tmn3)
+          B = (l0, stmts_intro ps0 (cs0++c::cs) tmn3))
   (Heq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid1 pinfo sasinfo)
   (Huniq: uniqFdef F),
   EC_follow_dead_store pinfo sasinfo
@@ -576,7 +576,7 @@ Qed.
 Lemma cs_follow_dead_store_at_beginning_false: forall (pinfo : PhiInfo)
   (sasinfo : SASInfo pinfo) (l' : l) (ps' : phinodes) (cs' : cmds)
   (tmn' : terminator)
-  (J2 : block_intro l' ps' cs' tmn' = SAS_block pinfo sasinfo)
+  (J2 : (l', stmts_intro ps' cs' tmn') = SAS_block pinfo sasinfo)
   (J3 : cs_follow_dead_store pinfo sasinfo cs'),
   False.
 Proof.
@@ -618,7 +618,7 @@ Lemma EC_follow_dead_store_at_begin_false: forall pinfo sasinfo F l' ps' cs' tmn
   EC_follow_dead_store pinfo sasinfo
     {|
      Opsem.CurFunction := F;
-     Opsem.CurBB := block_intro l' ps' cs' tmn';
+     Opsem.CurBB := (l', stmts_intro ps' cs' tmn');
      Opsem.CurCmds := cs';
      Opsem.Terminator := tmn;
      Opsem.Locals := lc2;
@@ -635,7 +635,7 @@ Lemma cs_follow_dead_store_at_end_false: forall (pinfo : PhiInfo)
 Proof.
   intros.
   unfold cs_follow_dead_store in J3.
-  destruct sasinfo. simpl in *. destruct SAS_block0.
+  destruct sasinfo. simpl in *. destruct SAS_block0 as [? []].
   destruct SAS_prop0 as [_ [_ [cs1 [cs3 J]]]].
   assert (J':=J).
   apply J3 in J.
@@ -681,7 +681,7 @@ Qed.
 
 Lemma SAS_sid1__isnt__phi: forall (pinfo : PhiInfo) sasinfo (ps1 : phinodes) 
   (l1 : l) (cs1 : cmds) (tmn1 : terminator)
-  (HBinF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) (PI_f pinfo) = true)
+  (HBinF : blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) (PI_f pinfo) = true)
   (H0 : uniqFdef (PI_f pinfo)),
   ~ In (SAS_sid1 pinfo sasinfo) (getPhiNodesIDs ps1).
 Proof.
@@ -698,7 +698,7 @@ Qed.
 
 Lemma remove_phinodes_eq: forall pinfo sasinfo l0 ps0 cs0 tmn0,
   uniqFdef (PI_f pinfo) ->
-  blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) ->
+  blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) (PI_f pinfo) ->
   remove_phinodes (SAS_sid1 pinfo sasinfo) ps0 = ps0.
 Proof.
   intros.
@@ -709,9 +709,9 @@ Qed.
 Lemma block_simulation_inv : forall pinfo sasinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
   tmn2,
   uniqFdef F ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) F ->
-  block_simulation pinfo sasinfo F (block_intro l1 ps1 cs1 tmn1)
-    (block_intro l2 ps2 cs2 tmn2) ->
+  blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) F ->
+  block_simulation pinfo sasinfo F (l1, stmts_intro ps1 cs1 tmn1)
+    (l2, stmts_intro ps2 cs2 tmn2) ->
   l1 = l2 /\ ps1 = ps2 /\
   cmds_simulation pinfo sasinfo F cs1 cs2 /\ tmn1 = tmn2.
 Proof.
@@ -726,20 +726,20 @@ Lemma switchToNewBasicBlock_sim : forall TD l1 l2 ps cs1 cs2 tmn1 tmn2 B1 B2
   gl lc lc1 lc2 F pinfo sasinfo (Huniq: uniqFdef F) 
   (HbInF: blockInFdefB B1 F = true)
   (H23 : @Opsem.switchToNewBasicBlock DGVs TD
-          (block_intro l1 ps cs1 tmn1) B1 gl lc =
+          (l1, stmts_intro ps cs1 tmn1) B1 gl lc =
          ret lc1)
   (Hbsim2 : block_simulation pinfo sasinfo F B1 B2)
   (H2 : Opsem.switchToNewBasicBlock TD
-         (block_intro l2 ps cs2 tmn2) B2 gl lc =
+         (l2, stmts_intro ps cs2 tmn2) B2 gl lc =
         ret lc2), lc1 = lc2.
 Proof.
   intros.
-  destruct B1, B2.
+  destruct B1 as [l3 []], B2 as [l4 []].
   apply block_simulation_inv in Hbsim2; auto.
   destruct Hbsim2 as [J1 [J2 [J3 J4]]]; subst.
   unfold Opsem.switchToNewBasicBlock in *. simpl in *.
   rewrite (@OpsemProps.getIncomingValuesForBlockFromPHINodes_eq 
-    DGVs ps TD l0 phinodes0 cmds0 terminator0
+    DGVs ps TD l4 phinodes0 cmds0 terminator0
                   phinodes0 cmds5 terminator0) in H2; auto.
   rewrite H2 in H23. congruence.
 Qed.
@@ -759,12 +759,12 @@ Lemma switchToNewBasicBlock_mem_simulation: forall (pinfo : PhiInfo)
              Opsem.Allocas := als2 |} :: EC) Mem M2)
   (l'0 : l) (ps'0 : phinodes) (tmn'0 : terminator) (lc'0 : Opsem.GVsMap)
   (H2 : Opsem.switchToNewBasicBlock (los, nts)
-         (block_intro l'0 ps'0 cs' tmn'0) B gl2 lc2 =
+         (l'0, stmts_intro ps'0 cs' tmn'0) B gl2 lc2 =
         ret lc'0),
   mem_simulation pinfo sasinfo (los, nts)
      ({|
       Opsem.CurFunction := F;
-      Opsem.CurBB := block_intro l'0 ps'0 cs' tmn'0;
+      Opsem.CurBB := (l'0, stmts_intro ps'0 cs' tmn'0);
       Opsem.CurCmds := cs';
       Opsem.Terminator := tmn'0;
       Opsem.Locals := lc'0;
@@ -815,7 +815,7 @@ Lemma unstore_loc__neq__SAS_sid2: forall pinfo sasinfo F B c cs tmn2 id0
          | _ => True
          end) (Huniq: uniqFdef F)
   (Hex: exists l0, exists ps0, exists cs0, 
-          B = block_intro l0 ps0 (cs0 ++ c :: cs) tmn2) 
+          B = (l0, stmts_intro ps0 (cs0 ++ c :: cs) tmn2)) 
   (HBinF: blockInFdefB B F = true) (EQ : id0 = getCmdLoc c),
   PI_f pinfo = F -> id0 <> SAS_sid2 pinfo sasinfo.
 Proof.
@@ -832,7 +832,7 @@ Lemma unstore_loc__neq__SAS_sid1: forall pinfo sasinfo F B c cs tmn2 id0
          | _ => True
          end) (Huniq: uniqFdef F)
   (Hex: exists l0, exists ps0, exists cs0, 
-          B = block_intro l0 ps0 (cs0 ++ c :: cs) tmn2) 
+          B = (l0, stmts_intro ps0 (cs0 ++ c :: cs) tmn2)) 
   (HBinF: blockInFdefB B F = true) (EQ : id0 = getCmdLoc c),
   PI_f pinfo = F -> id0 <> SAS_sid1 pinfo sasinfo.
 Proof.
@@ -848,7 +848,7 @@ Lemma in_SAS_tail_update :
   (Hneq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid2 pinfo sasinfo)
   (Hneq': PI_f pinfo = F -> getCmdLoc c <> SAS_sid1 pinfo sasinfo)
   (Hex: exists l0, exists ps0, exists cs0,
-          B = block_intro l0 ps0 (cs0++c::cs) tmn3)
+          B = (l0, stmts_intro ps0 (cs0++c::cs) tmn3))
   (Hp: PI_f pinfo = F -> 
        lookupAL (GVsT DGVs) lc2 (PI_id pinfo) =
          lookupAL (GVsT DGVs) lc1 (PI_id pinfo))
@@ -886,7 +886,7 @@ Lemma mem_simulation_update_locals :
   (Hneq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid2 pinfo sasinfo)
   (Hneq': PI_f pinfo = F -> getCmdLoc c <> SAS_sid1 pinfo sasinfo)
   (Hex: exists l0, exists ps0, exists cs0,
-          B = block_intro l0 ps0 (cs0++c::cs) tmn3)
+          B = (l0, stmts_intro ps0 (cs0++c::cs) tmn3))
   (Hp: PI_f pinfo = F -> 
        lookupAL (GVsT DGVs) lc1 (PI_id pinfo) =
          lookupAL (GVsT DGVs) lc2 (PI_id pinfo))
@@ -1047,7 +1047,7 @@ Proof.
   intros. subst.
   unfold sas in SAS_prop0. simpl in *.
   destruct SAS_prop0 as [J1 [J2 J3]].
-  destruct SAS_block0.
+  destruct SAS_block0 as [l5 []].
   destruct J3 as [cs1 [cs3 J3]]; subst. 
   unfold cs_follow_dead_store. simpl.
   destruct Huniq as [Huniq [_ Hex]].
@@ -1250,7 +1250,7 @@ Qed.
 
 Ltac unstore_loc__neq__SAS_sid2_tac :=
 match goal with
-| Hex: exists _:_, exists _:_, exists _:_, ?B1=block_intro _ _ (_++_::_) _,      
+| Hex: exists _:_, exists _:_, exists _:_, ?B1=(_, stmts_intro _ (_++_::_) _),
   HBinF1 : blockInFdefB ?B1 ?F = true |-
   PI_f ?pinfo = ?F -> _ <> SAS_sid2 ?pinfo _ =>
     eapply unstore_loc__neq__SAS_sid2 with (B:=B1); 
@@ -1270,12 +1270,12 @@ Lemma mem_simulation__return: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
             exists ps1 : phinodes,
               exists cs11 : list cmd,
                 B' =
-                block_intro l1 ps1 (cs11 ++ insn_call i0 n c t0 v0 v p :: cs')
-                  tmn3)
+                (l1, stmts_intro ps1 (cs11 ++ insn_call i0 n c t0 v0 v p :: cs')
+                  tmn3))
   (Hmsim : mem_simulation pinfo sasinfo (los, nts)
             ({|
              Opsem.CurFunction := F;
-             Opsem.CurBB := block_intro l3 ps3 (cs0 ++ nil) tmn;
+             Opsem.CurBB := (l3, stmts_intro ps3 (cs0 ++ nil) tmn);
              Opsem.CurCmds := nil;
              Opsem.Terminator := tmn;
              Opsem.Locals := lc2;
@@ -1318,8 +1318,7 @@ Lemma mem_simulation__malloc: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
            exists ps1 : phinodes,
              exists cs11 : list cmd,
                B =
-               block_intro l1 ps1 (cs11 ++ c :: cs)
-                 tmn2)
+               (l1, stmts_intro ps1 (cs11 ++ c :: cs) tmn2))
   (Hmalloc: match c with
             | insn_malloc _ _ _ _ | insn_alloca _ _ _ _ => True
             | _ => False
@@ -1552,7 +1551,7 @@ Proof.
     unfold cs_follow_dead_store in J3.
     destruct sasinfo. simpl in *.
     destruct SAS_prop0 as [J4 [J5 J6]].
-    destruct SAS_block0 as [? ? cs0 ?].
+    destruct SAS_block0 as [? [? cs0 ?]].
     destruct J6 as [cs2 [cs3 J6]]; subst. simpl in *.
     destruct (@J3 cs2 (insn_store SAS_sid4 (PI_typ pinfo) SAS_value4
                          (value_id (PI_id pinfo)) SAS_align4 :: cs3)) as
@@ -1711,7 +1710,7 @@ Lemma in_SAS_tail_at_beginning: forall pinfo sasinfo TD F tmn' lc' als' cs' ps'
   l',
   in_SAS_tail pinfo sasinfo None TD 
     {| Opsem.CurFunction := F;
-       Opsem.CurBB := block_intro l' ps' cs' tmn';
+       Opsem.CurBB := (l', stmts_intro ps' cs' tmn');
        Opsem.CurCmds := cs';
        Opsem.Terminator := tmn';
        Opsem.Locals := lc';
@@ -1728,14 +1727,14 @@ Lemma mem_simulation__call: forall pinfo sasinfo TD EC ECs M1 M2
   (Hmsim : mem_simulation pinfo sasinfo TD (EC :: ECs) M1 M2)
   (l'0 : l) (ps'0 : phinodes) (tmn'0 : terminator) als' lc' F cs'
   (Huniq: uniqEC {| Opsem.CurFunction := F;
-                    Opsem.CurBB := block_intro l'0 ps'0 cs' tmn'0;
+                    Opsem.CurBB := (l'0, stmts_intro ps'0 cs' tmn'0);
                     Opsem.CurCmds := cs';
                     Opsem.Terminator := tmn'0;
                     Opsem.Locals := lc';
                     Opsem.Allocas := als' |}),
   mem_simulation pinfo sasinfo TD
     ({| Opsem.CurFunction := F;
-        Opsem.CurBB := block_intro l'0 ps'0 cs' tmn'0;
+        Opsem.CurBB := (l'0, stmts_intro ps'0 cs' tmn'0);
         Opsem.CurCmds := cs';
         Opsem.Terminator := tmn'0;
         Opsem.Locals := lc';
@@ -1754,7 +1753,7 @@ Proof.
      destruct y.
        assert (in_SAS_tail pinfo sasinfo None TD
          {| Opsem.CurFunction := F;
-            Opsem.CurBB := block_intro l'0 ps'0 cs' tmn'0;
+            Opsem.CurBB := (l'0, stmts_intro ps'0 cs' tmn'0);
             Opsem.CurCmds := cs';
             Opsem.Terminator := tmn'0;
             Opsem.Locals := lc';
@@ -1768,9 +1767,9 @@ Qed.
 
 Lemma SAS_block_inv2: forall l1 ps1 cs11 t1 v1 v2 cs tmn2 align0 pinfo
   sasinfo (Huniq: uniqFdef (PI_f pinfo))
-  (EQ : block_intro l1 ps1
+  (EQ : (l1, (stmts_intro ps1
          (cs ++
-          insn_store (SAS_sid2 pinfo sasinfo) t1 v1 v2 align0 :: cs11) tmn2 =
+          insn_store (SAS_sid2 pinfo sasinfo) t1 v1 v2 align0 :: cs11) tmn2)) =
         SAS_block pinfo sasinfo),
   insn_store (SAS_sid2 pinfo sasinfo) t1 v1 v2 align0 =
     insn_store (SAS_sid2 pinfo sasinfo) (PI_typ pinfo) 
@@ -1813,10 +1812,10 @@ Lemma SAS_sid2_isnt_in_SAS_tail: forall (pinfo : PhiInfo)
            exists ps1 : phinodes,
              exists cs11 : list cmd,
                B =
-               block_intro l1 ps1
+               (l1, stmts_intro ps1
                  (cs11 ++
                   insn_store (SAS_sid2 pinfo sasinfo) t v1 v2 align0 :: cs)
-                 tmn2)
+                 tmn2))
   (y : monad Values.block) (Huniq: uniqFdef (PI_f pinfo)) 
   (HBinF: blockInFdefB B (PI_f pinfo))
   (H1 : in_SAS_tail pinfo sasinfo y (los, nts)
@@ -1856,11 +1855,11 @@ Lemma SAS_sid2_is_in_SAS_tail: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo
            exists ps1 : phinodes,
              exists cs11 : list cmd,
                B =
-               block_intro l1 ps1
+               (l1, stmts_intro ps1
                  (cs11 ++
                   insn_store (SAS_sid2 pinfo sasinfo) 
                     (PI_typ pinfo) v1 (value_id (PI_id pinfo)) align0 :: cs)
-                 tmn2)
+                 tmn2))
   (H25 : lookupAL (GVsT DGVs) lc2 (PI_id pinfo) =
         ret ((Vptr b' (Int.repr 31 0), cm') :: nil)),
   in_SAS_tail pinfo sasinfo (ret b') (los, nts)
@@ -1882,10 +1881,10 @@ Proof.
     split; auto.
     simpl.
     destruct Heq3 as [l1 [ps1 [cs11 Heq3]]]. subst.
-    assert (block_intro l1 ps1
+    assert ((l1, stmts_intro ps1
              (cs11 ++
               insn_store (SAS_sid2 pinfo sasinfo) (PI_typ pinfo) v1
-              (value_id (PI_id pinfo)) align0 :: cs) tmn2 = 
+              (value_id (PI_id pinfo)) align0 :: cs) tmn2) = 
             SAS_block pinfo sasinfo) as EQ.
       apply SAS_block_spec; auto.
       simpl. repeat simpl_locs. right.
@@ -1919,8 +1918,8 @@ Lemma mstore_unremovable_mem_simulation: forall (maxb : Z) (pinfo : PhiInfo)
            exists ps1 : phinodes,
              exists cs11 : list cmd,
                B =
-               block_intro l1 ps1
-                 (cs11 ++ insn_store sid t v1 v2 align0 :: cs) tmn2)
+               (l1, stmts_intro ps1
+                 (cs11 ++ insn_store sid t v1 v2 align0 :: cs) tmn2))
   (Hmsim : mem_simulation pinfo sasinfo (los, nts)
             ({|
              Opsem.CurFunction := F;
@@ -2072,9 +2071,9 @@ Lemma mstore_removable_mem_simulation: forall los nts M1 mp2 gv1 a M1' pinfo lc2
            exists ps1 : phinodes,
              exists cs11 : list cmd,
                B1 =
-               block_intro l1 ps1
+               (l1, stmts_intro ps1
                  (cs11 ++ insn_store (SAS_sid1 pinfo sasinfo) t v v0 a :: cs1)
-                 tmn2) maxb
+                 tmn2)) maxb
   (Hinscope' : if fdef_dec (PI_f pinfo) (PI_f pinfo)
               then Promotability.wf_defs maxb pinfo (los, nts) M1 lc2 als2
               else True)
@@ -2173,7 +2172,7 @@ end.
 
 Ltac dse_is_sim_common_case :=
 match goal with
-| Hex: exists _:_, exists _:_, exists _:_, ?B1=block_intro _ _ (_++_::_) _,      
+| Hex: exists _:_, exists _:_, exists _:_, ?B1=(_, stmts_intro _ (_++_::_) _),
   HBinF1 : blockInFdefB ?B1 _ = true,
   Hcssim2: cmds_simulation _ _ _ _ _,
   Hop2: Opsem.sInsn _ _ _ _,
@@ -2426,13 +2425,17 @@ Focus.
   inv Hop2.
   uniq_result.
 
-  assert (block_simulation pinfo sasinfo F (block_intro l' ps' cs' tmn')
-           (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
+  assert (block_simulation pinfo sasinfo F 
+           (if isGVZero (los, nts) c then l2 else l1, 
+            stmts_intro ps' cs' tmn')
+           (if isGVZero (los, nts) c then l2 else l1, 
+            stmts_intro ps'0 cs'0 tmn'0)) as Hbsim.
     clear - H22 H1 Hfsim2.
     destruct (isGVZero (los, nts) c); 
       eapply RemoveSim.fdef_sim__block_sim; eauto.
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
-  assert (blockInFdefB (block_intro l' ps' cs' tmn') F) as HBinF1'.
+  assert (blockInFdefB (if isGVZero (los, nts) c then l2 else l1, 
+                        stmts_intro ps' cs' tmn') F) as HBinF1'.
     solve_blockInFdefB.
   assert (Hbsim':=Hbsim).
   apply block_simulation_inv in Hbsim'; auto.
@@ -2444,8 +2447,11 @@ Focus.
   subst.
 
   repeat_solve.
-    exists l'0. exists ps'0. exists nil. auto.
-    exists l'0. exists ps'0. exists nil. auto.
+    exists (if isGVZero (los, nts) c then l2 else l1). 
+    exists ps'0. exists nil. auto.
+
+    exists (if isGVZero (los, nts) c then l2 else l1). 
+    exists ps'0. exists nil. auto.
 
     clear - H2 Hmsim.
     eapply switchToNewBasicBlock_mem_simulation; eauto.
@@ -2459,11 +2465,11 @@ Focus.
   inv Hop2.
   uniq_result.
 
-  assert (block_simulation pinfo sasinfo F (block_intro l' ps' cs' tmn')
-           (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
+  assert (block_simulation pinfo sasinfo F (l0, stmts_intro ps' cs' tmn')
+           (l0, stmts_intro ps'0 cs'0 tmn'0)) as Hbsim.
     eapply RemoveSim.fdef_sim__block_sim; eauto.
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
-  assert (blockInFdefB (block_intro l' ps' cs' tmn') F) as HBinF1'.
+  assert (blockInFdefB (l0, stmts_intro ps' cs' tmn') F) as HBinF1'.
     solve_blockInFdefB.
   assert (Hbsim':=Hbsim).
   apply block_simulation_inv in Hbsim'; auto.
@@ -2475,8 +2481,8 @@ Focus.
   subst.
 
   repeat_solve.
-    exists l'0. exists ps'0. exists nil. auto.
-    exists l'0. exists ps'0. exists nil. auto.
+    exists l0. exists ps'0. exists nil. auto.
+    exists l0. exists ps'0. exists nil. auto.
 
     clear - H0 Hmsim.
     eapply switchToNewBasicBlock_mem_simulation; eauto.
@@ -2588,8 +2594,8 @@ SCase "sCall".
   apply block_simulation_inv in Hbsim1'; auto using entryBlockInFdef.
   destruct Hbsim1' as [Heq' [Hpsim1' [Hcsim1' Htsim1']]]; subst.
   assert (exists l1 : l, exists ps1 : phinodes, exists cs11 : list cmd,
-           block_intro l'0 ps'0 cs' tmn'0 =
-           block_intro l1 ps1 (cs11 ++ cs') tmn'0) as Hex.
+           (l'0, stmts_intro ps'0 cs' tmn'0) =
+           (l1, stmts_intro ps1 (cs11 ++ cs') tmn'0)) as Hex.
     exists l'0. exists ps'0. exists nil. auto.
   repeat_solve.
     exists l'0. exists ps'0. exists nil. auto.

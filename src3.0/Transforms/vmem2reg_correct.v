@@ -71,16 +71,16 @@ Lemma elim_stld_cmds_wfPI: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
   bs1 l0 ps0 cs0 tmn0 bs2 Ps1 Ps2 (Hreach:  In l0 (PI_rd pinfo))
   (Hpass : (f0, true, dones0) =
            elim_stld_cmds
-             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) cs0
+             (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)) cs0
              (PI_id pinfo) dones)
-  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
   (Hwfpi: WF_PhiInfo pinfo)
   (HwfS :
      wf_system
        [module_intro los nts
          (Ps1 ++
           product_fdef
-            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+            (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
           :: Ps2)]),
   exists pinfo', WF_PhiInfo pinfo' /\ keep_pinfo f0 pinfo pinfo'.
 Proof.
@@ -105,9 +105,9 @@ Lemma elim_stld_cmds_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
   main VarArgs bs1 l0 ps0 cs0 tmn0 bs2 Ps1 Ps2 (Hreach:  In l0 (PI_rd pinfo))
   (Hpass : (f0, true, dones0) =
            elim_stld_cmds
-             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) cs0
+             (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)) cs0
              (PI_id pinfo) dones)
-  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
   (Hwfpi: WF_PhiInfo pinfo)
   S1 S2
   (Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)])
@@ -115,7 +115,7 @@ Lemma elim_stld_cmds_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
     [module_intro los nts
       (Ps1 ++
        product_fdef
-         (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) :: Ps2)])
+         (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)) :: Ps2)])
   (HwfS : wf_system S2) (Hok: defined_program S2 main VarArgs),
   program_sim S1 S2 main VarArgs /\ wf_system S1 /\
     defined_program S1 main VarArgs.
@@ -144,7 +144,7 @@ Qed.
 Ltac elim_stld_block_tac :=
 intros;
 match goal with
-| H:context [iter_block ElimStld _ ?b0 _ _] |- _ => destruct b0; simpl in H; 
+| H:context [iter_block ElimStld _ ?b0 _ _] |- _ => destruct b0 as [? []]; simpl in H; 
   try solve [
     eapply elim_stld_cmds_unchanged; eauto 2 |
     eapply elim_stld_cmds_wfPI; eauto 2 |
@@ -221,7 +221,7 @@ Proof.
     destruct a as [f dones].
     unfold macro_mem2reg_fdef_iter.
     remember (getEntryBlock f) as R.
-    destruct R as [[l0 ps0 cs0 tmn0]|]; auto.
+    destruct R as [[l0 [ps0 cs0 tmn0]]|]; auto.
     remember (find_promotable_alloca f cs0 dones) as R.
     destruct R as [[[[pid ty] num] al]|]; auto.
     set (pinfo:=mkPhiInfo f rd pid ty num al).
@@ -337,10 +337,10 @@ Proof.
         apply program_sim_wfS_trans with (P2:=
                  [module_intro los nts (Ps1 ++ product_fdef f0' :: Ps2)]); auto.
         intros.
-        split. eapply dse_sim with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
-        split. eapply dse_wfS with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
+        split. eapply dse_sim with (pinfo:=pinfo'); eauto 2; solve_keep_pinfo.
+        split. eapply dse_wfS with (pinfo:=pinfo'); eauto 2; solve_keep_pinfo.
                eapply program_sim__preserves__defined_program; eauto.
-                 eapply dse_sim with (pinfo:=pinfo'); eauto; solve_keep_pinfo.
+                 eapply dse_sim with (pinfo:=pinfo'); eauto 2; solve_keep_pinfo.
       SCase "3.2".
         destruct HPf20 as [J1 J2].
         split; etransitivity; eauto.
@@ -351,7 +351,7 @@ Proof.
         destruct HPf10 as [? [? ?]].
         exists (update_pinfo pinfo' (elim_dead_st_fdef pid f0')).
         split.
-          eapply dse_wfPI; eauto; solve_keep_pinfo.
+          eapply dse_wfPI; eauto 2; solve_keep_pinfo.
           solve_keep_pinfo.
     
     Case "4".
@@ -397,7 +397,7 @@ Proof.
   intros. subst.
   unfold mem2reg_fdef.
   remember (getEntryBlock f) as b. 
-  destruct b as [[root ps cs tmn]|]; auto using program_sim_refl.
+  destruct b as [[root [ps cs tmn]]|]; auto using program_sim_refl.
   remember (reachablity_analysis f) as R.
   destruct R as [rd|]; auto using program_sim_refl.
   destruct (print_reachablity rd).

@@ -39,7 +39,7 @@ Qed.
 
 Lemma PEInfo_p__isnt__cmd: forall (pi:PEInfo) (Huniq: uniqFdef (PEI_f pi))
   l1 ps1 cs1 tmn1 c
-  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) (PEI_f pi) = true)
+  (HBinF: blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) (PEI_f pi) = true)
   (Hin : In c cs1),
   getCmdLoc c <> getPhiNodeID (PEI_p pi).
 Proof.
@@ -88,7 +88,7 @@ Qed.
  
 Lemma assigned_phi__substing_value: forall S M p f l0 ps0 cs0 tmn0
   (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
-  (HBinF: blockInFdefB (block_intro l0 ps0 cs0 tmn0) f = true) 
+  (HBinF: blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true) 
   (Hin: In p ps0) v (Hassign: assigned_phi v p),
   substing_value f v.
 Proof.
@@ -111,7 +111,7 @@ Qed.
 
 Lemma assigned_phi__substable_value: forall S M p f l0 ps0 cs0 tmn0
   (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
-  (HBinF: blockInFdefB (block_intro l0 ps0 cs0 tmn0) f = true) 
+  (HBinF: blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true) 
   (Hin: In p ps0) v (Hassign: assigned_phi v p),
   substable_value f (value_id (getPhiNodeID p)) v.
 Proof.

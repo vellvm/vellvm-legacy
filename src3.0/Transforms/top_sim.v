@@ -662,6 +662,11 @@ Definition cmds_simulation f1 cs1 cs2 : Prop :=
     remove_cmds ID0 cs1 = cs2
   else cs1 = cs2.
 
+Definition stmts_simulation f1 sts1 sts2 : Prop :=
+  if (fdef_dec F0 f1) then
+    remove_stmts ID0 sts1 = sts2
+  else sts1 = sts2.
+
 Definition block_simulation f1 b1 b2 : Prop :=
   if (fdef_dec F0 f1) then
     remove_block ID0 b1 = b2
@@ -733,30 +738,55 @@ Proof.
   apply H0 in EQ. congruence.
 Qed.
 
-Lemma fdef_sim__block_sim : forall f1 f2 l0 b1 b2,
+Lemma fdef_sim__stmts_sim : forall f1 f2 l0 sts1 sts2,
   fdef_simulation f1 f2 ->
-  lookupBlockViaLabelFromFdef f1 l0 = Some b1 ->
-  lookupBlockViaLabelFromFdef f2 l0 = Some b2 ->
-  block_simulation f1 b1 b2.
+  lookupBlockViaLabelFromFdef f1 l0 = Some sts1 ->
+  lookupBlockViaLabelFromFdef f2 l0 = Some sts2 ->
+  stmts_simulation f1 sts1 sts2.
 Proof.
   intros.
   unfold fdef_simulation in H.
-  unfold block_simulation.
+  unfold stmts_simulation.
   destruct (fdef_dec F0 f1); subst.
     destruct f1. simpl in *.
-    eapply fdef_sim__lookupAL_genLabel2Block_remove_block; eauto.
+    eapply fdef_sim__lookupAL_remove_stmts; eauto.
 
     uniq_result. auto.
+Qed.
+
+Lemma fdef_sim__block_sim : forall f1 f2 l0 sts1 sts2,
+  fdef_simulation f1 f2 ->
+  lookupBlockViaLabelFromFdef f1 l0 = Some sts1 ->
+  lookupBlockViaLabelFromFdef f2 l0 = Some sts2 ->
+  block_simulation f1 (l0,sts1) (l0,sts2).
+Proof.
+  intros.
+  eapply fdef_sim__stmts_sim in H; eauto.
+  unfold stmts_simulation in H.
+  unfold block_simulation, remove_block, trans_block.
+  destruct (fdef_dec F0 f1); f_equal; auto.
 Qed.
 
 Definition phis_simulation (f1:fdef) ps1 ps2 : Prop :=
   if (fdef_dec F0 f1) then remove_phinodes ID0 ps1 = ps2
   else ps1 = ps2.
 
+Lemma stmts_simulation_inv : forall F ps1 cs1 tmn1 ps2 cs2
+  tmn2,
+  stmts_simulation F (stmts_intro ps1 cs1 tmn1)
+    (stmts_intro ps2 cs2 tmn2) ->
+  phis_simulation F ps1 ps2 /\
+  cmds_simulation F cs1 cs2 /\ tmn1 = tmn2.
+Proof.
+  intros.
+  unfold stmts_simulation, cmds_simulation, phis_simulation in *.
+  destruct (fdef_dec F0 F); inv H; auto.
+Qed.
+
 Lemma block_simulation_inv : forall F l1 ps1 cs1 tmn1 l2 ps2 cs2
   tmn2,
-  block_simulation F (block_intro l1 ps1 cs1 tmn1)
-    (block_intro l2 ps2 cs2 tmn2) ->
+  block_simulation F (l1, stmts_intro ps1 cs1 tmn1)
+    (l2, stmts_intro ps2 cs2 tmn2) ->
   l1 = l2 /\ phis_simulation F ps1 ps2 /\
   cmds_simulation F cs1 cs2 /\ tmn1 = tmn2.
 Proof.
@@ -827,7 +857,7 @@ Proof.
 Qed.
 
 Lemma phis_simulation_inv: forall F ps1 ps2 l1 cs1 tmn1
-  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true)
+  (HBinF: blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) F = true)
   (Hnotin: F0 = F -> ~ In ID0 (getPhiNodesIDs ps1)),
   phis_simulation F ps1 ps2 -> ps1 = ps2.
 Proof.
@@ -1044,6 +1074,6 @@ End RemoveSim.
 End RemoveSim.
 
 Hint Unfold RemoveSim.fdef_simulation RemoveSim.cmds_simulation 
-  RemoveSim.block_simulation RemoveSim.phis_simulation
+  RemoveSim.stmts_simulation RemoveSim.block_simulation RemoveSim.phis_simulation
   RemoveSim.removable_State.
 

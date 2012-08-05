@@ -76,15 +76,15 @@ Lemma subst_phi_init: forall (los : layouts) (nts : namedts) (fh : fheader)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product)
   (v : value) p f
   (Hin: In p ps0) (Hassign: assigned_phi v p)
-  (Heqf: f = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) M
+  (Heqf: f = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)) M
   (HeqS: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
   (HwfS : wf_system [M]),
-  blockInFdefB (block_intro l0 ps0 cs0 tmn0) f = true /\
+  blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true /\
   wf_fdef [M] M f /\ uniqFdef f /\
   valueDominates f v (value_id (getPhiNodeID p)).
 Proof.
   intros. 
-  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0) f = true)
+  assert (blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true)
     as HBinF.
     rewrite Heqf. simpl. apply InBlocksB_middle.
   assert (wf_fdef [module_intro los nts (Ps1++product_fdef f::Ps2)]
@@ -102,7 +102,7 @@ Lemma subst_phi_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product)
   (v : value) p f
   (Hin: In p ps0) (Hassign: assigned_phi v p) M
-  (Heqf: f = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Heqf: f = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
   (HeqS: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
   (HwfS : wf_system [M]),
   wf_system 
@@ -116,7 +116,7 @@ Proof.
   subst.
   apply subst_wfS; auto.
     apply lookupBlockViaIDFromFdef__notin_getArgsIDsOfFdef
-          with (b:=(block_intro l0 ps0 cs0 tmn0)); auto.     
+          with (b:=(l0, stmts_intro ps0 cs0 tmn0)); auto.     
       apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
         simpl. xsolve_in_list. 
      eapply assigned_phi__wf_value; eauto 1.
@@ -128,7 +128,7 @@ Lemma subst_phi_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product)
   (v : value) p f
   (Hin: In p ps0) (Hassign: assigned_phi v p) M
-  (Heqf: f = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Heqf: f = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
   (HeqS: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
   (HwfS : wf_system [M])  (Hok: defined_program [M] main VarArgs),
   program_sim
@@ -140,14 +140,14 @@ Proof.
   assert (Hinit:=HwfS).
   eapply subst_phi_init in Hinit; eauto.
   destruct Hinit as [J1 [J2 [J3 J4]]].
-  assert (phinodeInFdefBlockB p f (block_intro l0 ps0 cs0 tmn0) = true)
+  assert (phinodeInFdefBlockB p f (l0, stmts_intro ps0 cs0 tmn0) = true)
     as Hlkup.
     bsplit; auto. simpl. solve_in_list.
   assert (substing_value f v) as Hsubst.
     eapply assigned_phi__substing_value; eauto.
-  set (pi:=mkPEInfo f (block_intro l0 ps0 cs0 tmn0) p v Hlkup Hsubst Hassign).
+  set (pi:=mkPEInfo f (l0, stmts_intro ps0 cs0 tmn0) p v Hlkup Hsubst Hassign).
   assert (substable_value
-           (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+           (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
            (value_id (getPhiNodeID p)) v) as Hsubst'.
     subst. eapply assigned_phi__substable_value; eauto.
   subst.
@@ -159,7 +159,7 @@ Proof.
     SCase "1.1".
       split; auto.
     SCase "1.2".      
-      replace (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) 
+      replace (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)) 
         with (PEI_f pi); auto.
       replace v with (PEI_v pi); auto.
       replace p with (PEI_p pi); auto.
@@ -177,7 +177,7 @@ Lemma eliminate_phis_sim_wfS: forall los nts Ps1 Ps2 rd,
  forall (fh : fheader) (efs : list id) (f1 : fdef) 
    (efs0 : list id) (main0 : id) (VarArgs0 : list (GVsT DGVs))
    (bs1 : list block) l0 ps0 cs0 tmn0 (bs2 : list block) f0
- (Heqf0: f0 = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+ (Heqf0: f0 = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
  (Hinrd: In l0 rd)
  (Helim: (f1, true) = eliminate_phis f0 ps0) (S0 S3 : list module)
  (Hreach: reachablity_analysis f0 = ret rd)
@@ -188,7 +188,7 @@ Lemma eliminate_phis_sim_wfS: forall los nts Ps1 Ps2 rd,
  wf_system S0 /\ defined_program S0 main0 VarArgs0.
 Proof.
   intros.
-  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0) f0 = true)
+  assert (blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f0 = true)
     as HBinF.
     rewrite Heqf0. simpl. apply InBlocksB_middle.
   assert (wf_fdef [module_intro los nts (Ps1++product_fdef f0::Ps2)]
@@ -227,7 +227,7 @@ Proof.
 
   assert (Hid_reach: id_in_reachable_block f0 (getPhiNodeID p)).
     intros b0 Hlkup.
-    assert (b0 = block_intro l0 ps0 cs0 tmn0) as EQ.
+    assert (b0 = (l0, stmts_intro ps0 cs0 tmn0)) as EQ.
       apply block_eq2 with (id1:=getPhiNodeID p)(f:=f0); auto.
         solve_blockInFdefB.
         solve_in_list.
@@ -259,7 +259,7 @@ Qed.
 Ltac elimphi_tac :=
 intros;
 match goal with
-| H:context [iter_block ElimPhi _ ?b0 _ _] |- _ => destruct b0; inv H; 
+| H:context [iter_block ElimPhi _ ?b0 _ _] |- _ => destruct b0 as [? []]; inv H; 
   try solve [
     split; 
       try solve [auto | eapply eliminate_phis_false_spec; eauto] |
@@ -283,10 +283,3 @@ Proof.
   eapply IterationPassCorrect.iter_wfS with (pass:=ElimPhi); eauto.
     elimphi_tac. elimphi_tac. elimphi_tac. 
 Qed.
-
-
-
-
-
-
-

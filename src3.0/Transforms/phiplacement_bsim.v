@@ -39,21 +39,23 @@ Lemma phinodes_placement_is_correct__dsBranch: forall
   (Hsim : State_simulation pinfo Cfg1 St1 Cfg2
             {| Opsem.ECS := EC1 :: ECs;
                Opsem.Mem := Mem |})
-  (conds : GVsT DGVs) (c : GenericValue) (l' : l) (ps' : phinodes)
+  (conds : GVsT DGVs) (c : GenericValue) (ps' : phinodes)
   (cs' : cmds) (tmn' : terminator) (lc' : Opsem.GVsMap)
   (H : Opsem.getOperandValue TD Cond lc gl = ret conds)
   (H0 : c @ conds)
-  (H1 : ret block_intro l' ps' cs' tmn' =
+  (H1 : ret stmts_intro ps' cs' tmn' =
        (if isGVZero TD c
         then lookupBlockViaLabelFromFdef F l2
         else lookupBlockViaLabelFromFdef F l1))
-  (H2 : Opsem.switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc =
+  (H2 : Opsem.switchToNewBasicBlock TD (if isGVZero TD c then l2 else l1, 
+                                        stmts_intro ps' cs' tmn') B gl lc =
        ret lc'),
   exists St1' : Opsem.State,
      Opsem.sop_plus Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
      {|Opsem.ECS := {| Opsem.CurFunction := F;
-                       Opsem.CurBB := (block_intro l' ps' cs' tmn');
+                       Opsem.CurBB := (if isGVZero TD c then l2 else l1, 
+                                       stmts_intro ps' cs' tmn');
                        Opsem.CurCmds := cs';
                        Opsem.Terminator := tmn';
                        Opsem.Locals := lc';
@@ -67,44 +69,49 @@ Proof.
   assert (HuniqF:=HFinPs).
   eapply wf_system__uniqFdef in HuniqF; eauto.
 
-  assert (exists b1,
+  assert (exists sts1,
     (if isGVZero (los, nts) c
      then lookupBlockViaLabelFromFdef F1 l2
-     else lookupBlockViaLabelFromFdef F1 l1) = Some b1 /\
-    block_simulation pinfo F1 b1 (block_intro l' ps' cs' tmn')) as Hfind.
+     else lookupBlockViaLabelFromFdef F1 l1) = Some sts1 /\
+    block_simulation pinfo F1
+      (if isGVZero (los, nts) c then l2 else l1, sts1)
+      (if isGVZero (los, nts) c then l2 else l1, 
+       stmts_intro ps' cs' tmn')) as Hfind.
     symmetry in H1.
     destruct (isGVZero (los, nts) c);
       eapply lookup_fdef_sim__block_sim in H1; eauto.
-  destruct Hfind as [b1 [Hfind Htblock]].
+  destruct Hfind as [sts1 [Hfind Htblock]].
 
   destruct Heqb1 as [l3 [ps3 [cs11 Heqb1]]]; subst.
 
   assert (HwfF := Hwfs).
   eapply wf_system__wf_fdef with (f:=F1) in HwfF; eauto.
 
-  assert (isReachableFromEntry F1 b1) as Hreachb1.
+  assert (isReachableFromEntry F1 
+            (if isGVZero (los, nts) c then l2 else l1, sts1)) as Hreachb1.
     unfold isReachableFromEntry in *.
-    destruct b1.
+    destruct sts1.
     destruct (isGVZero (los, nts) c); try solve [
       apply lookupBlockViaLabelFromFdef_inv in Hfind; auto;
-      destruct Hfind as [Hfind _]; subst;
       eapply reachable_successors; eauto; simpl; auto].
 
   assert (Htcmds':=Htcmds).
   apply cmds_simulation_nil_inv in Htcmds'. subst.
   unfold cmds_simulation in Htcmds.
 
-  assert (blockInFdefB b1 F1)as HBinF'.
+  assert (blockInFdefB
+            (if isGVZero (los, nts) c then l2 else l1, sts1) F1) as HBinF'.
     destruct F1 as [[f t i0 a v] bs].
     destruct HuniqF as [HuniqBlocks HuniqArgs].
-    destruct b1.
+    destruct sts1.
     destruct (isGVZero (los,nts) c);
-      apply genLabel2Block_blocks_inv with (f:=fheader_intro f t i0 a v)
-        in Hfind; auto; destruct Hfind; eauto.
+      apply lookupBlock_blocks_inv with (f:=fheader_intro f t i0 a v)
+        in Hfind; auto.
 
   assert (exists lc1',
-    Opsem.switchToNewBasicBlock (los, nts) b1
-      (block_intro l3 ps3 (cs11 ++ nil) (insn_br bid Cond l1 l2)) gl
+    Opsem.switchToNewBasicBlock (los, nts)
+      (if isGVZero (los, nts) c then l2 else l1, sts1)
+      (l3, stmts_intro ps3 (cs11 ++ nil) (insn_br bid Cond l1 l2)) gl
       lc1 = ret lc1' /\
     reg_simulation pinfo F1 lc1' lc') as Hswitch1.
     eapply reg_simulation__switchToNewBasicBlock; eauto.
@@ -117,7 +124,7 @@ Proof.
     erewrite simulation__getOperandValue with (lc2:=lc); eauto.
     apply original_values_arent_tmps with
       (instr:=insn_terminator (insn_br bid Cond l1 l2))
-      (B:=block_intro l3 ps3 (cs11 ++ nil) (insn_br bid Cond l1 l2))
+      (B:=(l3, stmts_intro ps3 (cs11 ++ nil) (insn_br bid Cond l1 l2)))
       (S:=S1) (m:=module_intro los nts Ps1); simpl; auto.
       apply andb_true_iff.
       split; auto.
@@ -142,27 +149,24 @@ Proof.
       intro J. inv J.
     apply_clear Htcmds in Hwft.
 
-    destruct b1 as [l0 ps0 cs0 tmn0].
+    destruct sts1 as [ps0 cs0 tmn0].
     unfold phinodes_placement_block in Htblock.
-    assert ((PI_newids pinfo) ! l0 <> None) as Hreach'.
+    assert ((PI_newids pinfo) ! (if isGVZero (los, nts) c then l2 else l1) <> None) as Hreach'.
       eapply reachable_blk_has_newids; subst; simpl; eauto.
-    remember ((PI_newids pinfo) ! l0) as R1.
+    unfold l in Htblock.
+    remember ((PI_newids pinfo) ! (if isGVZero (los, nts) c then l2 else l1)) as R1.
     destruct R1 as [[[lid' pid'] sid']|]; try congruence.
-    assert (exists prd, exists prds, (PI_preds pinfo) ! l0 = Some (prd::prds))
+    assert (exists prd, exists prds, 
+      (PI_preds pinfo) ! (if isGVZero (los, nts) c then l2 else l1) = Some (prd::prds))
       as R2.
-      eapply WF_PhiInfo__preds in HBinF; subst; simpl; eauto.
-        simpl in HBinF.
-        destruct (PI_f pinfo) as [[f t i0 a v] bs].
-        destruct HuniqF as [HuniqBlocks HuniqArgs].
-        destruct (isGVZero (los,nts) c);
-          apply genLabel2Block_blocks_inv
-            with (f:=fheader_intro f t i0 a v) in Hfind; auto;
-            destruct Hfind; auto.
+      eapply WF_PhiInfo__preds in HBinF; subst; simpl; eauto 1.
+        destruct (isGVZero (los,nts) c); auto.
 
     destruct R2 as [prd [prds Heq']].
     simpl in H.
+    unfold l in Heq'.
     rewrite Heq' in *.
-    inversion Htblock; subst l' ps' cs' tmn'. clear Htblock.
+    inversion Htblock; subst ps' cs' tmn'. clear Htblock.
 
     unfold wf_tmp_value in Hwft. simpl in Hwft.
     destruct Hwft as [gvsa [gv [Hlkp1 [Hld Hlk2]]]].
@@ -174,12 +178,12 @@ Proof.
         HBinF Hlkp1.
 
       assert (exists ps3', exists cs3',
-            B = block_intro l3 ps3'
+            B = (l3, stmts_intro ps3'
                   (cs3'++[insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo))
                   (PI_align pinfo)])
-                  (insn_br bid Cond l1 l2)) as EQ.
+                  (insn_br bid Cond l1 l2))) as EQ.
         clear - Hbsim.
-        subst.
+        subst. 
         destruct ((PI_preds pinfo) ! l3) as [[]|]; simpl_env; eauto.
         simpl.
         exists ([gen_phinode pid (PI_typ pinfo) (PI_newids pinfo)
@@ -198,7 +202,8 @@ Proof.
     destruct Hswitch2 as [Hlka Hlkb].
 
     exists (Opsem.mkState
-             ((Opsem.mkEC (PI_f pinfo) (block_intro l0 ps0 cs0 tmn0) cs0 tmn0
+             ((Opsem.mkEC (PI_f pinfo) (if isGVZero (los, nts) c then l2 else l1,
+                                        stmts_intro ps0 cs0 tmn0) cs0 tmn0
                 lc1' als)::ECs1) Mem).
     split.
     SSCase "opsem".
@@ -210,13 +215,14 @@ Proof.
       SSSCase "bsim".
         autounfold with ppbsim. simpl.
         destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-        rewrite <- HeqR1. rewrite Heq'. auto.
+        unfold l in *. rewrite <- HeqR1. rewrite Heq'. auto.
 
       SSSCase "eq".
-        exists l0. exists ps0. exists nil. auto.
+        exists (if isGVZero (los, nts) c then l2 else l1). 
+        exists ps0. exists nil. auto.
 
       SSSCase "eq".
-        exists l0.
+        exists (if isGVZero (los, nts) c then l2 else l1). 
         exists (gen_phinode pid' (PI_typ pinfo) (PI_newids pinfo) (prd :: prds)
                 :: ps0).
         exists nil. simpl_env. auto.
@@ -224,7 +230,7 @@ Proof.
       SSSCase "csim".
         autounfold with ppbsim.
         destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-        rewrite <- HeqR1. rewrite Heq'.
+        unfold l in *. rewrite <- HeqR1. rewrite Heq'.
         split; intros.
           split; auto.
             intros.
@@ -233,10 +239,11 @@ Proof.
         split; intros; congruence.
 
   SCase "F isnt tranformed".
-    subst b1.
+    inv Htblock. 
 
     exists (Opsem.mkState
-             ((Opsem.mkEC F1 (block_intro l' ps' cs' tmn') cs' tmn' lc1' als)
+             ((Opsem.mkEC F1 ((if isGVZero (los, nts) c then l2 else l1),
+                              stmts_intro ps' cs' tmn') cs' tmn' lc1' als)
               ::ECs1) Mem).
     split.
     SSCase "opsem".
@@ -249,10 +256,12 @@ Proof.
         apply block_simulation_neq_refl; auto.
 
       SSSCase "eq".
-        exists l'. exists ps'. exists nil. auto.
+        exists (if isGVZero (los, nts) c then l2 else l1). 
+        exists ps'. exists nil. auto.
 
       SSSCase "eq".
-        exists l'. exists ps'. exists nil. simpl_env. auto.
+        exists (if isGVZero (los, nts) c then l2 else l1).
+        exists ps'. exists nil. simpl_env. auto.
 
       SSSCase "csim".
         apply cmds_simulation_neq_refl; auto.
@@ -280,16 +289,16 @@ Lemma phinodes_placement_is_correct__dsBranch_uncond: forall
   (Hsim : State_simulation pinfo Cfg1 St1 Cfg2
             {| Opsem.ECS := EC1 :: ECs;
                Opsem.Mem := Mem |})
-  (l' : l) (ps' : phinodes)
+  (ps' : phinodes)
   (cs' : cmds) (tmn' : terminator) (lc' : Opsem.GVsMap)
-  (H1 : ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l0)
-  (H2 : Opsem.switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc =
+  (H1 : ret stmts_intro ps' cs' tmn' = lookupBlockViaLabelFromFdef F l0)
+  (H2 : Opsem.switchToNewBasicBlock TD (l0, stmts_intro ps' cs' tmn') B gl lc =
        ret lc'),
   exists St1' : Opsem.State,
      Opsem.sop_plus Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
      {|Opsem.ECS := {| Opsem.CurFunction := F;
-                       Opsem.CurBB := (block_intro l' ps' cs' tmn');
+                       Opsem.CurBB := (l0, stmts_intro ps' cs' tmn');
                        Opsem.CurCmds := cs';
                        Opsem.Terminator := tmn';
                        Opsem.Locals := lc';
@@ -303,23 +312,22 @@ Proof.
   assert (HuniqF:=HFinPs).
   eapply wf_system__uniqFdef in HuniqF; eauto.
 
-  assert (exists b1,
-    lookupBlockViaLabelFromFdef F1 l0 = Some b1 /\
-    block_simulation pinfo F1 b1 (block_intro l' ps' cs' tmn')) as Hfind.
+  assert (exists sts1,
+    lookupBlockViaLabelFromFdef F1 l0 = Some sts1 /\
+    block_simulation pinfo F1 (l0, sts1) (l0, stmts_intro ps' cs' tmn')) as Hfind.
     symmetry in H1.
     eapply lookup_fdef_sim__block_sim in H1; eauto.
-  destruct Hfind as [b1 [Hfind Htblock]].
+  destruct Hfind as [sts1 [Hfind Htblock]].
 
   destruct Heqb1 as [l3 [ps3 [cs11 Heqb1]]]; subst.
 
   assert (HwfF := Hwfs).
   eapply wf_system__wf_fdef with (f:=F1) in HwfF; eauto.
 
-  assert (isReachableFromEntry F1 b1) as Hreachb1.
+  assert (isReachableFromEntry F1 (l0, sts1)) as Hreachb1.
     unfold isReachableFromEntry in *.
-    destruct b1.
+    destruct sts1.
     apply lookupBlockViaLabelFromFdef_inv in Hfind; auto.
-    destruct Hfind as [Hfind _]; subst.
     eapply reachable_successors; eauto; simpl; auto.
 
   assert (Htcmds':=Htcmds).
@@ -327,16 +335,16 @@ Proof.
   unfold cmds_simulation in Htcmds.
   unfold block_simulation, phinodes_placement_block in *.
 
-  assert (blockInFdefB b1 F1)as HBinF'.
+  assert (blockInFdefB (l0, sts1) F1)as HBinF'.
     destruct F1 as [[f t i0 a v] bs].
     destruct HuniqF as [HuniqBlocks HuniqArgs].
-    destruct b1.
-    apply genLabel2Block_blocks_inv with (f:=fheader_intro f t i0 a v)
-      in Hfind; auto; destruct Hfind; eauto.
+    destruct sts1.
+    apply lookupBlock_blocks_inv with (f:=fheader_intro f t i0 a v)
+      in Hfind; auto; eauto.
 
   assert (exists lc1',
-    Opsem.switchToNewBasicBlock (los, nts) b1
-      (block_intro l3 ps3 (cs11 ++ nil) (insn_br_uncond bid l0)) gl
+    Opsem.switchToNewBasicBlock (los, nts) (l0, sts1)
+      (l3, stmts_intro ps3 (cs11 ++ nil) (insn_br_uncond bid l0)) gl
       lc1 = ret lc1' /\
     reg_simulation pinfo F1 lc1' lc') as Hswitch1.
     eapply reg_simulation__switchToNewBasicBlock; eauto.
@@ -362,26 +370,20 @@ Proof.
       intro J. inv J.
     apply_clear Htcmds in Hwft.
 
-    destruct b1 as [l1 ps1 cs1 tmn1].
+    destruct sts1 as [ps1 cs1 tmn1].
     unfold phinodes_placement_block in Htblock.
-    assert ((PI_newids pinfo) ! l1 <> None) as Hreach'.
+    assert ((PI_newids pinfo) ! l0 <> None) as Hreach'.
       eapply reachable_blk_has_newids; subst; simpl; eauto.
 
-    remember ((PI_newids pinfo) ! l1) as R1.
+    remember ((PI_newids pinfo) ! l0) as R1.
     destruct R1 as [[[lid' pid'] sid']|]; try congruence.
-    assert (exists prd, exists prds, (PI_preds pinfo) ! l1 = Some (prd::prds))
+    assert (exists prd, exists prds, (PI_preds pinfo) ! l0 = Some (prd::prds))
       as R2.
       eapply WF_PhiInfo__preds in HBinF; subst; simpl; eauto.
-        simpl in HBinF.
-        destruct (PI_f pinfo) as [[f t i0 a v] bs].
-        destruct HuniqF as [HuniqBlocks HuniqArgs].
-        apply genLabel2Block_blocks_inv
-          with (f:=fheader_intro f t i0 a v) in Hfind; auto;
-          destruct Hfind; auto.
 
     destruct R2 as [prd [prds Heq']].
     rewrite Heq' in *.
-    inversion Htblock; subst l' ps' cs' tmn'. clear Htblock.
+    inversion Htblock; subst ps' cs' tmn'. clear Htblock.
 
     unfold wf_tmp_value in Hwft. simpl in Hwft.
     destruct Hwft as [gvsa [gv [Hlkp1 [Hld Hlk2]]]].
@@ -389,14 +391,14 @@ Proof.
     assert (lookupAL _ lc' pid' = Some gv /\
             lookupAL (GVsT DGVs) lc' (PI_id pinfo) = ret gvsa) as Hswitch2.
 
-      clear - Hbsim H2 Hrsim' Hlk2 HBinF' HuniqF Hwfpi HeqR1 Heq' HeqR Hfind
+      clear - Hbsim H2 Hrsim' Hlk2 HuniqF HBinF' Hwfpi HeqR1 Heq' HeqR Hfind
         HBinF Hlkp1.
 
       assert (exists ps3', exists cs3',
-            B = block_intro l3 ps3'
+            B = (l3, stmts_intro ps3'
                   (cs3'++[insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo))
                   (PI_align pinfo)])
-                  (insn_br_uncond bid l0)) as EQ.
+                  (insn_br_uncond bid l0))) as EQ.
         clear - Hbsim.
         subst.
         destruct ((PI_preds pinfo) ! l3) as [[]|]; simpl_env; eauto.
@@ -410,7 +412,6 @@ Proof.
 
       clear Hbsim.
       destruct EQ as [ps3' [cs3' EQ]]; subst B.
-
       eapply WF_PhiInfo_spec9 in Hfind; eauto.
       destruct Hfind as [succs [J1 J2]].
       eapply WF_PhiInfo__switchToNewBasicBlock; eauto.
@@ -418,7 +419,7 @@ Proof.
     destruct Hswitch2 as [Hlka Hlkb].
 
     exists (Opsem.mkState
-             ((Opsem.mkEC (PI_f pinfo) (block_intro l1 ps1 cs1 tmn1) cs1 tmn1
+             ((Opsem.mkEC (PI_f pinfo) (l0, stmts_intro ps1 cs1 tmn1) cs1 tmn1
               lc1' als)::ECs1) Mem).
     split.
     SSCase "opsem".
@@ -433,10 +434,10 @@ Proof.
         rewrite <- HeqR1. rewrite Heq'. auto.
 
       SSSCase "eq".
-        exists l1. exists ps1. exists nil. auto.
+        exists l0. exists ps1. exists nil. auto.
 
       SSSCase "eq".
-        exists l1.
+        exists l0.
         exists (gen_phinode pid' (PI_typ pinfo) (PI_newids pinfo) (prd :: prds)
                   :: ps1).
         exists nil. simpl_env. auto.
@@ -453,10 +454,10 @@ Proof.
         split; intros; congruence.
 
   SCase "F isnt tranformed".
-    subst b1.
+    inv Htblock.
 
     exists (Opsem.mkState
-             ((Opsem.mkEC F1 (block_intro l' ps' cs' tmn') cs' tmn' lc1' als)
+             ((Opsem.mkEC F1 (l0, stmts_intro ps' cs' tmn') cs' tmn' lc1' als)
               ::ECs1) Mem).
     split.
     SSCase "opsem".
@@ -469,10 +470,10 @@ Proof.
         apply block_simulation_neq_refl; auto.
 
       SSSCase "eq".
-        exists l'. exists ps'. exists nil. auto.
+        exists l0. exists ps'. exists nil. auto.
 
       SSSCase "eq".
-        exists l'. exists ps'. exists nil. simpl_env. auto.
+        exists l0. exists ps'. exists nil. simpl_env. auto.
 
       SSSCase "csim".
         apply cmds_simulation_neq_refl; auto.
@@ -599,7 +600,7 @@ Proof.
       exists 
         {| Opsem.ECS := {|
                     Opsem.CurFunction := PI_f pinfo;
-                    Opsem.CurBB := block_intro l1 ps1 (cs11 ++ nil) tmn;
+                    Opsem.CurBB := (l1, stmts_intro ps1 (cs11 ++ nil) tmn);
                     Opsem.CurCmds := nil;
                     Opsem.Terminator := tmn;
                     Opsem.Locals := lc1;
@@ -666,7 +667,7 @@ Proof.
       exists 
         (Opsem.mkState 
           ((Opsem.mkEC (PI_f pinfo) 
-            (block_intro l1 ps1 (cs11 ++ insn_load id0 t v align0 :: cs1') tmn) 
+            (l1, stmts_intro ps1 (cs11 ++ insn_load id0 t v align0 :: cs1') tmn) 
             cs1' tmn (updateAddAL (GVsT DGVs) lc1 id0 ($ gv # t $)) als)
          ::ECs1) Mem).
       split.
@@ -689,7 +690,7 @@ Proof.
     exists 
       (Opsem.mkState 
         ((Opsem.mkEC F1
-          (block_intro l1 ps1 (cs11 ++ insn_load id0 t v align0 :: cs1') tmn)
+          (l1, stmts_intro ps1 (cs11 ++ insn_load id0 t v align0 :: cs1') tmn)
           cs1' tmn (updateAddAL (GVsT DGVs) lc1 id0 ($ gv # t $)) als)
        ::ECs1) Mem).
     split.
@@ -792,7 +793,7 @@ Proof.
       exists 
         {| Opsem.ECS := {|
                     Opsem.CurFunction := PI_f pinfo;
-                    Opsem.CurBB := block_intro l2 ps2 cs1 tmn1;
+                    Opsem.CurBB := (l2, stmts_intro ps2 cs1 tmn1);
                     Opsem.CurCmds := cs1;
                     Opsem.Terminator := tmn1;
                     Opsem.Locals := lc1;
@@ -806,7 +807,7 @@ Proof.
         repeat (split; eauto 2 using cmds_at_block_tail_next).
 
         SSSCase "cs sim".
-          assert (NoDup (getBlockLocs B)) as Huniq.
+          assert (NoDup (getStmtsLocs (snd B))) as Huniq.
            apply uniqFdef__block_simulation__uniqBlockLocs in Hbsim; auto.
              eapply wf_system__uniqFdef; eauto.
 
@@ -885,7 +886,7 @@ Proof.
       exists 
         (Opsem.mkState 
           ((Opsem.mkEC (PI_f pinfo) 
-            (block_intro l1 ps1 (cs11 ++ insn_store sid t v1 v2 align0 :: cs1') 
+            (l1, stmts_intro ps1 (cs11 ++ insn_store sid t v1 v2 align0 :: cs1') 
               tmn) 
             cs1' tmn lc1 als)
          ::ECs1) Mem').
@@ -912,7 +913,7 @@ Proof.
       exists 
         (Opsem.mkState 
           ((Opsem.mkEC F1
-            (block_intro l1 ps1 (cs11 ++ insn_store sid t v1 v2 align0 :: cs1')
+            (l1, stmts_intro ps1 (cs11 ++ insn_store sid t v1 v2 align0 :: cs1')
               tmn)
             cs1' tmn lc1 als)
          ::ECs1) Mem').
@@ -1116,7 +1117,7 @@ Ltac phinodes_placement_is_correct__common :=
   destruct_ctx_other;
   match goal with
   | Heqb1 : exists _, exists _, exists _,
-                ?B1 = block_intro _ _ (_ ++ ?cs1) ?tmn,
+                ?B1 = (_, stmts_intro _ (_ ++ ?cs1) ?tmn),
     HBinF : blockInFdefB ?B1 ?F1 = true,
     Hwfpi : WF_PhiInfo ?pinfo,
     Hwfs : wf_system _ |- _ =>
@@ -1252,7 +1253,7 @@ Lemma phinodes_placement_is_correct__dsCall: forall (maxb : Values.block)
   (H1 : OpsemAux.lookupFdefViaPtr Ps fs fptr =
         ret fdef_intro (fheader_intro fa rt fid la va) lb)
   (H2 : getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
-        ret block_intro l' ps' cs' tmn')
+        ret (l', stmts_intro ps' cs' tmn'))
   (H3 : Opsem.params2GVs TD lp lc gl = ret gvs)
   (H4 : Opsem.initLocals TD la gvs = ret lc'),
   exists St1' : Opsem.State,
@@ -1262,7 +1263,7 @@ Lemma phinodes_placement_is_correct__dsCall: forall (maxb : Values.block)
        Opsem.ECS := {|
                     Opsem.CurFunction := fdef_intro
                                            (fheader_intro fa rt fid la va) lb;
-                    Opsem.CurBB := block_intro l' ps' cs' tmn';
+                    Opsem.CurBB := (l', stmts_intro ps' cs' tmn');
                     Opsem.CurCmds := cs';
                     Opsem.Terminator := tmn';
                     Opsem.Locals := lc';
@@ -1300,7 +1301,7 @@ Proof.
       eauto.
     destruct H1 as [f1 [J1 [J2 J3]]].
     eapply getEntryBlock__simulation in H2; eauto.
-    destruct H2 as [[l0 ps0 cs0 tmn0] [Hgetentry1 Hbsim1]].
+    destruct H2 as [[l0 [ps0 cs0 tmn0]] [Hgetentry1 Hbsim1]].
     assert (
       if fdef_dec (PI_f pinfo) (PI_f pinfo) then
         fold_left
@@ -1317,11 +1318,11 @@ Proof.
       (Opsem.mkState
         (
          (Opsem.mkEC (fdef_intro (fheader_intro fa rt fid la va) lb1')
-           (block_intro l0 ps0 cs0 tmn0)
+           (l0, stmts_intro ps0 cs0 tmn0)
            cs0 tmn0 lc' nil)
          ::
          (Opsem.mkEC (PI_f pinfo)
-           (block_intro l1 ps1
+           (l1, stmts_intro ps1
              (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs1') tmn)
            (insn_call rid noret0 ca rt1 va1 fv lp :: cs1') tmn lc1 als)
          ::ECs1) Mem).
@@ -1359,7 +1360,7 @@ Proof.
       eauto.
     destruct H1 as [f1 [J1 [J2 J3]]].
     eapply getEntryBlock__simulation in H2; eauto.
-    destruct H2 as [[l0 ps0 cs0 tmn0] [Hgetentry1 Hbsim1]].
+    destruct H2 as [[l0 [ps0 cs0 tmn0]] [Hgetentry1 Hbsim1]].
     assert (
       if fdef_dec (PI_f pinfo) F1 then
         fold_left
@@ -1376,11 +1377,11 @@ Proof.
       (Opsem.mkState
         (
          (Opsem.mkEC (fdef_intro (fheader_intro fa rt fid la va) lb1')
-           (block_intro l0 ps0 cs0 tmn0)
+           (l0, stmts_intro ps0 cs0 tmn0)
            cs0 tmn0 lc' nil)
          ::
          (Opsem.mkEC F1
-           (block_intro l1 ps1
+           (l1, stmts_intro ps1
              (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs1') tmn)
            (insn_call rid noret0 ca rt1 va1 fv lp :: cs1') tmn lc1 als)
          ::ECs1) Mem).
@@ -1471,7 +1472,7 @@ Proof.
       (Opsem.mkState
         ((Opsem.mkEC
            (PI_f pinfo)
-           (block_intro l1 ps1
+           (l1, stmts_intro ps1
              (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs1')
              tmn)
            cs1' tmn lc1' als)::ECs1) Mem').
@@ -1510,7 +1511,7 @@ Proof.
       (Opsem.mkState
         ((Opsem.mkEC
            F1
-           (block_intro l1 ps1
+           (l1, stmts_intro ps1
              (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs1')
              tmn)
            cs1' tmn lc1' als)::ECs1) Mem').

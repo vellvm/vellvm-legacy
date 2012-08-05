@@ -79,10 +79,10 @@ Definition EC_simulation (diinfo: DIInfo) (EC1 EC2:@Opsem.ExecutionContext DGVs)
        als1 = als2 /\
        block_simulation diinfo f1 b1 b2 /\
        (exists l1, exists ps1, exists cs11,
-         b1 = block_intro l1 ps1 (cs11++cs1) tmn1)
+         b1 = (l1, stmts_intro ps1 (cs11++cs1) tmn1))
          /\
        (exists l2, exists ps2, exists cs21,
-         b2 = block_intro l2 ps2 (cs21++cs2) tmn2) /\
+         b2 = (l2, stmts_intro ps2 (cs21++cs2) tmn2)) /\
        reg_simulation diinfo f1 lc1 lc2 /\
        cmds_simulation diinfo f1 cs1 cs2
   end.
@@ -129,33 +129,9 @@ Proof.
       destruct (id_dec (DI_id dinfo) id5); subst; auto.  
       destruct_dec. 
 Qed.
-(*
-Lemma dont_remove_phinodes: forall (dinfo : DIInfo) (ps1 : phinodes)
-  (l1 : l) (cs1 : cmds) (tmn1 : terminator)
-  (HBinF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) (DI_f dinfo) = true)
-  (H : uniqFdef (DI_f dinfo)),
-  ~ In (DI_id dinfo) (getPhiNodesIDs ps1).
-Proof.
-  intros. intro Hin.
-  eapply IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef in Hin; eauto.
-  destruct Hin as [p2 [Hin Heq]].
-  apply (DI_pure dinfo) in Hin. auto.
-Qed.
-*)
+
 Definition phis_simulation (dinfo: DIInfo) (f1:fdef) ps1 ps2 : Prop :=
 RemoveSim.phis_simulation (DI_f dinfo) (DI_id dinfo) f1 ps1 ps2.
-(*
-Lemma phis_simulation_inv: forall dinfo F ps1 ps2 l1 cs1 tmn1
-  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true),
-  uniqFdef F ->
-  phis_simulation dinfo F ps1 ps2 -> ps1 = ps2.
-Proof.
-  intros.
-  eapply RemoveSim.phis_simulation_inv; eauto 1.
-    intro. subst. 
-    eapply dont_remove_phinodes; eauto.
-Qed.
-*)
 
 (* regsim can also be generalized *)
 Lemma reg_simulation_update: forall dinfo F lc1 lc2 id0 gvs,
@@ -233,7 +209,7 @@ Proof.
 
         assert (getValueViaBlockFromPHINode (insn_phi i0 typ5 l0) B1 = Some v) 
           as Hget'.
-          simpl. destruct B1, B2.
+          simpl. destruct B1 as [? []], B2 as [? []].
           apply RemoveSim.block_simulation_inv in Hbsim2.
           destruct Hbsim2; subst. simpl. auto.
         eapply Hnuse'; eauto.
@@ -251,15 +227,15 @@ Lemma switchToNewBasicBlock_rsim : forall los nts l1 l2 ps2 cs1 cs2 tmn1 tmn2 B1
   (Hreach: isReachableFromEntry F B1) 
   (HBinF1: blockInFdefB B1 F = true)
   (Huniq: uniqFdef F) (HwfF: wf_fdef S (module_intro los nts Ps) F)
-  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true)
+  (HBinF: blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) F = true)
   (H23 : @Opsem.switchToNewBasicBlock DGVs (los,nts)
-          (block_intro l1 ps1 cs1 tmn1) B1 gl lc1' =
+          (l1, stmts_intro ps1 cs1 tmn1) B1 gl lc1' =
          ret lc1)
   (Hbsim2 : block_simulation dinfo F B1 B2)
   (Hrsim: reg_simulation dinfo F lc1' lc2')
   (Hpssim : phis_simulation dinfo F ps1 ps2)
   (H2 : Opsem.switchToNewBasicBlock (los,nts)
-         (block_intro l2 ps2 cs2 tmn2) B2 gl lc2' =
+         (l2, stmts_intro ps2 cs2 tmn2) B2 gl lc2' =
         ret lc2), reg_simulation dinfo F lc1 lc2.
 Proof.
   intros.
@@ -396,7 +372,7 @@ Qed.
 
 Lemma dont_remove_impure_cmd: forall (dinfo : DIInfo) (ps1 : phinodes)
   (l1 : l) (cs1 : cmds) (tmn1 : terminator) F c cs0
-  (HBinF : blockInFdefB (block_intro l1 ps1 (cs0++c::cs1) tmn1) F = true)
+  (HBinF : blockInFdefB (l1, stmts_intro ps1 (cs0++c::cs1) tmn1) F = true)
   (H : uniqFdef F) (Hnok: ~ pure_insn (insn_cmd c)),
   DI_f dinfo <> F \/ DI_id dinfo <> getCmdLoc c.
 Proof.
@@ -481,7 +457,7 @@ Qed.
 Ltac solve_lookupCmdViaIDFromFdef:=
 match goal with
 | Huniq: uniqFdef ?f,
-  H : blockInFdefB (block_intro _ _ (_++?c::_) _) ?f = true |- 
+  H : blockInFdefB (_, stmts_intro _ (_++?c::_) _) ?f = true |- 
   lookupInsnViaIDFromFdef ?f (getCmdLoc ?c) = Some (insn_cmd ?c) =>
   eapply IngetCmdsIDs__lookupCmdViaIDFromFdef; 
     eauto 1 using in_middle
@@ -675,14 +651,17 @@ Ltac die_is_sim_branch :=
   end;
 
   match goal with
-  | H1: Some ?b1 = (if _ then lookupBlockViaLabelFromFdef ?f1 _ else _),
-    H2: Some ?b2 = (if _ then lookupBlockViaLabelFromFdef ?f2 _ else _),
+  | H1: Some ?sts1 = (if ?c1 
+                      then lookupBlockViaLabelFromFdef ?f1 ?l2 
+                      else lookupBlockViaLabelFromFdef ?f1 ?l3),
+    H2: Some ?sts2 = (if ?c2 then lookupBlockViaLabelFromFdef ?f2 _ else _),
     Hfsim: fdef_simulation ?diinfo ?f1 ?f2
-   |- _ => foo diinfo b1 b2 f1 f2
-  | H1: Some ?b1 = lookupBlockViaLabelFromFdef ?f1 _,
-    H2: Some ?b2 = lookupBlockViaLabelFromFdef ?f2 _,
+   |- _ => foo diinfo (if c1 then l2 else l3,sts1)
+                      (if c2 then l2 else l3,sts2) f1 f2
+  | H1: Some ?sts1 = lookupBlockViaLabelFromFdef ?f1 ?l0,
+    H2: Some ?sts2 = lookupBlockViaLabelFromFdef ?f2 _,
     Hfsim: fdef_simulation ?diinfo ?f1 ?f2
-   |- _ => foo diinfo b1 b2 f1 f2
+   |- _ => foo diinfo (l0,sts1) (l0,sts2) f1 f2
   end;
 
   match goal with
@@ -705,8 +684,8 @@ Ltac die_is_sim_branch :=
     repeat_solve;
     match goal with
     | |- exists _:_, exists _:_, exists _:_,
-         block_intro ?l'0 ?ps'0 ?cs' ?tmn'0 =
-         block_intro _ _ (_ ++ ?cs') ?tmn'0 =>
+         (?l'0, stmts_intro ?ps'0 ?cs' ?tmn'0) =
+         (_, stmts_intro _ (_ ++ ?cs') ?tmn'0) =>
       exists l'0; exists ps'0; exists nil; auto
     end
   end.

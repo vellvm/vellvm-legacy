@@ -1186,12 +1186,15 @@ Focus.
   inv Hop2.
   uniq_result.
 
-  assert (block_simulation pinfo F (block_intro l' ps' cs' tmn')
-           (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
+  assert (block_simulation pinfo F 
+           (if isGVZero (los, nts) c then l2 else l1, stmts_intro ps' cs' tmn')
+           (if isGVZero (los, nts) c0 then l2 else l1, 
+            stmts_intro ps'0 cs'0 tmn'0)) as Hbsim.
     destruct Hmsim as [_ [_ Hwf_mi]].
     eapply simulation__getOperandValue in Hlcsim2;
       try solve [get_wf_value_for_simop'; eauto 2].
       erewrite simulation__isGVZero in H1; eauto.
+      erewrite simulation__isGVZero; eauto.
       clear - H22 H1 Hfsim2.
       destruct (isGVZero (los, nts) c0); 
         eapply RemoveSim.fdef_sim__block_sim; eauto.
@@ -1203,8 +1206,10 @@ Focus.
   destruct Hbsim' as [Heq1 [Hpssim' [Hcssim' Heq5]]]; subst.
 
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
-  assert (blockInFdefB (block_intro l'0 ps' cs' tmn'0) F) as HBinF1'.
-    solve_blockInFdefB.
+  assert (blockInFdefB (if isGVZero (los, nts) c then l2 else l1, 
+                        stmts_intro ps' cs' tmn'0) F) as HBinF1'.
+    destruct (isGVZero (los, nts) c); 
+      solve_blockInFdefB.
   eapply phis_simulation_inv in Hpssim'; eauto 2.
   subst.
 
@@ -1218,8 +1223,11 @@ Focus.
     eapply switchToNewBasicBlock_asim; eauto.
   exists mi.
   repeat_solve.
-    exists l'0. exists ps'0. exists nil. auto.
-    exists l'0. exists ps'0. exists nil. auto.
+    exists (if isGVZero (los, nts) c then l2 else l1). 
+    exists ps'0. exists nil. auto.
+
+    exists (if isGVZero (los, nts) c0 then l2 else l1). 
+    exists ps'0. exists nil. auto.
 
     destruct Hmsim as [J1 [J2 J3]].
     split; auto.
@@ -1238,15 +1246,15 @@ Focus.
   inv Hop2.
   uniq_result.
 
-  assert (block_simulation pinfo F (block_intro l' ps' cs' tmn')
-           (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
+  assert (block_simulation pinfo F (l0, stmts_intro ps' cs' tmn')
+           (l0, stmts_intro ps'0 cs'0 tmn'0)) as Hbsim.
     eapply RemoveSim.fdef_sim__block_sim; eauto.
   assert (Hbsim':=Hbsim).
   apply RemoveSim.block_simulation_inv in Hbsim'.
   destruct Hbsim' as [Heq1 [Hpssim' [Hcssim' Heq5]]]; subst.
 
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
-  assert (blockInFdefB (block_intro l'0 ps' cs' tmn'0) F) as HBinF1'.
+  assert (blockInFdefB (l0, stmts_intro ps' cs' tmn'0) F) as HBinF1'.
     solve_blockInFdefB.
   eapply phis_simulation_inv in Hpssim'; eauto 2.
   subst.
@@ -1261,8 +1269,8 @@ Focus.
     eapply switchToNewBasicBlock_asim; eauto.
   exists mi.
   repeat_solve.
-    exists l'0. exists ps'0. exists nil. auto.
-    exists l'0. exists ps'0. exists nil. auto.
+    exists l0. exists ps'0. exists nil. auto.
+    exists l0. exists ps'0. exists nil. auto.
 
     destruct Hmsim as [J1 [J2 J3]].
     split; auto.

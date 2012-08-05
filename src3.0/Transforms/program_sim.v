@@ -222,7 +222,7 @@ Proof.
     eapply OpsemPP.wf_ExecutionContext__at_beginning_of_function; eauto.
     simpl.
     split; auto.
-      intros. destruct b0 as [? ? ? t0]. destruct t0; auto.
+      intros. destruct b0 as [? [? ? t0]]. destruct t0; auto.
 Qed.
 
 Lemma s_genInitState__targedata: forall los nts Ps main VarArgs cfg1 IS1,
@@ -317,7 +317,7 @@ Proof.
         destruct R; tinv Hundef.
           congruence.
 
-      destruct CurBB as [? ? ? t]; tinv Hundef.
+      destruct CurBB as [? [? ? t]]; tinv Hundef.
       destruct t; tinv Hundef.
       destruct Terminator; tinv Hundef.
       inv Hop.
@@ -326,7 +326,7 @@ Proof.
       [Hundef | [Hundef | [Hundef | [Hundef |
         [Hundef | [Hundef | [Hundef | Hundef]]]]]]];
       tinv Hundef.
-      destruct CurBB as [? ? ? t]; tinv Hundef.
+      destruct CurBB as [? [? ? t]]; tinv Hundef.
       destruct t; tinv Hundef.
       destruct_cmd c; tinv Hundef.
         remember (Opsem.getOperandValue CurTargetData v Locals Globals) as R.

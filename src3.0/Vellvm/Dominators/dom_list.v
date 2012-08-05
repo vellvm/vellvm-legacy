@@ -786,7 +786,7 @@ Proof.
   unfold reachable in Hget3.
   assert (J:=Hentry).
   apply getEntryLabel__getEntryBlock in J.
-  destruct J as [[le' ? ? ?] [Hentry' Heq]]; simpl in Heq; subst le'.
+  destruct J as [[le' []] [Hentry' Heq]]; simpl in Heq; subst le'.
   rewrite Hentry' in Hget3.
   assert (J:=Hreach3).
   apply Hget3 in J.
@@ -805,7 +805,7 @@ Proof.
   unfold cfg.reachable.
   intros.
   apply getEntryLabel__getEntryBlock in Hentry.
-  destruct Hentry as [[le' ? ? ?] [Hentry' Heq]]; simpl in Heq; subst le'.
+  destruct Hentry as [[le' []] [Hentry' Heq]]; simpl in Heq; subst le'.
   rewrite Hentry' in Hreach. 
   eapply areachable__preachable; eauto.
 Qed.
@@ -949,7 +949,7 @@ Proof.
   intros.
   assert (Hentry':=Hentry).
   apply getEntryLabel__getEntryBlock in Hentry'.
-  destruct Hentry' as [[le0 ? ? ?] [Hentry' EQ]]; simpl in EQ; subst le0.
+  destruct Hentry' as [[le0 ?] [Hentry' EQ]]; simpl in EQ; subst le0.
   assert (cfg.reachable f l1) as Hreach1.
     eapply DecDom.sdom_reachable; eauto.
   assert (cfg.reachable f le) as Hreachle.
@@ -999,7 +999,7 @@ Lemma preachable__in_get_reachable_nodes: forall pe p0
   (Hgete: Some pe = (PO_a2p PO) ! le)
   (Hwfcfg: forall (p : l) (ps0 : phinodes) (cs0 : cmds) 
                   (tmn0 : terminator) (l2 : l),
-     blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
+     blockInFdefB (p, stmts_intro ps0 cs0 tmn0) f ->
      In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f)),
   PCfg.reachable (asuccs_psuccs (PO_a2p PO) (successors f)) pe p0 <->
   In p0 (get_reachable_nodes (bound_fdef f) (PO_a2p PO)).
@@ -1055,7 +1055,7 @@ Proof.
   unfold cfg.domination. 
   assert (Hentry':=Hentry).
   apply getEntryLabel__getEntryBlock in Hentry'.
-  destruct Hentry' as [[le0 ? ? ?] [Hentry' EQ]]; simpl in EQ; subst le0.
+  destruct Hentry' as [[le0 ?] [Hentry' EQ]]; simpl in EQ; subst le0.
   rewrite Hentry'.
   eapply pdom_adom with (l1:=l1)(l2:=l2) in Hget0; eauto.
 Qed.
@@ -1380,7 +1380,7 @@ Hypothesis Hentry: getEntryLabel f = Some le.
 Hypothesis Hdfs: dfs (successors f) le 1 = PO.
 Hypothesis Huniq: uniqFdef f.
 Hypothesis branches_in_bound_fdef: forall p ps0 cs0 tmn0 l2
-  (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
+  (J3 : blockInFdefB (p, stmts_intro ps0 cs0 tmn0) f)
   (J4 : In l2 (successors_terminator tmn0)),
   In l2 (bound_fdef f).
 
@@ -1532,8 +1532,8 @@ match goal with
 | _ => idtac
 end.
 
-Lemma dom_entrypoint : forall f l0 ps cs tmn
-  (Hentry : getEntryBlock f = Some (block_intro l0 ps cs tmn)),
+Lemma dom_entrypoint : forall f l0 s0
+  (Hentry : getEntryBlock f = Some (l0, s0)),
   sdom f l0 = nil.
 Proof.
   intros. 
@@ -1545,7 +1545,7 @@ Qed.
 Definition branchs_in_fdef f :=
   forall (p : l) (ps0 : phinodes) (cs0 : cmds) 
          (tmn0 : terminator) (l2 : l),
-  blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
+  blockInFdefB (p, stmts_intro ps0 cs0 tmn0) f ->
   In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f).
 
 Lemma sdom_in_bound': forall f l5, 
@@ -1554,7 +1554,7 @@ Proof.
   intros.
   case_eq (getEntryBlock f).
   Case "1".
-    intros [le ? ? ?] Hentry.
+    intros [le ?] Hentry.
     simpl_sdom.
     case_eq (PO_a2p ! l5).
     SCase "1.1".
@@ -1697,10 +1697,10 @@ Variable f:fdef.
 Hypothesis branches_in_bound_fdef: branchs_in_fdef f.
 
 Lemma sdom_is_complete: forall
-  (l3 : l) (l' : l) ps cs tmn ps' cs' tmn'
+  (l3 : l) (l' : l) s3 s'
   (HuniqF : uniqFdef f)
-  (HBinF' : blockInFdefB (block_intro l' ps' cs' tmn') f = true)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
+  (HBinF' : blockInFdefB (l', s') f = true)
+  (HBinF : blockInFdefB (l3, s3) f = true)
   (Hsdom: strict_domination f l' l3),
   In l' (sdom f l3).
 Proof.
@@ -1745,9 +1745,9 @@ Hypothesis branches_in_bound_fdef: branchs_in_fdef f.
 
 Lemma dom_unreachable: forall
   (Hhasentry: getEntryBlock f <> None)
-  (l3 : l) (l' : l) ps cs tmn
+  (l3 : l) s3
   (HuniqF: uniqFdef f)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
+  (HBinF : blockInFdefB (l3, s3) f = true)
   (Hunreach: ~ cfg.reachable f l3),
   sdom f l3 = cfg.bound_fdef f.
 Proof.
@@ -1788,10 +1788,10 @@ Proof.
   intros. destruct f as [fh bs]. rewrite ftrans_spec.
   destruct bs as [|b bs]; auto.
   assert (J:=btrans_eq_label b).
-  unfold getBlockLabel in J.
+  unfold getBlockLabel in J. 
   remember (btrans b) as R.
-  destruct b; simpl.
-  rewrite <- HeqR. destruct R; congruence.
+  destruct b as [? []]; simpl.
+  rewrite <- HeqR. destruct R as [? []]; simpl in J; congruence.
 Qed.
 
 Lemma pres_bound_blocks : forall bs,
@@ -1805,7 +1805,7 @@ Proof.
 Qed.
 
 Hypothesis btrans_eq_tmn: forall b, 
-  terminator_match (getBlockTmn b) (getBlockTmn (btrans b)).
+  terminator_match (getTerminator b) (getTerminator (btrans b)).
 
 Lemma pres_successors_blocks : forall bs,
   cfg.successors_blocks bs = cfg.successors_blocks (List.map btrans bs).
@@ -1814,7 +1814,7 @@ Proof.
     assert (J:=btrans_eq_tmn b).
     assert (J':=btrans_eq_label b).
     remember (btrans b) as R.
-    destruct R as [l1 ? ? ?]; destruct b; simpl in *; subst l1.
+    destruct R as [l1 []]; destruct b as [? []]; simpl in *; subst l1.
     rewrite IHbs. 
     terminator_match_tac.
 Qed.
@@ -1886,7 +1886,7 @@ Proof.
   intros. rewrite Hentry in *.
   assert (J:=Hentry).
   apply getEntryLabel__getEntryBlock in J.
-  destruct J as [[le' ? ? ?] [Hentry' EQ]]; simpl in EQ; subst le'.
+  destruct J as [[le' ?] [Hentry' EQ]]; simpl in EQ; subst le'.
   rewrite Hentry' in *.
   case_eq (dfs (successors f) le 1).
   intros cnt a2p Hdfs. rewrite Hdfs in *.

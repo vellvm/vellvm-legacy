@@ -120,7 +120,7 @@ Import LLVMsyntax.
 Definition dom_analyze (f: fdef) : PMap.t LDoms.t :=
   let asuccs := cfg.successors f in
   match LLVMinfra.getEntryBlock f with
-  | Some (block_intro le _ _ _) =>
+  | Some (le, _) =>
       let 'mkPO _ a2p := dfs asuccs le 1%positive in
       let psuccs := asuccs_psuccs a2p asuccs in
       match ATree.get le a2p with

@@ -630,25 +630,27 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
     E0 
 
 | sBranch : forall S TD Ps F B lc gl fs bid Cond l1 l2 conds c
-                              l' ps' cs' tmn' lc' EC Mem als,
+                              ps' cs' tmn' lc' EC Mem als,
   getOperandValue TD Cond lc gl = Some conds ->
   c @ conds ->
-  Some (block_intro l' ps' cs' tmn') = (if isGVZero TD c
+  Some (stmts_intro ps' cs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
-  switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc = Some lc'->
+  switchToNewBasicBlock TD (if isGVZero TD c then l2 else l1, 
+                            stmts_intro ps' cs' tmn') B gl lc = Some lc'->
   sInsn (mkCfg S TD Ps gl fs)
     (mkState ((mkEC F B nil (insn_br bid Cond l1 l2) lc als)::EC) Mem)
-    (mkState ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' als)::EC) Mem)
+    (mkState ((mkEC F (if isGVZero TD c then l2 else l1, 
+                       stmts_intro ps' cs' tmn') cs' tmn' lc' als)::EC) Mem)
     E0 
 
 | sBranch_uncond : forall S TD Ps F B lc gl fs bid l
-                           l' ps' cs' tmn' lc' EC Mem als,
-  Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
-  switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc = Some lc'->
+                           ps' cs' tmn' lc' EC Mem als,
+  Some (stmts_intro ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
+  switchToNewBasicBlock TD (l, stmts_intro ps' cs' tmn') B gl lc = Some lc'->
   sInsn (mkCfg S TD Ps gl fs)
     (mkState ((mkEC F B nil (insn_br_uncond bid l) lc als)::EC) Mem)
-    (mkState ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' als)::EC) Mem)
+    (mkState ((mkEC F (l, stmts_intro ps' cs' tmn') cs' tmn' lc' als)::EC) Mem)
     E0 
 
 | sBop: forall S TD Ps F B lc gl fs id bop sz v1 v2 gvs3 EC cs tmn Mem als,
@@ -817,14 +819,14 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
   lookupFdefViaPtr Ps fs fptr =
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
-    Some (block_intro l' ps' cs' tmn') ->
+    Some (l', stmts_intro ps' cs' tmn') ->
   params2GVs TD lp lc gl = Some gvs ->
   initLocals TD la gvs = Some lc' ->
   sInsn (mkCfg S TD Ps gl fs)
     (mkState ((mkEC F B ((insn_call rid noret ca rt1 va1 fv lp)::cs) tmn
                        lc als)::EC) Mem)
     (mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb)
-                       (block_intro l' ps' cs' tmn') cs' tmn' lc' nil)::
+                       (l', stmts_intro ps' cs' tmn') cs' tmn' lc' nil)::
               (mkEC F B ((insn_call rid noret ca rt1 va1 fv lp)::cs) tmn
                        lc als)::EC) Mem)
     E0 
@@ -867,7 +869,7 @@ match (lookupFdefViaIDFromSystem S main) with
     | Some (initGlobal, initFunTable, initMem) =>
       match (getEntryBlock CurFunction) with
       | None => None
-      | Some (block_intro l ps cs tmn) =>
+      | Some (l, stmts_intro ps cs tmn) =>
           match CurFunction with
           | fdef_intro (fheader_intro _ rt _ la _) _ =>
             match initLocals initargetdata la Args with
@@ -882,7 +884,7 @@ match (lookupFdefViaIDFromSystem S main) with
                mkState
                 ((mkEC
                   CurFunction
-                  (block_intro l ps cs tmn)
+                  (l, stmts_intro ps cs tmn)
                   cs
                   tmn
                   Values
@@ -1033,25 +1035,27 @@ bMem         : mem
 Inductive bInsn :
     bConfig -> bExecutionContext -> bExecutionContext -> trace ->  Prop :=
 | bBranch : forall S TD Ps F B lc gl fs bid Cond l1 l2 conds c
-                              l' ps' cs' tmn' Mem als lc',
+                              ps' cs' tmn' Mem als lc',
   getOperandValue TD Cond lc gl = Some conds ->
   c @ conds ->
-  Some (block_intro l' ps' cs' tmn') = (if isGVZero TD c
+  Some (stmts_intro ps' cs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
-  switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc = Some lc'->
+  switchToNewBasicBlock TD (if isGVZero TD c then l2 else l1,
+                            stmts_intro ps' cs' tmn') B gl lc = Some lc'->
   bInsn (mkbCfg S TD Ps gl fs F)
     (mkbEC B nil (insn_br bid Cond l1 l2) lc als Mem)
-    (mkbEC (block_intro l' ps' cs' tmn') cs' tmn' lc' als Mem)
+    (mkbEC (if isGVZero TD c then l2 else l1, stmts_intro ps' cs' tmn') 
+      cs' tmn' lc' als Mem)
     E0
 
 | bBranch_uncond : forall S TD Ps F B lc gl fs l bid
-                              l' ps' cs' tmn' Mem als lc',
-  Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
-  switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc = Some lc'->
+                              ps' cs' tmn' Mem als lc',
+  Some (stmts_intro ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
+  switchToNewBasicBlock TD (l, stmts_intro ps' cs' tmn') B gl lc = Some lc'->
   bInsn (mkbCfg S TD Ps gl fs F)
     (mkbEC B nil (insn_br_uncond bid l) lc als Mem)
-    (mkbEC (block_intro l' ps' cs' tmn') cs' tmn' lc' als Mem)
+    (mkbEC (l, stmts_intro ps' cs' tmn') cs' tmn' lc' als Mem)
     E0
 
 | bBop : forall S TD Ps F B lc gl fs id bop sz v1 v2 gv3 cs tmn Mem als,
@@ -1247,16 +1251,16 @@ with bFdef : value -> typ -> params -> system -> TargetData -> products ->
   lookupFdefViaPtr Ps fs fptr =
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
-    Some (block_intro l' ps' cs' tmn') ->
+    Some (l', stmts_intro ps' cs' tmn') ->
   params2GVs TD lp lc gl = Some gvs ->
   initLocals TD la gvs = Some lc0 ->
   bops (mkbCfg S TD Ps gl fs (fdef_intro (fheader_intro fa rt fid la va) lb))
-    (mkbEC (block_intro l' ps' cs' tmn') cs' tmn' lc0 nil Mem)
-    (mkbEC (block_intro l'' ps'' cs'' (insn_return rid rt Result)) nil
+    (mkbEC (l', stmts_intro ps' cs' tmn') cs' tmn' lc0 nil Mem)
+    (mkbEC (l'', stmts_intro ps'' cs'' (insn_return rid rt Result)) nil
                              (insn_return rid rt Result) lc' als' Mem')
     tr ->
   bFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem'
-    (block_intro l'' ps'' cs'' (insn_return rid rt Result)) rid (Some Result) tr
+    (l'', stmts_intro ps'' cs'' (insn_return rid rt Result)) rid (Some Result) tr
 
 | bFdef_proc : forall S TD Ps gl fs fv fid lp lc rid fa lc0 fptrs fptr
        l' ps' cs' tmn' rt la lb l'' ps'' cs'' lc' tr Mem Mem' als' va gvs,
@@ -1265,16 +1269,16 @@ with bFdef : value -> typ -> params -> system -> TargetData -> products ->
   lookupFdefViaPtr Ps fs fptr =
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
-    Some (block_intro l' ps' cs' tmn') ->
+    Some (l', stmts_intro ps' cs' tmn') ->
   params2GVs TD lp lc gl = Some gvs ->
   initLocals TD la gvs = Some lc0 ->
   bops (mkbCfg S TD Ps gl fs (fdef_intro (fheader_intro fa rt fid la va) lb) )
-    (mkbEC (block_intro l' ps' cs' tmn') cs' tmn' lc0 nil Mem)
-    (mkbEC (block_intro l'' ps'' cs'' (insn_return_void rid)) nil
+    (mkbEC (l', stmts_intro ps' cs' tmn') cs' tmn' lc0 nil Mem)
+    (mkbEC (l'', stmts_intro ps'' cs'' (insn_return_void rid)) nil
                             (insn_return_void rid) lc' als' Mem')
     tr ->
   bFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem'
-    (block_intro l'' ps'' cs'' (insn_return_void rid)) rid None tr
+    (l'', stmts_intro ps'' cs'' (insn_return_void rid)) rid None tr
 .
 
 CoInductive bInsnInf : bConfig -> bExecutionContext -> traceinf -> Prop :=
@@ -1302,11 +1306,11 @@ with bFdefInf : value -> typ -> params -> system -> TargetData -> products ->
   lookupFdefViaPtr Ps fs fptr =
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
-    Some (block_intro l' ps' cs' tmn') ->
+    Some (l', stmts_intro ps' cs' tmn') ->
   params2GVs TD lp lc gl = Some gvs ->
   initLocals TD la gvs = Some lc0 ->
   bopInf (mkbCfg S TD Ps gl fs (fdef_intro (fheader_intro fa rt fid la va) lb))
-    (mkbEC (block_intro l' ps' cs' tmn') cs' tmn' lc0 nil Mem)
+    (mkbEC (l', stmts_intro ps' cs' tmn') cs' tmn' lc0 nil Mem)
     tr ->
   bFdefInf fv rt lp S TD Ps lc gl fs Mem tr
 .

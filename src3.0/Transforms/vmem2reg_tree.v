@@ -98,7 +98,7 @@ Definition block_subst (f:fdef) (l0:l) (b0:block) : fdef :=
 let '(fdef_intro fh bs) := f in
 fdef_intro fh
   (List.map (fun b =>
-             let '(block_intro l1 _ _ _) := b in
+             let '(l1, _) := b in
              if (l_dec l1 l0) then b0 else b) bs).
 
 Definition ssa_renaming_succ_phis (f:fdef) (lcur:l) (succ:list l) (pid:id)
@@ -107,9 +107,9 @@ List.fold_left
   (fun acc lnext =>
    match lookupBlockViaLabelFromFdef acc lnext with
    | None => acc
-   | Some (block_intro _ ps cs tmn) =>
+   | Some (stmts_intro ps cs tmn) =>
        let ps':= ssa_renaming_phis_operands lcur ps pid newpids vm in
-       block_subst acc lnext (block_intro lnext ps' cs tmn)
+       block_subst acc lnext (lnext, stmts_intro ps' cs tmn)
    end) succ f.
 
 Fixpoint update_vm_by_phis (ps:phinodes) (pid:id) (newpids:list id)
@@ -127,12 +127,12 @@ match dt with
 | DT_node l0 dts =>
     match lookupBlockViaLabelFromFdef f l0 with
     | None => f
-    | Some (block_intro l0 ps cs tmn) =>
+    | Some (stmts_intro ps cs tmn) =>
         let ps' := List.map (vm_subst_phi vm) ps in
         let vm1 := update_vm_by_phis ps pid newpids vm in
         let '(cs', vm2) := ssa_renaming_cmds cs pid vm1 in
         let tmn' := vm_subst_tmn vm2 tmn in
-        let f2 := block_subst f l0 (block_intro l0 ps' cs' tmn') in
+        let f2 := block_subst f l0 (l0, stmts_intro ps' cs' tmn') in
         let f3 :=
           ssa_renaming_succ_phis f2 l0
             (successors_terminator tmn) pid newpids vm2 in
@@ -164,18 +164,18 @@ let '(bs', _, newpids) :=
   (List.fold_left
     (fun acc b =>
        let '(bs', ex_ids', newpids) := acc in
-       let '(block_intro l0 ps cs tmn) := b in
+       let '(l0, stmts_intro ps cs tmn) := b in
        match ATree.get l0 preds with
        | Some ((_ :: _) as pds) =>
            let '(exist pid' _) := AtomImpl.atom_fresh_for_list ex_ids' in
-           (block_intro l0
+           ((l0, stmts_intro
              (insn_phi pid' ty
                (fold_left
                   (fun acc p =>
                     ((if In_dec l_dec p rd then value_id pid
                       else value_const (const_undef ty)), p) :: acc)
                    pds nil)::ps)
-             cs tmn::bs', pid'::ex_ids', pid'::newpids)
+             cs tmn)::bs', pid'::ex_ids', pid'::newpids)
        | _ => (b::bs', ex_ids', newpids)
        end) (List.rev bs) (nil, ex_ids, nil)) in
 (fdef_intro fh bs', newpids).
@@ -183,7 +183,7 @@ let '(bs', _, newpids) :=
 Definition mem2reg_fdef_iter (f:fdef) (dt:DTree) (rd:list l) (dones:list id)
   : fdef * bool * list id :=
 match getEntryBlock f with
-| Some (block_intro _ _ cs _) =>
+| Some (_, stmts_intro _ cs _) =>
     match find_promotable_alloca f cs dones with
     | None => (f, false, dones)
     | Some (pid, ty, num, al) =>
@@ -201,7 +201,7 @@ if changed1 then inr _ (f1, dones1) else inl _ (f1, dones1).
 
 Definition mem2reg_fdef (f:fdef) : fdef :=
 match getEntryBlock f, reachablity_analysis f, AlgDom.create_dom_tree f with
-| Some (block_intro root _ cs _), Some rd, Some dt =>
+| Some (root, stmts_intro _ cs _), Some rd, Some dt =>
   if print_reachablity rd then
     let '(f1, _) :=
       let b := bound_fdef f in

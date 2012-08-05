@@ -251,15 +251,15 @@ Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_spec1_aux : forall s Ps los nts f
     b gl lc id1 t l3 cs tmn ps2 ps1 lc'
-  (Hreach: isReachableFromEntry f (block_intro l3 (ps1++ps2) cs tmn)),
+  (Hreach: isReachableFromEntry f (l3, stmts_intro (ps1++ps2) cs tmn)),
   wf_lc (los,nts) f lc ->
   Some lc' = getIncomingValuesForBlockFromPHINodes (los,nts) ps2 b gl lc ->
   List.In id1 (getPhiNodesIDs ps2) ->
   uniqFdef f ->
-  blockInFdefB (block_intro l3 (ps1++ps2) cs tmn) f ->
+  blockInFdefB (l3, stmts_intro (ps1++ps2) cs tmn) f ->
   wf_global (los, nts) s gl ->
   wf_phinodes s (module_intro los nts Ps) f
-    (block_intro l3 (ps1++ps2) cs tmn) ps2 ->
+    (l3, stmts_intro (ps1++ps2) cs tmn) ps2 ->
   lookupTypViaIDFromFdef f id1 = ret t ->
   id_in_reachable_block f id1 /\
   exists gvs, lookupAL _ lc' id1 = Some gvs /\ wf_GVs (los,nts) gvs t.
@@ -322,12 +322,12 @@ Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_spec1 : forall s Ps los nts f b
     gl lc id1 t l3 cs tmn ps lc'
-  (Hreach: isReachableFromEntry f (block_intro l3 ps cs tmn)),
+  (Hreach: isReachableFromEntry f (l3, stmts_intro ps cs tmn)),
   wf_lc (los,nts) f lc ->
   Some lc' = getIncomingValuesForBlockFromPHINodes (los,nts) ps b gl lc ->
   In id1 (getPhiNodesIDs ps) ->
   uniqFdef f ->
-  Some (block_intro l3 ps cs tmn) = lookupBlockViaLabelFromFdef f l3 ->
+  Some (stmts_intro ps cs tmn) = lookupBlockViaLabelFromFdef f l3 ->
   wf_global (los, nts) s gl ->
   wf_fdef s (module_intro los nts Ps) f ->
   lookupTypViaIDFromFdef f id1 = ret t ->
@@ -335,7 +335,7 @@ Lemma getIncomingValuesForBlockFromPHINodes_spec1 : forall s Ps los nts f b
   exists gvs, lookupAL _ lc' id1 = Some gvs /\ wf_GVs (los,nts) gvs t.
 Proof.
   intros.
-  assert (blockInFdefB (block_intro l3 ps cs tmn) f) as Hbinf.
+  assert (blockInFdefB (l3, stmts_intro ps cs tmn) f) as Hbinf.
     symmetry in H3.
     apply lookupBlockViaLabelFromFdef_inv in H3; auto.
     destruct H3; eauto.
@@ -346,9 +346,9 @@ Qed.
 Lemma getIncomingValuesForBlockFromPHINodes_spec2_aux : forall s los nts Ps f
   b gl lc l3 cs tmn (Hwflc: wf_lc (los, nts) f lc)
   (Hwfg: wf_global (los, nts) s gl) (Huniq: uniqFdef f) ps2 ps1 rs,
-  blockInFdefB (block_intro l3 (ps1++ps2) cs tmn) f ->
+  blockInFdefB (l3, stmts_intro (ps1++ps2) cs tmn) f ->
   wf_phinodes s (module_intro los nts Ps) f
-    (block_intro l3 (ps1++ps2) cs tmn) ps2 ->
+    (l3, stmts_intro (ps1++ps2) cs tmn) ps2 ->
   Some rs = getIncomingValuesForBlockFromPHINodes (los, nts) ps2 b gl lc ->
   (forall id0 gvs t0, In (id0,gvs) rs ->
      lookupTypViaIDFromFdef f id0 = Some t0 ->
@@ -397,7 +397,7 @@ Qed.
 Lemma getIncomingValuesForBlockFromPHINodes_spec2 : forall s los nts Ps f b
   gl lc l3 cs tmn (Hwflc: wf_lc (los, nts) f lc)
   (Hwfg: wf_global (los, nts) s gl) (Huniq: uniqFdef f) ps rs,
-  Some (block_intro l3 ps cs tmn) = lookupBlockViaLabelFromFdef f l3 ->
+  Some (stmts_intro ps cs tmn) = lookupBlockViaLabelFromFdef f l3 ->
   wf_global (los, nts) s gl ->
   wf_fdef s (module_intro los nts Ps) f ->
   Some rs = getIncomingValuesForBlockFromPHINodes (los, nts) ps b gl lc ->
@@ -406,7 +406,7 @@ Lemma getIncomingValuesForBlockFromPHINodes_spec2 : forall s los nts Ps f b
      wf_GVs (los, nts) gvs t0).
 Proof.
   intros.
-  assert (blockInFdefB (block_intro l3 ps cs tmn) f) as Hbinf.
+  assert (blockInFdefB (l3, stmts_intro ps cs tmn) f) as Hbinf.
     symmetry in H.
     apply lookupBlockViaLabelFromFdef_inv in H; auto.
     destruct H; eauto.
@@ -454,34 +454,33 @@ Proof.
       eapply IHrs in Hlk; eauto.
 Qed.
 
-Lemma wf_lc_br_aux : forall s los nts Ps f b1 b2 gl lc lc' l3
+Lemma wf_lc_br_aux : forall s los nts Ps f sts3 b2 gl lc lc' l3
   (Hwfg: wf_global (los, nts) s gl) (Huniq: uniqFdef f)
-  (Hswitch : switchToNewBasicBlock (los, nts) b1 b2 gl lc = ret lc')
-  (Hlkup : Some b1 = lookupBlockViaLabelFromFdef f l3)
+  (Hswitch : switchToNewBasicBlock (los, nts) (l3, sts3) b2 gl lc = ret lc')
+  (Hlkup : Some sts3 = lookupBlockViaLabelFromFdef f l3)
   (Hwfg : wf_global (los, nts) s gl)
   (HwfF : wf_fdef s (module_intro los nts Ps) f)
   (Hwflc : wf_lc (los, nts) f lc),
   wf_lc (los, nts) f lc'.
 Proof.
   intros.
-  unfold switchToNewBasicBlock in Hswitch. simpl in Hswitch.
+  unfold switchToNewBasicBlock in Hswitch. 
   remember (getIncomingValuesForBlockFromPHINodes (los, nts)
-              (getPHINodesFromBlock b1) b2 gl lc) as R1.
+              (getPHINodesFromBlock (l3, sts3)) b2 gl lc) as R1.
   destruct R1; inv Hswitch.
   apply updateValuesForNewBlock_spec3; auto.
-    destruct b1.
-    eapply getIncomingValuesForBlockFromPHINodes_spec2;
-      eauto using lookupBlockViaLabelFromFdef_prop.
+    destruct sts3.
+    eapply getIncomingValuesForBlockFromPHINodes_spec2; simpl; eauto.
 Qed.
 
 Lemma wf_defs_br_aux : forall lc l' ps' cs' lc' F tmn' gl los nts Ps s
   (l3 : l)
   (ps : phinodes)
   (cs : list cmd) tmn
-  (Hreach: isReachableFromEntry F (block_intro l' ps' cs' tmn'))
-  (Hlkup : Some (block_intro l' ps' cs' tmn') = lookupBlockViaLabelFromFdef F l')
-  (Hswitch : switchToNewBasicBlock (los,nts) (block_intro l' ps' cs' tmn')
-         (block_intro l3 ps cs tmn) gl lc = ret lc')
+  (Hreach: isReachableFromEntry F (l', stmts_intro ps' cs' tmn'))
+  (Hlkup : Some (stmts_intro ps' cs' tmn') = lookupBlockViaLabelFromFdef F l')
+  (Hswitch : switchToNewBasicBlock (los,nts) (l', stmts_intro ps' cs' tmn')
+         (l3, stmts_intro ps cs tmn) gl lc = ret lc')
   (t : list atom)
   (Hwfdfs : wf_defs (los,nts) F lc t)
   (ids0' : list atom)
@@ -497,7 +496,7 @@ Proof.
   apply wf_defs_intro.
   intros id1 Hid1.
   remember (getIncomingValuesForBlockFromPHINodes (los,nts) ps'
-                (block_intro l3 ps cs tmn) gl lc) as R1.
+                (l3, stmts_intro ps cs tmn) gl lc) as R1.
   destruct R1; inv Hswitch.
   destruct (In_dec eq_atom_dec id1 (getPhiNodesIDs ps')) as [Hin | Hnotin].
     assert (J:=Hlkup).
@@ -517,47 +516,46 @@ Proof.
       eapply getIncomingValuesForBlockFromPHINodes_spec2; eauto.
 Qed.
 
-Lemma inscope_of_tmn_br_aux : forall F l3 ps cs tmn ids0 l' ps' cs' tmn' l0
+Lemma inscope_of_tmn_br_aux : forall F l3 ps cs tmn ids0 ps' cs' tmn' l0
   s los nts Ps lc lc' gl
-(Hreach: isReachableFromEntry F (block_intro l' ps' cs' tmn')),
+(Hreach: isReachableFromEntry F (l0, stmts_intro ps' cs' tmn')),
 wf_global (los, nts) s gl ->
 wf_lc (los,nts) F lc ->
 wf_fdef s (module_intro los nts Ps) F ->
 uniqFdef F ->
-blockInFdefB (block_intro l3 ps cs tmn) F = true ->
+blockInFdefB (l3, stmts_intro ps cs tmn) F = true ->
 In l0 (successors_terminator tmn) ->
-Some ids0 = inscope_of_tmn F (block_intro l3 ps cs tmn) tmn ->
-Some (block_intro l' ps' cs' tmn') = lookupBlockViaLabelFromFdef F l0 ->
-switchToNewBasicBlock (los,nts) (block_intro l' ps' cs' tmn')
-  (block_intro l3 ps cs tmn) gl lc = Some lc' ->
+Some ids0 = inscope_of_tmn F (l3, stmts_intro ps cs tmn) tmn ->
+Some (stmts_intro ps' cs' tmn') = lookupBlockViaLabelFromFdef F l0 ->
+switchToNewBasicBlock (los,nts) (l0, stmts_intro ps' cs' tmn')
+  (l3, stmts_intro ps cs tmn) gl lc = Some lc' ->
 wf_defs (los,nts) F lc ids0 ->
 exists ids0',
   match cs' with
-  | nil => Some ids0' = inscope_of_tmn F (block_intro l' ps' cs' tmn') tmn'
-  | c'::_ => Some ids0' = inscope_of_cmd F (block_intro l' ps' cs' tmn') c'
+  | nil => Some ids0' = inscope_of_tmn F (l0, stmts_intro ps' cs' tmn') tmn'
+  | c'::_ => Some ids0' = inscope_of_cmd F (l0, stmts_intro ps' cs' tmn') c'
   end /\
   incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) ids0 /\
   wf_defs (los,nts) F lc' ids0'.
 Proof.
-  intros F l3 ps cs tmn ids0 l' ps' cs' tmn' l0 s los nts Ps lc lc' gl
+  intros F l3 ps cs tmn ids0 ps' cs' tmn' l0 s los nts Ps lc lc' gl
     Hreach Hwfg Hwflc HwfF Huniq HBinF Hsucc Hinscope Hlkup Hswitch Hwfdfs.
   symmetry in Hlkup.
   assert (J:=Hlkup).
   apply lookupBlockViaLabelFromFdef_inv in J; auto.
-  destruct J as [Heq J]; subst.
   unfold inscope_of_tmn in Hinscope.
   unfold inscope_of_tmn. unfold inscope_of_cmd, inscope_of_id.
   destruct F as [fh bs].
 
-  assert (incl (AlgDom.sdom (fdef_intro fh bs) l')
+  assert (incl (AlgDom.sdom (fdef_intro fh bs) l0)
      (l3::(AlgDom.sdom (fdef_intro fh bs) l3))) as Hsub.
     clear - HBinF Hsucc Huniq HwfF.
     eapply dom_successors; eauto.
 
-  assert (J1:=AlgDom.sdom_in_bound fh bs l').
+  assert (J1:=AlgDom.sdom_in_bound fh bs l0).
   destruct fh as [f t i0 la va].
   apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
-    getArgsIDs la)(fh:=fheader_intro f t i0 la va)(bs:=bs) (l0:=l') in J1.
+    getArgsIDs la)(fh:=fheader_intro f t i0 la va)(bs:=bs) (l0:=l0) in J1.
   destruct J1 as [r J1].
   exists r.
 
@@ -588,24 +586,24 @@ Proof.
       eapply wf_defs_br_aux; eauto.
 Qed.
 
-Lemma inscope_of_tmn_br_uncond : forall F l3 ps cs ids0 l' ps' cs' tmn' l0
+Lemma inscope_of_tmn_br_uncond : forall F l3 ps cs ids0 ps' cs' tmn' l0
   s los nts Ps lc lc' gl bid
-(Hreach: isReachableFromEntry F (block_intro l' ps' cs' tmn')),
+(Hreach: isReachableFromEntry F (l0, stmts_intro ps' cs' tmn')),
 wf_global (los, nts) s gl ->
 wf_lc (los,nts) F lc ->
 wf_fdef s (module_intro los nts Ps) F ->
 uniqFdef F ->
-blockInFdefB (block_intro l3 ps cs (insn_br_uncond bid l0)) F = true ->
-Some ids0 = inscope_of_tmn F (block_intro l3 ps cs (insn_br_uncond bid l0))
+blockInFdefB (l3, stmts_intro ps cs (insn_br_uncond bid l0)) F = true ->
+Some ids0 = inscope_of_tmn F (l3, stmts_intro ps cs (insn_br_uncond bid l0))
   (insn_br_uncond bid l0) ->
-Some (block_intro l' ps' cs' tmn') = lookupBlockViaLabelFromFdef F l0 ->
-switchToNewBasicBlock (los,nts) (block_intro l' ps' cs' tmn')
-  (block_intro l3 ps cs (insn_br_uncond bid l0)) gl lc = Some lc' ->
+Some (stmts_intro ps' cs' tmn') = lookupBlockViaLabelFromFdef F l0 ->
+switchToNewBasicBlock (los,nts) (l0, stmts_intro ps' cs' tmn')
+  (l3, stmts_intro ps cs (insn_br_uncond bid l0)) gl lc = Some lc' ->
 wf_defs (los,nts) F lc ids0 ->
 exists ids0',
   match cs' with
-  | nil => Some ids0' = inscope_of_tmn F (block_intro l' ps' cs' tmn') tmn'
-  | c'::_ => Some ids0' = inscope_of_cmd F (block_intro l' ps' cs' tmn') c'
+  | nil => Some ids0' = inscope_of_tmn F (l0, stmts_intro ps' cs' tmn') tmn'
+  | c'::_ => Some ids0' = inscope_of_cmd F (l0, stmts_intro ps' cs' tmn') c'
   end /\
   incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) ids0 /\
   wf_defs (los,nts) F lc' ids0'.
@@ -615,27 +613,35 @@ Proof.
   simpl. auto.
 Qed.
 
-Lemma inscope_of_tmn_br : forall F l0 ps cs bid l1 l2 ids0 l' ps' cs' tmn' Cond
+Lemma inscope_of_tmn_br : forall F l0 ps cs bid l1 l2 ids0 ps' cs' tmn' Cond
   c los nts Ps gl lc s lc'
-(Hreach: isReachableFromEntry F (block_intro l' ps' cs' tmn')),
+(Hreach: isReachableFromEntry F 
+         ((if isGVZero (los,nts) c then l2 else l1), stmts_intro ps' cs' tmn')),
 wf_global (los, nts) s gl ->
 wf_lc (los,nts) F lc ->
 wf_fdef s (module_intro los nts Ps) F ->
 uniqFdef F ->
-blockInFdefB (block_intro l0 ps cs (insn_br bid Cond l1 l2)) F = true ->
-Some ids0 = inscope_of_tmn F (block_intro l0 ps cs (insn_br bid Cond l1 l2))
+blockInFdefB (l0, stmts_intro ps cs (insn_br bid Cond l1 l2)) F = true ->
+Some ids0 = inscope_of_tmn F (l0, stmts_intro ps cs (insn_br bid Cond l1 l2))
   (insn_br bid Cond l1 l2) ->
-Some (block_intro l' ps' cs' tmn') =
+Some (stmts_intro ps' cs' tmn') =
        (if isGVZero (los,nts) c
         then lookupBlockViaLabelFromFdef F l2
         else lookupBlockViaLabelFromFdef F l1) ->
-switchToNewBasicBlock (los,nts) (block_intro l' ps' cs' tmn')
-  (block_intro l0 ps cs (insn_br bid Cond l1 l2)) gl lc = Some lc' ->
+switchToNewBasicBlock (los,nts) 
+  ((if isGVZero (los,nts) c then l2 else l1), stmts_intro ps' cs' tmn')
+  (l0, stmts_intro ps cs (insn_br bid Cond l1 l2)) gl lc = Some lc' ->
 wf_defs (los,nts) F lc ids0 ->
 exists ids0',
   match cs' with
-  | nil => Some ids0' = inscope_of_tmn F (block_intro l' ps' cs' tmn') tmn'
-  | c'::_ => Some ids0' = inscope_of_cmd F (block_intro l' ps' cs' tmn') c'
+  | nil => 
+      Some ids0' = 
+        inscope_of_tmn F 
+          ((if isGVZero (los,nts) c then l2 else l1), stmts_intro ps' cs' tmn') tmn'
+  | c'::_ => 
+      Some ids0' = 
+        inscope_of_cmd F 
+          ((if isGVZero (los,nts) c then l2 else l1), stmts_intro ps' cs' tmn') c'
   end /\
   incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) ids0 /\
   wf_defs (los,nts) F lc' ids0'.
@@ -899,7 +905,7 @@ Lemma returnUpdateLocals__wf_lc : forall los nts S F F' c Result lc lc' gl
   returnUpdateLocals (los,nts) c Result lc lc' gl =
     ret lc'' ->
   uniqFdef F' ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) F' = true ->
+  blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) F' = true ->
   In c cs1 ->
   wf_insn S (module_intro los nts Ps) F' B' (insn_cmd c) ->
   wf_lc (los,nts) F' lc''.
@@ -1504,12 +1510,12 @@ match cs with
     end
 end /\
 exists l1, exists ps, exists cs',
-b = block_intro l1 ps (cs'++cs) tmn.
+b = (l1, stmts_intro ps (cs'++cs) tmn).
 
 Definition wf_call (ec:@ExecutionContext GVsSig) (ecs:@ECStack GVsSig) : Prop :=
 let '(mkEC f _ _ _ _ _) := ec in
 forall b, blockInFdefB b f ->
-let '(block_intro _ _ _ tmn) := b in
+let '(_, stmts_intro _ _ tmn) := b in
 match tmn with
 | insn_return _ _ _ | insn_return_void _ =>
     match ecs with
@@ -1623,7 +1629,7 @@ Proof.
 
 Ltac preservation_cmd_updated_case_tac :=
 match goal with
-| Hnotin: NoDup (getBlockLocs _) |- id_in_reachable_block _ _ =>
+| Hnotin: NoDup (getStmtsLocs _) |- id_in_reachable_block _ _ =>
   eapply block_id_in_reachable_block; eauto 1; try solve [
     simpl; apply in_or_app; right;
     apply getCmdLoc__in__getCmdsIDs; try solve
@@ -1637,7 +1643,7 @@ end.
   destruct HwfS1 as [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
      [HwfEC HwfCall]]]; subst.
-  remember (inscope_of_cmd F (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn) c0)
+  remember (inscope_of_cmd F (l3, stmts_intro ps3 (cs3' ++ c0 :: cs) tmn) c0)
     as R1.
   assert (uniqFdef F) as HuniqF.
     eapply wf_system__uniqFdef; eauto.
@@ -1652,7 +1658,7 @@ end.
       symmetry in Hid.
       apply getCmdLoc_getCmdID in Hid.
        subst.
-      assert (NoDup (getBlockLocs (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn)))
+      assert (NoDup (getStmtsLocs (stmts_intro ps3 (cs3' ++ c0 :: cs) tmn)))
         as Hnotin.
         eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.
       destruct cs; simpl_env in *.
@@ -1746,13 +1752,13 @@ Proof.
   destruct HwfS1 as [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
      [HwfEC HwfCall]]]; subst.
-  remember (inscope_of_cmd F (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn) c0)
+  remember (inscope_of_cmd F (l3, stmts_intro ps3 (cs3' ++ c0 :: cs) tmn) c0)
     as R1.
   destruct R1; try solve [inversion Hinscope1].
   repeat (split; try solve [auto]).
       Case "0".
       intros. congruence.
-      assert (NoDup (getBlockLocs (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn)))
+      assert (NoDup (getStmtsLocs (stmts_intro ps3 (cs3' ++ c0 :: cs) tmn)))
         as Hnotin.
         eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.
       Case "1".
@@ -1841,15 +1847,14 @@ Lemma wf_ExecutionContext__at_beginning_of_function: forall
   (HmInS : moduleInSystemB (module_intro los nts Ps) S = true)
   (fid : id) (lp : params) (lc' : GVsMap) (l' : l) (ps' : phinodes)
   (cs' : cmds) (tmn' : terminator) f (gvs : list GVs)
-  (H2 : getEntryBlock f =
-       ret block_intro l' ps' cs' tmn')
+  (H2 : getEntryBlock f = ret (l', stmts_intro ps' cs' tmn'))
   (H4 : initLocals (los, nts) (getArgsOfFdef f) gvs = ret lc')
   (HFinPs' : InProductsB (product_fdef f) Ps = true)
   (JJ : wf_params (los, nts) gvs lp),
   wf_ExecutionContext (los, nts) Ps
      {|
      CurFunction := f;
-     CurBB := block_intro l' ps' cs' tmn';
+     CurBB := (l', stmts_intro ps' cs' tmn');
      CurCmds := cs';
      Terminator := tmn';
      Locals := lc';
@@ -1911,11 +1916,11 @@ Case "sReturn".
        HwfCall'
      ]
     ]]; subst.
-  remember (inscope_of_cmd F' (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn') c')
+  remember (inscope_of_cmd F' (l2, stmts_intro ps2 (cs2' ++ c' :: cs') tmn') c')
     as R2.
   destruct R2; try solve [inversion Hinscope2].
   remember (inscope_of_tmn F
-             (block_intro l1 ps1 (cs1' ++ nil)(insn_return rid RetTy Result))
+             (l1, stmts_intro ps1 (cs1' ++ nil)(insn_return rid RetTy Result))
              (insn_return rid RetTy Result)) as R1.
   destruct R1; try solve [inversion Hinscope1].
   split. intros; congruence.
@@ -1942,8 +1947,8 @@ Case "sReturn".
 
     split.
     SSCase "1.1".
-      assert (NoDup (getBlockLocs
-                       (block_intro l2 ps2
+      assert (NoDup (getStmtsLocs
+                       (stmts_intro ps2
                           (cs2' ++ insn_call i0 n c rt va v p :: cs') tmn')))
         as Hnotin.
         eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
@@ -2036,11 +2041,11 @@ Case "sReturnVoid".
        HwfCall'
      ]
     ]]; subst.
-  remember (inscope_of_cmd F' (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn') c')
+  remember (inscope_of_cmd F' (l2, stmts_intro ps2 (cs2' ++ c' :: cs') tmn') c')
     as R2.
   destruct R2; try solve [inversion Hinscope2].
   remember (inscope_of_tmn F
-             (block_intro l1 ps1 (cs1' ++ nil)(insn_return_void rid))
+             (l1, stmts_intro ps1 (cs1' ++ nil)(insn_return_void rid))
              (insn_return_void rid)) as R1.
   destruct R1; try solve [inversion Hinscope1].
   split. intros; congruence.
@@ -2053,8 +2058,8 @@ Case "sReturnVoid".
     split.
     SSCase "1.1".
       apply HwfCall' in HBinF1. simpl in HBinF1.
-      assert (NoDup (getBlockLocs
-                       (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn')))
+      assert (NoDup (getStmtsLocs
+                       (stmts_intro ps2 (cs2' ++ c' :: cs') tmn')))
         as Hnotin.
         eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
       destruct cs'; simpl_env in *.
@@ -2089,7 +2094,7 @@ Focus.
 Case "sBranch".
   destruct_wfCfgState HwfCfg HwfS1.
   remember (inscope_of_tmn F
-             (block_intro l3 ps3 (cs3' ++ nil)(insn_br bid Cond l1 l2))
+             (l3, stmts_intro ps3 (cs3' ++ nil)(insn_br bid Cond l1 l2))
              (insn_br bid Cond l1 l2)) as R1.
   destruct R1; try solve [inversion Hinscope1].
   split. intros; congruence.
@@ -2099,31 +2104,20 @@ Case "sBranch".
     eapply wf_system__wf_fdef with (f:=F) in HwfF; eauto.
     assert (HuniqF := HwfSystem).
     eapply wf_system__uniqFdef with (f:=F) in HuniqF; eauto.
-    assert (isReachableFromEntry F (block_intro l' ps' cs' tmn')) as Hreach'.
+    assert (isReachableFromEntry F 
+             (if isGVZero (los, nts) c then l2 else l1,
+              stmts_intro ps' cs' tmn')) as Hreach'.
       clear - Hreach1 H1 HBinF1 HFinPs1 HmInS HwfSystem HuniqF HwfF.
       unfold isReachableFromEntry in *.
-      destruct (isGVZero (los, nts) c).
-        symmetry in H1.
-        apply lookupBlockViaLabelFromFdef_inv in H1; eauto.
-        destruct H1 as [H1 _].
-        eapply reachable_successors; eauto.
-          simpl. auto.
-
-        symmetry in H1.
-        apply lookupBlockViaLabelFromFdef_inv in H1; eauto.
-        destruct H1 as [H1 _].
-        eapply reachable_successors; eauto.
-          simpl. auto.
+      destruct (isGVZero (los, nts) c);
+        symmetry in H1;
+        apply lookupBlockViaLabelFromFdef_inv in H1; eauto;
+        eapply reachable_successors; eauto; simpl; auto.
     split; auto.
     split.
       clear - H1 HBinF1 HFinPs1 HmInS HwfSystem HuniqF.
-      destruct (isGVZero (los, nts) c).
-        symmetry in H1.
-        apply lookupBlockViaLabelFromFdef_inv in H1; auto.
-          destruct H1; auto.
-        symmetry in H1.
-        apply lookupBlockViaLabelFromFdef_inv in H1; auto.
-          destruct H1; auto.
+      destruct (isGVZero (los, nts) c);
+        symmetry in H1; apply lookupBlockViaLabelFromFdef_inv in H1; auto.
     split; auto.
     split.
       destruct (isGVZero (los, nts) c);
@@ -2135,14 +2129,15 @@ Case "sBranch".
       destruct HeqR1 as [ids0' [HeqR1 [J1 J2]]].
       destruct cs'; rewrite <- HeqR1; auto.
 
-      exists l'. exists ps'. exists nil. simpl_env. auto.
+      exists (if isGVZero (los, nts) c then l2 else l1). 
+      exists ps'. exists nil. simpl_env. auto.
 Unfocus.
 
 Focus.
 Case "sBranch_uncond".
   destruct_wfCfgState HwfCfg HwfS1.
   remember (inscope_of_tmn F
-             (block_intro l3 ps3 (cs3' ++ nil)(insn_br_uncond bid l0))
+             (l3, stmts_intro ps3 (cs3' ++ nil)(insn_br_uncond bid l0))
              (insn_br_uncond bid l0)) as R1.
   destruct R1; try solve [inversion Hinscope1].
   split. intros; congruence.
@@ -2152,12 +2147,11 @@ Case "sBranch_uncond".
     eapply wf_system__wf_fdef with (f:=F) in HwfF; eauto.
     assert (HuniqF := HwfSystem).
     eapply wf_system__uniqFdef with (f:=F) in HuniqF; eauto.
-    assert (isReachableFromEntry F (block_intro l' ps' cs' tmn')) as Hreach'.
+    assert (isReachableFromEntry F (l0, stmts_intro ps' cs' tmn')) as Hreach'.
       clear - Hreach1 H HBinF1 HFinPs1 HmInS HwfSystem HuniqF HwfF.
       unfold isReachableFromEntry in *.
       symmetry in H.
       apply lookupBlockViaLabelFromFdef_inv in H; auto.
-      destruct H as [H _].
       eapply reachable_successors; eauto.
         simpl. auto.
     split; auto.
@@ -2165,19 +2159,18 @@ Case "sBranch_uncond".
       clear - H HBinF1 HFinPs1 HmInS HwfSystem HuniqF.
       symmetry in H.
       apply lookupBlockViaLabelFromFdef_inv in H; auto.
-        destruct H; auto.
     split; auto.
     split. eapply wf_lc_br_aux in H0; eauto.
     split.
       clear - H0 HeqR1 Hinscope1 H HwfSystem HBinF1 HwfF HuniqF Hwfg Hwflc1
         Hwftd Hreach'.
       assert (Hwds := HeqR1).
-      eapply inscope_of_tmn_br_uncond with (cs':=cs')(l':=l')(ps':=ps')
+      eapply inscope_of_tmn_br_uncond with (cs':=cs')(ps':=ps')
         (tmn':=tmn') in HeqR1; eauto.
       destruct HeqR1 as [ids0' [HeqR1 [J1 J2]]].
       destruct cs'; rewrite <- HeqR1; auto.
 
-      exists l'. exists ps'. exists nil. simpl_env. auto.
+      exists l0. exists ps'. exists nil. simpl_env. auto.
 Unfocus.
 
 Case "sBop".
@@ -2361,7 +2354,7 @@ Case "sCall".
   SCase "2".
     repeat (split; auto). eauto.
   SCase "3".
-    simpl. intros b HbInBs. destruct b as [? ? ? t].
+    simpl. intros b HbInBs. destruct b as [? [? ? t]].
     destruct t; auto.
 
 Unfocus.
@@ -2408,9 +2401,9 @@ Qed.
 (** * Progress *)
 
 Lemma state_tmn_typing : forall TD s m f l1 ps1 cs1 tmn1 defs id1 lc,
-  isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1) ->
-  wf_insn s m f (block_intro l1 ps1 cs1 tmn1) (insn_terminator tmn1) ->
-  Some defs = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1 ->
+  isReachableFromEntry f (l1, stmts_intro ps1 cs1 tmn1) ->
+  wf_insn s m f (l1, stmts_intro ps1 cs1 tmn1) (insn_terminator tmn1) ->
+  Some defs = inscope_of_tmn f (l1, stmts_intro ps1 cs1 tmn1) tmn1 ->
   wf_defs TD f lc defs ->
   wf_fdef s m f -> uniqFdef f ->
   In id1 (getInsnOperands (insn_terminator tmn1)) ->
@@ -2429,7 +2422,7 @@ Proof.
 Qed.
 
 Lemma state_cmd_typing : forall TD s m f b c defs id1 lc,
-  NoDup (getBlockLocs b) ->
+  NoDup (getStmtsLocs (snd b)) ->
   isReachableFromEntry f b ->
   wf_insn s m f b (insn_cmd c) ->
   Some defs = inscope_of_cmd f b c ->
@@ -2484,10 +2477,10 @@ Lemma getOperandValue_inCmdOps_isnt_stuck : forall
   (ps1 : phinodes)
   (cs1 : list cmd)
   (c : cmd)
-  (Hreach : isReachableFromEntry f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn))
-  (HbInF : blockInFdefB (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) f = true)
+  (Hreach : isReachableFromEntry f (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn))
+  (HbInF : blockInFdefB (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) f = true)
   (l0 : list atom)
-  (HeqR : ret l0 = inscope_of_cmd f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) c)
+  (HeqR : ret l0 = inscope_of_cmd f (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) c)
   (Hinscope : wf_defs (los,nts) f lc l0)
   (v : value)
   (Hvincs : valueInCmdOperands v c),
@@ -2534,10 +2527,10 @@ Lemma getOperandValue_inTmnOperans_isnt_stuck : forall
   (l1 : l)
   (ps1 : phinodes)
   (cs1 : list cmd)
-  (Hreach : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn))
-  (HbInF : blockInFdefB (block_intro l1 ps1 cs1 tmn) f = true)
+  (Hreach : isReachableFromEntry f (l1, stmts_intro ps1 cs1 tmn))
+  (HbInF : blockInFdefB (l1, stmts_intro ps1 cs1 tmn) f = true)
   (l0 : list atom)
-  (HeqR : ret l0 = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn) tmn)
+  (HeqR : ret l0 = inscope_of_tmn f (l1, stmts_intro ps1 cs1 tmn) tmn)
   (Hinscope : wf_defs (los,nts) f lc l0)
   (v : value)
   (Hvincs : valueInTmnOperands v tmn),
@@ -2589,14 +2582,14 @@ Lemma values2GVs_isnt_stuck : forall
   (ps1 : phinodes)
   (cs1 : list cmd) t'
   (Hreach : isReachableFromEntry f
-             (block_intro l1 ps1 (cs1 ++ insn_gep i0 i1 t v l2 t':: cs) tmn))
+             (l1, stmts_intro ps1 (cs1 ++ insn_gep i0 i1 t v l2 t':: cs) tmn))
   (HbInF : blockInFdefB
-            (block_intro l1 ps1 (cs1 ++ insn_gep i0 i1 t v l2 t':: cs) tmn) f =
+            (l1, stmts_intro ps1 (cs1 ++ insn_gep i0 i1 t v l2 t':: cs) tmn) f =
           true)
   (l0 : list atom)
   (HeqR : ret l0 =
          inscope_of_cmd f
-           (block_intro l1 ps1 (cs1 ++ insn_gep i0 i1 t v l2 t':: cs) tmn)
+           (l1, stmts_intro ps1 (cs1 ++ insn_gep i0 i1 t v l2 t':: cs) tmn)
            (insn_gep i0 i1 t v l2 t'))
   (Hinscope : wf_defs (los,nts) f lc l0)
   (Hex : exists l21, l2 = l21 ++ l22),
@@ -2633,25 +2626,25 @@ Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (t : list atom)
   l1 ps1 cs1 tmn1
   (Hwfg : wf_global (los,nts) s gl)
-  (HeqR : ret t = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1)
+  (HeqR : ret t = inscope_of_tmn f (l1, stmts_intro ps1 cs1 tmn1) tmn1)
   (Hinscope : wf_defs (los,nts) f lc t)
   (HuniqF : uniqFdef f)
   (ps' : phinodes)
   (cs' : cmds)
   (tmn' : terminator)
   ps2
-  (Hreach : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
+  (Hreach : isReachableFromEntry f (l1, stmts_intro ps1 cs1 tmn1))
   (HbInF : blockInFdefB
-            (block_intro l1 ps1 cs1 tmn1) f = true)
+            (l1, stmts_intro ps1 cs1 tmn1) f = true)
   (HwfB : wf_block s (module_intro los nts ps) f
-             (block_intro l1 ps1 cs1 tmn1))
+             (l1, stmts_intro ps1 cs1 tmn1))
   (H8 : wf_phinodes s (module_intro los nts ps) f
-         (block_intro l0 ps' cs' tmn') ps2)
+         (l0, stmts_intro ps' cs' tmn') ps2)
   (Hsucc : In l0 (successors_terminator tmn1))
   (Hin: exists ps1, ps' = ps1 ++ ps2),
    exists RVs : list (id * GVs),
      getIncomingValuesForBlockFromPHINodes (los, nts) ps2
-       (block_intro l1 ps1 cs1 tmn1) gl lc =
+       (l1, stmts_intro ps1 cs1 tmn1) gl lc =
        ret RVs.
 Proof.
   intros.
@@ -2674,7 +2667,7 @@ Proof.
       apply J2.
       eapply successors_predecessors_of_block; eauto.
 
-    destruct J as [v J].
+    destruct J as [v J]. unfold getValueViaBlockFromValuels. simpl.
     rewrite J.
     destruct v as [vid | vc].
     Case "vid".
@@ -2740,15 +2733,15 @@ Lemma params2GVs_isnt_stuck : forall
   (ps1 : phinodes)
   (cs1 : list cmd)
   (Hreach : isReachableFromEntry f
-             (block_intro l1 ps1
+             (l1, stmts_intro ps1
                (cs1 ++ insn_call i0 n c rt va  v p2 :: cs) tmn))
   (HbInF : blockInFdefB
-            (block_intro l1 ps1
+            (l1, stmts_intro ps1
               (cs1 ++ insn_call i0 n c rt va v p2 :: cs) tmn) f = true)
   (l0 : list atom)
   (HeqR : ret l0 =
          inscope_of_cmd f
-           (block_intro l1 ps1
+           (l1, stmts_intro ps1
              (cs1 ++ insn_call i0 n c rt va v p2 :: cs) tmn)
            (insn_call i0 n c rt va v p2))
   (Hinscope : wf_defs (los,nts) f lc l0)
@@ -2777,7 +2770,6 @@ Proof.
 
       exists (p21 ++ [(t0, attr0,v0)]). simpl_env. auto.
 Qed.
-
 
 Lemma initializeFrameValues__total_aux : forall los nts s fattr ft fid va
   la2 la1 lc1
@@ -2893,7 +2885,7 @@ match cfg with
   end \/
   match S with
   | {| ECS := {|
-                CurBB := block_intro _ _ _ (insn_unreachable _);
+                CurBB := (_, stmts_intro _ _ (insn_unreachable _));
                 CurCmds := nil;
                 Terminator := (insn_unreachable _)
                |} :: _
@@ -3031,7 +3023,7 @@ Proof.
   subst b.
   destruct cs.
   Case "cs=nil".
-    remember (inscope_of_tmn f (block_intro l1 ps1 (cs1 ++ nil) tmn) tmn) as R.
+    remember (inscope_of_tmn f (l1, stmts_intro ps1 (cs1 ++ nil) tmn) tmn) as R.
     destruct R; try solve [inversion Hinscope].
     destruct_tmn tmn.
     SCase "tmn=ret".
@@ -3126,29 +3118,22 @@ Proof.
         eapply getOperandValue__inhabited in Hget; eauto.
         gvs_inhabited_inv Hget. eauto.
       destruct Hinh as [c Hinh].
-      assert (exists l', exists ps', exists cs', exists tmn',
-              Some (block_intro l' ps' cs' tmn') =
+      assert (exists sts',
+              Some sts' =
               (if isGVZero (los,nts) c
                  then lookupBlockViaLabelFromFdef f l3
                  else lookupBlockViaLabelFromFdef f l2)) as HlkB.
         inv Hwfc.
-        destruct block1 as [l2' ps2 cs2 tmn2].
-        destruct block2 as [l3' ps3 cs3 tmn3].
-        destruct (isGVZero (los, nts) c).
-          exists l3'. exists ps3. exists cs3. exists tmn3.
-          rewrite H10. auto.
+        destruct (isGVZero (los, nts) c); eauto.
 
-          exists l2'. exists ps2. exists cs2. exists tmn2.
-          rewrite H9. auto.
-
-      destruct HlkB as [l' [ps' [cs' [tmn' HlkB]]]].
+      destruct HlkB as [[ps' cs' tmn'] HlkB].
       assert (exists lc', switchToNewBasicBlock (los, nts)
-        (block_intro l' ps' cs' tmn')
-        (block_intro l1 ps1 (cs1++nil) (insn_br id5 value5 l2 l3)) gl lc =
+        (if isGVZero (los, nts) c then l3 else l2, stmts_intro ps' cs' tmn')
+        (l1, stmts_intro ps1 (cs1++nil) (insn_br id5 value5 l2 l3)) gl lc =
           Some lc') as Hswitch.
          assert (exists RVs,
            getIncomingValuesForBlockFromPHINodes (los, nts) ps'
-             (block_intro l1 ps1 (cs1++nil) (insn_br id5 value5 l2 l3)) gl lc =
+             (l1, stmts_intro ps1 (cs1++nil) (insn_br id5 value5 l2 l3)) gl lc =
            Some RVs) as J.
            assert (HwfB := HbInF).
            eapply wf_system__blockInFdefB__wf_block in HwfB; eauto.
@@ -3161,7 +3146,7 @@ Proof.
              eapply wf_system__lookup__wf_block in HlkB; eauto.
              inv HlkB. clear H9 H8.
              eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes
-               with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l'); eauto.
+               with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l3); eauto.
                simpl. auto.
                exists nil. auto.
 
@@ -3172,7 +3157,7 @@ Proof.
              eapply wf_system__lookup__wf_block in HlkB; eauto.
              inv HlkB. clear H9 H8.
              eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes
-               with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l'); eauto.
+               with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l2); eauto.
                simpl. auto.
                exists nil. auto.
 
@@ -3182,7 +3167,8 @@ Proof.
          exists (updateValuesForNewBlock RVs lc). auto.
 
       destruct Hswitch as [lc' Hswitch].
-      exists (mkState ((mkEC f (block_intro l' ps' cs' tmn') cs' tmn' lc'
+      exists (mkState ((mkEC f (if isGVZero (los, nts) c then l3 else l2, 
+                                stmts_intro ps' cs' tmn') cs' tmn' lc'
               als)::ecs) M).
       exists events.E0. eauto.
 
@@ -3192,25 +3178,20 @@ Proof.
         eapply wf_system__wf_fdef; eauto.
       assert (uniqFdef f) as HuniqF.
         eapply wf_system__uniqFdef; eauto.
-      assert (exists ps', exists cs', exists tmn',
-        Some (block_intro l2 ps' cs' tmn') = lookupBlockViaLabelFromFdef f l2)
+      assert (exists sts2, Some sts2 = lookupBlockViaLabelFromFdef f l2)
           as HlkB.
         eapply wf_system__wf_tmn in HbInF; eauto.
-        inv HbInF.
-        exists ps1. exists (cs1++nil). exists (insn_br_uncond i0 l2).
-        rewrite H5.
-        apply lookupBlockViaLabelFromFdef_inv in H5; auto.
-        destruct H5 as [H5 _]; subst. auto.
+        inv HbInF. eauto.
 
-      destruct HlkB as [ps' [cs' [tmn' HlkB]]].
+      destruct HlkB as [[ps' cs' tmn'] HlkB].
 
       assert (exists lc', switchToNewBasicBlock (los, nts)
-        (block_intro l2 ps' cs' tmn')
-        (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc =
+        (l2, stmts_intro ps' cs' tmn')
+        (l1, stmts_intro ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc =
           Some lc') as Hswitch.
          assert (exists RVs,
            getIncomingValuesForBlockFromPHINodes (los, nts) ps'
-             (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc =
+             (l1, stmts_intro ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc =
            Some RVs) as J.
            assert (HwfB := HbInF).
            eapply wf_system__blockInFdefB__wf_block in HwfB; eauto.
@@ -3227,7 +3208,7 @@ Proof.
          exists (updateValuesForNewBlock RVs lc). auto.
 
       destruct Hswitch as [lc' Hswitch].
-      exists (mkState ((mkEC f (block_intro l2 ps' cs' tmn') cs' tmn' lc'
+      exists (mkState ((mkEC f (l2, stmts_intro ps' cs' tmn') cs' tmn' lc'
               als)::ecs) M).
       exists events.E0. eauto.
 
@@ -3236,11 +3217,11 @@ Proof.
 
   Case "cs<>nil".
     assert (wf_insn s (module_intro los nts ps) f
-      (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) (insn_cmd c)) as Hwfc.
+      (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) (insn_cmd c)) as Hwfc.
       assert (In c (cs1++c::cs)) as H.
         apply in_or_app. simpl. auto.
       eapply wf_system__wf_cmd with (c:=c) in HbInF; eauto.
-    remember (inscope_of_cmd f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) c) as R.
+    remember (inscope_of_cmd f (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) c) as R.
     destruct R; try solve [inversion Hinscope].
     right.
     destruct c as [i0 b s0 v v0|i0 f0 f1 v v0|i0 t v l2|i0 t v t0 v0 l2 t0'|
@@ -3271,8 +3252,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_bop i0 b s0 v v0 :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_bop i0 b s0 v v0 :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := (updateAddAL _ lc i0 gv3);
@@ -3305,8 +3286,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_fbop i0 f0 f1 v v0 :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_fbop i0 f0 f1 v v0 :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := (updateAddAL _ lc i0 gv3);
@@ -3336,8 +3317,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_extractvalue i0 t v l2 typ':: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_extractvalue i0 t v l2 typ':: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := (updateAddAL _ lc i0 gv');
@@ -3375,8 +3356,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_insertvalue i0 t v t0 v0 l2 :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_insertvalue i0 t v t0 v0 l2 :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := (updateAddAL _ lc i0 gv'');
@@ -3408,8 +3389,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_malloc i0 t v a :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_malloc i0 t v a :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals :=
@@ -3441,8 +3422,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_free i0 t v :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_free i0 t v :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := lc;
@@ -3479,8 +3460,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_alloca i0 t v a :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_alloca i0 t v a :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals :=
@@ -3513,8 +3494,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_load i0 t v a :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_load i0 t v a :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := updateAddAL _ lc i0 ($ gv' # t$);
@@ -3555,8 +3536,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_store i0 t v v0 a :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_store i0 t v v0 a :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := lc;
@@ -3596,8 +3577,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_gep i0 i1 t v l2 typ' :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_gep i0 i1 t v l2 typ' :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := (updateAddAL _ lc i0 mp');
@@ -3623,8 +3604,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_trunc i0 t t0 v t1 :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_trunc i0 t t0 v t1 :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := (updateAddAL _ lc i0 gv2);
@@ -3650,8 +3631,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_ext i0 e t v t0 :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_ext i0 e t v t0 :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := (updateAddAL _ lc i0 gv2);
@@ -3677,8 +3658,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_cast i0 c t v t0 :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_cast i0 c t v t0 :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := (updateAddAL _ lc i0 gv2);
@@ -3714,8 +3695,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_icmp i0 c t v v0 :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_icmp i0 c t v v0 :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := (updateAddAL _ lc i0 gv2);
@@ -3751,8 +3732,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_fcmp i0 f0 f1 v v0 :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_fcmp i0 f0 f1 v v0 :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := (updateAddAL _ lc i0 gv2);
@@ -3786,8 +3767,8 @@ Proof.
          {|
          ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_select i0 v t v0 v1 :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_select i0 v t v0 v1 :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := (if isGVZero (los, nts) c
@@ -3825,17 +3806,17 @@ Proof.
     assert (Hinit := J).
     apply initLocal__total with (gvs2:=gvss) in Hinit; auto.
     destruct Hinit as [lc2 Hinit].
-    inv J. destruct block5 as [l5 ps5 cs5 tmn5].
+    inv J. destruct block5 as [l5 [ps5 cs5 tmn5]].
     left.
     exists
          {|
          ECS :=(mkEC (fdef_intro (fheader_intro fa rt fid la va) lb)
-                     (block_intro l5 ps5 cs5 tmn5) cs5 tmn5 lc2
+                     (l5, stmts_intro ps5 cs5 tmn5) cs5 tmn5 lc2
                      nil)::
                {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_call i0 n c rt1 va1 v p :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_call i0 n c rt1 va1 v p :: cs) tmn);
                 CurCmds := insn_call i0 n c rt1 va1 v p :: cs;
                 Terminator := tmn;
                 Locals := lc;
@@ -3862,8 +3843,8 @@ Proof.
           {|
           ECS :={|
                  CurFunction := f;
-                 CurBB := block_intro l1 ps1
-                            (cs1 ++ insn_call i0 n c rt1 va1 v p :: cs) tmn;
+                 CurBB := (l1, stmts_intro ps1
+                            (cs1 ++ insn_call i0 n c rt1 va1 v p :: cs) tmn);
                  CurCmds := cs;
                  Terminator := tmn;
                  Locals := lc';

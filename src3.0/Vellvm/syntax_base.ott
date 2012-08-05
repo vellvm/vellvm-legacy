@@ -385,9 +385,18 @@ phinodes {{ tex \mathit{\overline{\phi} } }} :: 'phinodes_'	::=		{{ com phinodes
   | phinodes ; phinodes'				::   :: append		{{ coq ([[phinodes]]++[[phinodes']]) }}
   | ( phinodes )					:: S :: paren           {{ coq [[ phinodes ]] }}
 
-block {{ tex b }} :: 'block_' 	::=	     			{{ com block }}
-  | l phinodes cmds terminator				::   :: intro           {{ tex [[l]] [[phinodes]] [[cmds]] [[terminator]] }}
+stmts :: 'stmts_' 	::=	     			               
+  | phinodes cmds terminator				::   :: intro           
+  | ( stmts )						:: S :: paren           {{ coq [[ stmts ]] }}
+
+block {{ tex b }} :: 'block_' 	::=	     			                {{ com block }}
+                                                                                {{ coq (prod l stmts) }}
+  | l stmts				                ::   :: intro           {{ coq ([[l]], [[stmts]]) }}
   | ( block )						:: S :: paren           {{ coq [[ block ]] }}
+
+opt_stmts :: 'opt_stmts_' ::=	
+  |  none 						:: M :: none		{{ com none }} {{ coq None }}
+  |  stmts						:: M :: some  		{{ com some }} {{ coq (Some [[stmts]]) }}
 
 opt_block {{ tex \mathit{opt_{b} } }} :: 'opt_block_' ::=			{{ com option block }} {{ coq option block }}
   |  none 						:: M :: none		{{ com none }} {{ coq None }}

@@ -27,14 +27,14 @@ Module Type ALGDOM.
 
 Parameter sdom : fdef -> atom -> set atom.
 
-Axiom dom_entrypoint : forall f l0 ps cs tmn
-  (Hentry : getEntryBlock f = Some (block_intro l0 ps cs tmn)),
+Axiom dom_entrypoint : forall f l0 s0
+  (Hentry : getEntryBlock f = Some (l0, s0)),
   sdom f l0 = {}.
 
 Definition branchs_in_fdef f :=
   forall (p : l) (ps0 : phinodes) (cs0 : cmds) 
          (tmn0 : terminator) (l2 : l),
-  blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
+  blockInFdefB (p, stmts_intro ps0 cs0 tmn0) f ->
   In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f).
 
 Axiom sdom_in_bound: forall fh bs l5, 
@@ -50,19 +50,19 @@ Axiom dom_successors : forall
 
 Axiom sdom_is_complete: forall (f:fdef)
   (Hbinf: branchs_in_fdef f) 
-  (l3 : l) (l' : l) ps cs tmn ps' cs' tmn'
+  (l3 : l) (l' : l) s3 s'
   (HuniqF : uniqFdef f)
-  (HBinF' : blockInFdefB (block_intro l' ps' cs' tmn') f = true)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
+  (HBinF' : blockInFdefB (l', s') f = true)
+  (HBinF : blockInFdefB (l3, s3) f = true)
   (Hsdom: f |= l' >> l3),
   l' `in` (sdom f l3).
 
 Axiom dom_unreachable: forall (f:fdef)
   (Hbinf: branchs_in_fdef f) 
   (Hhasentry: getEntryBlock f <> None)
-  (l3 : l) (l' : l) ps cs tmn
+  (l3 : l) s3
   (HuniqF: uniqFdef f)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
+  (HBinF : blockInFdefB (l3, s3) f = true)
   (Hunreach: ~ f ~>* l3),
   sdom f l3 = bound_fdef f.
 
@@ -73,7 +73,7 @@ Axiom pres_sdom: forall
     ftrans (fdef_intro fh bs) = fdef_intro fh (List.map btrans bs))
   (btrans_eq_label: forall b, getBlockLabel b = getBlockLabel (btrans b))
   (btrans_eq_tmn: forall b, 
-    terminator_match (getBlockTmn b) (getBlockTmn (btrans b)))
+    terminator_match (getTerminator b) (getTerminator (btrans b)))
   (f : fdef) (l5 l0 : l),
   ListSet.set_In l5 (sdom f l0) <->
   ListSet.set_In l5 (sdom (ftrans f) l0).
@@ -94,7 +94,7 @@ Proof.
   destruct H0 as [Hneq Hreach].
   apply reachable__in_bound in Hreach; auto.
   apply In_bound_fdef__blockInFdefB in Hreach.
-  destruct Hreach as [ps [cs [tmn HBinF]]].
+  destruct Hreach as [s HBinF].
   apply getEntryLabel__getEntryBlock in H.
   destruct H as [be [Hentry EQ]]; subst.
   apply entryBlockInFdef in Hentry.
@@ -115,8 +115,8 @@ Variable f : fdef.
 Hypothesis Hhasentry: getEntryBlock f <> None.
 
 Lemma dom_is_sound : forall
-  (l3 : l) (l' : l) ps cs tmn
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
+  (l3 : l) (l' : l) s3
+  (HBinF : blockInFdefB (l3, s3) f = true)
   (Hin : l' `in` (l3 {+} (adom.sdom f l3))),
   f |= l' >>= l3.
 Proof.
@@ -124,11 +124,9 @@ Proof.
   intros. destruct f as [fh bs].
   remember (getEntryBlock (fdef_intro fh bs)) as R.
   destruct R; try congruence. clear Hhasentry.
-  destruct b as [l5 ps5 cs5 t5].
+  destruct b as [l5 s5].
   intros vl al Hreach.
-  generalize dependent ps.
-  generalize dependent cs.
-  generalize dependent tmn.
+  generalize dependent s3.
   remember (ACfg.vertexes (successors (fdef_intro fh bs))) as Vs.
   remember (ACfg.arcs (successors (fdef_intro fh bs))) as As.
   unfold ATree.elt, l in *.
@@ -145,7 +143,7 @@ Proof.
 
     destruct y as [a0].
     assert (exists ps0, exists cs0, exists tmn0,
-      blockInFdefB (block_intro a0 ps0 cs0 tmn0) (fdef_intro fh bs) /\
+      blockInFdefB (a0, stmts_intro ps0 cs0 tmn0) (fdef_intro fh bs) /\
       In l3 (successors_terminator tmn0)) as J.
       eapply successors__blockInFdefB; eauto.
     destruct J as [ps0 [cs0 [tmn0 [HBinF'' Hinsucc]]]].
@@ -158,14 +156,14 @@ Proof.
         eapply adom.dom_successors; eauto.
       simpl in Hin. destruct Hin; try congruence.
       apply Hinc; auto.
-    eapply IHHreach in J; eauto.
+    eapply IHHreach in J; eauto 1.
     simpl.
     destruct J as [J | J]; subst; eauto.
 Qed.
 
 Lemma sdom_is_sound : forall
-  (l3 : l) (l' : l) ps cs tmn
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
+  (l3 : l) (l' : l) s3
+  (HBinF : blockInFdefB (l3, s3) f = true)
   (Hin : l' `in` (adom.sdom f l3)),
   f |= l' >> l3.
 Proof. 
@@ -190,7 +188,7 @@ Proof.
       inv Hp; try congruence.
       destruct y as [a0].
       assert (exists ps0, exists cs0, exists tmn0,
-        blockInFdefB (block_intro a0 ps0 cs0 tmn0) f /\
+        blockInFdefB (a0, stmts_intro ps0 cs0 tmn0) f /\
         In l3 (successors_terminator tmn0)) as J.
         eapply successors__blockInFdefB; eauto.
       destruct J as [ps0 [cs0 [tmn0 [HBinF' Hinsucc]]]].
@@ -216,9 +214,9 @@ Qed.
 End sound.
 
 Lemma sdom_isnt_refl : forall
-  f (l3 : l) (l' : l) ps cs tmn
+  f (l3 : l) (l' : l) s3
   (Hreach : reachable f l3)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
+  (HBinF : blockInFdefB (l3, s3) f = true)
   (Hin : In l' (adom.sdom f l3)),
   l' <> l3.
 Proof. 
@@ -237,17 +235,17 @@ Definition getEntryBlock_inv f := forall
   (ps : phinodes)
   (cs : cmds)
   (tmn : terminator)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hsucc : In l' (successors_terminator tmn)) a ps0 cs0 tmn0
-  (H : getEntryBlock f = Some (block_intro a ps0 cs0 tmn0)),
+  (HBinF : blockInFdefB (l3, stmts_intro ps cs tmn) f = true)
+  (Hsucc : In l' (successors_terminator tmn)) a s0
+  (H : getEntryBlock f = Some (a, s0)),
   l' <> a.
 
 Lemma sdom_acyclic: forall f
   (HgetEntryBlock_inv : getEntryBlock_inv f)
-  l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2,
+  l1 l2 s1 s2,
   reachable f l2 ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
-  blockInFdefB (block_intro l2 ps2 cs2 tmn2) f = true ->
+  blockInFdefB (l1, s1) f = true ->
+  blockInFdefB (l2, s2) f = true ->
   l1 `in` (adom.sdom f l2) ->
   l2 `in` (adom.sdom f l1) ->
   l1 <> l2 ->
@@ -258,7 +256,7 @@ Proof.
     eapply sdom_is_sound; eauto using reachable_has_entry.
   assert (strict_domination f l2 l1) as Hdom21.
     eapply sdom_is_sound; eauto using reachable_has_entry.
-  eapply DecDom.dom_acyclic in Hdom12; eauto.
+  eapply DecDom.dom_acyclic in Hdom12; eauto 1.
   apply Hdom12. apply DecDom.sdom_dom; auto.
 Qed.
 

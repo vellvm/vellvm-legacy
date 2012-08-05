@@ -33,7 +33,7 @@ Proof.
   inv_mbind'.
   destruct m as [los nts ps].
   inv_mbind'.
-  destruct b as [l0 ps0 cs0 tmn0].
+  destruct s as [ps0 cs0 tmn0].
   destruct f as [[fa rt fid la va] bs].
   inv_mbind'. symmetry_ctx.
   assert (HlkF2FromS2:=HeqR).
@@ -51,7 +51,7 @@ Proof.
   eapply getEntryBlock__simulation in J; eauto.
   destruct J as [b1 [J5 J6]].
   fill_ctxhole.
-  destruct b1 as [l2 ps2 cs2 tmn2].
+  destruct b1 as [l2 [ps2 cs2 tmn2]].
   destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1].
   assert (J:=Hfsim).
   apply fdef_simulation__eq_fheader in J.
@@ -68,7 +68,7 @@ Proof.
   assert (J:=J6).
   apply block_simulation__inv in J.
   destruct J; subst.
-  assert (blockInFdefB (block_intro l0 ps2 cs2 tmn0)
+  assert (blockInFdefB (l0, stmts_intro ps2 cs2 tmn0)
            (fdef_intro (fheader_intro fa rt fid la va) bs1) = true) as HBinF.
     apply entryBlockInFdef; auto.
   repeat (split; auto).
@@ -106,10 +106,10 @@ Proof.
 
     erewrite simulation__getOperandValue with (lc2:=Locals); eauto;
       match goal with
-      | _:blockInFdefB (block_intro ?l0 ?ps ?cs ?tmn) _ = _ |- _ =>
+      | _:blockInFdefB (?l0, stmts_intro ?ps ?cs ?tmn) _ = _ |- _ =>
         eapply original_values_arent_tmps with 
           (instr:=insn_terminator tmn)
-          (B:=block_intro l0 ps cs tmn); eauto;
+          (B:=(l0, stmts_intro ps cs tmn)); eauto;
           try solve [
             simpl; apply andb_true_iff;
             split; try solve [auto | apply terminatorEqB_refl] |
@@ -134,7 +134,7 @@ Qed.
 Lemma cmds_simulation_nil_inv': forall pinfo TD Mem0 Locals0 F l1 ps1
   cs1 tmn1 cs
   (Hsim: cmds_simulation pinfo TD Mem0 Locals0 F
-           (block_intro l1 ps1 cs1 tmn1) nil cs),
+           (l1, stmts_intro ps1 cs1 tmn1) nil cs),
   if (fdef_dec (PI_f pinfo) F) then
     forall c (Hin: In c cs),
       exists i1, exists i2, exists i3, 
@@ -231,10 +231,10 @@ Proof.
         auto |
         erewrite simulation__getOperandValue with (lc2:=Locals0); eauto;
         match goal with
-        | _:blockInFdefB (block_intro ?l0 ?ps ?cs ?tmn) _ = _ |- _ =>
+        | _:blockInFdefB (?l0, stmts_intro ?ps ?cs ?tmn) _ = _ |- _ =>
           eapply original_values_arent_tmps with 
             (instr:=insn_terminator tmn)
-            (B:=block_intro l0 ps cs tmn); eauto;
+            (B:=(l0, stmts_intro ps cs tmn)); eauto;
             try solve [
               simpl; apply andb_true_iff;
               split; try solve [auto | apply terminatorEqB_refl] |
@@ -477,9 +477,9 @@ Proof.
 
 Ltac phinodes_placement_undef_tac10:=
       match goal with 
-      | H15: exists _:_, exists _:_, exists _:_, ?b = block_intro _ _ _ ?tmn |-
+      | H15: exists _:_, exists _:_, exists _:_, ?b = (_, stmts_intro _ _ ?tmn) |-
          exists _:_, exists _:_, exists _:_, exists _:_,  
-           ?b = block_intro _ _ _ _ =>
+           ?b = (_, stmts_intro _ _ _) =>
          destruct H15 as [A [B [C H15]]]; subst;
          exists A; exists B; exists C; exists tmn; auto
       end.
@@ -535,13 +535,13 @@ Ltac phinodes_placement_undef_tac2:=
     destruct St1 as [ECS ?];
     destruct Hsim as [? [? [? [X [? [Hsim [? [? ?]]]]]]]]; subst;
     uniq_result;
-    destruct ECS as [|[? [? ? ? ?] ? ? ?]]; try tauto;
+    destruct ECS as [|[? [? []] ? ? ?]]; try tauto;
     destruct Hsim as [Hsim _];
     unfold EC_simulation_head in Hsim;
     destruct Hsim as [? [? [? [? [? [? [? [? [? Hsim]]]]]]]]]; subst
   end.
 
-    destruct St2 as [[|[? [? ? ? tmn] CurCmds tmn' ?] ?] ?]; try tauto.
+    destruct St2 as [[|[? [? [? ? tmn]] CurCmds tmn' ?] ?] ?]; try tauto.
     destruct tmn; try tauto.
     destruct CurCmds; try tauto.
     destruct tmn'; try tauto.
@@ -557,7 +557,7 @@ Ltac phinodes_placement_undef_tac41 :=
   match goal with 
   | HbInF: block_simulation _ _ ?b _,
     H: exists _:_, exists _:_, exists _:_,
-         ?b = block_intro _ _ (_ ++ ?c :: _) _ |- _ =>
+         ?b = (_, stmts_intro _ (_ ++ ?c :: _) _) |- _ =>
     eapply original_values_arent_tmps with 
       (B:=b)(instr:=insn_cmd c); eauto 2 using wf_system__wf_fdef;
       try solve [simpl; auto |
@@ -698,12 +698,12 @@ end.
       fill_ctxhole.
       inv_mbind.
       erewrite params2GVs__simulation; eauto.
-        fill_ctxhole. exists l1.
+        fill_ctxhole. exists l2.
         split; auto.
         destruct Hundef as [gvs [EQ Hundef]].
         dgvs_instantiate_inv.
         remember (callExternalOrIntrinsics (los2, nts2) fs2 Mem id0 typ0
-                   (args2Typs args5) deckind5 l1) as R.
+                   (args2Typs args5) deckind5 l2) as R.
         destruct R as [[[]]|]; auto.
         inv_mbind.
         erewrite simulation__exCallUpdateLocals_None; eauto.
@@ -720,7 +720,7 @@ Qed.
 
 Lemma phinodes_placement_sim: forall rd f Ps1 Ps2 los nts main VarArgs pid ty al
   num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = reachablity_analysis f)
-  (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
+  (Hentry: getEntryBlock f = Some (l0, stmts_intro ps0 cs0 tmn0))
   (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
   (Hok: defined_program [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] 
           main VarArgs)

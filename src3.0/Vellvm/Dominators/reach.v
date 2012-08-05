@@ -30,11 +30,11 @@ Proof.
 Qed.
 
 Lemma reachable_entrypoint:
-  forall (f:fdef) l0 ps cs tmn,
-    getEntryBlock f = Some (block_intro l0 ps cs tmn) ->
+  forall (f:fdef) l0 s0,
+    getEntryBlock f = Some (l0, s0) ->
     reachable f l0.
 Proof.
-  intros f l0 ps cs tmn Hentry. unfold reachable.
+  intros f l0 s0 Hentry. unfold reachable.
   rewrite Hentry. exists V_nil. exists A_nil. apply DW_null.
   eapply entry_in_vertexes; eauto.
 Qed.
@@ -48,7 +48,7 @@ Variable f:fdef.
 Lemma reachable_successors:
   forall l0 cs ps tmn l1 (Hinvx: vertexes_fdef f (index l1)),
   uniqFdef f -> 
-  blockInFdefB (block_intro l0 cs ps tmn) f ->
+  blockInFdefB (l0, stmts_intro cs ps tmn) f ->
   In l1 (successors_terminator tmn) ->
   reachable f l0 ->
   reachable f l1.

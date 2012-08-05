@@ -960,7 +960,7 @@ Definition dom_analyze (f: fdef) : AMap.t Dominators.t :=
   let '(fdef_intro _ bs) := f in
   let top := Dominators.top in
   match getEntryBlock f with
-  | Some (block_intro le _ _ _) =>
+  | Some (le, _) =>
       match DomDS.fixpoint (successors_blocks bs) transfer
         ((le, top) :: nil) (num_iters f) with
       | None => AMap.init top
@@ -974,7 +974,7 @@ Section Num_iters__is__large_enough.
 Variable f:fdef.
 Hypothesis Huniq: uniqFdef f.
 Hypothesis branches_in_bound_fdef: forall p ps0 cs0 tmn0 l2
-  (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
+  (J3 : blockInFdefB (p, stmts_intro ps0 cs0 tmn0) f)
   (J4 : In l2 (successors_terminator tmn0)),
   In l2 (bound_fdef f).
 
@@ -1038,8 +1038,8 @@ fun l0 => bound_dom b (dt !! l0).
 
 Import AtomSet.
 
-Lemma dom_entrypoint : forall f l0 ps cs tmn
-  (Hentry : getEntryBlock f = Some (block_intro l0 ps cs tmn)),
+Lemma dom_entrypoint : forall f l0 s0
+  (Hentry : getEntryBlock f = Some (l0, s0)),
   sdom f l0 = nil.
 Proof.
   intros.
@@ -1073,7 +1073,7 @@ Variable entrypoints: list (atom * DomDS.L.t).
 
 Hypothesis wf_entrypoints:
   match bs with
-  | block_intro l0 _ _ _ :: _ => l0 = entry
+  | (l0, _) :: _ => l0 = entry
   | _ => False
   end /\
   exists v, [(entry, v)] = entrypoints /\ Dominators.eq v top.
@@ -1223,7 +1223,7 @@ End EntryDomsOthers. End EntryDomsOthers.
 Definition branchs_in_fdef f :=
   forall (p : l) (ps0 : phinodes) (cs0 : cmds) 
          (tmn0 : terminator) (l2 : l),
-  blockInFdefB (block_intro p ps0 cs0 tmn0) f ->
+  blockInFdefB (p, stmts_intro ps0 cs0 tmn0) f ->
   In l2 (successors_terminator tmn0) -> In l2 (bound_fdef f).
 
 Lemma dom_in_bound: forall successors le t ni
@@ -1281,7 +1281,7 @@ Proof.
   unfold sdom, dom_analyze in *.
   remember (getEntryBlock f) as R.
   destruct f as [fh bs].
-  destruct R as [[le ? ? ?]|].
+  destruct R as [[le []]|].
   Case "entry is good".
     remember (DomDS.fixpoint (successors_blocks bs)
                 transfer ((le, Dominators.top) :: nil)
@@ -1321,7 +1321,7 @@ Variable entrypoints: list (atom * DomDS.L.t).
 
 Hypothesis wf_entrypoints:
   match bs with
-  | block_intro l0 _ _ _ :: _ => l0 = entry
+  | (l0, _) :: _ => l0 = entry
   | _ => False
   end /\
   exists v, [(entry, v)] = entrypoints /\ Dominators.eq v top.
@@ -1494,10 +1494,10 @@ Variable f:fdef.
 Hypothesis branches_in_bound_fdef: branchs_in_fdef f.
 
 Lemma sdom_is_complete: forall
-  (l3 : l) (l' : l) ps cs tmn ps' cs' tmn'
+  (l3 : l) (l' : l) s3 s'
   (HuniqF : uniqFdef f)
-  (HBinF' : blockInFdefB (block_intro l' ps' cs' tmn') f = true)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
+  (HBinF' : blockInFdefB (l', s') f = true)
+  (HBinF : blockInFdefB (l3, s3) f = true)
   (Hsdom: strict_domination f l' l3),
   In l' (sdom f l3).
 Proof.
@@ -1507,7 +1507,7 @@ Proof.
   assert (Hentry:=Hsdom). apply DecDom.strict_domination__getEntryLabel in Hentry.
   destruct Hentry as [e Hentry].
   apply getEntryLabel__getEntryBlock in Hentry.
-  destruct Hentry as [[le ? ? ?] [Hentry Heq]]; subst e.
+  destruct Hentry as [[le []] [Hentry Heq]]; subst e.
   rewrite Hentry.
   termination_tac2.
   eapply DomComplete.dom_non_sdomination with (entry:=le) in Hfix_tmn; eauto.
@@ -1555,7 +1555,7 @@ Variable entrypoints: list (atom * DomDS.L.t).
 
 Hypothesis wf_entrypoints:
   match bs with
-  | block_intro l0 _ _ _ :: _ => l0 = entry
+  | (l0, _) :: _ => l0 = entry
   | _ => False
   end /\
   exists v, [(entry, v)] = entrypoints /\ Dominators.eq v top.
@@ -1631,7 +1631,7 @@ Proof.
     destruct (reachable_dec (fdef_intro fh bs) n).
     Case "reach".
       assert(exists ps0, exists cs0, exists tmn0,
-        blockInFdefB (block_intro n ps0 cs0 tmn0) (fdef_intro fh bs) /\
+        blockInFdefB (n, stmts_intro ps0 cs0 tmn0) (fdef_intro fh bs) /\
         In s (successors_terminator tmn0)) as J.
         apply successors__blockInFdefB; auto.
       destruct J as [ps0 [cs0 [tmn0 [J1 J2]]]].
@@ -1645,7 +1645,7 @@ Proof.
       intros.
       destruct (eq_atom_dec n entry); subst.
         assert (exists ps0, exists cs0, exists tmn0,
-          blockInFdefB (block_intro entry ps0 cs0 tmn0) (fdef_intro fh bs) /\
+          blockInFdefB (entry, stmts_intro ps0 cs0 tmn0) (fdef_intro fh bs) /\
           In s (successors_terminator tmn0)) as J.
           apply successors__blockInFdefB; auto.
         destruct J as [ps0 [cs0 [tmn0 [J1 J2]]]].
@@ -1690,15 +1690,15 @@ Hypothesis branches_in_bound_fdef: branchs_in_fdef f.
 Hypothesis Hhasentry: getEntryBlock f <> None.
 
 Lemma dom_unreachable: forall
-  (l3 : l) (l' : l) ps cs tmn
+  (l3 : l) s3
   (HuniqF: uniqFdef f)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
+  (HBinF : blockInFdefB (l3, s3) f = true)
   (Hunreach: ~ reachable f l3),
   sdom f l3 = bound_fdef f.
 Proof.
   intros.
   case_eq (getEntryBlock f); try congruence.
-  intros [l0 p c t] Hentry. 
+  intros [l0 [p c t]] Hentry. 
   match goal with | H1: getEntryBlock _ = _ |- _ =>
     assert (J:=H1); apply dom_entrypoint in H1 end.
   destruct f as [fh bs].
@@ -1763,7 +1763,7 @@ Proof.
 Qed.
 
 Hypothesis btrans_eq_tmn: forall b, 
-  terminator_match (getBlockTmn b) (getBlockTmn (btrans b)).
+  terminator_match (getTerminator b) (getTerminator (btrans b)).
 
 Lemma pres_successors_blocks : forall bs,
   successors_blocks bs = successors_blocks (List.map btrans bs).
@@ -1772,7 +1772,7 @@ Proof.
     assert (J:=btrans_eq_tmn b).
     assert (J':=btrans_eq_label b).
     remember (btrans b) as R.
-    destruct R as [l1 ? ? ?]; destruct b; simpl in *; subst l1.
+    destruct R as [l1 []]; destruct b as [? []]; simpl in *; subst l1.
     rewrite IHbs. 
     terminator_match_tac.
 Qed.

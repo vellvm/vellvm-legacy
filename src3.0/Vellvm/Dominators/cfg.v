@@ -548,7 +548,7 @@ Import LLVMinfra.
 Fixpoint successors_blocks (bs: blocks) : ATree.t ls :=
 match bs with
 | nil => ATree.empty ls
-| block_intro l0 _ _ tmn :: bs' =>
+| (l0, stmts_intro _ _ tmn) :: bs' =>
     ATree.set l0 (successors_terminator tmn) (successors_blocks bs')
 end.
 
@@ -559,7 +559,7 @@ successors_blocks bs.
 Fixpoint bound_blocks (bs: blocks) : set atom :=
 match bs with
 | nil => empty_set _
-| block_intro l0 _ _ tmn :: bs' => l0::(bound_blocks bs')
+| (l0, _) :: bs' => l0::(bound_blocks bs')
 end.
 
 Definition bound_fdef (f: fdef) : set atom :=
@@ -574,21 +574,21 @@ ACfg.arcs (successors f).
 
 Definition reachable (f:fdef) (l0:l) : Prop :=
 match getEntryBlock f with
-| Some (block_intro entry _ _ _) =>
+| Some (entry, _) =>
   ACfg.reachable (successors f) entry l0
 | _ => false
 end.
 
 Definition domination (f:fdef) (l1 l2:l) : Prop :=
 match getEntryBlock f with
-| Some (block_intro entry _ _ _) =>
+| Some (entry, _) =>
   ACfg.domination (successors f) entry l1 l2
 | _ => False
 end.
 
 Definition strict_domination (f:fdef) (l1 l2:l) : Prop :=
 match getEntryBlock f with
-| Some (block_intro entry _ _ _) =>
+| Some (entry, _) =>
   ACfg.strict_domination (successors f) entry l1 l2
 | _ => False
 end.
@@ -614,8 +614,8 @@ match (predecessors f) !!! (getBlockLabel b) with
 | _ => false
 end.
 
-Lemma entry_in_vertexes : forall f l0 ps cs tmn
-  (Hentry : getEntryBlock f = Some (block_intro l0 ps cs tmn)),
+Lemma entry_in_vertexes : forall f l0 s0
+  (Hentry : getEntryBlock f = Some (l0, s0)),
   vertexes_fdef f (index l0).
 Proof.
   intros.
@@ -623,7 +623,7 @@ Proof.
   destruct b; simpl in *.
     congruence.
     inv Hentry. 
-    left.
+    left. destruct s0.
     apply ACfg.XTree.parents_of_tree__in_successors.
     rewrite ATree.gss. eauto.
 Qed.
@@ -632,7 +632,7 @@ Lemma in_successors_blocks__in_bound_blocks: forall (n : ATree.elt) (s : ls)
   (bs : blocks) (Hinscs : (successors_blocks bs) ! n = Some s),
   In n (bound_blocks bs).
 Proof.
-  induction bs as [|[] bs]; simpl in *; intros.
+  induction bs as [|[? []] bs]; simpl in *; intros.
     rewrite ATree.gempty in Hinscs. congruence.
 
     rewrite ATree.gsspec in Hinscs.
@@ -643,7 +643,7 @@ Lemma in_bound_blocks__in_successors_blocks: forall (n : ATree.elt)
   (bs : blocks) (Hin: In n (bound_blocks bs)),
   exists s, (successors_blocks bs) ! n = Some s.
 Proof.
-  induction bs as [|[] bs]; simpl in *; intros.
+  induction bs as [|[? []] bs]; simpl in *; intros.
     tauto.
 
     rewrite ATree.gsspec.
@@ -691,14 +691,14 @@ Qed.
 Lemma successors_blocks__InBlocksB : forall l0 a bs,
   In l0 (successors_blocks bs) !!! a ->
   exists ps0, exists cs0, exists tmn0,
-    InBlocksB (block_intro a ps0 cs0 tmn0) bs /\
+    InBlocksB (a, stmts_intro ps0 cs0 tmn0) bs /\
     In l0 (successors_terminator tmn0).
 Proof.
   unfold XATree.successors_list.
   induction bs as [|a0 bs]; simpl; intro.
     rewrite ATree.gempty in H. inv H.
 
-    destruct a0 as [l1 p c t].
+    destruct a0 as [l1 [p c t]].
     destruct (id_dec l1 a); subst.
       rewrite ATree.gss in H.
       exists p. exists c. exists t.
@@ -716,7 +716,7 @@ Qed.
 Lemma successors__blockInFdefB : forall l0 a f,
   In l0 (successors f) !!! a ->
   exists ps0, exists cs0, exists tmn0,
-    blockInFdefB (block_intro a ps0 cs0 tmn0) f /\
+    blockInFdefB (a, stmts_intro ps0 cs0 tmn0) f /\
     In l0 (successors_terminator tmn0).
 Proof.
   destruct f as [fh bs]. simpl.
@@ -726,7 +726,7 @@ Qed.
 Lemma successors_blocks__blockInFdefB : forall l0 a fh bs,
   In l0 (successors_blocks bs) !!! a ->
   exists ps0, exists cs0, exists tmn0,
-    blockInFdefB (block_intro a ps0 cs0 tmn0) (fdef_intro fh bs) /\
+    blockInFdefB (a, stmts_intro ps0 cs0 tmn0) (fdef_intro fh bs) /\
     In l0 (successors_terminator tmn0).
 Proof.
   intros.
@@ -741,7 +741,7 @@ Lemma successors_terminator__successors_blocks : forall
   (tmn : terminator)
   (l1 : l)
   (HuniqF : uniqBlocks bs)
-  (HbInF : InBlocksB (block_intro l0 cs ps tmn) bs)
+  (HbInF : InBlocksB (l0, stmts_intro cs ps tmn) bs)
   (Hin : In l1 (successors_terminator tmn)),
   successors_terminator tmn = (successors_blocks bs) !!! l0.
 Proof.
@@ -755,7 +755,7 @@ Proof.
     destruct J as [J1 J2].
     simpl in *.
     apply orb_prop in HbInF.
-    destruct a.
+    destruct a as [? []].
     destruct HbInF as [HbInF | HbInF].
       unfold blockEqB in HbInF.
       apply sumbool2bool_true in HbInF. inv HbInF.
@@ -767,13 +767,12 @@ Proof.
       destruct HuniqF as [J _].
       inv J.
       rewrite ATree.gso; auto.
-        clear - HbInF H1.
         eapply InBlocksB__NotIn; eauto.
 Qed.
 
 Lemma successor_in_arcs : forall l0 cs ps tmn f l1
   (HuniqF : uniqFdef f)
-  (HbInF : blockInFdefB (block_intro l0 cs ps tmn) f)
+  (HbInF : blockInFdefB (l0, stmts_intro cs ps tmn) f)
   (Hin : In l1 (successors_terminator tmn)),
   arcs_fdef f (A_ends (index l1) (index l0)).
 Proof.
@@ -784,16 +783,14 @@ Proof.
   erewrite <- successors_terminator__successors_blocks; eauto.
 Qed.
 
-Lemma blockInFdefB_in_bound_fdef : forall l0 cs ps tmn f
-  (HbInF : blockInFdefB (block_intro l0 cs ps tmn) f),
+Lemma blockInFdefB_in_bound_fdef : forall l0 s0 f
+  (HbInF : blockInFdefB (l0, s0) f),
   In l0 (bound_fdef f).
 Proof.
   intros.
   unfold bound_fdef.
   destruct f as [f b].
-  generalize dependent cs.
-  generalize dependent ps.
-  generalize dependent tmn.
+  generalize dependent s0.
   generalize dependent l0.
   induction b; simpl in *; intros.
     congruence.
@@ -809,8 +806,8 @@ Proof.
       simpl. auto.
 Qed.
 
-Lemma blockInFdefB_in_vertexes : forall l0 cs ps tmn f
-  (HbInF : blockInFdefB (block_intro l0 cs ps tmn) f),
+Lemma blockInFdefB_in_vertexes : forall l0 s0 f
+  (HbInF : blockInFdefB (l0, s0) f),
   vertexes_fdef f (index l0).
 Proof.
   intros.
@@ -819,99 +816,8 @@ Proof.
   apply in_bound_fdef__in_parents; auto.
 Qed.
 
-Lemma successors_predOfBlock : forall f l1 ps1 cs1 tmn1 l0 ps0 cs0 tmn0,
-  uniqFdef f ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
-  In l0 (successors_terminator tmn1) ->
-  In l1 (predOfBlock (block_intro l0 ps0 cs0 tmn0) (genBlockUseDef_fdef f)).
-Proof.
-  unfold predOfBlock.
-  destruct f as [f b].
-  destruct f as [fnattrs5 typ5 id5 args5 varg5].
-  intros.
-  destruct H as [H _].
-  generalize dependent l1.
-  generalize dependent ps1.
-  generalize dependent cs1.
-  generalize dependent tmn1.
-  generalize dependent l0.
-  generalize dependent ps0.
-  generalize dependent cs0.
-  generalize dependent tmn0.
-  induction b as [|a0 b]; intros; simpl in *.
-    inversion H0.
-
-    assert (G:=H). simpl_env in G.
-    apply uniqBlocks_inv in G.
-    destruct G as [G1 G2].
-    destruct a0 as [l5 p c t0]. simpl.
-    apply orb_prop in H0.
-    destruct H0 as [H0 | H0].
-      apply blockEqB_inv in H0.
-      inv H0.
-      destruct t0 as [i0 t0 v0|i0|i0 v0 l2 l3|i0 l2|i0]; auto.
-        apply IHb with (ps1:=p)(cs1:=c)(tmn1:=insn_return i0 t0 v0); auto.
-        apply IHb with (ps1:=p)(cs1:=c)(tmn1:=insn_return_void i0); auto.
-
-        simpl in H1.
-        destruct H1 as [H1 | [H1 | H1]]; subst.
-          assert (J:=@lookupAL_update_udb_eq (update_udb nil l5 l3) l5 l0).
-          destruct J as [ls0 [J1 J2]].
-          apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J1; auto.
-          destruct J1 as [ls1 [J1 J3]].
-          rewrite J1. apply J3; auto.
-
-          assert (J:=@lookupAL_update_udb_eq nil l5 l0).
-          destruct J as [ls0 [J J0]].
-          apply lookupAL_update_udb_spec with (l1:=l5)(l2:=l2) in J; auto.
-          destruct J as [ls1 [J J1]].
-          apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J; auto.
-          destruct J as [ls2 [J J2]].
-          rewrite J. apply J2. apply J1. auto.
-
-          inversion H1.
-        simpl in H1.
-        destruct H1 as [H1 | H1]; subst.
-          assert (J:=@lookupAL_update_udb_eq nil l5 l0).
-          destruct J as [ls0 [J J0]].
-          apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J; auto.
-          destruct J as [ls2 [J J2]].
-          rewrite J. apply J2. auto.
-
-          inversion H1.
-
-        apply IHb with (ps1:=p)(cs1:=c)(tmn1:=insn_unreachable i0); auto.
-
-      eapply IHb in H1; eauto.
-        remember (lookupAL (list l) (genBlockUseDef_blocks b nil) l0) as R.
-        destruct R as [l4|]; try solve [inversion H1].
-        destruct H as [J1 J2].
-        simpl in J1.
-        inv J1.
-        apply InBlocksB_In in H0.
-        destruct (eq_atom_dec l1 l5); subst.
-          contradict H0; auto.
-
-          clear - HeqR H1.
-          simpl.
-          assert (usedef_block_inc nil
-            (match t0 with
-             | insn_return _ _ _ => nil
-             | insn_return_void _ => nil
-             | insn_br _ _ l2 l3 => update_udb (update_udb nil l5 l3) l5 l2
-             | insn_br_uncond _ l2 => update_udb nil l5 l2
-             | insn_unreachable _ => nil
-             end)) as J.
-            intros x A J. inversion J.
-          apply genBlockUseDef_blocks_inc with (bs:=b) in J.
-          symmetry in HeqR.
-          apply J in HeqR.
-          destruct HeqR as [l2 [J1 J2]].
-          rewrite J1. apply J2 in H1; auto.
-Qed.
-
-Lemma blockInFdefB__successors : forall a ps0 cs0 tmn0 f (Huniq: uniqFdef f),
-  blockInFdefB (block_intro a ps0 cs0 tmn0) f ->
+Lemma blockInFdefB__successors : forall a ps0 cs0 tmn0 f (Huniq: uniqFdef f)
+  (H: blockInFdefB (a, stmts_intro ps0 cs0 tmn0) f),
   (successors f) ! a = Some (successors_terminator tmn0).
 Proof.
   destruct f as [[] bs]. simpl.
@@ -921,7 +827,7 @@ Proof.
   induction bs as [|a1 bs]; simpl; intros.
     congruence.
 
-    destruct a1 as [l0 ps1 cs1 tmn1].
+    destruct a1 as [l0 [ps1 cs1 tmn1]].
     apply orb_true_iff in H.
     destruct H as [H | H].
       apply blockEqB_inv in H. inv H.
@@ -929,12 +835,12 @@ Proof.
 
       assert (J':=J). inv J'.
       simpl in J. simpl_env in J.
-      apply IHbs in H3; auto.
+      assert (H':=H).
+      apply IHbs in H'; auto.
       apply InBlocksB_In in H.
-      apply infrastructure_props.NoDup_disjoint with (i0:=a) in J; auto.
+      apply uniq_app_3 in J.
       destruct (id_dec l0 a); subst.
-        contradict J. simpl. auto.
-
+        congruence.
         rewrite ATree.gso; auto.
 Qed.
 
@@ -942,7 +848,7 @@ Section reachable__in_bound.
 
 Variable f:fdef.
 Hypothesis branches_in_bound_fdef: forall p ps0 cs0 tmn0 l2
-  (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
+  (J3 : blockInFdefB (p, stmts_intro ps0 cs0 tmn0) f)
   (J4 : In l2 (successors_terminator tmn0)),
   In l2 (bound_fdef f).
 
@@ -982,41 +888,27 @@ Proof. auto. Qed.
 
 Lemma In_bound_fdef__blockInFdefB: forall f l3
   (Hin: In l3 (bound_fdef f)),
-  exists ps, exists cs, exists tmn,
-    blockInFdefB (block_intro l3 ps cs tmn) f = true.
+  exists s3, blockInFdefB (l3, s3) f = true.
 Proof.
   destruct f as [[] bs].
   simpl. intros.
-  induction bs as [|[l0 ps0 cs0 tmn0]]; simpl in *.
+  induction bs as [|[l0 s0]]; simpl in *.
     tauto.
 
     destruct Hin as [Hin | Hin]; subst.
-      exists ps0. exists cs0. exists tmn0.
+      exists s0.
       apply orb_true_intro.
       left. solve_refl.      
 
       apply IHbs in Hin.
-      destruct Hin as [ps [cs [tmn Hin]]].
-      exists ps. exists cs. exists tmn.
+      destruct Hin as [s0' Hin].
+      exists s0'.
       apply orb_true_intro. auto.
-Qed.
-
-Lemma successors_predOfBlock': forall (f : fdef) b (Huniq : uniqFdef f) 
-  (l1 : atom)
-  (Hscs : In (getBlockLabel b) ((successors f) !!! l1)),
-  In l1 (predOfBlock b (genBlockUseDef_fdef f)).
-Proof.
-  intros.
-  destruct b as [l0 ps0 cs0 tmn0].
-  apply successors__blockInFdefB in Hscs.
-  destruct Hscs as [ps1 [cs1 [tmn1 [HBinF Hintmn]]]].
-  eapply successors_predOfBlock with (ps0:=ps0)(cs0:=cs0)(tmn0:=tmn0) 
-    in Hintmn; eauto.
 Qed.
 
 Lemma successors_predecessors_of_block : forall f l1 ps1 cs1 tmn1 l0,
   uniqFdef f ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
+  blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) f = true ->
   In l0 (successors_terminator tmn1) ->
   In l1 ((predecessors f) !!! l0).
 Proof.
@@ -1051,14 +943,14 @@ Qed.
 Lemma successors__successors_terminator : forall scs a f
   (H: Some scs = (successors f) ! a),
   exists ps0, exists cs0, exists tmn0,
-    blockInFdefB (block_intro a ps0 cs0 tmn0) f /\
+    blockInFdefB (a, stmts_intro ps0 cs0 tmn0) f /\
     scs = successors_terminator tmn0.
 Proof.
   destruct f as [fh bs]. simpl.
   induction bs as [|a0 bs]; simpl; intro.
     rewrite ATree.gempty in H. inv H.
 
-    destruct a0 as [l1 p c t].
+    destruct a0 as [l1 [p c t]].
     destruct (id_dec l1 a); subst.
       rewrite ATree.gss in H.
       inv H.
@@ -1160,7 +1052,7 @@ Proof.
               rewrite <- HeqR. auto.
             apply_clear H in Hin'.
             destruct Hin' as [_ Hin'].
-            apply NoDup_inv in G1. destruct G1 as [G1 _].
+            apply NoDup_split in G1. destruct G1 as [G1 _].
             eapply NoDup_disjoint in G1; simpl; eauto.
 
       SCase "2.2".
@@ -1235,7 +1127,7 @@ Lemma entry_in_parents: forall (f : fdef) (a : atom)
   In a (XATree.parents_of_tree (successors f)).
 Proof.
   intros.
-  destruct f as [? [|[]]]; inv Hentry. 
+  destruct f as [? [|[? []]]]; inv Hentry. 
   simpl.
   apply ACfg.XTree.parents_of_tree__in_successors.
   rewrite ATree.gss. eauto.
@@ -1246,7 +1138,7 @@ Lemma entry_in_bound_fdef: forall entry f (Hentry: getEntryLabel f = Some entry)
 Proof.
   intros.
   apply getEntryLabel__getEntryBlock in Hentry.
-  destruct Hentry as [[le' ? ? ?] [Hentry Heq]].
+  destruct Hentry as [[le' []] [Hentry Heq]].
   simpl in Heq. subst.
   apply entryBlockInFdef in Hentry.
   eapply blockInFdefB_in_bound_fdef; eauto.
@@ -1258,7 +1150,7 @@ Lemma le_in_cfg: forall f le
 Proof.
   intros.
   apply getEntryLabel__getEntryBlock in Hentry.
-  destruct Hentry as [[le' ? ? ?] [Hentry Heq]].
+  destruct Hentry as [[le' []] [Hentry Heq]].
   simpl in Heq. subst.
   eapply entry_in_vertexes; eauto.
 Qed.
@@ -1269,17 +1161,39 @@ Proof.
   intros. left. apply in_bound__in_parents; auto.
 Qed.
 
+Lemma in_bound_blocks__in_dom: forall bs,
+  (forall a, In a (bound_blocks bs) <-> a `in` dom bs).
+Proof.
+  induction bs as [|[] bs]; simpl; intros.
+    split; intros. tauto. fsetdec.
+
+    split; intros. 
+      destruct H as [H | H]; subst; auto.
+        apply IHbs in H; auto.
+      apply AtomSetFacts.add_iff in H.
+      destruct H as [H | H]; subst; auto.
+        apply IHbs in H; auto.
+Qed.
+
+Lemma notin_bound_blocks__notin_dom: forall bs,
+  (forall a, ~ In a (bound_blocks bs) <-> a `notin` dom bs).
+Proof.
+  intros.
+  split; intros H; intro J; apply H; apply in_bound_blocks__in_dom; auto.
+Qed.
+
 Lemma uniqFdef__NoDup_bounds_fdef: forall f (Huniq: uniqFdef f),
   NoDup (bound_fdef f).
 Proof.
   destruct f as [[] bs]. simpl.
   intros. 
   destruct Huniq as [[Huniq _] _].
-  induction bs as [|[] bs]; simpl.
+  induction bs as [|[? []] bs]; simpl.
     constructor.    
     
     inv Huniq.
-    constructor; auto.
+    constructor; auto. 
+      apply notin_bound_blocks__notin_dom; auto.
 Qed.
 
 Section ElementsOfCfg__eq__Bound.
@@ -1287,7 +1201,7 @@ Section ElementsOfCfg__eq__Bound.
 Variable f:fdef.
 
 Hypothesis branches_in_bound_fdef: forall p ps0 cs0 tmn0 l2
-  (J3 : blockInFdefB (block_intro p ps0 cs0 tmn0) f)
+  (J3 : blockInFdefB (p, stmts_intro ps0 cs0 tmn0) f)
   (J4 : In l2 (successors_terminator tmn0)),
   In l2 (bound_fdef f).
 

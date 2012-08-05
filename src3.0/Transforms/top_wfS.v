@@ -672,7 +672,7 @@ ftrans_spec: forall fh bs,
   ftrans (fdef_intro fh bs) = fdef_intro fh (List.map btrans bs);
 btrans_eq_label: forall b, getBlockLabel b = getBlockLabel (btrans b);
 btrans_eq_tmn: forall b, 
-  terminator_match (getBlockTmn b) (getBlockTmn (btrans b))
+  terminator_match (getTerminator b) (getTerminator (btrans b))
 }.
 
 Ltac ftrans_spec_tac :=
@@ -690,8 +690,19 @@ match goal with
 | pass: Pass |- _ =>
   assert (J:=pass.(btrans_eq_label) b);
   remember (btrans pass b) as R;
-  destruct R as [l1 ? ? ?]; destruct b; simpl in *; subst l1
+  destruct R as [l1 []]; destruct b as [? []]; simpl in *; subst l1
 end.
+
+Lemma pass_btrans_surjective: forall pass l0 sts0, 
+  pass.(btrans) (l0, sts0) = (l0, snd (pass.(btrans) (l0, sts0))).
+Proof.
+  intros.
+  rewrite surjective_pairing with (p:=pass.(btrans) (l0, sts0)). 
+  f_equal.
+  assert (J:=pass.(btrans_eq_label) (l0, sts0)).
+  simpl in J.
+  unfold getBlockLabel in J. auto.
+Qed.
 
 Module TransCFG.
 
@@ -717,62 +728,24 @@ Proof.
   destruct bs; inv Hentry; auto.
 Qed.
 
-Lemma pres_genBlockUseDef_block : forall b ud,
-  genBlockUseDef_block b ud =
-  genBlockUseDef_block (pass.(btrans) b) ud.
-Proof.
-  intros.
-  assert (J:=pass.(btrans_eq_tmn) b).
-  btrans_eq_label_tac b.
-  terminator_match_tac.
-Qed.
-
-Lemma pres_genBlockUseDef_blocks : forall bs ud,
-  genBlockUseDef_blocks bs ud =
-  genBlockUseDef_blocks (List.map pass.(btrans) bs) ud.
-Proof.
-  induction bs; simpl; intros; auto.
-    rewrite <- IHbs.
-    rewrite <- pres_genBlockUseDef_block; auto.
-Qed.
-
-Lemma pres_genBlockUseDef_fdef : forall f,
-  genBlockUseDef_fdef f =
-  genBlockUseDef_fdef (pass.(ftrans) f).
-Proof.
-  destruct f as [fh bs]. ftrans_spec_tac. simpl.
-  rewrite <- pres_genBlockUseDef_blocks. auto.
-Qed.
-
-Lemma pres_hasNonePredecessor : forall f b
-  (Hnpred : hasNonePredecessor b (genBlockUseDef_fdef f) = true),
-  hasNonePredecessor (pass.(btrans) b)
-    (genBlockUseDef_fdef (pass.(ftrans) f)) = true.
-Proof.
-  unfold hasNonePredecessor. unfold predOfBlock.
-  intros. 
-  rewrite <- pres_genBlockUseDef_fdef.
-  rewrite <- pass.(btrans_eq_label). auto.
-Qed.
-
 Lemma pres_InBlocksLabels : forall l0 (bs : blocks)
-  (Hin : In l0 (getBlocksLabels (List.map pass.(btrans) bs))),
-  In l0 (getBlocksLabels bs).
+  (Hin : l0 `in` (dom (List.map pass.(btrans) bs))),
+  l0 `in` (dom bs).
 Proof.
   induction bs as [|b bs]; simpl; auto.
     btrans_eq_label_tac b.
-    intro Hin.
-    destruct Hin as [Hin | Hin]; auto.
+    fsetdec.
 Qed.
 
 Lemma pres_uniqBlocksLabels : forall (bs : blocks)
-  (HuniqBs : NoDup (getBlocksLabels bs)),
-  NoDup (getBlocksLabels (List.map pass.(btrans) bs)).
+  (HuniqBs : uniq bs),
+  uniq (List.map pass.(btrans) bs).
 Proof.
   induction bs as [|b bs]; simpl; intros; auto.
     btrans_eq_label_tac b.
     inv HuniqBs.
-    apply NoDup_cons; eauto using pres_InBlocksLabels.
+    simpl_env.
+    constructor; eauto using pres_InBlocksLabels.
 Qed.
 
 Lemma pres_blockInFdefB : forall f b
@@ -853,10 +826,19 @@ Qed.
 Lemma pres_isReachableFromEntry : forall f b,
   isReachableFromEntry f b =
     isReachableFromEntry (pass.(ftrans) f) (pass.(btrans) b).
-Proof.
+Proof. 
   unfold isReachableFromEntry. intros.
   btrans_eq_label_tac b. 
   rewrite <- pres_reachable; auto.
+Qed.
+
+Lemma pres_isReachableFromEntry' : forall f l0 sts,
+  isReachableFromEntry f (l0, sts) =
+    isReachableFromEntry (pass.(ftrans) f) (l0, (snd (pass.(btrans) (l0, sts)))).
+Proof.
+  intros.
+  rewrite <- pass_btrans_surjective.
+  apply pres_isReachableFromEntry.
 Qed.
 
 Lemma pres_areachable_aux : forall f,
@@ -906,6 +888,16 @@ Proof.
     using pass.(ftrans_spec), pass.(btrans_eq_label), pass.(btrans_eq_tmn).
 Qed.
 
+Lemma pres_blockStrictDominates' : forall f b1 l0 sts0,
+  blockStrictDominates f b1 (l0, sts0) <->
+    blockStrictDominates (pass.(ftrans) f) (pass.(btrans) b1) 
+      (l0, (snd (pass.(btrans) (l0, sts0)))).
+Proof.
+  intros.
+  rewrite <- pass_btrans_surjective.
+  apply pres_blockStrictDominates.
+Qed.
+
 Lemma pres_blockDominates : forall f b1 b2,
   blockDominates f b1 b2 <->
     blockDominates (pass.(ftrans) f) (pass.(btrans) b1) (pass.(btrans) b2).
@@ -916,14 +908,24 @@ Proof.
   btrans_eq_label_tac b2. 
   assert (G:=@AlgDom.pres_sdom pass.(ftrans) pass.(btrans)
              pass.(ftrans_spec) pass.(btrans_eq_label) pass.(btrans_eq_tmn)
-             f l5 l0).
+             f l0 l2).
   tauto.
 Qed.
 
-Lemma pres_lookupBlockViaLabelFromBlocks : forall l5 bs b,
-  lookupBlockViaLabelFromBlocks bs l5 = ret b ->
+Lemma pres_blockDominates' : forall f b1 l0 sts0,
+  blockDominates f b1 (l0, sts0) <->
+    blockDominates (pass.(ftrans) f) (pass.(btrans) b1) 
+      (l0, (snd (pass.(btrans) (l0, sts0)))).
+Proof.
+  intros.
+  rewrite <- pass_btrans_surjective.
+  apply pres_blockDominates.
+Qed.
+
+Lemma pres_lookupBlockViaLabelFromBlocks : forall l5 bs sts,
+  lookupBlockViaLabelFromBlocks bs l5 = ret sts ->
   lookupBlockViaLabelFromBlocks (List.map pass.(btrans) bs) l5 =
-    ret (pass.(btrans) b).
+    ret (snd (pass.(btrans) (l5, sts))).
 Proof.
   unfold lookupBlockViaLabelFromBlocks.
   induction bs as [|a]; simpl; intros.
@@ -932,25 +934,18 @@ Proof.
     btrans_eq_label_tac a. 
     destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l5 l0);
       subst; inv H; auto.
-      congruence.
+      rewrite <- HeqR. auto.
 Qed.
 
 Hint Resolve pres_lookupBlockViaLabelFromBlocks : ssa_trans.
 
-Lemma pres_lookupBlockViaLabelFromFdef : forall f l5 b,
-  lookupBlockViaLabelFromFdef f l5 = ret b ->
+Lemma pres_lookupBlockViaLabelFromFdef : forall f l5 sts,
+  lookupBlockViaLabelFromFdef f l5 = ret sts ->
   lookupBlockViaLabelFromFdef (pass.(ftrans) f) l5 =
-    ret (pass.(btrans) b).
+    ret (snd (pass.(btrans) (l5, sts))).
 Proof.
   destruct f. ftrans_spec_tac. 
   intros. apply pres_lookupBlockViaLabelFromBlocks; auto.
-Qed.
-
-Lemma pres_predOfBlock : forall b,
-  predOfBlock b = predOfBlock (pass.(btrans) b).
-Proof.
-  intros.
-  btrans_eq_label_tac b. auto.
 Qed.
 
 Lemma pres_getArgsIDsOfFdef: forall f,

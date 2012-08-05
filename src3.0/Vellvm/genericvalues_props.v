@@ -78,7 +78,7 @@ Case "wf_styp_structure".
   inv_mbind. 
   eapply H1 with (nts':=nts') in Hnc; eauto.
   fold flatten_typs_aux.
-  fill_ctxhole. destruct x; eauto.
+  fill_ctxhole. destruct x; eauto 2.
 Case "wf_styp_array".
   destruct sz5; eauto.
   destruct Hsize as [sz [al Hsize]].
@@ -958,8 +958,8 @@ Case "wf_styp_cons".
   apply feasible_cons_typs_inv in Hty.
   destruct Hty as [Hty1 Hty2]. 
   inv_mbind. uniq_result.
-  eapply_clear H0 in HeqR2; eauto. 
-  eapply_clear H2 in HeqR1; eauto.
+  eapply H0 in HeqR2; eauto 1. 
+  eapply H2 in HeqR1; eauto 1.
   rewrite sizeGenericValue__app.
   rewrite sizeGenericValue__app.
   rewrite sizeGenericValue__uninits. 
@@ -1113,7 +1113,7 @@ Local Opaque feasible_typ feasible_typs
       assert (exists nts0 : list namedt, nts' = nts0 ++ nts2) as G.
         destruct Hsub as [nts0 Hsub]; subst. 
         exists (nts0 ++ [(id0, lt)]). simpl_env. auto.
-      eapply H0 in Hty; eauto.  
+      eapply H0 in Hty; eauto 1.  
       intros id5 gv5 lt5 sz5 al5 H1 H2 H4.
       apply lookupAL_middle_inv in H2.
       destruct H2 as [l1 [l2 HeqR]].

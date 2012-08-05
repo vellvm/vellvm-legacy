@@ -13,9 +13,9 @@ Lemma subst_tmn__tmn_match: forall i0 v0 t,
 Proof. destruct t; simpl; auto. Qed.
 
 Lemma subst_block__tmn_match: forall i0 v0 b, 
-  terminator_match (getBlockTmn b) (getBlockTmn (subst_block i0 v0 b)).
+  terminator_match (getTerminator b) (getTerminator (subst_block i0 v0 b)).
 Proof. 
-  destruct b as [l0 ? ? t0]; simpl.
+  destruct b as [? []]; simpl.
   apply subst_tmn__tmn_match.
 Qed.
 
@@ -95,7 +95,7 @@ Qed.
 Lemma subst_blocksLocs : forall (bs : blocks),
   getBlocksLocs (List.map (subst_block id0 v0) bs) = getBlocksLocs bs.
 Proof.
-  induction bs as [|[l0 ps0 cs0 tmn0] bs]; simpl; auto.
+  induction bs as [|[l0 [ps0 cs0 tmn0]] bs]; simpl; auto.
     rewrite subst_getPhiNodesIDs.
     rewrite subst_getCmdsLocs.
     rewrite IHbs.
@@ -159,7 +159,7 @@ Lemma subst_phinodeInBlockB : forall p b
   (Hin : phinodeInBlockB p b = true),
   phinodeInBlockB (subst_phi id0 v0 p) (subst_block id0 v0 b) = true.
 Proof.
-  destruct b. simpl. intro. auto with ssa_subst.
+  destruct b as [? []]. simpl. intro. auto with ssa_subst.
 Qed.
 
 Hint Resolve subst_phinodeInBlockB: ssa_subst.
@@ -183,7 +183,7 @@ Lemma subst_cmdInBlockB : forall c b
   (Hin : cmdInBlockB c b = true),
   cmdInBlockB (subst_cmd id0 v0 c) (subst_block id0 v0 b) = true.
 Proof.
-  destruct b. simpl. intro. auto with ssa_subst.
+  destruct b as [? []]. simpl. intro. auto with ssa_subst.
 Qed.
 
 Hint Resolve subst_cmdInBlockB: ssa_subst.
@@ -192,7 +192,7 @@ Lemma subst_terminatorInBlockB : forall t b
   (Hin : terminatorInBlockB t b = true),
   terminatorInBlockB (subst_tmn id0 v0 t) (subst_block id0 v0 b) = true.
 Proof.
-  destruct b. simpl. intro.
+  destruct b as [? []]. simpl. intro.
   apply terminatorEqB_inv in Hin. subst.
   apply terminatorEqB_refl.
 Qed.
@@ -228,7 +228,7 @@ Lemma subst_lookupBlockViaIDFromBlocks : forall id5 bs b,
   lookupBlockViaIDFromBlocks (List.map (subst_block id0 v0) bs) id5 =
     ret (subst_block id0 v0 b).
 Proof.
-  induction bs as [|[l1 ps1 cs1 tmn1]]; simpl; intros.
+  induction bs as [|[l1 [ps1 cs1 tmn1]]]; simpl; intros.
     congruence.
 
     simpl in *.
@@ -256,12 +256,12 @@ Proof.
 Qed.
 
 Lemma subst_insnDominates : forall i0 instr b,
-  NoDup (getBlockLocs b) ->
+  NoDup (getStmtsLocs (snd b)) ->
   insnInBlockB instr b = true ->
   (insnDominates i0 instr b <->
   insnDominates i0 (subst_insn id0 v0 instr) (subst_block id0 v0 b)).
 Proof.
- intros i0 instr b Hnodup HiInB. destruct b. simpl.
+ intros i0 instr b Hnodup HiInB. destruct b as [? []]. simpl.
  destruct instr; simpl; split; intro J; auto.
    destruct J as [[ps1 [p1 [ps2 [J1 J2]]]] | [cs1 [c1 [cs2 [cs3 [J1 J2]]]]]];
      subst.
@@ -298,8 +298,8 @@ Proof.
        simpl in *.
        assert (getCmdLoc cmd5 = getCmdLoc c0) as EQ'.
          destruct cmd5; destruct c0; inv H0; auto.
-       apply NoDup_inv in Hnodup. inv Hnodup.
-       apply NoDup_inv in H1. inv H1.
+       apply NoDup_split in Hnodup. inv Hnodup.
+       apply NoDup_split in H1. inv H1.
        rewrite_env ((cs1'++c::cs3')++c0::cs4') in HiInB.
        rewrite_env ((cs1'++c::cs3')++c0::cs4') in H2.
        eapply NoDup_getCmdsLocs_prop; eauto using In_middle, InCmdsB_in.
@@ -371,7 +371,7 @@ Lemma subst_lookupTypViaIDFromBlocks : forall id5 bs,
   lookupTypViaIDFromBlocks bs id5 =
     lookupTypViaIDFromBlocks (List.map (subst_block id0 v0) bs) id5.
 Proof.
-  induction bs as [|[? p c t]]; simpl; intros.
+  induction bs as [|[? [p c t]]]; simpl; intros.
     congruence.
 
     simpl in *.
@@ -816,7 +816,7 @@ Qed.
 Hint Resolve csubst_In_getInsnOperands: ssa_subst.
 
 Lemma csubst_wf_operand : forall instr f b i0
-  (Huniq : NoDup (getBlockLocs b))
+  (Huniq : NoDup (getStmtsLocs (snd b)))
   (H1 : wf_operand f b instr i0)
   (n : i0 <> id0),
    wf_operand (csubst_fdef id0 c0 f) (csubst_block id0 c0 b)
@@ -849,7 +849,7 @@ Qed.
 Hint Resolve csubst_wf_operand: ssa_subst.
 
 Lemma csubst_wf_operand_list : forall instr f b 
-  (Huniq : NoDup (getBlockLocs b)) id_list0
+  (Huniq : NoDup (getStmtsLocs (snd b))) id_list0
   (H2 : forall id_ : id,
           In id_ (List.map (fun id_0 : id => id_0) id_list0) ->
           wf_operand f b instr id_),
@@ -872,7 +872,7 @@ Qed.
 Hint Resolve csubst_getInsnOperands csubst_wf_operand_list: ssa_subst.
 
 Lemma csubst_wf_insn_base : forall f b instr
-  (Huniq : NoDup (getBlockLocs b))
+  (Huniq : NoDup (getStmtsLocs (snd b)))
   (HwfI: wf_insn_base f b instr),
   wf_insn_base (csubst_fdef id0 c0 f) (csubst_block id0 c0 b)
     (csubst_insn id0 c0 instr).
@@ -901,13 +901,13 @@ Proof.
       autounfold.
       fold_subst_tac.
       rewrite <- TransCFG.pres_getArgsIDsOfFdef; auto.
-      rewrite <- TransCFG.pres_isReachableFromEntry; auto.
+      rewrite <- TransCFG.pres_isReachableFromEntry'.
       destruct H0 as [[[vb [J1 J2]] | H0] | H0]; auto.
       left. left.
       exists (csubst_block id0 c0 vb).
       autounfold.
       fold_subst_tac.
-      rewrite <- TransCFG.pres_blockDominates; auto.
+      rewrite <- TransCFG.pres_blockDominates'.
       simpl.
       eapply subst_lookupBlockViaIDFromFdef in J1; eauto.
 Qed.
@@ -1204,7 +1204,7 @@ Hypothesis (Hdom: id_in_reachable_block f id2 -> idDominates f id1 id2)
            (Hnotin2: ~ In id2 (getArgsIDsOfFdef f)).
 
 Lemma isubst_wf_operand : forall instr b i0
-  (Huniq : NoDup (getBlockLocs b))
+  (Huniq : NoDup (getStmtsLocs (snd b)))
   (H1 : wf_operand f b instr i0),
    wf_operand (isubst_fdef id2 id1 f) (isubst_block id2 id1 b)
      (isubst_insn id2 id1 instr) (subst_id id2 id1 i0).
@@ -1282,7 +1282,7 @@ Qed.
 Hint Resolve isubst_wf_operand: ssa_subst.
 
 Lemma isubst_wf_operand_list : forall instr b 
-  (Huniq : NoDup (getBlockLocs b)) id_list0
+  (Huniq : NoDup (getStmtsLocs (snd b))) id_list0
   (H2 : forall id_ : id,
           In id_ (List.map (fun id_0 : id => id_0) id_list0) ->
           wf_operand f b instr id_),
@@ -1300,7 +1300,7 @@ Qed.
 Hint Resolve isubst_getInsnOperands isubst_wf_operand_list: ssa_subst.
 
 Lemma isubst_wf_insn_base : forall b instr
-  (Huniq : NoDup (getBlockLocs b))
+  (Huniq : NoDup (getStmtsLocs (snd b)))
   (HwfI: wf_insn_base f b instr),
   wf_insn_base (isubst_fdef id2 id1 f) (isubst_block id2 id1 b)
     (isubst_insn id2 id1 instr).
@@ -1328,17 +1328,17 @@ Proof.
       eapply wf_phi_operands_cons_vid; eauto.
       autounfold.
       fold_subst_tac.
-      rewrite <- TransCFG.pres_isReachableFromEntry.
+      rewrite <- TransCFG.pres_isReachableFromEntry' with (sts:=sts1).
       rewrite <- TransCFG.pres_getArgsIDsOfFdef.
       destruct (In_dec id_dec id1 (getArgsIDsOfFdef f)) as [Hin1 | Hnotin1]; auto.
       left.
-      destruct (isReachableFromEntry_dec f b1) as [Hreach | Hnreach]; auto.
+      destruct (isReachableFromEntry_dec f (l1, sts1)) as [Hreach | Hnreach]; auto.
       left.
       match goal with
       | H0: (_ \/ _) \/ _ |- _ => 
         destruct H0 as [[[vb [Hlkup H0]] | H0] | H0]; try congruence
       end.
-      assert (blockInFdefB b1 f = true) as HBinF.
+      assert (blockInFdefB (l1, sts1) f = true) as HBinF.
         solve_blockInFdefB.
       assert (id_in_reachable_block f id2) as Hireach.
         intros b2 Hlkup'.
@@ -1352,7 +1352,7 @@ Proof.
       split.
         simpl. apply subst_lookupBlockViaIDFromFdef; auto.
 
-        rewrite <- TransCFG.pres_blockDominates; auto.
+        rewrite <- TransCFG.pres_blockDominates'; auto.
         eapply blockDominates_trans with (b2:=vb);
               eauto using lookupBlockViaIDFromFdef__blockInFdefB,
                           lookupBlockViaLabelFromFdef__blockInFdefB.
@@ -1361,7 +1361,7 @@ Proof.
       eapply wf_phi_operands_cons_vid; eauto.
       autounfold.
       fold_subst_tac.
-      rewrite <- TransCFG.pres_isReachableFromEntry.
+      rewrite <- TransCFG.pres_isReachableFromEntry'.
       rewrite <- TransCFG.pres_getArgsIDsOfFdef.
       match goal with
       | H4: (_ \/ _) \/ _ |- _ => 
@@ -1369,7 +1369,7 @@ Proof.
       end.
       left. left.
       exists (btrans (Subst id2 (value_id id1)) b').
-      rewrite <- TransCFG.pres_blockDominates.
+      rewrite <- TransCFG.pres_blockDominates'.
       simpl.
       split; auto.
         apply subst_lookupBlockViaIDFromFdef; auto.
@@ -1390,7 +1390,7 @@ Hypothesis (HeqM: M = module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
            (HuniqF: uniqFdef f).
 
 Hypothesis subst_wf_insn_base : forall b instr
-  (Huniq : NoDup (getBlockLocs b))
+  (Huniq : NoDup (getStmtsLocs (snd b)))
   (HwfI: wf_insn_base f b instr),
   wf_insn_base f' (subst_block id0 v0 b) (subst_insn id0 v0 instr).
 
@@ -1505,7 +1505,7 @@ match goal with
 end.
 
 Lemma subst_wf_trunc : forall b b' 
-  (Huniq: NoDup (getBlockLocs b))
+  (Huniq: NoDup (getStmtsLocs (snd b)))
   (Heqb': b' = subst_block id0 v0 b) instr
   (HwfI : wf_trunc [M] M f b instr),
   wf_trunc [M'] M' f' b' (subst_insn id0 v0 instr).
@@ -1518,7 +1518,7 @@ Proof.
 Qed.
 
 Lemma subst_wf_ext : forall b b' 
-  (Huniq: NoDup (getBlockLocs b))
+  (Huniq: NoDup (getStmtsLocs (snd b)))
   (Heqb': b' = subst_block id0 v0 b) instr
   (HwfI : wf_ext [M] M f b instr),
   wf_ext [M'] M' f' b' (subst_insn id0 v0 instr).
@@ -1531,7 +1531,7 @@ Proof.
 Qed.
 
 Lemma subst_wf_cast : forall b b' 
-  (Huniq: NoDup (getBlockLocs b))
+  (Huniq: NoDup (getStmtsLocs (snd b)))
   (Heqb': b' = subst_block id0 v0 b) instr
   (HwfI : wf_cast [M] M f b instr),
   wf_cast [M'] M' f' b' (subst_insn id0 v0 instr).
@@ -1544,7 +1544,7 @@ Proof.
 Qed.
 
 Lemma subst_wf_insn : forall b instr (HwfI: wf_insn [M] M f b instr)
-  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = subst_block id0 v0 b),
+  (Huniq : NoDup (getStmtsLocs (snd b))) b' (Heqb': b' = subst_block id0 v0 b),
   wf_insn [M'] M' (subst_fdef id0 v0 f) b'
     (subst_insn id0 v0 instr).
 Proof.
@@ -1627,7 +1627,7 @@ match goal with
 end.
 
 Lemma subst_wf_phinodes : forall b PNs (HwfPNs: wf_phinodes [M] M f b PNs)
-  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = subst_block id0 v0 b),
+  (Huniq : NoDup (getStmtsLocs (snd b))) b' (Heqb': b' = subst_block id0 v0 b),
   wf_phinodes [M'] M' f' (subst_block id0 v0 b)
     (List.map (subst_phi id0 v0) PNs).
 Proof.
@@ -1641,7 +1641,7 @@ Qed.
 Hint Constructors wf_cmds.
 
 Lemma subst_wf_cmds : forall b Cs (HwfCs: wf_cmds [M] M f b Cs)
-  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = subst_block id0 v0 b),
+  (Huniq : NoDup (getStmtsLocs (snd b))) b' (Heqb': b' = subst_block id0 v0 b),
   wf_cmds [M'] M' f' b' (List.map (subst_cmd id0 v0) Cs).
 Proof.
   intros.
@@ -1652,7 +1652,7 @@ Proof.
 Qed.
 
 Lemma subst_wf_block : forall b (HwfB : wf_block [M] M f b)
-  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = subst_block id0 v0 b),
+  (Huniq : NoDup (getStmtsLocs (snd b))) b' (Heqb': b' = subst_block id0 v0 b),
   wf_block [M'] M' f' b'.
 Proof.
   intros.
@@ -1908,7 +1908,7 @@ Lemma subst_is_promotable_fun: forall b acc,
   is_promotable_fun pid acc b = true ->
   is_promotable_fun pid acc (subst_block id0 v0 b) = true.
 Proof.
-  destruct b; simpl.
+  destruct b as [? []]; simpl.
   intros.
   match goal with
   | H: context [if ?lk then _ else _] |- _ =>
@@ -1985,7 +1985,7 @@ Proof.
     inv_mbind. 
     fold_subst_tac.
     erewrite TransCFG.pres_getEntryBlock; eauto.
-    destruct b as [l0 ps0 cs0 tmn0]. 
+    destruct b as [l0 [ps0 cs0 tmn0]]. 
     destruct H.
     simpl.
     split.
@@ -2007,7 +2007,7 @@ Lemma subst_lookupBlockViaIDFromBlocks_rev : forall id5 bs b2
   exists b1, 
     lookupBlockViaIDFromBlocks bs id5 = ret b1 /\ subst_block id0 v0 b1 = b2.
 Proof.
-  induction bs as [|[l1 ps1 cs1 tmn1]]; simpl; intros.
+  induction bs as [|[l1 [ps1 cs1 tmn1]]]; simpl; intros.
     congruence.
 
     rewrite subst_getPhiNodesIDs in Hlkup.
@@ -2069,7 +2069,7 @@ Lemma subst_lookupInsnViaIDFromBlock_none_rev: forall b id1
   (Hlk: lookupInsnViaIDFromBlock (subst_block id0 v0 b) id1 = None),
   lookupInsnViaIDFromBlock b id1 = None.
 Proof.
-  destruct b. simpl. intros.
+  destruct b as [? []]. simpl. intros.
   inv_mbind_app; try congruence.
   inv_mbind_app; try congruence.
   rewrite subst_lookupPhiNodeViaIDFromPhiNodes_none_rev; auto.
@@ -2107,7 +2107,7 @@ Lemma subst_lookupInsnViaIDFromBlock_some_rev: forall b id1 instr2
     lookupInsnViaIDFromBlock b id1 = ret instr1 /\ 
     subst_insn id0 v0 instr1 = instr2.
 Proof.
-  destruct b. simpl. intros.
+  destruct b as [? []]. simpl. intros.
   inv_mbind_app.
     uniq_result. symmetry_ctx.
     apply subst_lookupPhiNodeViaIDFromPhiNodes_some_rev in HeqR.

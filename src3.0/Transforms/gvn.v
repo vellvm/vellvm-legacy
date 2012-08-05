@@ -12,7 +12,7 @@ Require Import primitives.
 Definition cmds_from_block (f:fdef) (lbl:l) : option cmds :=
   match lookupBlockViaLabelFromFdef f lbl with
   | None => None
-  | Some (block_intro _ _ cs _) =>
+  | Some (stmts_intro _ cs _) =>
       Some (List.filter (fun c =>
                          match (getCmdID c) with
                          | Some _ => true
@@ -308,8 +308,8 @@ match inscope with
     end
 end.
 
-Definition block_doesnt_kill (b: block) (pv1:value) (t1:typ) : bool :=
-let '(block_intro _ _ cs _) := b in
+Definition block_doesnt_kill (sts: stmts) (pv1:value) (t1:typ) : bool :=
+let '(stmts_intro _ cs _) := sts in
 List.fold_left
   (fun (acc:bool) c =>
    if acc then
@@ -331,8 +331,8 @@ match cs with
 | _ => nil
 end.
 
-Definition cmds_doesnt_kill (b: block) (id1:id) (pv1:value) (t1:typ) : bool :=
-let '(block_intro _ _ cs _) := b in
+Definition cmds_doesnt_kill (sts: stmts) (id1:id) (pv1:value) (t1:typ) : bool :=
+let '(stmts_intro _ cs _) := sts in
 List.fold_left
   (fun (acc:bool) c =>
    if acc then
@@ -398,12 +398,12 @@ else
   if l_dec curr tgt then
     match lookupBlockViaLabelFromFdef f curr with
     | None => false
-    | Some b => cmds_doesnt_kill b id1 pv1 t1 && input
+    | Some sts => cmds_doesnt_kill sts id1 pv1 t1 && input
     end
   else
     match lookupBlockViaLabelFromFdef f curr with
     | None => false
-    | Some b => block_doesnt_kill b pv1 t1 && input
+    | Some sts => block_doesnt_kill sts pv1 t1 && input
     end
 .
 
@@ -411,7 +411,7 @@ Fixpoint available_init_aux (bs : blocks) (src:l)
   (acc: list (l * bool)) : list (l * bool) :=
 match bs with
 | nil => acc
-| block_intro l0 _ _ _ :: bs' =>
+| (l0, _) :: bs' =>
     available_init_aux bs' src
       ((l0, if (l_dec l0 src) then true else false) :: acc)
 end.
@@ -531,7 +531,7 @@ Fixpoint gvn_cmds (st:fdef*bool*lcmds) (l1:l) (n: nat) : fdef * bool * lcmds :=
 let '(f, changed, inscope) := st in
 match lookupBlockViaLabelFromFdef f l1 with
 | None => st
-| Some (block_intro _ _ cs _) =>
+| Some (stmts_intro _ cs _) =>
     match List.nth_error (List.rev cs) n with
     | Some c =>
         let st' := gvn_cmd st l1 c in
@@ -562,7 +562,7 @@ match dt with
 | DT_node l0 dts =>
     match lookupBlockViaLabelFromFdef f l0 with
     | None => (f, changed)
-    | Some (block_intro _ ps cs _) =>
+    | Some (stmts_intro ps cs _) =>
         let '(f2, changed2, inscope2) :=
           gvn_cmds (gvn_phis f changed ps, inscope) l0 (List.length cs - 1) in
         gvn_fdef_dtrees f2 changed2 inscope2 dts
@@ -605,7 +605,7 @@ match ndom with
       else
         match lookupBlockViaLabelFromFdef f l0 with
         | None => None
-        | Some (block_intro _ _ cs _) =>
+        | Some (stmts_intro _ cs _) =>
             match lookup_predundant_exp_from_cmds cs r with
             | None => lookup_predundant_exp_for_id f ndom' res l1 r
             | Some c0 => Some (l0, c0)
@@ -621,7 +621,7 @@ match rd with
 | l1::rd' =>
     match lookupBlockViaLabelFromFdef f l1 with
     | None => None
-    | Some (block_intro _ _ cs _) =>
+    | Some (stmts_intro _ cs _) =>
         match res l1 with
         | dts1 =>
            let ndom :=
@@ -668,8 +668,8 @@ match lookup_predundant_exp f res rd rd with
     | Some l2 =>
         match lookupBlockViaLabelFromFdef f l2 with
         | None => (f, false)
-        | Some (block_intro _ _ cs _) =>
-            (remove_fdef id1
+        | Some (stmts_intro _ cs _) =>
+           (remove_fdef id1
               (isubst_fdef id1 (getCmdLoc c0)
                 (motion_fdef l2 (List.length cs+1) c0 f)), true)
         end
@@ -691,7 +691,7 @@ else
   else inl _ f1.
 
 Definition dce_block (f:fdef) (b:block) : fdef :=
-let '(block_intro _ ps cs _) := b in
+let '(_, stmts_intro ps cs _) := b in
 fold_left
   (fun f3 c =>
      match getCmdID c with
@@ -716,7 +716,7 @@ Parameter read_aa_from_fun: id -> bool.
 
 Definition opt_fdef (f:fdef) : fdef :=
 match getEntryBlock f, reachablity_analysis f, AlgDom.create_dom_tree f with
-| Some (block_intro root _ _ _), Some rd, Some dt =>
+| Some (root, _), Some rd, Some dt =>
     let b := bound_fdef f in
     let dts := AlgDom.sdom f in
     if print_reachablity rd && print_dominators b dts &&

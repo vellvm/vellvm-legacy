@@ -614,14 +614,15 @@ Case "sBranch". simpl_nd_llvmds.
   eapply instantiate_locals__getOperandValue in H; eauto.
   destruct H as [gvs2 [J1 J2]].
   destruct H2 as [lc2' [J3 J4]].
-  exists (mkState ((mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' als1')
+  exists (mkState ((mkEC f1' (if isGVZero TD c then l2 else l1,
+                              stmts_intro ps' cs' tmn') cs' tmn' lc2' als1')
       ::ECs') M').
   split; eauto using element_of__incl.
     repeat (split; auto).
 Case "sBranch_uncond". simpl_nd_llvmds.
   eapply instantiate_locals__switchToNewBasicBlock in H0; eauto.
   destruct H0 as [lc2' [J1 J2]].
-  exists (mkState ((mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' als1')
+  exists (mkState ((mkEC f1' (l0, stmts_intro ps' cs' tmn') cs' tmn' lc2' als1')
       ::ECs') M').
   split; eauto.
     repeat (split; auto).
@@ -763,8 +764,8 @@ Case "sSelect". simpl_nd_llvmds.
   destruct H1 as [gvs2' [J5 J6]].
   exists (mkState
     ((mkEC f1' b1' cs tmn1' (if isGVZero TD c
-                                     then updateAddAL _ lc1' id0 gvs2'
-                                     else updateAddAL _ lc1' id0 gvs1') als1')
+                             then updateAddAL _ lc1' id0 gvs2'
+                             else updateAddAL _ lc1' id0 gvs1') als1')
       ::ECs') M').
   split; eauto using element_of__incl.
     repeat (split; auto).
@@ -778,7 +779,7 @@ Case "sCall". simpl_nd_llvmds.
   destruct H4 as [lc2' [H21 H22]].
   exists (mkState
     ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb)
-                       (block_intro l' ps' cs' tmn') cs' tmn' lc2'
+                       (l', stmts_intro ps' cs' tmn') cs' tmn' lc2'
                        nil)::
      (mkEC f1' b1' (insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1'
       lc1' als1') ::ECs') M').

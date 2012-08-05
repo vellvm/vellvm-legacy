@@ -93,10 +93,10 @@ Definition EC_simulation (pinfo: PhiInfo) (mi:MoreMem.meminj)
        als_simulation pinfo mi f1 lc1 als1 als2 /\
        block_simulation pinfo f1 b1 b2 /\
        (exists l1, exists ps1, exists cs11,
-         b1 = block_intro l1 ps1 (cs11++cs1) tmn1)
+         b1 = (l1, stmts_intro ps1 (cs11++cs1) tmn1))
          /\
        (exists l2, exists ps2, exists cs21,
-         b2 = block_intro l2 ps2 (cs21++cs2) tmn2) /\
+         b2 = (l2, stmts_intro ps2 (cs21++cs2) tmn2)) /\
        reg_simulation pinfo mi f1 lc1 lc2 /\
        cmds_simulation pinfo f1 cs1 cs2
   end.
@@ -460,7 +460,7 @@ Definition phis_simulation (pinfo: PhiInfo) (f1:fdef) ps1 ps2 : Prop :=
 RemoveSim.phis_simulation (PI_f pinfo) (PI_id pinfo) f1 ps1 ps2.
 
 Lemma phis_simulation_inv: forall pinfo F ps1 ps2 l1 cs1 tmn1
-  (HBinF: blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true),
+  (HBinF: blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) F = true),
   WF_PhiInfo pinfo -> uniqFdef F ->
   phis_simulation pinfo F ps1 ps2 -> ps1 = ps2.
 Proof.
@@ -550,14 +550,14 @@ Lemma switchToNewBasicBlock_rsim : forall los nts l1 l2 ps cs1 cs2 tmn1 tmn2 B1 
              (fun (re : bool) (p : phinode) => re || used_in_phi (PI_id pinfo) p)
            ps false = false)
   (Hwfp: WF_PhiInfo pinfo) (Huniq: uniqFdef F)
-  (HBinF: blockInFdefB (block_intro l1 ps cs1 tmn1) F = true)
+  (HBinF: blockInFdefB (l1, stmts_intro ps cs1 tmn1) F = true)
   (H23 : @Opsem.switchToNewBasicBlock DGVs (los,nts)
-          (block_intro l1 ps cs1 tmn1) B1 gl lc1' =
+          (l1, stmts_intro ps cs1 tmn1) B1 gl lc1' =
          ret lc1)
   (Hbsim2 : block_simulation pinfo F B1 B2)
   (Hrsim: reg_simulation pinfo mi F lc1' lc2')
   (H2 : Opsem.switchToNewBasicBlock (los,nts)
-         (block_intro l2 ps cs2 tmn2) B2 gl lc2' =
+         (l2, stmts_intro ps cs2 tmn2) B2 gl lc2' =
         ret lc2), reg_simulation pinfo mi F lc1 lc2.
 Proof.
   intros.
@@ -590,9 +590,9 @@ Qed.
 Lemma switchToNewBasicBlock_asim: forall pinfo F l0 ps0 cs0 tmn0 als1 als2 lc
   lc' mi gl B TD,
   WF_PhiInfo pinfo -> uniqFdef F ->
-  blockInFdefB (block_intro l0 ps0 cs0 tmn0) F = true ->
+  blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) F = true ->
   als_simulation pinfo mi F lc als1 als2 ->
-  Opsem.switchToNewBasicBlock TD (block_intro l0 ps0 cs0 tmn0) B gl lc =
+  Opsem.switchToNewBasicBlock TD (l0, stmts_intro ps0 cs0 tmn0) B gl lc =
     ret lc' ->
   als_simulation pinfo mi F lc' als1 als2.
 Proof.
@@ -640,7 +640,7 @@ Proof.
   intros.
   unfold Opsem.switchToNewBasicBlock in *. simpl in *.
   inv_mbind'. symmetry_ctx.
-  destruct B'. simpl in *.
+  destruct B' as [? []]. simpl in *.
   eapply getIncomingValuesForBlockFromPHINodes_isnt_alloca_in_ECs; eauto.
     WF_PhiInfo_spec6_tac.
 Qed.

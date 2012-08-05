@@ -47,21 +47,21 @@ Lemma las_sim': forall (los : layouts) (nts : namedts) (fh : fheader)
   (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo)
   (i1 : id) (lasinfo : LASInfo pinfo)
   (Heqi1: LAS_lid pinfo lasinfo = i1) (Heqv: LAS_value pinfo lasinfo = v)
-  (Heqb: LAS_block pinfo lasinfo = block_intro l0 ps0 cs0 tmn0)
+  (Heqb: LAS_block pinfo lasinfo = (l0, stmts_intro ps0 cs0 tmn0))
   S2 (Heq2: S2=[module_intro los nts
                 (Ps1 ++
                   product_fdef
-                    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+                    (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
                   :: Ps2)])
   (Hok: defined_program S2 main VarArgs)
   (HwfS : wf_system S2)
-  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)),
   program_sim
     [module_intro los nts
       (Ps1 ++
        product_fdef
          (subst_fdef i1 v
-            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)]
+            (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))) :: Ps2)]
     S2 main VarArgs.
 Proof.
   intros. subst.
@@ -136,17 +136,17 @@ Lemma las_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   S2 (Heq2: S2=[module_intro los nts
                 (Ps1 ++
                   product_fdef
-                    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+                    (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
                   :: Ps2)])
   (Hok: defined_program S2 main VarArgs)
   (HwfS : wf_system S2)
-  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)),
   program_sim
     [module_intro los nts
       (Ps1 ++
        product_fdef
          (subst_fdef i1 v
-            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)]
+            (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))) :: Ps2)]
     S2 main VarArgs.
 Proof.
   intros. subst.
@@ -162,8 +162,8 @@ Lemma las_die_sim_wfS': forall (los : layouts) (nts : namedts) (fh : fheader)
   (v : value) (cs : cmds) (Hreach:  In l0 (PI_rd pinfo))
   (i1 : id) (lasinfo : LASInfo pinfo)
   (Heqi1: LAS_lid pinfo lasinfo = i1) (Heqv: LAS_value pinfo lasinfo = v)
-  (Heqb: LAS_block pinfo lasinfo = block_intro l0 ps0 cs0 tmn0)
-  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Heqb: LAS_block pinfo lasinfo = (l0, stmts_intro ps0 cs0 tmn0))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
   (Hwfpi: WF_PhiInfo pinfo) S1 S2
   (Heq1: S1 = 
     [module_intro los nts
@@ -172,11 +172,11 @@ Lemma las_die_sim_wfS': forall (los : layouts) (nts : namedts) (fh : fheader)
          (fdef_intro fh
            (List.map (remove_block i1)
              (List.map (subst_block i1 v)
-               (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) :: Ps2)])
+               (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)))) :: Ps2)])
   (Heq2: S2 = 
     [module_intro los nts
       (Ps1 ++
-       product_fdef (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))::
+       product_fdef (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))::
        Ps2)])
   (HwfS: wf_system S2) (Hok: defined_program S2 main VarArgs),
   program_sim S1 S2 main VarArgs /\ wf_system S1 /\ 
@@ -186,10 +186,10 @@ Proof.
   assert ((fdef_intro fh
            (List.map (remove_block i1)
              (List.map (subst_block i1 v)
-               (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) =
+               (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)))) =
           remove_fdef i1
             (subst_fdef i1 v
-              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))
+              (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))))
     as J.
     simpl. auto.
   subst S2 S1. rewrite J.
@@ -203,7 +203,7 @@ Proof.
           (Ps1 ++
            product_fdef
              (subst_fdef i1 v
-                (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) ::
+                (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))) ::
            Ps2)]); auto; intros.
     split.
       eapply die_sim; eauto.
@@ -225,7 +225,7 @@ Lemma las_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (v : value) (cs : cmds) (Hreach:  In l0 (PI_rd pinfo))
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
-  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
   (Hwfpi: WF_PhiInfo pinfo) S1 S2
   (Heq1: S1 = 
     [module_intro los nts
@@ -234,11 +234,11 @@ Lemma las_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
          (fdef_intro fh
            (List.map (remove_block i1)
              (List.map (subst_block i1 v)
-               (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) :: Ps2)])
+               (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)))) :: Ps2)])
   (Heq2: S2 = 
     [module_intro los nts
       (Ps1 ++
-       product_fdef (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))::
+       product_fdef (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))::
        Ps2)])
   (HwfS: wf_system S2) (Hok: defined_program S2 main VarArgs),
   program_sim S1 S2 main VarArgs /\ wf_system S1 /\ 

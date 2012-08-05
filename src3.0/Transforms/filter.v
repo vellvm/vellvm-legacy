@@ -17,8 +17,8 @@ List.filter (fun c => check (insn_cmd c)) cs.
 
 Definition filter_block (b: block) : block :=
 match b with
-| block_intro l0 ps cs tmn => 
-    block_intro l0 (filter_phinodes ps) (filter_cmds cs) tmn
+| (l0, stmts_intro ps cs tmn) => 
+    (l0, stmts_intro (filter_phinodes ps) (filter_cmds cs) tmn)
 end.
 
 Definition filter_fdef (f:fdef) : fdef :=
@@ -210,7 +210,7 @@ Proof.
 Qed.
 
 Lemma block_doesnt_use_removed_inv: forall f l0 ps0 cs0 tmn0
-  (H: block_doesnt_use_removed f (block_intro l0 ps0 cs0 tmn0)),
+  (H: block_doesnt_use_removed f (l0, stmts_intro ps0 cs0 tmn0)),
   insn_doesnt_use_removed f (insn_terminator tmn0) /\
   Forall (phi_doesnt_use_removed f) ps0 /\
   Forall (cmd_doesnt_use_removed f) cs0.
@@ -260,7 +260,7 @@ Lemma filter_block__blockLocs__sublist :
     sublist (getBlocksLocs (List.map filter_block bs))
     (getBlocksLocs bs).
 Proof.
-  intros bs. induction bs as [|[lab phis cmds tmn] bs]. apply sl_nil.
+  intros bs. induction bs as [|[lab [phis cmds tmn]] bs]. apply sl_nil.
   simpl. repeat apply sublist_app; trivial; clear IHbs.
   apply sublist_map. apply filter_sublist.
   induction cmds as [|cmd cmds]. apply sl_nil.
@@ -268,16 +268,28 @@ Proof.
   destruct_if; simpl; try solve [apply sl_cons_r; auto | apply sl_cons; auto].
 Qed.
 
+Lemma filter_block__map_fst :
+  forall (bs : blocks), List.map fst bs = List.map fst (List.map filter_block bs).
+Proof.
+  induction bs as [|[? []] bs]; simpl; congruence.
+Qed.
+
+Lemma filter_block__uniq :
+  forall (bs : blocks), uniq bs -> uniq (List.map filter_block bs).
+Proof.
+  intros.
+  eapply uniq_map_fst; eauto using filter_block__map_fst.
+Qed.
+
 Lemma filter_block__uniqBlocks :
   forall (bs : blocks),
     uniqBlocks bs -> uniqBlocks (List.map filter_block bs).
 Proof.
-  intros bs H.
-  split; [destruct H as [H _] | destruct H as [_ H]];
-    apply (NoDup_sublist H); clear H;
-      [|apply filter_block__blockLocs__sublist].
-  induction bs as [|[lab phis cmds tmn] bs]; simpl;
-    [apply sl_nil|apply sl_cons]; trivial.
+  intros bs [H1 H2].
+  split.
+    apply filter_block__uniq; auto.
+    eapply NoDup_sublist; eauto.
+      apply filter_block__blockLocs__sublist.
 Qed.
 
 Lemma filter_fdef__uniqFdef :
@@ -301,13 +313,13 @@ Qed.
 Lemma filter_block__getBlockLabel: forall b,
   getBlockLabel b = getBlockLabel (filter_block b).
 Proof.
-  destruct b as [l0 ? ? ?]; simpl; auto.
+  destruct b as [l0 []]; simpl; auto.
 Qed.
 
 Lemma filter_block__tmn_match: forall b, 
-  terminator_match (getBlockTmn b) (getBlockTmn (filter_block b)).
+  terminator_match (getTerminator b) (getTerminator (filter_block b)).
 Proof. 
-  destruct b as [l0 ? ? t0]; simpl. 
+  destruct b as [l0 [? ? t0]]; simpl. 
   destruct t0; simpl; auto.
 Qed.
 
@@ -353,7 +365,7 @@ Qed.
 Lemma remove_block_is_a_filter: forall b,
   remove_block id' b = filter_block undead_insn b.
 Proof.
-  destruct b. simpl.
+  destruct b as [? []]. simpl.
   rewrite remove_phinodes_is_a_filter.
   rewrite remove_cmds_is_a_filter.
   auto.
@@ -362,7 +374,8 @@ Qed.
 Lemma remove_fdef_is_a_filter: forall f,
   remove_fdef id' f = filter_fdef undead_insn f.
 Proof.
-  destruct f as [fh bs]. simpl. f_equal.
+  destruct f as [fh bs]. simpl. 
+  f_equal. apply map_ext. apply remove_block_is_a_filter.
 Qed.
 
 Lemma undead_insn_false_inv: forall instr
@@ -453,7 +466,7 @@ Qed.
 Lemma elim_dead_st_block_is_a_filter: forall b,
   elim_dead_st_block pid b = filter_block undead_store b.
 Proof.
-  destruct b. simpl.
+  destruct b as [? []]. simpl.
   rewrite <- elim_dead_st_phinodes_is_a_filter.
   rewrite elim_dead_st_cmds_is_a_filter.
   auto.
@@ -535,7 +548,7 @@ Lemma filter_phinodeInBlockB : forall p b
   (Hin : phinodeInBlockB p b = true),
   phinodeInBlockB p (filter_block check b) = true.
 Proof.
-  destruct b. simpl. intro. auto with ssa_filter.
+  destruct b as [? []]. simpl. intro. auto with ssa_filter.
 Qed.
 
 Hint Resolve filter_phinodeInBlockB: ssa_filter.
@@ -562,7 +575,7 @@ Lemma filter_cmdInBlockB : forall c b
   (Hin : cmdInBlockB c b = true),
   cmdInBlockB c (filter_block check b) = true.
 Proof.
-  destruct b. simpl. intro. auto with ssa_filter.
+  destruct b as [? []]. simpl. intro. auto with ssa_filter.
 Qed.
 
 Hint Resolve filter_cmdInBlockB: ssa_filter.
@@ -571,7 +584,7 @@ Lemma filter_terminatorInBlockB : forall t b
   (Hin : terminatorInBlockB t b = true),
   terminatorInBlockB t (filter_block check b) = true.
 Proof.
-  destruct b. simpl. intro.
+  destruct b as [? []]. simpl. intro.
   uniq_result. solve_refl.
 Qed.
 
@@ -657,21 +670,21 @@ Proof.
 Qed.
 
 Lemma blockInFdefB__phiInFdef: forall l5 ps cs tmn f
-  (Hbd: blockInFdefB (block_intro l5 ps cs tmn) f = true),
+  (Hbd: blockInFdefB (l5, stmts_intro ps cs tmn) f = true),
   forall p, In p ps -> insnInFdef (insn_phinode p) f.
 Proof.
   intros.
-  exists (block_intro l5 ps cs tmn).
+  exists (l5, stmts_intro ps cs tmn).
   bsplit; auto.
     simpl. solve_in_list.
 Qed.
 
 Lemma blockInFdefB__cmdInFdef: forall l5 ps cs tmn f
-  (Hbd: blockInFdefB (block_intro l5 ps cs tmn) f = true),
+  (Hbd: blockInFdefB (l5, stmts_intro ps cs tmn) f = true),
   forall c, In c cs -> insnInFdef (insn_cmd c) f.
 Proof.
   intros.
-  exists (block_intro l5 ps cs tmn).
+  exists (l5, stmts_intro ps cs tmn).
   bsplit; auto.
     simpl. solve_in_list.
 Qed.
@@ -687,10 +700,10 @@ Lemma filter_lookupBlockViaIDFromBlocks : forall f id5 bs b
   lookupBlockViaIDFromBlocks (List.map (filter_block check) bs) id5 =
     ret (filter_block check b).
 Proof.
-  induction bs as [|[l5 p c t5]]; simpl; intros.
+  induction bs as [|[l5 [p c t5]]]; simpl; intros.
     congruence.
 
-    assert (blockInFdefB (block_intro l5 p c t5) f = true) as Hbd' by auto.
+    assert (blockInFdefB (l5, stmts_intro p c t5) f = true) as Hbd' by auto.
     destruct_if;
       destruct_if; try solve [
         auto |
@@ -829,7 +842,7 @@ match goal with
 end.
 
 Lemma filter_insnDominates_tmn : forall f i0 instr b
-  (Hnodup: NoDup (getBlockLocs b))
+  (Hnodup: NoDup (getStmtsLocs (snd b)))
   (Heq1: is_terminator instr = true)
   (Heq2: id_isnt_removed check f i0)
   (HiInF: insnInFdefBlockB instr f b = true),
@@ -839,7 +852,7 @@ Proof.
  intros f i0 instr b Hnodup Hneq1 Hneq2 HiInF. 
  apply destruct_insnInFdefBlockB in HiInF.
  destruct HiInF as [HiInB HbInF].
- destruct b as [l0 ps cs tmn]. 
+ destruct b as [l0 [ps cs tmn]]. 
  destruct instr as [|c0|]; tinv Hneq1; simpl; intro J; auto.
  simpl in HiInB. uniq_result.
    destruct J as [[[cs1 [c1 [cs2 [J1 J2]]]] | [ps1 [p1 [ps2 [J1 J2]]]]] Heq];
@@ -862,7 +875,7 @@ Proof.
 Qed.
 
 Lemma filter_insnDominates : forall f i0 instr b
-  (Hnodup: NoDup (getBlockLocs b))
+  (Hnodup: NoDup (getStmtsLocs (snd b)))
   (Heq1: check instr = true \/ is_terminator instr = true)
   (Heq2: id_isnt_removed check f i0)
   (HiInF: insnInFdefBlockB instr f b = true),
@@ -875,7 +888,7 @@ Proof.
  destruct Hneq1 as [Hneq1 | Hneq1]; try congruence.
  apply destruct_insnInFdefBlockB in HiInF.
  destruct HiInF as [HiInB HbInF].
- destruct b as [l0 ps cs tmn]. simpl.
+ destruct b as [l0 [ps cs tmn]]. simpl.
  destruct instr as [|c0|]; tinv HeqR; simpl; intro J; auto.
    destruct J as [[ps1 [p1 [ps2 [J1 J2]]]] | [cs1 [c1 [cs2 [cs3 [J1 J2]]]]]];
      subst.
@@ -900,7 +913,7 @@ Proof.
 Qed.
 
 Lemma filter_wf_operand : forall instr f b i0
-  (Huniq : NoDup (getBlockLocs b))
+  (Huniq : NoDup (getStmtsLocs (snd b)))
   (H1 : wf_operand f b instr i0)
   (Hneq : check instr = true \/ is_terminator instr = true)
   (Heq2: id_isnt_removed check f i0),
@@ -932,7 +945,7 @@ Qed.
 Hint Resolve filter_wf_operand: ssa_filter.
 
 Lemma filter_wf_operand_list : forall instr f b 
-  (Huniq : NoDup (getBlockLocs b))
+  (Huniq : NoDup (getStmtsLocs (snd b)))
   (Hneq : check instr = true \/ is_terminator instr = true) id_list0
   (Hnotin : List.Forall (id_isnt_removed check f) id_list0)
   (H2 : forall id_ : id,
@@ -955,7 +968,7 @@ Hint Resolve filter_wf_operand_list: ssa_filter.
 Hint Resolve insn_doesnt_use_removed__id_isnt_removed: ssa_filter.
 
 Lemma filter_wf_insn_base : forall f b instr
-  (Huniq : NoDup (getBlockLocs b))
+  (Huniq : NoDup (getStmtsLocs (snd b)))
   (Hneq : check instr = true \/ is_terminator instr = true)
   (Hnouse : insn_doesnt_use_removed check f instr)
   (HwfI: wf_insn_base f b instr),
@@ -987,13 +1000,13 @@ Proof.
 
       fold_filter_tac.
       rewrite <- TransCFG.pres_getArgsIDsOfFdef; auto.
-      rewrite <- TransCFG.pres_isReachableFromEntry; auto.
+      rewrite <- TransCFG.pres_isReachableFromEntry'.
       destruct H0 as [[[vb [J1' J2']] | H0] | H0]; auto.
       left. left.
       exists (filter_block check vb).
       eapply filter_lookupBlockViaIDFromFdef in J1'; eauto with ssa_filter.
       fold_filter_tac.
-      rewrite <- TransCFG.pres_blockDominates; auto.
+      rewrite <- TransCFG.pres_blockDominates'; auto.
 Qed.
 
 Hint Resolve filter_wf_phi_operands: ssa_filter.
@@ -1067,9 +1080,9 @@ Lemma filter_lookupTypViaIDFromBlocks : forall f id5
   lookupTypViaIDFromBlocks bs id5 =
     lookupTypViaIDFromBlocks (List.map (filter_block check) bs) id5.
 Proof.
-  induction bs as [|[l5 p c t5]]; simpl; intros; auto.
+  induction bs as [|[l5 [p c t5]]]; simpl; intros; auto.
     rewrite IHbs; auto.
-    assert (blockInFdefB (block_intro l5 p c t5) f = true) as Hbd' by auto.
+    assert (blockInFdefB (l5, stmts_intro p c t5) f = true) as Hbd' by auto.
     erewrite <- filter_lookupTypViaIDFromPhiNodes; eauto with ssa_filter.
     erewrite <- filter_lookupTypViaIDFromCmds; eauto with ssa_filter.
 Qed.
@@ -1162,7 +1175,7 @@ match goal with
 end.
 
 Lemma filter_wf_trunc : forall b b' 
-  (Huniq: NoDup (getBlockLocs b))
+  (Huniq: NoDup (getStmtsLocs (snd b)))
   (Heqb': b' = filter_block check b) instr
   (Hnr : check instr = true)
   (Hnouse : insn_doesnt_use_removed check f instr)
@@ -1178,7 +1191,7 @@ Proof.
 Qed.
 
 Lemma filter_wf_ext : forall b b' 
-  (Huniq: NoDup (getBlockLocs b))
+  (Huniq: NoDup (getStmtsLocs (snd b)))
   (Heqb': b' = filter_block check b) instr
   (Hnr : check instr = true)
   (Hnouse : insn_doesnt_use_removed check f instr)
@@ -1194,7 +1207,7 @@ Proof.
 Qed.
 
 Lemma filter_wf_cast : forall b b' 
-  (Huniq: NoDup (getBlockLocs b))
+  (Huniq: NoDup (getStmtsLocs (snd b)))
   (Heqb': b' = filter_block check b) instr
   (Hnr : check instr = true)
   (Hnouse : insn_doesnt_use_removed check f instr)
@@ -1223,7 +1236,7 @@ Qed.
 Hint Resolve filter_wf_value_list: ssa_filter.
 
 Lemma filter_wf_insn : forall b instr (HwfI: wf_insn [M] M f b instr)
-  (Huniq : NoDup (getBlockLocs b)) 
+  (Huniq: NoDup (getStmtsLocs (snd b)))
   (Hnouse : insn_doesnt_use_removed check f instr)
   (Hnr : check instr = true \/ is_terminator instr = true) 
   b' (Heqb': b' = filter_block check b),
@@ -1303,7 +1316,7 @@ Hint Constructors wf_phinodes.
 
 Lemma filter_wf_phinodes : forall b PNs (HwfPNs: wf_phinodes [M] M f b PNs)
   (Hnouse : List.Forall (phi_doesnt_use_removed check f) PNs)
-  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = filter_block check b),
+  (Huniq : NoDup (getStmtsLocs (snd b))) b' (Heqb': b' = filter_block check b),
   wf_phinodes [M'] M' f' b' (filter_phinodes check PNs).
 Proof.
   assert (J:=filter_wf_insn).
@@ -1317,7 +1330,7 @@ Hint Constructors wf_cmds.
 
 Lemma filter_wf_cmds : forall b Cs (HwfCs: wf_cmds [M] M f b Cs)
   (Hnouse : List.Forall (cmd_doesnt_use_removed check f) Cs)
-  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = filter_block check b),
+  (Huniq: NoDup (getStmtsLocs (snd b))) b' (Heqb': b' = filter_block check b),
   wf_cmds [M'] M' f' b' (filter_cmds check Cs).
 Proof.
   assert (J:=filter_wf_insn).
@@ -1329,7 +1342,7 @@ Qed.
 
 Lemma filter_wf_block : forall b (HwfB : wf_block [M] M f b)
   (Hnouse : block_doesnt_use_removed check f b)
-  (Huniq : NoDup (getBlockLocs b)) b' (Heqb': b' = filter_block check b),
+  (Huniq: NoDup (getStmtsLocs (snd b))) b' (Heqb': b' = filter_block check b),
   wf_block [M'] M' f' b'.
 Proof.
   intros.
@@ -1487,7 +1500,7 @@ Lemma subst_is_promotable_fun: forall b acc,
   is_promotable_fun pid acc b = true ->
   is_promotable_fun pid acc (filter_block check b) = true.
 Proof.
-  destruct b; simpl.
+  destruct b as [? []]; simpl.
   intros.
   match goal with
   | H: context [if ?lk then _ else _] |- _ =>
@@ -1548,7 +1561,7 @@ Proof.
     inv_mbind. 
     fold_filter_tac.
     erewrite TransCFG.pres_getEntryBlock; eauto.
-    destruct b as [l0 ps0 cs0 tmn0]. 
+    destruct b as [l0 [ps0 cs0 tmn0]]. 
     destruct H.
     simpl.
     split.

@@ -17,7 +17,7 @@ Import Promotability.
 Definition alive_alloca (cs2:cmds) (b:block) (pinfo:PhiInfo) : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\
 store_in_cmds (PI_id pinfo) cs2 = false /\
-let '(block_intro _ _ cs _) := b in
+let '(_, stmts_intro _ cs _) := b in
 exists cs1, exists cs3,
   cs =
   cs1 ++
@@ -41,7 +41,7 @@ forall gvsa gvsv
 
 Definition follow_alive_alloca (pinfo:PhiInfo) (alinfo: AllocaInfo pinfo)
   (cs:cmds) : Prop :=
-let '(block_intro _ _ cs0 _) := AI_block pinfo alinfo in
+let '(_, stmts_intro _ cs0 _) := AI_block pinfo alinfo in
 forall cs1 cs3,
   cs0 =
     cs1 ++
@@ -53,7 +53,7 @@ forall cs1 cs3,
 
 Lemma follow_alive_alloca_cons: forall pinfo alinfo c cs l0 ps0 cs0 tmn0
   (Huniq:uniqFdef (PI_f pinfo)) (Hneq: getCmdLoc c <> PI_id pinfo),
-  block_intro l0 ps0 (cs0++c::cs) tmn0 = AI_block pinfo alinfo ->
+  (l0, stmts_intro ps0 (cs0++c::cs) tmn0) = AI_block pinfo alinfo ->
   store_in_cmd (PI_id pinfo) c = false ->
   follow_alive_alloca pinfo alinfo cs ->
   follow_alive_alloca pinfo alinfo (c::cs).
@@ -62,7 +62,7 @@ Proof.
   intros.
   destruct alinfo. simpl in *.
   unfold alive_alloca in AI_alive0.
-  destruct AI_block0.
+  destruct AI_block0 as [? []].
   destruct AI_alive0 as [J1 [J2 [cs1 [cs3 J3]]]]; subst.
   intros.
   assert (cs1 = cs2 /\ cs3 = cs4) as J.
@@ -173,7 +173,7 @@ Qed.
 Lemma follow_alive_alloca_at_beginning_false: forall (pinfo : PhiInfo)
   (alinfo : AllocaInfo pinfo) (l' : l) (ps' : phinodes) (cs' : cmds)
   (tmn' : terminator)
-  (J2 : block_intro l' ps' cs' tmn' = AI_block pinfo alinfo)
+  (J2 : (l', stmts_intro ps' cs' tmn') = AI_block pinfo alinfo)
   (J3 : follow_alive_alloca pinfo alinfo cs'),
   False.
 Proof.
@@ -406,7 +406,7 @@ Lemma malloc_preserves_wf_EC_at_head : forall pinfo los nts Ps M
   (Hsz: getTypeAllocSize (los, nts) t = ret tsz)
   (Hal: malloc (los,nts) M tsz gn align0 = ret (M', mb)) alinfo c
   (HBinF: blockInFdefB
-             (block_intro l1 ps1 (cs1' ++ c :: cs)
+             (l1, stmts_intro ps1 (cs1' ++ c :: cs)
                 tmn) F = true)
   (Hid : getCmdID c = Some id0)
   (Hnst : store_in_cmd (PI_id pinfo) c = false)
@@ -417,9 +417,9 @@ Lemma malloc_preserves_wf_EC_at_head : forall pinfo los nts Ps M
   (Hinscope : wf_ExecutionContext pinfo alinfo (los,nts) M gl
                {|
                Opsem.CurFunction := F;
-               Opsem.CurBB := block_intro l1 ps1
+               Opsem.CurBB := (l1, stmts_intro ps1
                                 (cs1' ++ c :: cs)
-                                tmn;
+                                tmn);
                Opsem.CurCmds := c :: cs;
                Opsem.Terminator := tmn;
                Opsem.Locals := lc;
@@ -427,8 +427,8 @@ Lemma malloc_preserves_wf_EC_at_head : forall pinfo los nts Ps M
   wf_ExecutionContext pinfo alinfo (los,nts) M' gl
     {|
     Opsem.CurFunction := F;
-    Opsem.CurBB := block_intro l1 ps1
-                      (cs1' ++ c :: cs) tmn;
+    Opsem.CurBB := (l1, stmts_intro ps1
+                      (cs1' ++ c :: cs) tmn);
     Opsem.CurCmds := cs;
     Opsem.Terminator := tmn;
     Opsem.Locals := updateAddAL (GVsT DGVs) lc id0
@@ -657,15 +657,15 @@ Lemma mstore_preserves_wf_EC_at_head: forall (maxb : Z) (pinfo : PhiInfo)
   (Hinscope' : if fdef_dec (PI_f pinfo) F
                then Promotability.wf_defs maxb pinfo (los,nts) Mem lc als
                else True)
-  (HBinF: blockInFdefB (block_intro l1 ps1
+  (HBinF: blockInFdefB (l1, stmts_intro ps1
                           (cs1' ++ insn_store sid t v1 v2 align0 :: cs)
                           tmn) F = true) (Huniq: uniqFdef F)
   (Hinscope : wf_ExecutionContext pinfo alinfo (los,nts) Mem gl
                {|
                Opsem.CurFunction := F;
-               Opsem.CurBB := block_intro l1 ps1
+               Opsem.CurBB := (l1, stmts_intro ps1
                                 (cs1' ++ insn_store sid t v1 v2 align0 :: cs)
-                                tmn;
+                                tmn);
                Opsem.CurCmds := insn_store sid t v1 v2 align0 :: cs;
                Opsem.Terminator := tmn;
                Opsem.Locals := lc;
@@ -673,8 +673,8 @@ Lemma mstore_preserves_wf_EC_at_head: forall (maxb : Z) (pinfo : PhiInfo)
   wf_ExecutionContext pinfo alinfo (los,nts) Mem' gl
      {|
      Opsem.CurFunction := F;
-     Opsem.CurBB := block_intro l1 ps1
-                      (cs1' ++ insn_store sid t v1 v2 align0 :: cs) tmn;
+     Opsem.CurBB := (l1, stmts_intro ps1
+                      (cs1' ++ insn_store sid t v1 v2 align0 :: cs) tmn);
      Opsem.CurCmds := cs;
      Opsem.Terminator := tmn;
      Opsem.Locals := lc;
@@ -831,14 +831,14 @@ Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs
           = ret (oresult, tr, Mem'))
   (H5 : Opsem.exCallUpdateLocals (los,nts) rt1 noret0 rid oresult lc = ret lc')
   (HBinF : blockInFdefB 
-             (block_intro l1 ps1 (cs1' ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn)
+             (l1, stmts_intro ps1 (cs1' ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn)
              F = true)
   (Hinscope : wf_ExecutionContext pinfo stinfo (los,nts) Mem gl
                {|
                Opsem.CurFunction := F;
-               Opsem.CurBB := block_intro l1 ps1
+               Opsem.CurBB := (l1, stmts_intro ps1
                                 (cs1' ++
-                                 insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn;
+                                 insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn);
                Opsem.CurCmds := insn_call rid noret0 ca rt1 va1 fv lp :: cs;
                Opsem.Terminator := tmn;
                Opsem.Locals := lc;
@@ -846,8 +846,8 @@ Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs
    wf_ExecutionContext pinfo stinfo (los,nts) Mem' gl
      {|
      Opsem.CurFunction := F;
-     Opsem.CurBB := block_intro l1 ps1
-                      (cs1' ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn;
+     Opsem.CurBB := (l1, stmts_intro ps1
+                      (cs1' ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn);
      Opsem.CurCmds := cs;
      Opsem.Terminator := tmn;
      Opsem.Locals := lc';
@@ -878,7 +878,7 @@ Qed.
 
 Ltac WF_PhiInfo_spec10_tac :=
   match goal with
-  | HBinF1 : blockInFdefB (block_intro _ _ (_ ++ _ :: _) _) _ = true |- _ =>
+  | HBinF1 : blockInFdefB (_, stmts_intro _ (_ ++ _ :: _) _) _ = true |- _ =>
      eapply WF_PhiInfo_spec10 in HBinF1; eauto using wf_system__uniqFdef
   end.
 

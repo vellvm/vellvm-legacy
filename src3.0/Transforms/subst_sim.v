@@ -79,10 +79,10 @@ Definition EC_simulation (EC1 EC2:@Opsem.ExecutionContext DGVs) : Prop :=
        als1 = als2 /\
        block_simulation f1 b1 b2 /\
        (exists l1, exists ps1, exists cs11,
-         b1 = block_intro l1 ps1 (cs11++cs1) tmn1)
+         b1 = (l1, stmts_intro ps1 (cs11++cs1) tmn1))
          /\
        (exists l2, exists ps2, exists cs21,
-         b2 = block_intro l2 ps2 (cs21++cs2) tmn2) /\
+         b2 = (l2, stmts_intro ps2 (cs21++cs2) tmn2)) /\
        lc1 = lc2 /\
        cmds_simulation f1 cs1 cs2
   end.
@@ -131,25 +131,26 @@ Proof.
   destruct (fdef_dec sf F); subst; simpl; eauto.
 Qed.
 
-Lemma fdef_sim__block_sim : forall f1 f2 b1 b2 l0,
+Lemma fdef_sim__block_sim : forall f1 f2 sts1 sts2 l0,
   fdef_simulation f1 f2 ->
-  lookupBlockViaLabelFromFdef f1 l0 = Some b1 ->
-  lookupBlockViaLabelFromFdef f2 l0 = Some b2 ->
-  block_simulation f1 b1 b2.
+  lookupBlockViaLabelFromFdef f1 l0 = Some sts1 ->
+  lookupBlockViaLabelFromFdef f2 l0 = Some sts2 ->
+  block_simulation f1 (l0, sts1) (l0, sts2).
 Proof.
   intros.
   unfold fdef_simulation in H.
   unfold block_simulation.
   destruct (fdef_dec sf f1); subst.
     destruct f1. simpl in *.
-    eapply fdef_sim__lookupAL_genLabel2Block_subst_block; eauto.
+    f_equal.
+    eapply fdef_sim__lookupAL_subst_stmts; eauto.
 
     uniq_result. auto.
 Qed.
 
 Lemma block_simulation_inv : forall F l1 ps1 cs1 tmn1 l2 ps2 cs2 tmn2,
-  block_simulation F (block_intro l1 ps1 cs1 tmn1)
-    (block_intro l2 ps2 cs2 tmn2) ->
+  block_simulation F (l1, stmts_intro ps1 cs1 tmn1)
+    (l2, stmts_intro ps2 cs2 tmn2) ->
   l1 = l2 /\
   phis_simulation F ps1 ps2 /\
   cmds_simulation F cs1 cs2 /\
@@ -172,10 +173,10 @@ Lemma getOperandValue_inTmnOperands_sim : forall los nts s ps gl
   (l1 : l)
   (ps1 : phinodes)
   (cs1 : list cmd)
-  (Hreach : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn))
-  (HbInF : blockInFdefB (block_intro l1 ps1 cs1 tmn) f = true)
+  (Hreach : isReachableFromEntry f (l1, stmts_intro ps1 cs1 tmn))
+  (HbInF : blockInFdefB (l1, stmts_intro ps1 cs1 tmn) f = true)
   (l0 : list atom)
-  (HeqR : ret l0 = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn) tmn)
+  (HeqR : ret l0 = inscope_of_tmn f (l1, stmts_intro ps1 cs1 tmn) tmn)
   (Hinscope : subst_inv.wf_defs (value_id sid) sv sf
                      (los, nts) gl f lc l0)
   (v v' : value)
@@ -209,10 +210,10 @@ Lemma getOperandValue_inCmdOperands_sim : forall los nts s gl ps (f : fdef)
   (ps1 : phinodes)
   (cs1 cs : list cmd)
   (c : cmd)
-  (Hreach : isReachableFromEntry f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn))
-  (HbInF : blockInFdefB (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) f = true)
+  (Hreach : isReachableFromEntry f (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn))
+  (HbInF : blockInFdefB (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) f = true)
   (l0 : list atom)
-  (HeqR : ret l0 = inscope_of_cmd f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) c)
+  (HeqR : ret l0 = inscope_of_cmd f (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) c)
   (Hinscope : subst_inv.wf_defs (value_id sid) sv sf
                      (los, nts) gl f lc l0)
   (v v' : value)
@@ -300,14 +301,14 @@ Lemma getValueViaLabelFromValuels_getOperandValue_sim : forall
   (HwfF : wf_fdef s (module_intro los nts ps) f) (HuniqF: uniqFdef f)
   (l0 : l) (lc : GVMap) (t : list atom) (l1 : l) (ps1 : phinodes)
   (cs1 : cmds) (tmn1 : terminator)
-  (HeqR : ret t = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1)
+  (HeqR : ret t = inscope_of_tmn f (l1, stmts_intro ps1 cs1 tmn1) tmn1)
   (Hinscope : subst_inv.wf_defs (value_id sid) sv sf
                      (los, nts) gl f lc t)
   (ps' : phinodes) (cs' : cmds) (tmn' : terminator)
   (i0 : id) (l2 : list (value * l)) (ps2 : list phinode)
-  (Hreach : isReachableFromEntry f (block_intro l0 ps' cs' tmn'))
-  (HbInF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
-  (Hreach' : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
+  (Hreach : isReachableFromEntry f (l0, stmts_intro ps' cs' tmn'))
+  (HbInF : blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) f = true)
+  (Hreach' : isReachableFromEntry f (l1, stmts_intro ps1 cs1 tmn1))
   (v0 v0': value)
   (HeqR3 : ret v0 = getValueViaLabelFromValuels l2 l1)
   (g1 : GenericValue)
@@ -318,7 +319,7 @@ Lemma getValueViaLabelFromValuels_getOperandValue_sim : forall
              (fun p : value * l =>
                let '(value_, _) := p in
                  (s, module_intro los nts ps, f, value_, t1)) l2))
-  (H7 : wf_phinode f (block_intro l0 ps' cs' tmn') (insn_phi i0 t1 l2))
+  (H7 : wf_phinode f (l0, stmts_intro ps' cs' tmn') (insn_phi i0 t1 l2))
   (Hvsim: value_simulation f v0 v0')
   (HeqR1 : ret g = getOperandValue (los,nts) v0' lc gl),
   g1 = g.
@@ -341,28 +342,28 @@ Lemma getIncomingValuesForBlockFromPHINodes_sim : forall
   (lc : GVMap)
   (t : list atom)
   l1 ps1 cs1 tmn1
-  (HeqR : ret t = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1)
+  (HeqR : ret t = inscope_of_tmn f (l1, stmts_intro ps1 cs1 tmn1) tmn1)
   (Hinscope : subst_inv.wf_defs (value_id sid) sv sf
                      (los, nts) gl f lc t)
   (ps' : phinodes)
   (cs' : cmds)
   (tmn' : terminator)
   (Hsucc : In l0 (successors_terminator tmn1))
-  (Hreach : isReachableFromEntry f (block_intro l0 ps' cs' tmn'))
-  (Hreach' : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
+  (Hreach : isReachableFromEntry f (l0, stmts_intro ps' cs' tmn'))
+  (Hreach' : isReachableFromEntry f (l1, stmts_intro ps1 cs1 tmn1))
   (HbInF : blockInFdefB
-            (block_intro l1 ps1 cs1 tmn1) f = true)
+            (l1, stmts_intro ps1 cs1 tmn1) f = true)
   (HwfB : wf_block s (module_intro los nts ps) f 
-            (block_intro l1 ps1 cs1 tmn1))
+            (l1, stmts_intro ps1 cs1 tmn1))
   B1'
-  (Hbsim1: block_simulation f (block_intro l1 ps1 cs1 tmn1) B1')
+  (Hbsim1: block_simulation f (l1, stmts_intro ps1 cs1 tmn1) B1')
   ps2
   (H8 : wf_phinodes s (module_intro los nts ps) f 
-          (block_intro l0 ps' cs' tmn') ps2)
+          (l0, stmts_intro ps' cs' tmn') ps2)
   (Hin: exists ps1, ps' = ps1 ++ ps2) RVs RVs' ps2'
   (Hpsim2: phis_simulation f ps2 ps2')
   (Hget : @Opsem.getIncomingValuesForBlockFromPHINodes DGVs (los,nts) ps2
-           (block_intro l1 ps1 cs1 tmn1) gl lc = ret RVs)
+           (l1, stmts_intro ps1 cs1 tmn1) gl lc = ret RVs)
   (Hget' : @Opsem.getIncomingValuesForBlockFromPHINodes DGVs (los,nts)
              ps2' B1' gl lc = ret RVs'),
   RVs = RVs'.
@@ -377,7 +378,7 @@ Proof.
     apply phi_simulation_inv in Hpsim1.
     destruct Hpsim1 as [Heq1 [Heq2 Hvlsim1]]; subst.
     inv_mbind'.
-    destruct B1'. simpl in HeqR0.
+    destruct B1' as [? []]. simpl in HeqR0.
     apply block_simulation_inv in Hbsim1.
     destruct Hbsim1 as [Heq [Hpsim1 [Hcssim1 Htsim1]]]; subst.
     simpl in HeqR3.
@@ -405,35 +406,35 @@ Lemma switchToNewBasicBlock_sim : forall
   ps (f : fdef)
   (HwfF : wf_fdef s (module_intro los nts ps) f) (HuniqF: uniqFdef f)
   l2 (lc : GVMap) (t : list atom) l1 ps1 cs1 tmn1
-  (HeqR : ret t = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1)
+  (HeqR : ret t = inscope_of_tmn f (l1, stmts_intro ps1 cs1 tmn1) tmn1)
   (Hinscope : subst_inv.wf_defs (value_id sid) sv sf
                      (los, nts) gl f lc t)
   (ps2 : phinodes) (cs2 : cmds) (tmn2 : terminator)
   (Hsucc : In l2 (successors_terminator tmn1))
-  (Hreach : isReachableFromEntry f (block_intro l2 ps2 cs2 tmn2))
-  (Hreach' : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
-  (HbInF' : blockInFdefB (block_intro l2 ps2 cs2 tmn2) f = true)
-  (HbInF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
+  (Hreach : isReachableFromEntry f (l2, stmts_intro ps2 cs2 tmn2))
+  (Hreach' : isReachableFromEntry f (l1, stmts_intro ps1 cs1 tmn1))
+  (HbInF' : blockInFdefB (l2, stmts_intro ps2 cs2 tmn2) f = true)
+  (HbInF : blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) f = true)
   lc0 lc0'
   (Hget : @Opsem.switchToNewBasicBlock DGVs (los,nts)
-    (block_intro l2 ps2 cs2 tmn2)
-    (block_intro l1 ps1 cs1 tmn1) gl lc = ret lc0) B1' B2'
-  (Hbsim1: block_simulation f (block_intro l1 ps1 cs1 tmn1) B1')
-  (Hbsim2: block_simulation f (block_intro l2 ps2 cs2 tmn2) B2')
+    (l2, stmts_intro ps2 cs2 tmn2)
+    (l1, stmts_intro ps1 cs1 tmn1) gl lc = ret lc0) B1' B2'
+  (Hbsim1: block_simulation f (l1, stmts_intro ps1 cs1 tmn1) B1')
+  (Hbsim2: block_simulation f (l2, stmts_intro ps2 cs2 tmn2) B2')
   (Hget' : @Opsem.switchToNewBasicBlock DGVs (los,nts) B2' B1' gl lc = ret lc0'),
   lc0 = lc0'.
 Proof.
   intros.
   assert (HwfB : wf_block s (module_intro los nts ps) f 
-           (block_intro l1 ps1 cs1 tmn1)).
+           (l1, stmts_intro ps1 cs1 tmn1)).
     apply wf_fdef__blockInFdefB__wf_block; auto.
   assert (H8 : wf_phinodes s (module_intro los nts ps) f 
-                 (block_intro l2 ps2 cs2 tmn2) ps2).
+                 (l2, stmts_intro ps2 cs2 tmn2) ps2).
     apply wf_fdef__wf_phinodes; auto.
   unfold Opsem.switchToNewBasicBlock in *.
   inv_mbind'. app_inv. symmetry_ctx.
   assert (l3 = l0) as EQ.
-    destruct B2'.
+    destruct B2' as [? []].
     apply block_simulation_inv in Hbsim2.
     destruct Hbsim2 as [J1 [J2 [J3 J4]]]; subst.
     eapply getIncomingValuesForBlockFromPHINodes_sim; eauto.
@@ -441,11 +442,10 @@ Proof.
   subst. auto.
 Qed.
 
-
-Lemma cmds_at_block_tail_next': forall l3 ps3 cs31 c cs tmn,
+Lemma cmds_at_block_tail_next': forall (l3:l) ps3 cs31 c cs tmn,
   exists l1, exists ps1, exists cs11,
-         block_intro l3 ps3 (cs31 ++ c :: cs) tmn =
-         block_intro l1 ps1 (cs11 ++ cs) tmn.
+         (l3, stmts_intro ps3 (cs31 ++ c :: cs) tmn) =
+         (l1, stmts_intro ps1 (cs11 ++ cs) tmn).
 Proof.
   intros.
   exists l3. exists ps3. exists (cs31++[c]). simpl_env. auto.
@@ -570,14 +570,14 @@ Lemma params2GVs_sim_aux : forall
   (ps1 : phinodes)
   (cs1 : list cmd)
   (Hreach : isReachableFromEntry f
-             (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn))
+             (l1, stmts_intro ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn))
   (HbInF : blockInFdefB
-            (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn) f =
+            (l1, stmts_intro ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn) f =
           true)
   (l0 : list atom)
   (HeqR : ret l0 =
          inscope_of_cmd f
-           (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn)
+           (l1, stmts_intro ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn)
            (insn_call i0 n c t0 v0 v p2))
   (Hinscope : subst_inv.wf_defs (value_id sid)
            sv sf (los, nts) gl f lc l0)
@@ -630,14 +630,14 @@ Lemma params2GVs_sim : forall
   (ps1 : phinodes)
   (cs1 : list cmd)
   (Hreach : isReachableFromEntry f
-             (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn))
+             (l1, stmts_intro ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn))
   (HbInF : blockInFdefB
-            (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn) f =
+            (l1, stmts_intro ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn) f =
           true)
   (l0 : list atom)
   (HeqR : ret l0 =
          inscope_of_cmd f
-           (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn)
+           (l1, stmts_intro ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn)
            (insn_call i0 n c t0 v0 v p2))
   (Hinscope : subst_inv.wf_defs (value_id sid)
            sv sf (los, nts) gl f lc l0)
@@ -833,10 +833,10 @@ Lemma values2GVs_sim_aux : forall los nts s gl ps (f : fdef)
   (ps1 : phinodes)
   (cs1 cs : list cmd)
   (c : cmd)
-  (Hreach : isReachableFromEntry f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn))
-  (HbInF : blockInFdefB (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) f = true)
+  (Hreach : isReachableFromEntry f (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn))
+  (HbInF : blockInFdefB (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) f = true)
   (l0 : list atom)
-  (HeqR : ret l0 = inscope_of_cmd f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) c)
+  (HeqR : ret l0 = inscope_of_cmd f (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) c)
   (Hinscope : subst_inv.wf_defs (value_id sid) sv sf
                      (los, nts) gl f lc l0) t' t v id0 inbounds0 
   idxs0 (Heq: insn_gep id0 inbounds0 t v idxs0 t' = c) 
@@ -879,10 +879,10 @@ Lemma values2GVs_sim : forall los nts s gl ps (f : fdef)
   (ps1 : phinodes)
   (cs1 cs : list cmd)
   (c : cmd)
-  (Hreach : isReachableFromEntry f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn))
-  (HbInF : blockInFdefB (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) f = true)
+  (Hreach : isReachableFromEntry f (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn))
+  (HbInF : blockInFdefB (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) f = true)
   (l0 : list atom)
-  (HeqR : ret l0 = inscope_of_cmd f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) c)
+  (HeqR : ret l0 = inscope_of_cmd f (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) c)
   (Hinscope : subst_inv.wf_defs (value_id sid)
                      sv sf
                      (los, nts) gl f lc l0) t' t v id0 inbounds0 
@@ -1022,10 +1022,10 @@ Ltac subst_is_sim_tac :=
     end.
 
 (* copied from SB *)
-Lemma cmds_at_block_tail_next : forall B c cs tmn2,
+Lemma cmds_at_block_tail_next : forall (B:block) c cs tmn2,
   (exists l1, exists ps1, exists cs11, B =
-    block_intro l1 ps1 (cs11 ++ c :: cs) tmn2) ->
-  exists l1, exists ps1, exists cs11, B = block_intro l1 ps1 (cs11 ++ cs) tmn2.
+    (l1, stmts_intro ps1 (cs11 ++ c :: cs) tmn2)) ->
+  exists l1, exists ps1, exists cs11, B = (l1, stmts_intro ps1 (cs11 ++ cs) tmn2).
 Proof.
   intros.
   destruct H as [l1 [ps1 [cs11 H]]]; subst.
@@ -1122,7 +1122,7 @@ Focus.
 
   inv Hop2.
   uniq_result.
-  remember (inscope_of_tmn F (block_intro l3 ps3 (cs31 ++ nil)
+  remember (inscope_of_tmn F (l3, stmts_intro ps3 (cs31 ++ nil)
              (insn_br bid Cond l1 l2)) (insn_br bid Cond l1 l2)) as R.
   destruct R; tinv Hinscope1'.
 
@@ -1134,33 +1134,40 @@ Focus.
     eapply getOperandValue_inTmnOperands_sim with (v:=Cond)(v':=Cond2);
       try solve [eauto | simpl; auto].
   subst.
-  assert (block_simulation  F
-           (block_intro l' ps' cs' tmn')
-           (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
+  assert (block_simulation F
+           (if isGVZero (los, nts) c0 then l2 else l1, stmts_intro ps' cs' tmn')
+           (if isGVZero (los, nts) c0 then l2 else l1, stmts_intro ps'0 cs'0 tmn'0)) 
+    as Hbsim.
     clear - H22 H1 Hfsim2.
     destruct (isGVZero (los, nts) c0); eauto using fdef_sim__block_sim.
   assert (Hbsim':=Hbsim).
   apply block_simulation_inv in Hbsim'.
-  destruct Hbsim' as [Heq [Hpsim' [Hcssim' Htsim']]]; subst.
+  destruct Hbsim' as [_ [Hpsim' [Hcssim' Htsim']]]; subst.
 
-  assert (isReachableFromEntry F (block_intro l'0 ps' cs' tmn') /\
-    In l'0 (successors_terminator (insn_br bid Cond l1 l2)) /\
-    blockInFdefB (block_intro l'0 ps' cs' tmn') F = true) as J.
+  assert (isReachableFromEntry F 
+           (if isGVZero (los, nts) c0 then l2 else l1, 
+            stmts_intro ps' cs' tmn') /\
+    In (if isGVZero (los, nts) c0 then l2 else l1) 
+        (successors_terminator (insn_br bid Cond l1 l2)) /\
+    blockInFdefB (if isGVZero (los, nts) c0 then l2 else l1, 
+                  stmts_intro ps' cs' tmn') F = true) as J.
     symmetry in H1.
     destruct (isGVZero (los,nts) c0);
       assert (J:=H1);
       apply lookupBlockViaLabelFromFdef_inv in J; eauto;
-      destruct J as [J H13']; subst;
-      (repeat split; simpl; auto); try solve [
-        auto | eapply reachable_successors; (eauto || simpl; auto)].
+      (repeat split; auto); try solve [
+        auto | eapply reachable_successors in HBinF1; (eauto || simpl; auto)].
   destruct J as [Hreach' [Hsucc' HBinF1']].
 
   assert (lc' = lc'0) as Heq.
     eapply switchToNewBasicBlock_sim in Hbsim; eauto.
   subst.
   repeat (split; auto).
-    exists l'0. exists ps'. exists nil. auto.
-    exists l'0. exists ps'0. exists nil. auto.
+    exists (if isGVZero (los, nts) c0 then l2 else l1). 
+    exists ps'. exists nil. auto.
+
+    exists (if isGVZero (los, nts) c0 then l2 else l1). 
+    exists ps'0. exists nil. auto.
 
 Unfocus.
 
@@ -1178,7 +1185,7 @@ Focus.
 
   inv Hop2.
   uniq_result.
-  remember (inscope_of_tmn F (block_intro l3 ps3 (cs31 ++ nil)
+  remember (inscope_of_tmn F (l3, stmts_intro ps3 (cs31 ++ nil)
              (insn_br_uncond bid l0)) (insn_br_uncond bid l0)) as R.
   destruct R; tinv Hinscope1'.
 
@@ -1188,31 +1195,30 @@ Focus.
     eauto using wf_system__wf_fdef.
 
   assert (block_simulation  F
-           (block_intro l' ps' cs' tmn')
-           (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
+           (l0, stmts_intro ps' cs' tmn')
+           (l0, stmts_intro ps'0 cs'0 tmn'0)) as Hbsim.
     clear - H H16 Hfsim2.
     eauto using fdef_sim__block_sim.
   assert (Hbsim':=Hbsim).
   apply block_simulation_inv in Hbsim'.
-  destruct Hbsim' as [Heq [Hpsim' [Hcssim' Htsim']]]; subst.
+  destruct Hbsim' as [_ [Hpsim' [Hcssim' Htsim']]]; subst.
 
-  assert (isReachableFromEntry F (block_intro l'0 ps' cs' tmn') /\
-    In l'0 (successors_terminator (insn_br_uncond bid l0)) /\
-    blockInFdefB (block_intro l'0 ps' cs' tmn') F = true) as J.
+  assert (isReachableFromEntry F (l0, stmts_intro ps' cs' tmn') /\
+    In l0 (successors_terminator (insn_br_uncond bid l0)) /\
+    blockInFdefB (l0, stmts_intro ps' cs' tmn') F = true) as J.
     symmetry in H;
     assert (J:=H);
     apply lookupBlockViaLabelFromFdef_inv in J; eauto;
-    destruct J as [J H13']; subst;
-    (repeat split; simpl; auto); try solve [
-      auto | eapply reachable_successors; (eauto || simpl; auto)].
+    (repeat split; auto); try solve [
+      auto | eapply reachable_successors in HBinF1; (eauto || simpl; auto)].
   destruct J as [Hreach' [Hsucc' HBinF1']].
 
   assert (lc' = lc'0) as Heq.
     eapply switchToNewBasicBlock_sim in Hbsim; eauto.
   subst.
   repeat (split; auto).
-    exists l'0. exists ps'. exists nil. auto.
-    exists l'0. exists ps'0. exists nil. auto.
+    exists l0. exists ps'. exists nil. auto.
+    exists l0. exists ps'0. exists nil. auto.
 
 Unfocus.
 
@@ -1389,7 +1395,7 @@ Proof.
   inv_mbind'.
   destruct m as [los nts ps].
   inv_mbind'.
-  destruct b as [l0 ps0 cs0 tmn0].
+  destruct s as [ps0 cs0 tmn0].
   destruct f as [[fa rt fid la va] bs].
   inv_mbind'. symmetry_ctx.
   assert (HlkF2FromS2:=HeqR).
@@ -1407,7 +1413,7 @@ Proof.
   eapply getEntryBlock__simulation in J; eauto.
   destruct J as [b1 [J5 J6]].
   fill_ctxhole.
-  destruct b1 as [l2 ps2 cs2 tmn2].
+  destruct b1 as [l2 [ps2 cs2 tmn2]].
   destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1].
   assert (J:=Hfsim).
   apply fdef_simulation__eq_fheader in J.
@@ -1424,7 +1430,7 @@ Proof.
   assert (J:=J6).
   apply block_simulation_inv in J.
   destruct J as [J1 [J2 [J3 J7]]]; subst.
-  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0)
+  assert (blockInFdefB (l0, stmts_intro ps0 cs0 tmn0)
            (fdef_intro (fheader_intro fa rt fid la va) bs) = true) as HBinF.
     apply entryBlockInFdef; auto.
   repeat (split; auto).
@@ -1559,7 +1565,7 @@ Ltac undefined_state__State_simulation_r2l_tac1 :=
 Ltac undefined_state__State_simulation_r2l_tac3 :=
   match goal with
   | Hstsim: State_simulation _ ?St1 _ ?St2 |- _ =>
-    destruct St2 as [[|[? [? ? ? tmn] CurCmds tmn' ?] ?] ?]; try tauto;
+    destruct St2 as [[|[? [? [? ? tmn]] CurCmds tmn' ?] ?] ?]; try tauto;
     destruct tmn; try tauto;
     destruct CurCmds; try tauto;
     destruct tmn'; try tauto;

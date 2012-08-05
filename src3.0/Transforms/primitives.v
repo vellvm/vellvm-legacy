@@ -80,12 +80,20 @@ match instr with
 | insn_terminator tmn => insn_terminator (subst_tmn id' v' tmn)
 end.
 
-Definition subst_block (id':id) (v':value) (b:block) : block :=
-match b with
-| block_intro l0 ps0 cs0 tmn0 =>
-  block_intro l0 (List.map (subst_phi id' v') ps0)
+Definition subst_stmts (id':id) (v':value) (sts:stmts) : stmts :=
+match sts with
+| stmts_intro ps0 cs0 tmn0 =>
+  stmts_intro (List.map (subst_phi id' v') ps0)
     (List.map (subst_cmd id' v') cs0) (subst_tmn id' v' tmn0)
 end.
+
+Definition trans_block (trans_stmts: stmts -> stmts) (b:block) : block :=
+match b with
+| (l0, sts0) => (l0, trans_stmts sts0)
+end.
+
+Definition subst_block (id':id) (v':value) (b:block) : block :=
+trans_block (subst_stmts id' v') b.
 
 Definition subst_fdef (id':id) (v':value) (f:fdef) : fdef :=
 match f with
@@ -142,11 +150,14 @@ Definition remove_phinodes (id':id) (ps:phinodes) : phinodes :=
 Definition remove_cmds (id':id) (cs:cmds) : cmds :=
   (List.filter (fun c => negb (id_dec (getCmdLoc c) id')) cs).
 
-Definition remove_block (id':id) (b:block) : block :=
-match b with
-| block_intro l0 ps0 cs0 tmn0 =>
-  block_intro l0 (remove_phinodes id' ps0) (remove_cmds id' cs0) tmn0
+Definition remove_stmts (id':id) (sts:stmts) : stmts :=
+match sts with
+| stmts_intro ps0 cs0 tmn0 =>
+  stmts_intro (remove_phinodes id' ps0) (remove_cmds id' cs0) tmn0
 end.
+
+Definition remove_block (id':id) (b:block) : block :=
+trans_block (remove_stmts id') b.
 
 Definition remove_fdef (id':id) (f:fdef) : fdef :=
 match f with
@@ -221,7 +232,7 @@ end.
 
 Definition used_in_block (id':id) (b:block) : bool :=
 match b with
-| block_intro _ ps0 cs0 tmn0 =>
+| (_, stmts_intro ps0 cs0 tmn0) =>
   (List.fold_left (fun re p => re || used_in_phi id' p) ps0 false) ||
   (List.fold_left (fun re c => re || used_in_cmd id' c) cs0 false) ||
   (used_in_tmn id' tmn0)
@@ -234,7 +245,7 @@ match f with
 end.
 
 Definition find_uses_in_block (id':id) (b:block) : list insn :=
-let '(block_intro _ ps cs tmn) := b in
+let '(_, stmts_intro ps cs tmn) := b in
 let is1 := 
   List.fold_left 
     (fun acc p => if used_in_phi id' p then insn_phinode p::acc else acc) 
@@ -264,10 +275,10 @@ firstn n cs ++ c :: skipn n cs.
 (* insert c at the n-th position in block l1 *)
 Definition insert_block (l1:l) (n:nat) (c:cmd) (b:block) : block :=
 match b with
-| block_intro l0 ps0 cs0 tmn0 =>
-    block_intro l0 ps0 (if (l_dec l1 l0)
-                        then insert_cmds n c cs0
-                        else cs0) tmn0
+| (l0, stmts_intro ps0 cs0 tmn0) =>
+    (l0, stmts_intro ps0 (if (l_dec l1 l0)
+                          then insert_cmds n c cs0
+                          else cs0) tmn0)
 end.
 
 Definition insert_fdef (l1:l) (n:nat) (c:cmd) (f:fdef) : fdef :=
@@ -372,12 +383,15 @@ match instr with
 | insn_terminator tmn => insn_terminator (rename_tmn id1 id2 tmn)
 end.
 
-Definition rename_block (id1:id) (id2:id) (b:block) : block :=
-match b with
-| block_intro l0 ps0 cs0 tmn0 =>
-  block_intro l0 (List.map (rename_phi id1 id2) ps0)
+Definition rename_stmts (id1:id) (id2:id) (sts:stmts) : stmts :=
+match sts with
+| stmts_intro ps0 cs0 tmn0 =>
+  stmts_intro (List.map (rename_phi id1 id2) ps0)
     (List.map (rename_cmd id1 id2) cs0) (rename_tmn id1 id2 tmn0)
 end.
+
+Definition rename_block (id1:id) (id2:id) (b:block) : block :=
+trans_block (rename_stmts id1 id2) b.
 
 Definition rename_fheader (id1 id2:id) (fh:fheader) : fheader :=
 let '(fheader_intro fr t0 fid la va):=fh in
@@ -452,9 +466,9 @@ end.
 
 Definition renamel_block (l1 l2:l) (b:block) : block := 
 match b with
-| block_intro l0 ps0 cs0 tmn0 =>
-  block_intro (rename_id l1 l2 l0) (List.map (renamel_phi l1 l2) ps0) cs0 
-    (renamel_tmn l1 l2 tmn0)
+| (l0, stmts_intro ps0 cs0 tmn0) =>
+  ((rename_id l1 l2 l0), stmts_intro (List.map (renamel_phi l1 l2) ps0) cs0 
+                                        (renamel_tmn l1 l2 tmn0))
 end.
 
 Definition renamel_fdef (l1 l2:l) (f:fdef) : fdef :=
@@ -627,14 +641,14 @@ Qed.
 
 Lemma used_in_fdef__used_in_cmd_value : forall id0 l3 ps1 cs c v tmn1 F1,
   used_in_fdef id0 F1 = false ->
-  blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true ->
+  blockInFdefB (l3, stmts_intro ps1 cs tmn1) F1 = true ->
   valueInCmdOperands v c -> In c cs ->
   used_in_value id0 v = false.
 Proof.
   destruct F1. simpl. intros.
-  eapply used_in_blocks__used_in_block in H0; eauto.
+  eapply used_in_blocks__used_in_block in H0; eauto 2.
   binvf H0 as J3 J4. binvf J3 as J1 J2.
-  eapply used_in_cmds__used_in_cmd in J2; eauto.
+  eapply used_in_cmds__used_in_cmd in J2; eauto 2.
   eapply used_in_cmd__used_in_value in H1; eauto.
 Qed.
 
@@ -648,14 +662,14 @@ Qed.
 
 Lemma used_in_fdef__used_in_tmn_value : forall id0 l3 ps1 cs v tmn1 F1,
   used_in_fdef id0 F1 = false ->
-  blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true ->
+  blockInFdefB (l3, stmts_intro ps1 cs tmn1) F1 = true ->
   valueInTmnOperands v tmn1 ->
   used_in_value id0 v = false.
 Proof.
   destruct F1. simpl. intros.
-  eapply used_in_blocks__used_in_block in H0; eauto.
+  eapply used_in_blocks__used_in_block in H0; eauto 1.
   binvf H0 as J3 J4. binvf J3 as J1 J2.
-  eapply used_in_tmn__used_in_value in H1; eauto.
+  eapply used_in_tmn__used_in_value in H1; eauto 1.
 Qed.
 
 Lemma used_in_fdef__used_in_block : forall id0 b F1,
@@ -677,51 +691,46 @@ Proof.
     destruct (l0 == l1); subst; inv HeqR0; auto.
 Qed.
 
-Lemma fdef_sim__lookupAL_genLabel2Block_block : forall f 
-  (EQ: forall b, getBlockLabel (f b) = getBlockLabel b) l0 bs b b',
-  lookupAL _ (genLabel2Block_blocks bs) l0 = Some b ->
-  lookupAL _ (genLabel2Block_blocks (List.map f bs)) l0
-    = Some b' ->
-  f b = b'.
+Lemma fdef_sim__lookupAL_stmts : forall f l0 bs sts sts',
+  lookupAL _ bs l0 = Some sts ->
+  lookupAL _ (List.map (trans_block f) bs) l0 = Some sts' ->
+  f sts = sts'.
 Proof.
   induction bs as [|a ?]; simpl; intros.
     congruence.
  
-    destruct a as [l1 ps1 cs1 tmn1]. simpl in *.
-    destruct (l0 == l1); subst.
-      inv H.
-      assert (J:=@EQ (block_intro l1 ps1 cs1 tmn1)).
-      destruct (f (block_intro l1 ps1 cs1 tmn1)) as [l2 ps2 cs2 tmn2].
-      simpl in J. subst. inv H0. 
-      destruct_if; try congruence.
-
-      apply IHbs; auto.
-      assert (J:=@EQ (block_intro l1 ps1 cs1 tmn1)).
-      destruct (f (block_intro l1 ps1 cs1 tmn1)) as [l2 ps2 cs2 tmn2].
-       simpl in J. subst. inv H0. 
-      destruct_if; try congruence.
+    destruct a as [l1 sts1]. simpl in *.
+    destruct (l0 == l1); subst; auto.
+      congruence.
 Qed.
 
-Lemma fdef_sim__lookupAL_genLabel2Block_remove_block : forall id0 l0 bs b b',
-  lookupAL _ (genLabel2Block_blocks bs) l0 = Some b ->
-  lookupAL _ (genLabel2Block_blocks (List.map (remove_block id0) bs)) l0
-    = Some b' ->
-  remove_block id0 b = b'.
+Lemma fdef_sim__lookupAL_block : forall f l0 bs sts sts',
+  lookupAL _ bs l0 = Some sts ->
+  lookupAL _ (List.map (trans_block f) bs) l0 = Some sts' ->
+  trans_block f (l0, sts) = (l0, sts').
 Proof.
   intros.
-  eapply fdef_sim__lookupAL_genLabel2Block_block; eauto.
-  destruct b0; simpl; auto.
+  unfold trans_block.
+  f_equal.
+  eapply fdef_sim__lookupAL_stmts; eauto.
 Qed.
 
-Lemma fdef_sim__lookupAL_genLabel2Block_subst_block : forall id0 v0 l0 bs b b',
-  lookupAL _ (genLabel2Block_blocks bs) l0 = Some b ->
-  lookupAL _ (genLabel2Block_blocks (List.map (subst_block id0 v0) bs)) l0
-    = Some b' ->
-  subst_block id0 v0 b = b'.
+Lemma fdef_sim__lookupAL_remove_stmts : forall id0 l0 bs sts sts',
+  lookupAL _ bs l0 = Some sts ->
+  lookupAL _ (List.map (remove_block id0) bs) l0 = Some sts' ->
+  remove_stmts id0 sts = sts'.
 Proof.
   intros.
-  eapply fdef_sim__lookupAL_genLabel2Block_block; eauto.
-  destruct b0; simpl; auto.
+  eapply fdef_sim__lookupAL_stmts; eauto.
+Qed.
+
+Lemma fdef_sim__lookupAL_subst_stmts : forall id0 v0 l0 bs sts sts',
+  lookupAL _ bs l0 = Some sts ->
+  lookupAL _ (List.map (subst_block id0 v0) bs) l0 = Some sts' ->
+  subst_stmts id0 v0 sts = sts'.
+Proof.
+  intros.
+  eapply fdef_sim__lookupAL_stmts; eauto.
 Qed.
 
 Lemma in_params__used: forall id1 A (t1 : A) (lp : list (A * value)) init,
@@ -754,7 +763,7 @@ Definition load_in_cmds (id':id) (cs:cmds) : bool :=
 
 Definition load_in_block (id':id) (b:block) : bool :=
 match b with
-| block_intro _ _ cs0 _ => load_in_cmds id' cs0
+| (_, stmts_intro _ cs0 _) => load_in_cmds id' cs0
 end.
 
 Definition load_in_fdef (id':id) (f:fdef) : bool :=
@@ -832,7 +841,7 @@ Definition conditional_used_in_value (F0 F:fdef) id0 v :=
 Lemma conditional_used_in_fdef__used_in_tmn_value: forall (l3 : l)
   (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator) (F: fdef) F0 id0,
   used_in_fdef id0 F0 = false ->
-  blockInFdefB (block_intro l3 ps1 cs tmn1) F = true ->
+  blockInFdefB (l3, stmts_intro ps1 cs tmn1) F = true ->
   valueInTmnOperands v tmn1 ->
   conditional_used_in_value F0 F id0 v.
 Proof.
@@ -845,7 +854,7 @@ Qed.
 Lemma conditional_used_in_fdef__used_in_cmd_value: forall (l3 : l) c
   (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator) (F: fdef) F0 id0,
   used_in_fdef id0 F0= false ->
-  blockInFdefB (block_intro l3 ps1 cs tmn1) F = true ->
+  blockInFdefB (l3, stmts_intro ps1 cs tmn1) F = true ->
   In c cs ->
   valueInCmdOperands v c ->
   conditional_used_in_value F0 F id0 v.
@@ -877,7 +886,7 @@ Lemma conditional_used_in_fdef__used_in_list_value: forall (l3 : l)
   cs11 id0 inbounds0 t v idxs cs t',
   used_in_fdef id1 F0 = false ->
   blockInFdefB
-    (block_intro l3 ps1 (cs11 ++ insn_gep id0 inbounds0 t v idxs t':: cs) tmn1) F
+    (l3, stmts_intro ps1 (cs11 ++ insn_gep id0 inbounds0 t v idxs t':: cs) tmn1) F
       = true ->
   conditional_used_in_list_value F0 F id1 idxs.
 Proof.
@@ -904,7 +913,7 @@ Lemma conditional_used_in_fdef__used_in_params: forall (l3 : l)
   cs11 rid noret0 ca rt1 va1 fv lp cs,
   used_in_fdef id0 F0 = false ->
   blockInFdefB
-    (block_intro l3 ps1 (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1) F
+    (l3, stmts_intro ps1 (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1) F
       = true ->
   conditional_used_in_params F0 F id0 lp.
 Proof.
@@ -923,7 +932,7 @@ Qed.
 Lemma conditional_used_in_fdef__used_in_phis: forall (l3 : l)
   (ps1 : phinodes) (cs : cmds) (tmn1 : terminator) (F: fdef) F0 id0 cs1,
   used_in_fdef id0 F0 = false ->
-  blockInFdefB (block_intro l3 ps1 cs1 tmn1) F = true ->
+  blockInFdefB (l3, stmts_intro ps1 cs1 tmn1) F = true ->
   F0 <> F \/
   fold_left
          (fun (re : bool) (p : phinode) => re || used_in_phi id0 p)
@@ -943,7 +952,6 @@ Definition conditional_used_in_args (F0 F:fdef) id0
 
 Hint Unfold conditional_used_in_value conditional_used_in_list_value 
   conditional_used_in_params conditional_used_in_args.
-
 
 Lemma used_in_list_value_l_false__intro: forall id0 vls 
   (H: forall v0 l0, In (v0, l0) vls -> used_in_value id0 v0 = false),
@@ -1036,24 +1044,24 @@ Proof.
   destruct f as [fh bs]. simpl. intros.
   apply fold_left_or_true_elim in Huse.
   destruct Huse as [x [Hin Huse]].
-  destruct x as [l0 ps0 cs0 tmn0].
+  destruct x as [l0 [ps0 cs0 tmn0]].
   simpl in Huse.
   binvt Huse as J1 J2.
     binvt J1 as J3 J2.
       apply fold_left_or_true_elim in J3.
       destruct J3 as [x [J3 Huse]].
-      exists (insn_phinode x). exists (block_intro l0 ps0 cs0 tmn0).
+      exists (insn_phinode x). exists (l0,stmts_intro ps0 cs0 tmn0).
       split; auto.
       simpl. 
       bsplit; solve_in_list; auto.
 
       apply fold_left_or_true_elim in J2.
       destruct J2 as [x [J3 Huse]].
-      exists (insn_cmd x). exists (block_intro l0 ps0 cs0 tmn0).
+      exists (insn_cmd x). exists (l0,stmts_intro ps0 cs0 tmn0).
       split; auto.
       simpl. 
       bsplit; solve_in_list; auto.
-    exists (insn_terminator tmn0). exists (block_intro l0 ps0 cs0 tmn0).
+    exists (insn_terminator tmn0). exists (l0,stmts_intro ps0 cs0 tmn0).
     split; auto.
     simpl. 
     bsplit. solve_refl. solve_in_list; auto.
@@ -1252,8 +1260,8 @@ Proof.
 Qed.
 
 Lemma reachable_used_in_cmd_value__id_in_reachable_block : forall l3 ps1 cs c v 
-  tmn1 (Hreach: isReachableFromEntry F1 (block_intro l3 ps1 cs tmn1))
-  (HBinF: blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true )
+  tmn1 (Hreach: isReachableFromEntry F1 (l3, stmts_intro ps1 cs tmn1))
+  (HBinF: blockInFdefB (l3, stmts_intro ps1 cs tmn1) F1 = true )
   (HinOps: valueInCmdOperands v c) (HinCs: In c cs)
   (Hused: used_in_value id0 v = true),
   id_in_reachable_block F1 id0 \/ In id0 (getArgsIDsOfFdef F1).
@@ -1266,8 +1274,8 @@ Proof.
 Qed.
 
 Lemma reachable_used_in_tmn_value__id_in_reachable_block : forall l3 ps1 cs v 
-  tmn1 (Hreach: isReachableFromEntry F1 (block_intro l3 ps1 cs tmn1))
-  (HBinF: blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true )
+  tmn1 (Hreach: isReachableFromEntry F1 (l3, stmts_intro ps1 cs tmn1))
+  (HBinF: blockInFdefB (l3, stmts_intro ps1 cs tmn1) F1 = true )
   (HinOps: valueInTmnOperands v tmn1) 
   (Hused: used_in_value id0 v = true),
   id_in_reachable_block F1 id0 \/ In id0 (getArgsIDsOfFdef F1).
@@ -1288,7 +1296,7 @@ Lemma reachable_used_in_incoming_value__id_in_reachable_block: forall b pn b0
 Proof.
   intros. destruct pn.
   destruct Hwfpn as [Hwfpi _].
-  destruct b0.
+  destruct b0 as [? []].
   simpl in Hget.
   apply used_in_value_inv in Hused. subst.
   apply getValueViaLabelFromValuels__nth_list_value_l in Hget.
@@ -1299,7 +1307,7 @@ Proof.
   assert (Hlkup:=HBinF).
   apply blockInFdefB_lookupBlockViaLabelFromFdef in Hlkup; auto.
   uniq_result. 
-  destruct Hget as [[b' [J1 J2]] | Hget]; try congruence.
+  destruct Hget as [[b' [J1 J2]] | Hget]; try (simpl in *; congruence).
     intros b'' Hlkup''. uniq_result. 
     eapply blockDominates_isReachableFromEntry; eauto.
 Qed.
@@ -1307,7 +1315,7 @@ Qed.
 Lemma reachable_used_in_incoming_values__id_in_reachable_block: forall l3 ps1 cs 
   tmn1 pn b0
   (Hreach: isReachableFromEntry F1 b0) (HBinF0: blockInFdefB b0 F1 = true)
-  (HBinF: blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true ) v
+  (HBinF: blockInFdefB (l3, stmts_intro ps1 cs tmn1) F1 = true ) v
   (Hget: getValueViaBlockFromPHINode pn b0 = Some v) (Hin: In pn ps1)
   (Hused: used_in_value id0 v = true),
   id_in_reachable_block F1 id0 \/ In id0 (getArgsIDsOfFdef F1).
@@ -1341,9 +1349,9 @@ Variable (S:system) (M:module) (F1:fdef) (id0:id).
 Hypothesis (Huniq: uniqFdef F1) (HwfF: wf_fdef S M F1).
 
 Lemma runused_in_fdef__used_in_cmd_value : forall l3 ps1 cs c v tmn1
-  (Hreach: isReachableFromEntry F1 (block_intro l3 ps1 cs tmn1))
+  (Hreach: isReachableFromEntry F1 (l3, stmts_intro ps1 cs tmn1))
   (Hruse: runused_in_fdef id0 F1)
-  (HbInF: blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true)
+  (HbInF: blockInFdefB (l3, stmts_intro ps1 cs tmn1) F1 = true)
   (HinOps: valueInCmdOperands v c) (HinCs: In c cs),
   used_in_value id0 v = false.
 Proof.
@@ -1355,9 +1363,9 @@ Proof.
 Qed.
 
 Lemma runused_in_fdef__used_in_tmn_value : forall l3 ps1 cs v tmn1 
-  (Hreach: isReachableFromEntry F1 (block_intro l3 ps1 cs tmn1))
+  (Hreach: isReachableFromEntry F1 (l3, stmts_intro ps1 cs tmn1))
   (Hruse: runused_in_fdef id0 F1)
-  (HbInF: blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true)
+  (HbInF: blockInFdefB (l3, stmts_intro ps1 cs tmn1) F1 = true)
   (HinOpse: valueInTmnOperands v tmn1),
   used_in_value id0 v = false.
 Proof.
@@ -1371,7 +1379,7 @@ Qed.
 Lemma runused_in_fdef__used_in_getValueViaBlockFromPHINode : forall pn b0
   l3 ps1 cs tmn1
   (Hreach: isReachableFromEntry F1 b0) (HBinF0: blockInFdefB b0 F1 = true)
-  (HBinF: blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true ) v
+  (HBinF: blockInFdefB (l3, stmts_intro ps1 cs tmn1) F1 = true ) v
   (Hget: getValueViaBlockFromPHINode pn b0 = Some v) 
   (Hin: In pn ps1)
   (Hruse : runused_in_fdef id0 F1),
@@ -1432,9 +1440,9 @@ Hypothesis (Huniq: uniqFdef F) (HwfF: wf_fdef S M F).
 
 Lemma conditional_runused_in_fdef__used_in_tmn_value: forall (l3 : l)
   (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator)
-  (Hreach: isReachableFromEntry F (block_intro l3 ps1 cs tmn1))
+  (Hreach: isReachableFromEntry F (l3, stmts_intro ps1 cs tmn1))
   (Hruse: runused_in_fdef id0 F0),
-  blockInFdefB (block_intro l3 ps1 cs tmn1) F = true ->
+  blockInFdefB (l3, stmts_intro ps1 cs tmn1) F = true ->
   valueInTmnOperands v tmn1 ->
   conditional_used_in_value F0 F id0 v.
 Proof.
@@ -1446,9 +1454,9 @@ Qed.
 
 Lemma conditional_runused_in_fdef__used_in_cmd_value: forall (l3 : l) c
   (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator)
-  (Hreach: isReachableFromEntry F (block_intro l3 ps1 cs tmn1)),
+  (Hreach: isReachableFromEntry F (l3, stmts_intro ps1 cs tmn1)),
   runused_in_fdef id0 F0 ->
-  blockInFdefB (block_intro l3 ps1 cs tmn1) F = true ->
+  blockInFdefB (l3, stmts_intro ps1 cs tmn1) F = true ->
   In c cs ->
   valueInCmdOperands v c ->
   conditional_used_in_value F0 F id0 v.
@@ -1462,7 +1470,7 @@ Qed.
 Lemma conditional_runused_in_fdef__used_in_getValueViaBlockFromPHINode : forall pn b0
   l3 ps1 cs tmn1
   (Hreach: isReachableFromEntry F b0) (HBinF0: blockInFdefB b0 F = true)
-  (HBinF: blockInFdefB (block_intro l3 ps1 cs tmn1) F = true ) v
+  (HBinF: blockInFdefB (l3, stmts_intro ps1 cs tmn1) F = true ) v
   (Hget: getValueViaBlockFromPHINode pn b0 = Some v) 
   (Hin: In pn ps1)
   (Hruse : runused_in_fdef id0 F0),
@@ -1479,10 +1487,10 @@ Lemma conditional_runused_in_fdef__used_in_list_value: forall (l3 : l)
   (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator)
   cs11 inbounds0 t v idxs cs t' id1
   (Hreach: isReachableFromEntry F 
-    (block_intro l3 ps1 (cs11 ++ insn_gep id1 inbounds0 t v idxs t':: cs) tmn1)),
+    (l3, stmts_intro ps1 (cs11 ++ insn_gep id1 inbounds0 t v idxs t':: cs) tmn1)),
   runused_in_fdef id0 F0 ->
   blockInFdefB
-    (block_intro l3 ps1 (cs11 ++ insn_gep id1 inbounds0 t v idxs t':: cs) tmn1) F
+    (l3, stmts_intro ps1 (cs11 ++ insn_gep id1 inbounds0 t v idxs t':: cs) tmn1) F
       = true ->
   conditional_used_in_list_value F0 F id0 idxs.
 Proof.
@@ -1502,10 +1510,10 @@ Lemma conditional_runused_in_fdef__used_in_params: forall (l3 : l)
   (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator)
   cs11 rid noret0 ca rt1 va1 fv lp cs
   (Hreach: isReachableFromEntry F 
-    (block_intro l3 ps1 (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1)),
+    (l3, stmts_intro ps1 (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1)),
   runused_in_fdef id0 F0 ->
   blockInFdefB
-    (block_intro l3 ps1 (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1) F
+    (l3, stmts_intro ps1 (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1) F
       = true ->
   conditional_used_in_params F0 F id0 lp.
 Proof.
@@ -1601,7 +1609,7 @@ Qed.
 Lemma subst_unused_in_block: forall b,
   used_in_block id1 (subst_block id1 v1 b) = false.
 Proof.
-  destruct b. simpl. 
+  destruct b as [? []]. simpl. 
   rewrite subst_unused_in_phinodes; auto.
   rewrite subst_unused_in_cmds; auto.
   rewrite subst_unused_in_tmn; auto.
@@ -1840,8 +1848,8 @@ Definition remove_lifetime_from_fdef (f:fdef) : fdef :=
 let '(fdef_intro fh bs) := f in
   fdef_intro fh
        (List.map (fun b =>
-                  let '(block_intro l0 ps0 cs tmn0) := b in
-                  block_intro l0 ps0 (remove_lifetime_from_cmds cs) tmn0) bs).
+                  let '(l0, stmts_intro ps0 cs tmn0) := b in
+                  (l0, stmts_intro ps0 (remove_lifetime_from_cmds cs) tmn0)) bs).
 
 Definition remove_lifetime_from_module := 
   transf_from_module remove_lifetime_from_fdef.
@@ -1901,7 +1909,7 @@ end.
 
 Definition remove_dbg_declares_from_fdef (f:fdef) : fdef :=
 match getEntryBlock f with
-| Some (block_intro _ _ cs _) => remove_dbg_declares f cs
+| Some (_, stmts_intro _ cs _) => remove_dbg_declares f cs
 | _ => f
 end.
 
@@ -1918,7 +1926,7 @@ Parameter check_bname : l -> TNAME -> option (l * TNAME).
 
 Definition fix_temporary_block (f:fdef) (b:block) (eid:TNAME) : 
   option (fdef * TNAME) :=
-  let '(block_intro l0 ps cs _) := b in
+  let '(l0, stmts_intro ps cs _) := b in
   match check_bname l0 eid with
   | Some (l0', eid5) =>
     let st :=
@@ -1993,138 +2001,3 @@ Definition fix_temporary_module :=
 		      | Some f' => f'
                       | _ => f
                       end).
-
-(*
-Definition fix_temporary_ps (ps:phinodes) (eid:TNAME)
-  : option (phinodes * TNAME) :=
-match fold_left
-      (fun st p =>
-       match st with
-       | Some (ps0, eid0) =>
-           let pid := getPhiNodeID p in
-           match check_vname pid eid0 with
-           | None => None
-           | Some (pid', eid') =>
-               if (id_dec pid pid') then Some (p::ps0, eid')
-               else Some ((rename_phi pid pid' p)::ps0, eid')
-           end
-       | _ => None
-       end) 
-       ps (Some (nil, eid)) with
-| Some (ps', eid') => Some (rev ps', eid')
-| None => None
-end.
-
-Definition fix_temporary_cs (cs:cmds) (eid:TNAME) : option (cmds * TNAME) :=
-match fold_left
-      (fun st c =>
-       match st with
-       | Some (cs0, eid0) =>
-           match getCmdID c with
-           | None => Some (c::cs0, eid0)
-           | Some cid =>
-              match check_vname cid eid0 with
-              | None => None
-              | Some (cid', eid') =>
-                  if (id_dec cid cid') then Some (c::cs0, eid')
-                  else Some ((rename_cmd cid cid' c)::cs0, eid')
-              end
-           end
-       | _ => None
-       end) cs (Some (nil, eid)) with
-| Some (cs', eid') => Some (rev cs', eid')
-| None => None
-end.
-
-Definition fix_temporary_block (b:block) (eid:TNAME) (mp: AssocList l)
-  : option (block * TNAME * AssocList l) :=
-  let '(block_intro l0 ps cs tmn) := b in
-  match check_bname l0 eid with
-  | Some (l0', eid5) =>
-    match fix_temporary_ps ps eid5 with
-    | None => None
-    | Some (ps', eid5') =>
-        match fix_temporary_cs cs eid5' with
-        | None => None
-        | Some (cs', eid5'') => 
-            Some (block_intro l0 ps' cs' tmn, eid5'', (l0,l0')::mp)
-        end
-    end
-  | None => None
-  end.
-
-Definition renamels_l (mp: AssocList l) (id0:l) : l :=
-match lookupAL _ mp id0 with
-| Some id1 => id1
-| _ => id0
-end.
-
-Fixpoint renamels_list_value_l (mp: AssocList l) (l0:list (value * l)) 
-  : list (value * l) :=
-match l0 with
-| nil => nil
-| (v0, l0) :: tl =>
-   (v0, (renamels_l mp l0)) :: (renamels_list_value_l mp tl)
-end.
-
-Definition renamels_phi (mp: AssocList l) (pn:phinode) : phinode :=
-match pn with
-| insn_phi id0 t0 vls =>
-    insn_phi id0 t0 (renamels_list_value_l mp vls)
-end.
-
-Definition renamels_tmn (mp: AssocList l) (tmn:terminator) : terminator :=
-match tmn with
-| insn_br bid c lt lf => insn_br bid c (renamels_l mp lt) (renamels_l mp lf)
-| insn_br_uncond bid ln => insn_br_uncond bid (renamels_l mp ln)
-| _ => tmn
-end.
-
-Definition renamels_block (mp: AssocList l) (b:block) : block := 
-match b with
-| block_intro l0 ps0 cs0 tmn0 =>
-  block_intro (renamels_l mp l0) (List.map (renamels_phi mp) ps0) cs0 
-    (renamels_tmn mp tmn0)
-end.
-
-Definition renamels_fdef (mp: AssocList l) (f:fdef) : fdef :=
-match f with
-| fdef_intro fh bs =>
-    fdef_intro fh (List.map (renamels_block mp) bs)
-end.
-
-Definition fix_temporary_fdef (f:fdef) : option fdef :=
-  let '(fdef_intro ((fheader_intro _ _ _ ars _) as fh) bs) := f in
-  (* arguments can also contain temporaries, scan args first *)
-  let st0 := fold_left 
-    (fun st ar =>
-     match st with
-     | None => None
-     | Some eid0 =>
-        let '(_, aid) := ar in
-        match check_vname aid eid0 with
-        | None => None
-        | Some (_, eid1) => Some eid1
-        end
-     end) ars (Some (init_expected_name tt)) in
-  match st0 with
-  | None => None
-  | Some eid =>
-    match fold_left 
-      (fun st b => 
-       match st with
-       | Some (bs0, eid0, mp0) =>
-           match fix_temporary_block b eid0 mp0 with
-           | Some (b1, eid1, mp1) => Some (b1::bs0, eid1, mp1)
-           | None => None
-           end
-       | _ => None
-       end) bs (Some (nil, eid, nil)) with
-    | Some (bs', _, mp) => Some (renamels_fdef mp (fdef_intro fh (rev bs')))
-    | None => None
-    end
-  end.
-
-*)
-
-

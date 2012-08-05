@@ -122,14 +122,13 @@ Hypothesis getEntryBlock_inv : forall
   (ps : phinodes)
   (cs : cmds)
   (tmn : terminator)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hsucc : In l' (successors_terminator tmn)) a ps0 cs0 tmn0
-  (H : getEntryBlock f = Some (block_intro a ps0 cs0 tmn0)),
+  (HBinF : blockInFdefB (l3, stmts_intro ps cs tmn) f = true)
+  (Hsucc : In l' (successors_terminator tmn)) a s0
+  (H : getEntryBlock f = Some (a, s0)),
   l' <> a.
 
-Lemma entry_has_no_preds: forall (l5 : l) (phinodes5 : phinodes)
-  (cmds5 : cmds) (terminator5 : terminator)
-  (HeqR : Some (block_intro l5 phinodes5 cmds5 terminator5) = getEntryBlock f)
+Lemma entry_has_no_preds: forall (l5 : l) s5
+  (HeqR : Some (l5, s5) = getEntryBlock f)
   (a0 : ATree.elt) (Hin: In l5 ((successors f) !!! a0)),
   False.
 Proof.

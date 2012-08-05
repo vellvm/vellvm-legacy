@@ -20,7 +20,7 @@ let slow_dom f =
        if !gen_dtree then
            (match Analysis.reachablity_analysis f with
             | Some rd ->
-               let LLVMsyntax.Coq_block_intro (root, _, _, _) = b in
+               let (root, _) = b in
                let chains = Dom_set_tree.compute_sdom_chains dts rd in
                let dt = Dom_tree.create_dtree_from_chains 
                           MetatheoryAtom.AtomImpl.eq_atom_dec root chains in

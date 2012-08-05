@@ -6,8 +6,6 @@ Require Import ListSet.
 Require Import Bool.
 Require Import Arith.
 Require Import Compare_dec.
-Require Import Recdef.
-Require Import Coq.Program.Wf.
 Require Import Omega.
 Require Import monad.
 Require Import Decidable.
@@ -157,14 +155,9 @@ end.
 Definition getPhiNodesIDs (ps:phinodes) : list atom :=
   map getPhiNodeID ps.
 
-Definition getBlockIDs (b:block) : list atom :=
-let '(block_intro _ ps cs _) := b in
+Definition getStmtsIDs (st:stmts) : list atom :=
+let '(stmts_intro ps cs _) := st in
 getPhiNodesIDs ps ++ getCmdsIDs cs.
-
-Definition label_of_block (b:block) : l :=
-match b with
-| block_intro l1 _ _ _ => l1
-end.
 
 Fixpoint getArgsIDs (la:args) : list atom :=
 match la with
@@ -571,19 +564,13 @@ end.
 
 Definition getCmdsFromBlock (b:block) : cmds :=
 match b with
-| block_intro l _ li _ => li
-(* | block_without_label li => li *)
-end.
-
-Definition getPhiNodesFromBlock (b:block) : phinodes :=
-match b with
-| block_intro l li _ _ => li
+| (_, stmts_intro _ li _) => li
 (* | block_without_label li => li *)
 end.
 
 Definition getTerminatorFromBlock (b:block) : terminator :=
 match b with
-| block_intro l _ _ t => t
+| (_, stmts_intro _ _ t) => t
 (* | block_without_label li => li *)
 end.
 
@@ -700,9 +687,7 @@ match vls with
 end.
 
 Definition getValueViaBlockFromValuels (vls:list (value * l)) (b:block) : option value :=
-match b with
-| block_intro l _ _ _ => getValueViaLabelFromValuels vls l
-end.
+getValueViaLabelFromValuels vls (fst b).
 
 Definition getValueViaBlockFromPHINode (i:phinode) (b:block) : option value :=
 match i with
@@ -711,7 +696,7 @@ end.
 
 Definition getPHINodesFromBlock (b:block) : list phinode :=
 match b with
-| (block_intro _ lp _ _) => lp
+| (_, stmts_intro lp _ _) => lp
 end.
 
 Definition getEntryBlock (fd:fdef) : option block :=
@@ -722,13 +707,8 @@ end.
 
 Definition getEntryLabel (f:fdef) : option l :=
 match f with
-| fdef_intro _ ((block_intro l0 _ _ _)::_) => Some l0
+| fdef_intro _ ((l0, _)::_) => Some l0
 | _ => None
-end.
-
-Definition getEntryCmds (b:block) : cmds :=
-match b with
-| block_intro _ _ lc _ => lc
 end.
 
 Definition floating_point_order (fp1 fp2:floating_point) : bool :=
@@ -776,7 +756,7 @@ end.
 
 Definition lookupInsnViaIDFromBlock (b:block) (id0:id) : option insn :=
 match b with
-| block_intro _ ps cs t =>
+| (_, stmts_intro ps cs t) =>
   match (lookupPhiNodeViaIDFromPhiNodes ps id0) with
   | None =>
       match (lookupCmdViaIDFromCmds cs id0) with
@@ -817,9 +797,9 @@ match cs with
 | c::cs' => getCmdLoc c::getCmdsLocs cs'
 end.
 
-Definition getBlockLocs b : ids :=
-match b with
-| block_intro l ps cs t =>
+Definition getStmtsLocs (sts:stmts) : ids :=
+match sts with
+| (stmts_intro ps cs t) =>
   getPhiNodesIDs ps++getCmdsLocs cs++(getTerminatorID t::nil)
 end.
 
@@ -827,7 +807,7 @@ Fixpoint lookupBlockViaIDFromBlocks (lb:blocks) (id1:id) : option block :=
 match lb with
 | nil => None
 | b::lb' =>
-  match (In_dec eq_dec id1 (getBlockIDs b)) with
+  match (In_dec eq_dec id1 (getStmtsIDs (snd b))) with
   | left _ => Some b
   | right _ => lookupBlockViaIDFromBlocks lb' id1
   end
@@ -964,7 +944,7 @@ end.
 
 Definition lookupTypViaIDFromBlock (b:block) (id0:id) : option typ :=
 match b with
-| block_intro l ps cs t =>
+| (_, stmts_intro ps cs t) =>
   match (lookupTypViaIDFromPhiNodes ps id0) with
   | None =>
     match (lookupTypViaIDFromCmds cs id0) with
@@ -1065,165 +1045,24 @@ lookupTypViaTIDFromModules s id0.
 (**********************************)
 (* labels <-> blocks. *)
 
-  Definition l2block := list (l*block).
+  Definition lookupBlockViaLabelFromBlocks (bs:blocks) (l0:l) : option stmts :=
+  lookupAL _ bs l0.
 
-  Definition genLabel2Block_block (b:block) : l2block :=
-  match b with
-  | block_intro l _ _ _ => (l,b)::nil
-  end.
-
-  Fixpoint genLabel2Block_blocks (bs:blocks) : l2block :=
-  match bs with
-  | nil => nil
-  | b::bs' => (genLabel2Block_block b)++(genLabel2Block_blocks bs')
-  end.
-
-  Definition genLabel2Block_fdef (f:fdef) : l2block :=
-  match f with
-  | fdef_intro fheader blocks => genLabel2Block_blocks blocks
-  end.
-
-  Fixpoint genLabel2Block_product (p:product) : l2block :=
-  match p with
-  | product_gvar g => nil
-  | product_fdef f => (genLabel2Block_fdef f)
-  | product_fdec f => nil
-  end.
-
-  Fixpoint genLabel2Block_products (ps:products) : l2block :=
-  match ps with
-  | nil => nil
-  | p::ps' => (genLabel2Block_product p)++(genLabel2Block_products ps')
-  end.
-
-  Definition genLabel2Block (m: module) : l2block :=
-  let (os, dts, ps) := m in
-  genLabel2Block_products ps.
-
-  Definition getNonEntryOfFdef (f:fdef) : blocks :=
-  match f with
-  | fdef_intro fheader blocks =>
-    match blocks with
-    | nil => nil
-    | b::blocks' => blocks'
-    end
-  end.
-
-  Definition lookupBlockViaLabelFromBlocks (bs:blocks) (l0:l) : option block :=
-  lookupAL _ (genLabel2Block_blocks bs) l0.
-
-  Definition lookupBlockViaLabelFromFdef (f:fdef) (l0:l) : option block :=
+  Definition lookupBlockViaLabelFromFdef (f:fdef) (l0:l) : option stmts :=
   let '(fdef_intro _ bs) := f in
-  lookupAL _ (genLabel2Block_fdef f) l0.
-
-  Fixpoint getLabelsFromBlocks (lb:blocks) : ls :=
-  match lb with
-  | nil => lempty_set
-  | (block_intro l0 _ _ _)::lb' => lset_add l0 (getLabelsFromBlocks lb')
-  end.
+  lookupAL _ bs l0.
 
 (**********************************)
 (* generate block use-def *)
 
-  Definition update_udb (udb:usedef_block) (lu ld:l) : usedef_block :=
-  let ls :=
-    match lookupAL _ udb ld with
-    | Some ls => ls
-    | None => nil
-    end in
-  match (in_dec l_dec lu ls) with
-  | left _ => udb
-  | right _ => updateAddAL _ udb ld (lu::ls)
-  end.
-
-  Definition genBlockUseDef_block b (udb:usedef_block) : usedef_block :=
-  match b with
-  | block_intro l0 _ _ tmn2 =>
-    match tmn2 with
-    | insn_br _ _ l1 l2 => update_udb (update_udb udb l0 l2) l0 l1
-    | insn_br_uncond _ l1 => update_udb udb l0 l1
-    | _ => udb
-    end
-  end.
-
-  Fixpoint genBlockUseDef_blocks bs (udb:usedef_block) : usedef_block :=
-  match bs with
-  | nil => udb
-  | b::bs' => genBlockUseDef_blocks bs' (genBlockUseDef_block b udb)
-  end.
-
-  Definition genBlockUseDef_fdef f2 : usedef_block :=
-  match f2 with
-  | fdef_intro _ lb2 => genBlockUseDef_blocks lb2 nil
-  end.
-
-  Definition getBlockLabel (b:block) : l :=
-  match b with
-  | block_intro l _ _ _ => l
-  end.
-
-Definition getBlockTmn (b:block) : terminator :=
-match b with
-| block_intro _ _ _ tmn => tmn
-end.
-
-  Definition getBlockUseDef (udb:usedef_block) (b:block) : option (list l) :=
-  lookupAL _ udb (getBlockLabel b).
+  Definition getBlockLabel (b:block) : l := fst b.
 
 (**********************************)
 (* CFG. *)
 
   Definition getTerminator (b:block) : terminator :=
   match b with
-  | block_intro l _ _ t => t
-  end.
-
-  Fixpoint getLabelsFromSwitchCases (cs:list (const*l)) : ls :=
-  match cs with
-  | nil => lempty_set
-  | (_, l0)::cs' => lset_add l0 (getLabelsFromSwitchCases cs')
-  end.
-
-  Definition getLabelsFromTerminator (i:terminator) : ls :=
-  match i with
-  | insn_br _ v l1 l2 => lset_add l1 (lset_add l2 lempty_set)
-  | insn_br_uncond _ l0 => lset_add l0 lempty_set
-  (* | insn_switch _ t v l0 cls => lset_add l0 (getLabelsFromSwitchCases cls) *)
-  (* | insn_invoke id typ id0 ps l1 l2 => lset_add l1 (lset_add l2 lempty_set) *)
-  | _ => empty_set l
-  end.
-
-  Fixpoint getBlocksFromLabels (ls0:ls) (l2b:l2block): blocks :=
-  match ls0 with
-  | nil => nil
-  | l0::ls0' =>
-    match (lookupAL _ l2b l0) with
-    | None => getBlocksFromLabels ls0' l2b
-    | Some b => b::getBlocksFromLabels ls0' l2b
-    end
-  end.
-
-  Definition succOfBlock (b:block) (m:module) : blocks :=
-  match (getTerminator b) with
-  | i => getBlocksFromLabels (getLabelsFromTerminator i) (genLabel2Block m)
-  end.
-
-  Definition predOfBlock (b:block) (udb:usedef_block) : list l :=
-  match (lookupAL _ udb (getBlockLabel b)) with
-  | None => nil
-  | Some re => re
-  end.
-
-  Definition hasSinglePredecessor (b:block) (udb:usedef_block) : bool :=
-  match predOfBlock b udb with
-  | _::nil => true
-  | _ => false
-  end.
-
-  Definition hasNonePredecessor (b:block) (udb:usedef_block) : bool :=
-  match predOfBlock b udb with
-  | nil => true
-  | _ => false
+  | (_, stmts_intro _ _ t) => t
   end.
 
   Definition successors_terminator (tmn: terminator) : ls :=
@@ -1473,22 +1312,15 @@ end.
 (*************************************************)
 (*         Uniq                                  *)
 
-Fixpoint getBlocksLocs bs : ids :=
+Fixpoint getBlocksLocs (bs:blocks) : ids :=
 match bs with
 | nil => nil
-| b::bs' => getBlockLocs b++getBlocksLocs bs'
-end.
-
-Fixpoint getBlocksLabels bs : ls :=
-match bs with
-| nil => nil
-| (block_intro l _ _ _)::bs' => l::getBlocksLabels bs'
+| b::bs' => getStmtsLocs (snd b)++getBlocksLocs bs'
 end.
 
 Definition uniqBlocks bs : Prop :=
-let ls := getBlocksLabels bs in
 let ids := getBlocksLocs bs in
-NoDup ls /\ NoDup ids.
+uniq bs /\ NoDup ids.
 
 Definition uniqFdef fdef : Prop :=
 match fdef with
@@ -1921,8 +1753,8 @@ Qed.
 
 Lemma block_dec : forall (b1 b2:block), {b1=b2}+{~b1=b2}.
 Proof.
-  destruct b1 as [l5 phinodes5 cmds5 terminator5];
-  destruct b2 as [l0 phinodes0 cmds0 terminator0]; try solve [done_right | auto].
+  destruct b1 as [l5 [phinodes5 cmds5 terminator5]];
+  destruct b2 as [l0 [phinodes0 cmds0 terminator0]]; try solve [done_right | auto].
     destruct (@id_dec l5 l0); subst; try solve [done_right].
     destruct (@phinodes_dec phinodes5 phinodes0); subst; try solve [done_right].
     destruct (@cmds_dec cmds5 cmds0); subst; try solve [done_right].
@@ -2230,17 +2062,17 @@ end.
 
 Definition cmdInBlockB (i:cmd) (b:block) : bool :=
 match b with
-| block_intro l _ cmds _ => InCmdsB i cmds
+| (_, stmts_intro _ cmds _) => InCmdsB i cmds
 end.
 
 Definition phinodeInBlockB (i:phinode) (b:block) : bool :=
 match b with
-| block_intro l ps _ _ => InPhiNodesB i ps
+| (_, stmts_intro ps _ _) => InPhiNodesB i ps
 end.
 
 Definition terminatorInBlockB (i:terminator) (b:block) : bool :=
 match b with
-| block_intro l _ _ t => terminatorEqB i t
+| (_, stmts_intro _ _ t) => terminatorEqB i t
 end.
 
 Fixpoint InArgsB (a:arg) (la:args) {struct la} : bool :=

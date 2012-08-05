@@ -184,9 +184,6 @@ formula :: 'formula_' ::=
   | params <-> </ paramj // j /> :: M :: params_alias
                                 {{ com params_alias }}
                                 {{ coq [[params]] = [[ </ paramj // j /> ]] }}
-  | getNthTyp </ typj // j /> INT = opt_typ ::   :: getNthTyp
-    	      	       	   	{{ com getNthTyp }}
-				{{ coq nth_error [[ </ typj // j /> ]] [[INT]] = [[opt_typ]] }}
   | insn =id= insn'        :: M :: getInsnID_eq
     	      	      	      	{{ tex [[insn]] =id= [[insn']] }}
 				{{ coq getInsnID [[insn]] = getInsnID [[insn']] }}
@@ -268,8 +265,8 @@ formula :: 'formula_' ::=
                                 {{ coq getGEPTyp [[ </ szj , valuej // j /> ]] [[typ]] = [[opt_typ]] }}
   | Typ.isSized typ :: :: TypIsSized
                                 {{ coq Typ.isSized [[typ]] = true }}
-  | lookupBlockViaLabelFromFdef fdef l = opt_block :: :: lookupBlockViaLabelFromFdef
-                                {{ coq lookupBlockViaLabelFromFdef [[fdef]] [[l]] = [[opt_block]] }}
+  | lookupBlockViaLabelFromFdef fdef l = opt_stmts :: :: lookupBlockViaLabelFromFdef
+                                {{ coq lookupBlockViaLabelFromFdef [[fdef]] [[l]] = [[opt_stmts]] }}
   | Typ.getPrimitiveSizeInBits typ = sz :: :: TypgetPrimitiveSizeInBits
                                 {{ coq Typ.getPrimitiveSizeInBits [[typ]] = [[sz]] }}
   | isPhiNode insn :: :: isPhiNode
@@ -864,8 +861,8 @@ Jwf_insn :: '' ::=
       system , module , fdef |- value : int sz
       sz = 1
       % Check labels
-      lookupBlockViaLabelFromFdef fdef l1 = block1
-      lookupBlockViaLabelFromFdef fdef l2 = block2
+      lookupBlockViaLabelFromFdef fdef l1 = stmts1
+      lookupBlockViaLabelFromFdef fdef l2 = stmts2
       not (l1 = l2)
       % Check invariance for instructions
       fdef , block |-i id = br value l1 l2
@@ -873,11 +870,11 @@ Jwf_insn :: '' ::=
       system , module , fdef , block |- id = br value l1 l2
 
       % Check labels
-      lookupBlockViaLabelFromFdef fdef l = block
+      lookupBlockViaLabelFromFdef fdef l0 = stmts0
       % Check invariance for instructions
-      fdef , block |-i id = br l
+      fdef , block |-i id = br l0
       -------------------------------------------------------------------------------------- :: wf_insn_br_uncond
-      system , module, fdef , block |- id = br l
+      system , module, fdef , block |- id = br l0
 
       % fdef , block |-i id = invoke typ0 id0 params to l1 unwind l2
       % -------------------------------------------------------------------------------------- :: wf_insn_invoke

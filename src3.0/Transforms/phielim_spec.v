@@ -90,14 +90,14 @@ Proof.
   apply destruct_insnInFdefBlockB in Hinc.
   destruct Hinc as [HPinB HBinF].
   assert (Hwfp:=HBinF). 
-  destruct b as [l0 ps0 cs0 tmn0].
+  destruct b as [l0 [ps0 cs0 tmn0]].
   simpl in HPinB. apply InPhiNodesB_In in HPinB.
   eapply wf_fdef__wf_phinodes in Hwfp; eauto.
   eapply wf_phinodes__wf_phinode in Hwfp; eauto.
   inv Hwfp.
   assert (lookupBlockViaIDFromFdef f 
            (getPhiNodeID (insn_phi pid ty vls)) = 
-           Some (block_intro l0 ps0 cs0 tmn0)) as Hlkup.
+           Some (l0, stmts_intro ps0 cs0 tmn0)) as Hlkup.
     solve_lookupBlockViaIDFromFdef.
   match goal with
   | H6: wf_phinode _  _ _ |- _ => destruct H6 as [Hwfops Hwflist]
@@ -106,13 +106,13 @@ Proof.
     try solve [intros Hentry; apply wf_fdef__non_entry in Hwf; auto; congruence].
   intros be Hentry.
   destruct (l_dec (getBlockLabel be) 
-                  (getBlockLabel (block_intro l0 ps0 cs0 tmn0))) as [Heq | Hneq].
+                  (getBlockLabel (l0, stmts_intro ps0 cs0 tmn0))) as [Heq | Hneq].
   Case "the current block is entry? no!".
     destruct be; simpl in *; subst.
     assert (HBinF':=Hentry).
     apply entryBlockInFdef in HBinF'.
     eapply blockInFdefB_uniq in HBinF; eauto.
-    destruct HBinF as [EQ1 [EQ2 EQ3]]; subst.
+    inv HBinF.
     eapply wf_fdef_entryBlock_has_no_phinodes in Hentry; eauto.
     subst; tauto.
 
@@ -212,9 +212,9 @@ Inductive identity_phi: phinode -> Prop :=
 .
 
 Lemma identity_phi__selfrefl_phi: forall l0 ps0 cs0 tmn0 f p
-  (HBinF: blockInFdefB (block_intro l0 ps0 cs0 tmn0) f = true)
+  (HBinF: blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true)
   (Hin: In p ps0) (Hid: identity_phi p) (Huniq: uniqFdef f),
-  selfrefl_phi f (block_intro l0 ps0 cs0 tmn0) p.
+  selfrefl_phi f (l0, stmts_intro ps0 cs0 tmn0) p.
 Proof.
   intros.
   inv Hid.
@@ -235,13 +235,13 @@ Qed.
 Lemma identity_phi_cannot_be_in_reachable_blocks: forall S M p f
   l0 ps0 cs0 tmn0 (Hreach: reachable f l0) 
   (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
-  (HBinF: blockInFdefB (block_intro l0 ps0 cs0 tmn0) f = true)
+  (HBinF: blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true)
   (Hin: In p ps0) (Hid: identity_phi p),
   False. 
 Proof.
   intros.
   eapply selfrelf_phi_cannot_be_in_reachable_blocks 
-    with (b:=block_intro l0 ps0 cs0 tmn0)(p:=p) in Hwf; 
+    with (b:=(l0, stmts_intro ps0 cs0 tmn0))(p:=p) in Hwf; 
     eauto using identity_phi__selfrefl_phi.
 Qed.
 
@@ -257,12 +257,12 @@ Inductive assigned_phi (v:value): phinode -> Prop :=
 .
 
 Lemma assigned_phi_unreachable_vid__selfrefl_phi: forall l0 ps0 cs0 tmn0 f ty 
-  vls vid (HBinF: blockInFdefB (block_intro l0 ps0 cs0 tmn0) f = true) id0
+  vls vid (HBinF: blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true) id0
   (Hin: In (insn_phi id0 ty vls) ps0) (Hreach: reachable f l0)
   (Has: assigned_phi (value_id vid) (insn_phi id0 ty vls)) (Huniq: uniqFdef f)
   (Hnoreachvid : forall l0 : l,
                  In (value_id vid, l0) vls -> ~ reachable f l0),
-  selfrefl_phi f (block_intro l0 ps0 cs0 tmn0) (insn_phi id0 ty vls).
+  selfrefl_phi f (l0, stmts_intro ps0 cs0 tmn0) (insn_phi id0 ty vls).
 Proof.
   intros.
   inv Has.
@@ -286,7 +286,7 @@ Qed.
 
 Lemma assigned_phi__domination: forall S M p f l0 ps0 cs0 tmn0
   (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
-  (HBinF: blockInFdefB (block_intro l0 ps0 cs0 tmn0) f = true) 
+  (HBinF: blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true) 
   (Hin: In p ps0) v (Has: assigned_phi v p),
   valueDominates f v (value_id (getPhiNodeID p)).
 Proof.
@@ -299,9 +299,9 @@ Proof.
   inv Hwfp.
   assert (lookupBlockViaIDFromFdef f 
            (getPhiNodeID (insn_phi id5 typ5 value_l_list)) = 
-           Some (block_intro l0 ps0 cs0 tmn0)) as Hlkup.
+           Some (l0, stmts_intro ps0 cs0 tmn0)) as Hlkup.
     solve_lookupBlockViaIDFromFdef.
-  assert (isReachableFromEntry f (block_intro l0 ps0 cs0 tmn0)) as Hreach.
+  assert (isReachableFromEntry f (l0, stmts_intro ps0 cs0 tmn0)) as Hreach.
     apply Hidreach; auto.
   match goal with
   | H6: wf_phinode _  _ _ |- _ => destruct H6 as [Hwfops Hwflist]
@@ -310,13 +310,13 @@ Proof.
     try solve [intros Hentry; apply wf_fdef__non_entry in Hwf; auto; congruence].
   intros be Hentry.
   destruct (l_dec (getBlockLabel be) 
-                  (getBlockLabel (block_intro l0 ps0 cs0 tmn0))) as [Heq | Hneq].
+                  (getBlockLabel (l0, stmts_intro ps0 cs0 tmn0))) as [Heq | Hneq].
   Case "the current block is entry? no!".
     destruct be; simpl in *; subst.
     assert (HBinF':=Hentry).
     apply entryBlockInFdef in HBinF'.
     eapply blockInFdefB_uniq in HBinF; eauto.
-    destruct HBinF as [EQ1 [EQ2 EQ3]]; subst.
+    inv HBinF.
     eapply wf_fdef_entryBlock_has_no_phinodes in Hentry; eauto.
     subst; tauto.
 
@@ -325,7 +325,7 @@ Proof.
     eapply entry_blockStrictDominates_others in Hentry_sdom; eauto 1.
     unfold idDominates.
     fill_ctxhole. 
-    caseEq (inscope_of_id f (block_intro l0 ps0 cs0 tmn0)
+    caseEq (inscope_of_id f (l0, stmts_intro ps0 cs0 tmn0)
        (getPhiNodeID (insn_phi id5 typ5 value_l_list))); 
       try solve [intros Hinscope; contradict Hinscope;
                  apply inscope_of_id__total].
@@ -369,7 +369,7 @@ Proof.
             SSSSSCase "bv sdoms blv".
               apply fold_left__spec in H2.
               destruct H2 as [_ [H2 _]].
-              eapply H2 with (b1:=bv)(l1:=getBlockLabel bv); eauto 1.
+              eapply H2 with (b1:=snd bv)(l1:=getBlockLabel bv); eauto 1.
                 assert (getBlockLabel bv <> l0) as Hneq'.
                   apply DecDom.sdom_isnt_refl in Hsdom; auto.
                 apply lookupBlockViaIDFromFdef__blockInFdefB in Hlkbv; auto.
@@ -380,7 +380,7 @@ Proof.
 
                   eapply blockStrictDominates__non_empty_contents in Hentry_sdom; 
                     eauto.
-                solve_lookupBlockViaLabelFromFdef.
+                destruct bv. solve_lookupBlockViaLabelFromFdef.
                 solve_in_list. auto.
             SSSSSCase "bv doesnt sdom blv".
               eapply DecDom.non_sdom__inv in Hnsdom; eauto 1.
@@ -581,7 +581,7 @@ Proof.
   unfold eliminate_phi.
   intros. 
   bdestruct HPinF as HPinB HBinF.
-  destruct b as [l0 ps0 cs0 tmn0].
+  destruct b as [l0 [ps0 cs0 tmn0]].
   simpl in HPinB. apply InPhiNodesB_In in HPinB.
   remember (vmem2reg.remove_redundancy nil 
              (value_id pid :: List.map fst pvls)) as vs.
@@ -731,7 +731,7 @@ Qed.
 Lemma eliminate_phis_true_spec: forall f f' l0 S M 
   (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
   (Hreach: reachable f l0) ps cs0 tmn0
-  (HBinF: blockInFdefB (block_intro l0 ps cs0 tmn0) f = true)
+  (HBinF: blockInFdefB (l0, stmts_intro ps cs0 tmn0) f = true)
   (Helim: (f', true) = eliminate_phis f ps),
   exists p, In p ps /\ 
     ((used_in_fdef (getPhiNodeID p) f = false /\
@@ -740,7 +740,7 @@ Lemma eliminate_phis_true_spec: forall f f' l0 S M
       f' = remove_fdef (getPhiNodeID p) (subst_fdef (getPhiNodeID p) v f)).
 Proof.
   intros.
-  eapply eliminate_phis_true_spec' with (b:=block_intro l0 ps cs0 tmn0); 
+  eapply eliminate_phis_true_spec' with (b:=(l0, stmts_intro ps cs0 tmn0)); 
     simpl; eauto 1.
   intros.
   bsplit; auto. simpl. solve_in_list.
@@ -748,7 +748,7 @@ Qed.
 
 Lemma assigned_phi__wf_value: forall S M p f l0 ps0 cs0 tmn0
   (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
-  (HBinF: blockInFdefB (block_intro l0 ps0 cs0 tmn0) f = true) 
+  (HBinF: blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true) 
   (Hin: In p ps0) v (Hassign: assigned_phi v p),
   forall ty, 
     lookupTypViaIDFromFdef f (getPhiNodeID p) = Some ty ->

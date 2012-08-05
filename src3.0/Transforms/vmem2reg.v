@@ -22,8 +22,8 @@ Definition is_promotable_cmd pid :=
           else acc0).
 
 Definition is_promotable_fun pid :=
-  (fun acc b =>
-     let '(block_intro _ ps cs tmn) := b in
+  (fun acc (b:block) =>
+     let '(_, stmts_intro ps cs tmn) := b in
      if (List.fold_left (fun re p => re || used_in_phi pid p) ps
           (used_in_tmn pid tmn)) then false
      else
@@ -89,7 +89,7 @@ Definition gen_phinode (pid':id) (ty:typ) (nids:ATree.t (id*id*id)) (pds:list l)
 *)
 Definition phinodes_placement_block (pid:id) (ty:typ) (al:align)
   (nids:ATree.t (id*id*id)) (succs preds:ATree.t (list l)) (b:block) : block :=
-   let '(block_intro l0 ps cs tmn) := b in
+   let '(l0, stmts_intro ps cs tmn) := b in
    match ATree.get l0 nids with
    | Some (lid, pid', sid) =>
      let cs' :=
@@ -99,11 +99,11 @@ Definition phinodes_placement_block (pid:id) (ty:typ) (al:align)
        end in
      match ATree.get l0 preds with
      | Some ((_ :: _) as pds) =>
-         block_intro l0
+         (l0, stmts_intro
            ((gen_phinode pid' ty nids pds)::ps)
            (insn_store sid ty (value_id pid') (value_id pid) al::
-            cs ++ cs') tmn
-     | _ => block_intro l0 ps (cs ++ cs') tmn
+            cs ++ cs') tmn)
+     | _ => (l0, stmts_intro ps (cs ++ cs') tmn)
      end
   | _ => b
   end.
@@ -193,7 +193,7 @@ end.
 Definition elim_stld_block (f:fdef) (b: block) (pid:id) (dones:list id) 
   : fdef * bool * list id :=
 match b with
-| block_intro _ _ cs _=> elim_stld_cmds f cs pid dones 
+| (_, stmts_intro _ cs _) => elim_stld_cmds f cs pid dones 
 end.
 
 Definition ElimStld := mkIterPass (list id) id elim_stld_block nil.
@@ -210,10 +210,13 @@ match cs with
 | c::cs' => c :: elim_dead_st_cmds cs' pid
 end.
 
-Definition elim_dead_st_block (pid:id) (b: block) : block :=
-match b with
-| block_intro l0 ps cs tmn => block_intro l0 ps (elim_dead_st_cmds cs pid) tmn
+Definition elim_dead_st_stmts (pid:id) (sts: stmts) : stmts :=
+match sts with
+| (stmts_intro ps cs tmn) => (stmts_intro ps (elim_dead_st_cmds cs pid) tmn)
 end.
+
+Definition elim_dead_st_block (pid:id) (b: block) : block :=
+trans_block (elim_dead_st_stmts pid) b.
 
 Definition elim_dead_st_fdef (pid:id) (f:fdef) : fdef :=
 let '(fdef_intro fh bs) := f in
@@ -231,7 +234,7 @@ fdef_intro fh (List.map (elim_dead_st_block pid) bs).
 Definition macro_mem2reg_fdef_iter (f:fdef) (rd:list l) 
   (succs preds:ATree.t (list l)) (dones:list id) : fdef * bool * list id := 
 match getEntryBlock f with
-| Some (block_intro _ _ cs _) =>
+| Some (_, stmts_intro _ cs _) =>
     match find_promotable_alloca f cs dones with
     | None => (f, false, dones)
     | Some (pid, ty, num, al) =>
@@ -320,7 +323,7 @@ end.
 Definition eliminate_block (f:fdef) (b: block) (ut:unit) (dones:list id) 
   : fdef * bool * list id :=
 match b with
-| block_intro _ ps _ _=> (eliminate_phis f ps, dones)
+| (_, stmts_intro ps _ _) => (eliminate_phis f ps, dones)
 end.
 
 Definition ElimPhi := mkIterPass (list id) unit eliminate_block nil.
@@ -329,7 +332,7 @@ Parameter does_phi_elim : unit -> bool.
 
 Definition mem2reg_fdef (f:fdef) : fdef :=
 match getEntryBlock f, reachablity_analysis f with
-| Some (block_intro root _ cs _), Some rd =>
+| Some (root, stmts_intro _ cs _), Some rd =>
   if print_reachablity rd then
     let '(f1, _) :=
       let succs := successors f in

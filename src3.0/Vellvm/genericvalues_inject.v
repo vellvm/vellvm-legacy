@@ -613,11 +613,11 @@ Proof.
   unfold mcast, mbitcast in *.
   inv J3; try solve [
     destruct op; try solve [
-      destruct t1; try solve [
+      abstract (destruct t1; try solve [
         inv H0 |
         destruct t2; inv H0; eauto using gv_inject_gundef |
         destruct t2; inv H0; eauto using simulation__mcast_aux_helper
-      ]
+      ])
     ]
   ].
 Qed.
@@ -655,7 +655,7 @@ Proof.
   unfold micmp, micmp_int in *.
   rewrite J1. rewrite J2. rewrite J1'. rewrite J2'.  
   rewrite J1 in H1. rewrite J1' in H1. 
-  inv J3; try solve [inv H1; eauto using gv_inject_gundef].
+  inv J3; try solve [inv H1; eauto 3 using gv_inject_gundef].
     inv J3'; try solve [auto | inv H1; eauto using gv_inject_gundef];
     destruct t; try solve [inv H1; eauto using gv_inject_gundef].
       destruct c; inv H1; 

@@ -5,7 +5,7 @@ match goal with
 | Heq3 : exists _,
            exists _,
              exists _,
-               ?B = block_intro _ _ _ _,
+               ?B = (_, stmts_intro _ _ _),
   HBinF1 : blockInFdefB ?B ?F = true,
   HwfCall : OpsemPP.wf_call
               {|
@@ -41,8 +41,8 @@ Ltac simpl_s_genInitState :=
     inv_mbind'
   end;
   match goal with
-  | H: ret ?b = getEntryBlock ?f |- _ =>
-    destruct b as [l0 ps0 cs0 tmn0];
+  | H: ret (_, ?s0) = getEntryBlock ?f |- _ =>
+    destruct s0 as [ps0 cs0 tmn0];
     destruct f as [[f t i0 a v] b];
     inv_mbind'
   end;
@@ -174,9 +174,9 @@ end.
 
 (* copied from SB *)
 Lemma cmds_at_block_tail_next : forall B c cs tmn2,
-  (exists l1, exists ps1, exists cs11, B =
-    block_intro l1 ps1 (cs11 ++ c :: cs) tmn2) ->
-  exists l1, exists ps1, exists cs11, B = block_intro l1 ps1 (cs11 ++ cs) tmn2.
+  (exists l1:l, exists ps1, exists cs11, B =
+    (l1, stmts_intro ps1 (cs11 ++ c :: cs) tmn2)) ->
+  exists l1, exists ps1, exists cs11, B = (l1, stmts_intro ps1 (cs11 ++ cs) tmn2).
 Proof.
   intros.
   destruct H as [l1 [ps1 [cs11 H]]]; subst.

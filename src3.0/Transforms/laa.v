@@ -23,7 +23,7 @@ Definition laa (lid: id) (lalign:align) (cs2:cmds) (b:block) (pinfo:PhiInfo)
   : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\
 store_in_cmds (PI_id pinfo) cs2 = false /\
-let '(block_intro _ _ cs _) := b in
+let '(_, stmts_intro _ cs _) := b in
 exists cs1, exists cs3,
   cs =
   cs1 ++
@@ -44,7 +44,7 @@ Ltac destruct_laainfo :=
 match goal with
 | laainfo: LAAInfo _ |- _ =>
   destruct laainfo as [LAA_lid0 LAA_lalign0 LAA_tail0
-                       [LAA_l0 LAA_ps0 LAA_cs0 LAA_tmn0] LAA_prop0];
+                       [LAA_l0 [LAA_ps0 LAA_cs0 LAA_tmn0]] LAA_prop0];
   destruct LAA_prop0 as 
     [LAA_BInF0 [LAA_stincmds0 [LAA_cs1 [LAA_cs3 LAA_EQ]]]]; subst; simpl
 end.
@@ -74,7 +74,7 @@ Lemma laa__alive_alloca: forall lid lalign cs2 b pinfo,
     b pinfo.
 Proof.
   unfold laa. unfold alive_alloca.
-  intros. destruct b.
+  intros. destruct b as [? []].
   destruct H as [J1 [J2 [cs1 [cs3 J3]]]]; subst.
   split; auto.
   split.
@@ -116,23 +116,23 @@ Lemma LAA_block_spec: forall (pinfo : PhiInfo) (laainfo : LAAInfo pinfo)
                    (PI_typ pinfo) (value_id (PI_id pinfo)) 
                    (LAA_lalign pinfo laainfo) :: CurCmds)))
   (HbInF : blockInFdefB
-            (block_intro l' ps'
+            (l', stmts_intro ps'
                (cs' ++
                 insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo)
                   (value_id (PI_id pinfo)) (LAA_lalign pinfo laainfo) :: CurCmds)
                Terminator) (PI_f pinfo) = true),
-  block_intro l' ps'
+  (l', stmts_intro ps'
      (cs' ++
       insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo)
         (value_id (PI_id pinfo)) (LAA_lalign pinfo laainfo) :: CurCmds) 
-     Terminator =
+     Terminator) =
   LAA_block pinfo laainfo.
 Proof.
   intros.
       assert (In
         (LAA_lid pinfo laainfo)
-        (getBlockIDs
-          (block_intro l' ps'
+        (getStmtsIDs
+          (stmts_intro ps'
             (cs' ++
               insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo)
               (value_id (PI_id pinfo)) (LAA_lalign pinfo laainfo) :: CurCmds)
@@ -148,11 +148,11 @@ Proof.
         (id1:=LAA_lid pinfo laainfo) in HbInF; auto.
       clear Hin.
       destruct laainfo. simpl in *.
-      destruct LAA_block0 as [l1 p ? t].
+      destruct LAA_block0 as [l1 [p ? t]].
       destruct LAA_prop0 as [J1 [J2 [cs1 [cs3 J3]]]]. subst.
       assert (In LAA_lid0
-        (getBlockIDs
-          (block_intro l1 p
+        (getStmtsIDs
+          (stmts_intro p
              (cs1 ++
               insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) 
                  (PI_align pinfo)
@@ -173,7 +173,7 @@ Proof.
 Qed.
 
 Lemma LAA_lid__in_LAA_block_IDs: forall pinfo laainfo,
-  In (LAA_lid pinfo laainfo) (getBlockIDs (LAA_block pinfo laainfo)).
+  In (LAA_lid pinfo laainfo) (getStmtsIDs (snd (LAA_block pinfo laainfo))).
 Proof.
   intros.
   destruct_laainfo.
@@ -251,7 +251,7 @@ Proof.
     [Hreach [HbInF [HfInPs [_ [Hinscope [l' [ps' [cs' EQ]]]]]]]]; subst.
 
   remember (inscope_of_cmd CurFunction
-                 (block_intro l' ps' (cs' ++ c :: CurCmds) Terminator) c) as R.
+                 (l', stmts_intro ps' (cs' ++ c :: CurCmds) Terminator) c) as R.
   destruct R; auto.
 
   assert (uniqFdef CurFunction) as Huniq.
@@ -277,10 +277,10 @@ Proof.
       congruence.
   subst.
 
-  assert (block_intro l' ps'
+  assert ((l', stmts_intro ps'
               (cs' ++ insn_load (LAA_lid pinfo laainfo)
                             (PI_typ pinfo) (value_id (PI_id pinfo))
-                            (LAA_lalign pinfo laainfo) :: CurCmds) Terminator =
+                            (LAA_lalign pinfo laainfo) :: CurCmds) Terminator) =
               AI_block pinfo alinfo) as Heq.
     clear H Hinscope HeqR Hreach.
     transitivity (LAA_block pinfo laainfo); auto.
@@ -291,7 +291,7 @@ Proof.
     apply H; auto.
       clear H.
       destruct alinfo. simpl in *. subst.
-      destruct (LAA_block pinfo laainfo).
+      destruct (LAA_block pinfo laainfo) as [? []].
       assert (AI_alive':=AI_alive).
       destruct AI_alive' as [J1 [J2 [cs1 [cs3 J3]]]]; subst.
       inv Heq.

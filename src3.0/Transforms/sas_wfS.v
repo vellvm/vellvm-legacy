@@ -15,17 +15,17 @@ Lemma find_st_ld__sasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
   (i1 : id) (Hld : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
   (Hwfpi: WF_PhiInfo pinfo)
   s m (HwfF: wf_fdef s m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo))
-  (HBinF : blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true),
+  (HBinF : blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) (PI_f pinfo) = true),
   exists sasinfo:SASInfo pinfo,
     SAS_sid1 pinfo sasinfo = i0 /\
     SAS_sid2 pinfo sasinfo = i1 /\
     SAS_value1 pinfo sasinfo = v /\
     SAS_value2 pinfo sasinfo = v0 /\
-    SAS_block pinfo sasinfo = (block_intro l0 ps0 cs0 tmn0).
+    SAS_block pinfo sasinfo = (l0, stmts_intro ps0 cs0 tmn0).
 Proof.
   intros.
   assert (exists tail, exists sal1, exists sal2, 
-            sas i0 i1 sal1 sal2 v v0 tail (block_intro l0 ps0 cs0 tmn0) pinfo)
+            sas i0 i1 sal1 sal2 v v0 tail (l0, stmts_intro ps0 cs0 tmn0) pinfo)
     as Hsas. 
     unfold sas.
     apply find_init_stld_inl_spec in Hst.
@@ -46,7 +46,7 @@ Proof.
       subst. auto.
   destruct Hsas as [tail [sal1 [sal2 Hsas]]].
   exists (mkSASInfo pinfo i0 i1 sal1 sal2 v v0 tail 
-           (block_intro l0 ps0 cs0 tmn0) Hsas).
+           (l0, stmts_intro ps0 cs0 tmn0) Hsas).
   auto.
 Qed.
 
@@ -58,14 +58,14 @@ Lemma sas_wf_init: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Hst1 : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (v0 : value)
   (Hst2 : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
-  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
   (Hwfpi: WF_PhiInfo pinfo)
   (HwfS :
      wf_system 
        [module_intro los nts
          (Ps1 ++
           product_fdef
-            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+            (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
           :: Ps2)]),
   wf_fdef  [module_intro los nts (Ps1 ++ product_fdef (PI_f pinfo) :: Ps2)]
            (module_intro los nts (Ps1 ++ product_fdef (PI_f pinfo) :: Ps2))
@@ -76,10 +76,10 @@ Lemma sas_wf_init: forall (los : layouts) (nts : namedts) (fh : fheader)
             SAS_sid2 pinfo sasinfo = i1 /\
             SAS_value1 pinfo sasinfo = v /\
             SAS_value2 pinfo sasinfo = v0 /\
-            SAS_block pinfo sasinfo = block_intro l0 ps0 cs0 tmn0.
+            SAS_block pinfo sasinfo = (l0, stmts_intro ps0 cs0 tmn0).
 Proof.
   intros.
-  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true)
+  assert (blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) (PI_f pinfo) = true)
     as HBinF.
     rewrite Heq. simpl. apply InBlocksB_middle.
   assert (wf_fdef [module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)]
@@ -111,14 +111,14 @@ Lemma sas_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Hst1 : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (v0 : value)
   (Hst2 : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
-  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
   (Hwfpi: WF_PhiInfo pinfo)
   (HwfS :
      wf_system 
        [module_intro los nts
          (Ps1 ++
           product_fdef
-            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+            (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
           :: Ps2)]),
   wf_system 
     [module_intro los nts
@@ -126,11 +126,13 @@ Lemma sas_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
        product_fdef
          (fdef_intro fh
            (List.map (remove_block i0)
-             (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)].
+             (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))) :: Ps2)].
 Proof.
   intros.
   assert (J:=HwfS).
   eapply filter_wfS with (check:=undead_insn i0) in HwfS; eauto 1.
+    rewrite <- remove_fdef_is_a_filter in HwfS; auto.
+
     eapply sas_wf_init in J; eauto.
     destruct J as [HwfF [Huniq [sasinfo [J1 [J2 [J3 [J4 J5]]]]]]]; subst.
     eapply fdef_doesnt_use_dead_insn; eauto 1.
@@ -146,24 +148,26 @@ Lemma sas_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Hst1 : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (v0 : value)
   (Hst2 : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
-  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
   (Hwfpi: WF_PhiInfo pinfo)
   (HwfS :
      wf_system 
        [module_intro los nts
          (Ps1 ++
           product_fdef
-            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+            (fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
           :: Ps2)]),
   WF_PhiInfo
     (update_pinfo pinfo
       (fdef_intro fh
         (List.map (remove_block i0)
-           (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))).
+           (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2)))).
 Proof.
   intros.
   assert (J:=HwfS).
   eapply filter_wfPI with (check:=undead_insn i0) in HwfS; eauto.
+    rewrite <- remove_fdef_is_a_filter in HwfS; auto.
+
     eapply sas_wf_init in J; eauto.
     destruct J as [HwfF [Huniq [sasinfo [J1 [J2 [J3 [J4 J5]]]]]]]; subst.
     intros c Hlkup Hdead.

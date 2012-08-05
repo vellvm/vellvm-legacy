@@ -32,7 +32,7 @@ Proof.
   inv_mbind'.
   destruct m as [los nts ps].
   inv_mbind'.
-  destruct b as [l0 ps0 cs0 tmn0].
+  destruct s as [ps0 cs0 tmn0].
   destruct f as [[fa rt fid la va] bs].
   inv_mbind'. symmetry_ctx.
   assert (HlkF2FromS2:=HeqR).
@@ -50,7 +50,7 @@ Proof.
   eapply getEntryBlock__simulation in J; eauto.
   destruct J as [b1 [J5 J6]].
   fill_ctxhole.
-  destruct b1 as [l2 ps2 cs2 tmn2].
+  destruct b1 as [l2 [ps2 cs2 tmn2]].
   destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1].
   assert (J:=Hfsim).
   apply fdef_simulation__eq_fheader in J.
@@ -67,7 +67,7 @@ Proof.
   assert (J:=J6).
   apply block_simulation_inv in J.
   destruct J as [J1 [J2 [J3 J7]]]; subst.
-  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0)
+  assert (blockInFdefB (l0, stmts_intro ps0 cs0 tmn0)
            (fdef_intro (fheader_intro fa rt fid la va) bs) = true) as HBinF.
     apply entryBlockInFdef; auto.
   split; auto.
@@ -597,7 +597,7 @@ Ltac undefined_state__State_simulation_r2l_tac1 :=
 Ltac undefined_state__State_simulation_r2l_tac3 :=
   match goal with
   | Hstsim: State_simulation _ _ ?St1 _ ?St2 |- _ =>
-    destruct St2 as [[|[? [? ? ? tmn] CurCmds tmn' ?] ?] ?]; try tauto;
+    destruct St2 as [[|[? [? [? ? tmn]] CurCmds tmn' ?] ?] ?]; try tauto;
     destruct tmn; try tauto;
     destruct CurCmds; try tauto;
     destruct tmn'; try tauto;
@@ -631,8 +631,8 @@ Ltac undefined_state__d_State_simulation_r2l_tac43 :=
 
 Lemma stacked_frame__unremovable: forall cfg EC1 EC2 ECS Mem0 pinfo
   (HBinF: match Opsem.CurBB EC1 with 
-   | block_intro _ _ _ (insn_return _ _ _) => True
-   | block_intro _ _ _ (insn_return_void _) => True
+   | (_, stmts_intro _ _ (insn_return _ _ _)) => True
+   | (_, stmts_intro _ _ (insn_return_void _)) => True
    | _ => False
    end)
   (Hwfpp1 : OpsemPP.wf_State cfg
@@ -645,7 +645,7 @@ Proof.
   destruct Hwfpp1 as 
      [_ [[_ [HbInF1 [_ [_ [_ _]]]]] [_ Hiscall]]].
   apply Hiscall in HbInF1.
-  destruct CurBB as [? ? ? []]; tinv HBinF.
+  destruct CurBB as [? [? ? []]]; tinv HBinF.
     destruct CurCmds0 as [|[]]; tinv HbInF1. tauto.
     destruct CurCmds0 as [|[]]; tinv HbInF1. tauto.
 Qed.

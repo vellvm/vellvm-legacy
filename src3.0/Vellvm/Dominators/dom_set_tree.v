@@ -452,11 +452,11 @@ Lemma gt_sdom_prop_entry: forall f l1 entry
 Proof.
   intros.
   unfold gt_sdom_prop, gt_sdom in H4.
-  assert (exists ps, exists cs, exists tmn,
-    getEntryBlock f = Some (block_intro entry ps cs tmn)) as Hentry.
+  assert (exists sts,
+    getEntryBlock f = Some (entry, sts)) as Hentry.
     destruct f as [fh bs]. destruct bs; tinv H.
     destruct b; inv H; simpl; eauto.
-  destruct Hentry as [ps [cs [tmn Hentry]]].
+  destruct Hentry as [sts Hentry].
   apply AlgDom.dom_entrypoint in Hentry.
   simpl_in_dec. rewrite Hentry in i0. auto.
 Qed.
@@ -517,9 +517,9 @@ Proof.
   apply In_bound_fdef__blockInFdefB in HBinF1.
   apply In_bound_fdef__blockInFdefB in HBinF2.
   apply In_bound_fdef__blockInFdefB in HBinF3.
-  destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
-  destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
-  destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
+  destruct HBinF1 as [sts1 HBinF1].
+  destruct HBinF2 as [sts2 HBinF2].
+  destruct HBinF3 as [sts3 HBinF3].
   destruct (l_dec l1 l3); auto.
   destruct H2 as [H2 | H2]; subst; auto.
   Case "l2 in sdom(l3)".
@@ -561,9 +561,9 @@ Proof.
   apply In_bound_fdef__blockInFdefB in HBinF1.
   apply In_bound_fdef__blockInFdefB in HBinF2.
   apply In_bound_fdef__blockInFdefB in HBinF3.
-  destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
-  destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
-  destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
+  destruct HBinF1 as [sts1 HBinF1].
+  destruct HBinF2 as [sts2 HBinF2].
+  destruct HBinF3 as [sts3 HBinF3].
   assert (strict_domination f l1 l3) as Hsdom13.
     eapply AlgDomProps.sdom_is_sound; eauto.
   assert (strict_domination f l2 l3) as Hsdom23.
@@ -640,7 +640,7 @@ Proof.
   assert (J:=Hreach).
   apply reachable__in_bound in Hreach; eauto 2.
   apply In_bound_fdef__blockInFdefB in Hreach.
-  destruct Hreach as [ps [cs [tnn HBinF]]].
+  destruct Hreach as [stss HBinF].
   destruct (in_dec l_dec a (AlgDom.sdom f a)); simpl; auto.
   eapply AlgDomProps.sdom_is_sound with (l':=a) in HBinF; eauto 1.
     apply DecDom.sdom_isnt_refl in HBinF; auto.
@@ -653,9 +653,9 @@ Hypothesis getEntryBlock_inv : forall
   (ps : phinodes)
   (cs : cmds)
   (tmn : terminator)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hsucc : In l' (successors_terminator tmn)) a ps0 cs0 tmn0
-  (H : getEntryBlock f = Some (block_intro a ps0 cs0 tmn0)),
+  (HBinF : blockInFdefB (l3, stmts_intro ps cs tmn) f = true)
+  (Hsucc : In l' (successors_terminator tmn)) a sts0
+  (H : getEntryBlock f = Some (a, sts0)),
   l' <> a.
 
 Lemma gt_sdom_prop_trans : forall 
@@ -673,9 +673,9 @@ Proof.
   apply In_bound_fdef__blockInFdefB in HBinF1.
   apply In_bound_fdef__blockInFdefB in HBinF2.
   apply In_bound_fdef__blockInFdefB in HBinF3.
-  destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
-  destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
-  destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
+  destruct HBinF1 as [sts1 HBinF1].
+  destruct HBinF2 as [sts2 HBinF2].
+  destruct HBinF3 as [sts3 HBinF3].
   destruct (reachable_dec f l3).
   Case "1".
     assert (strict_domination f l2 l3) as Hsdom23.
@@ -713,9 +713,9 @@ Proof.
   apply In_bound_fdef__blockInFdefB in HBinF1.
   apply In_bound_fdef__blockInFdefB in HBinF2.
   apply In_bound_fdef__blockInFdefB in HBinF3.
-  destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
-  destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
-  destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
+  destruct HBinF1 as [sts1 HBinF1].
+  destruct HBinF2 as [sts2 HBinF2].
+  destruct HBinF3 as [sts3 HBinF3].
   assert (domination f l2 l3) as Hdom23.
     eapply AlgDomProps.dom_is_sound; eauto.
       destruct H2 as [H2 | H2]; simpl; auto.
@@ -896,7 +896,7 @@ Proof.
                   assert (In l1 (bound_fdef f)) as Hin.
                     apply Hinc; simpl; auto.
                   apply In_bound_fdef__blockInFdefB in Hin.
-                  destruct Hin as [ps [cs [tmn HBinF]]].
+                  destruct Hin as [sts HBinF].
                   eapply AlgDomProps.sdom_is_sound; solve_dom.
 
 Ltac find_in_bound_fdef :=
@@ -1098,67 +1098,3 @@ Proof.
   destruct in_dtree_dom__in_dtree_insert_dom_mutrec as [H _].
   unfold in_dtree_dom__in_dtree_insert_dom_prop in H. auto.
 Qed.
-
-(*
-Definition is_dtree_edge__in_dtree_dom_prop (dt:DTree) :=
-forall p ch, is_dtree_edge dt p ch ->
-  p `in` dtree_dom dt /\ ch `in` dtree_dom dt.
-
-Definition is_dtrees_edge__in_dtrees_dom_prop (dts:DTrees) :=
-forall p ch, is_dtrees_edge dts p ch ->
-  p `in` dtrees_dom dts /\ ch `in` dtrees_dom dts.
-
-Lemma in_children_roots__dtrees_dom: forall ch dts,
-  in_children_roots ch dts -> ch `in` dtrees_dom dts.
-Proof.
-  induction dts; simpl; intros.
-    congruence.
-
-    destruct d.
-    destruct (l_dec l0 ch); subst; simpl; eauto.
-Qed.
-
-Lemma is_dtree_edge__in_dtree_dom_mutrec :
-  (forall dt, is_dtree_edge__in_dtree_dom_prop dt) *
-  (forall dts, is_dtrees_edge__in_dtrees_dom_prop dts).
-Proof.
-  apply dtree_mutrec;
-    unfold is_dtree_edge__in_dtree_dom_prop,
-           is_dtrees_edge__in_dtrees_dom_prop;
-    simpl; intros.
-
-  destruct (id_dec p l0); subst; simpl.
-    remember (in_children_roots ch d) as R.
-    destruct R; simpl.
-      symmetry in HeqR.
-      apply in_children_roots__dtrees_dom in HeqR. fsetdec.
-
-      apply H in H0. destruct H0 as [J1 J2]. auto.
-
-    apply H in H0. destruct H0 as [J1 J2]. auto.
-
-  congruence.
-
-  apply orb_true_iff in H1.
-  destruct H1 as [J | J].
-    apply H in J. destruct J; auto.
-    apply H0 in J. destruct J; auto.
-Qed.
-
-Lemma is_dtree_edge__in_dtree_dom: forall dt p ch,
-  is_dtree_edge dt p ch ->
-  p `in` dtree_dom dt /\ ch `in` dtree_dom dt.
-Proof.
-  destruct is_dtree_edge__in_dtree_dom_mutrec as [H1 _].
-  unfold is_dtree_edge__in_dtree_dom_prop in H1.
-  auto.
-Qed.
-
-Lemma dtree_insert__ch_in_dtree_dom: forall dt p ch,
-  p `in` dtree_dom dt -> ch `in` dtree_dom (dtree_insert dt p ch).
-Proof.
-  intros.
-  eapply is_dtree_edge__in_dtree_dom.
-  eapply dtree_insert__in_dtree_dom; eauto.
-Qed.
-*)

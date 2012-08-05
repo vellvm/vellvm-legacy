@@ -39,28 +39,28 @@ Lemma phinodes_placement_block__getBlockLabel: forall pid t al nids succs
   getBlockLabel b =
   getBlockLabel (phinodes_placement_block pid t al nids succs preds b).
 Proof.
-  destruct b as [l0 ? ? ?]; simpl.
+  destruct b as [l0 []]; simpl.
     destruct (nids ! l0) as [[[]]|]; auto.
     destruct (preds ! l0) as [[]|]; auto.
 Qed.
 
-Lemma phinodes_placement_block__getBlockTmn: forall pid t al nids succs preds b, 
-  getBlockTmn b = 
-    getBlockTmn (phinodes_placement_block pid t al nids succs preds b).
+Lemma phinodes_placement_block__getTerminator: forall pid t al nids succs preds b, 
+  getTerminator b = 
+    getTerminator (phinodes_placement_block pid t al nids succs preds b).
 Proof. 
-  destruct b as [l0 ? ? t0]; simpl.
+  destruct b as [l0 []]; simpl.
     destruct (nids ! l0) as [[[]]|]; auto.
     destruct (preds ! l0) as [[]|]; auto.
 Qed.
 
-Lemma phinodes_placement_block__getBlockTmn_match: forall pid t al nids succs 
+Lemma phinodes_placement_block__getTerminator_match: forall pid t al nids succs 
   preds b, 
-  terminator_match (getBlockTmn b) 
-    (getBlockTmn (phinodes_placement_block pid t al nids succs preds b)).
+  terminator_match (getTerminator b) 
+    (getTerminator (phinodes_placement_block pid t al nids succs preds b)).
 Proof. 
   intros.
-  rewrite <- phinodes_placement_block__getBlockTmn.
-  destruct (getBlockTmn b); simpl; auto.
+  rewrite <- phinodes_placement_block__getTerminator.
+  destruct (getTerminator b); simpl; auto.
 Qed.
 
 Lemma phinodes_placement_fdef_spec2: forall pid t al nids succs preds fh bs, 
@@ -74,7 +74,7 @@ Definition phiplacement pid t al nids succs preds := mkPass
 (phinodes_placement_fdef pid t al nids succs preds)
 (phinodes_placement_fdef_spec2 pid t al nids succs preds)
 (phinodes_placement_block__getBlockLabel pid t al nids succs preds)
-(phinodes_placement_block__getBlockTmn_match pid t al nids succs preds)
+(phinodes_placement_block__getTerminator_match pid t al nids succs preds)
 .
 
 Ltac fold_phiplacement_tac :=
@@ -138,13 +138,13 @@ Proof.
   apply phinodes_placement_block__getBlockLabel; auto.
 Qed.
 
-Lemma phinodes_placement_blk__getBlockTmn_match: forall pinfo b, 
-  terminator_match (getBlockTmn b) 
-    (getBlockTmn (phinodes_placement_blk pinfo b)).
+Lemma phinodes_placement_blk__getTerminator_match: forall pinfo b, 
+  terminator_match (getTerminator b) 
+    (getTerminator (phinodes_placement_blk pinfo b)).
 Proof. 
   intros.
   unfold phinodes_placement_blk.
-  apply phinodes_placement_block__getBlockTmn_match; auto.
+  apply phinodes_placement_block__getTerminator_match; auto.
 Qed.
 
 Lemma phinodes_placement_f_spec2: forall pinfo fh bs, 
@@ -157,7 +157,7 @@ Definition PhiPlacement pinfo := mkPass
 (phinodes_placement_f pinfo)
 (phinodes_placement_f_spec2 pinfo)
 (phinodes_placement_blk__getBlockLabel pinfo)
-(phinodes_placement_blk__getBlockTmn_match pinfo)
+(phinodes_placement_blk__getTerminator_match pinfo)
 .
 
 Ltac fold_PhiPlacement_tac :=
@@ -184,14 +184,14 @@ Lemma phinodes_placement_blk_tail_inv: forall pinfo b lid pid sid scs
   (HeqR2 : ret scs = (PI_succs pinfo) ! (getBlockLabel b))
   (Hnonempty: scs <> nil),
   exists l0, exists ps0, exists cs0, exists tmn0, exists ps1, exists cs1,
-    b = block_intro l0 ps0 cs0 tmn0 /\
+    b = (l0, stmts_intro ps0 cs0 tmn0) /\
     phinodes_placement_blk pinfo b = 
-      block_intro l0 (ps1++ps0)
+      (l0, stmts_intro (ps1++ps0)
         (cs1 ++ cs0 ++ 
          [insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo))
-           (PI_align pinfo)]) tmn0.
+           (PI_align pinfo)]) tmn0).
 Proof.
-  intros. destruct b as [l0 ps0 cs0 tmn0]. simpl in *. 
+  intros. destruct b as [l0 [ps0 cs0 tmn0]]. simpl in *. 
   exists l0. exists ps0. exists cs0. exists tmn0.
   rewrite <- HeqR1. rewrite <- HeqR2. 
   destruct scs; try congruence.
@@ -199,7 +199,7 @@ Proof.
     exists nil. exists nil. auto.
 
     match goal with
-    | |- context [ block_intro _ (?p::_) (?c::_++_) _] => 
+    | |- context [ (_, stmts_intro (?p::_) (?c::_++_) _) ] => 
          exists [p]; exists [c]; simpl_env; auto
     end.
  
@@ -211,14 +211,14 @@ Lemma phinodes_placement_blk_head_inv: forall pinfo b lid pid sid pds
   (HeqR3 : ret pds = (PI_preds pinfo) ! (getBlockLabel b))
   (Hneq : pds <> nil),
   exists l0, exists ps0, exists cs0, exists tmn0, exists cs2,
-    b = block_intro l0 ps0 cs0 tmn0 /\
+    b = (l0, stmts_intro ps0 cs0 tmn0) /\
     phinodes_placement_blk pinfo b = 
-      block_intro l0 
+      (l0, stmts_intro
         ([gen_phinode pid (PI_typ pinfo) (PI_newids pinfo) pds]++ps0)
         ([insn_store sid (PI_typ pinfo) (value_id pid)
-           (value_id (PI_id pinfo)) (PI_align pinfo)] ++ cs0 ++ cs2) tmn0.
+           (value_id (PI_id pinfo)) (PI_align pinfo)] ++ cs0 ++ cs2) tmn0).
 Proof.
-  intros. destruct b as [l0 ps0 cs0 tmn0]. simpl in *. 
+  intros. destruct b as [l0 [ps0 cs0 tmn0]]. simpl in *. 
   exists l0. exists ps0. exists cs0. exists tmn0.
   rewrite <- HeqR1. rewrite <- HeqR3. 
   destruct pds; try congruence.
@@ -235,9 +235,9 @@ Qed.
 Lemma phinodes_placement_blk_inv': forall pinfo b,
   exists l0, exists ps0, exists cs0, exists tmn0, 
     exists ps1, exists cs1, exists cs2,
-    b = block_intro l0 ps0 cs0 tmn0 /\
+    b = (l0, stmts_intro ps0 cs0 tmn0) /\
     phinodes_placement_blk pinfo b = 
-      block_intro l0 (ps1++ps0) (cs1 ++ cs0 ++ cs2) tmn0 /\
+      (l0, stmts_intro (ps1++ps0) (cs1 ++ cs0 ++ cs2) tmn0) /\
     ((ps1 = nil /\ cs1 = nil) \/ 
       exists lid, exists pid, exists sid,
         ret (lid, pid, sid) = (PI_newids pinfo) ! (getBlockLabel b) /\
@@ -256,7 +256,7 @@ Lemma phinodes_placement_blk_inv': forall pinfo b,
         ret scs = (PI_succs pinfo) ! (getBlockLabel b) /\
         scs <> nil).
 Proof.
-  intros. destruct b as [l0 ps0 cs0 tmn0]. simpl in *. 
+  intros. destruct b as [l0 [ps0 cs0 tmn0]]. simpl in *. 
   exists l0. exists ps0. exists cs0. exists tmn0.
 
 Ltac phinodes_placement_blk_inv'_tac1 :=
@@ -287,7 +287,7 @@ Ltac phinodes_placement_blk_inv'_tac2 :=
       ] |
 
       match goal with
-      | |- context [ block_intro _ (?p::_) (?c::_++_) _] => 
+      | |- context [ (_, stmts_intro (?p::_) (?c::_++_) _)] => 
            exists [p]; exists [c]
       end;
       destruct ((PI_succs pinfo) ! l0) as [[]|]; try solve [
@@ -305,9 +305,9 @@ Qed.
 Lemma phinodes_placement_blk_inv: forall pinfo b,
   exists l0, exists ps0, exists cs0, exists tmn0, 
     exists ps1, exists cs1, exists cs2,
-    b = block_intro l0 ps0 cs0 tmn0 /\
+    b = (l0, stmts_intro ps0 cs0 tmn0) /\
     phinodes_placement_blk pinfo b = 
-      block_intro l0 (ps1++ps0) (cs1 ++ cs0 ++ cs2) tmn0.
+      (l0, stmts_intro (ps1++ps0) (cs1 ++ cs0 ++ cs2) tmn0).
 Proof.
   intros.
   assert (J:=phinodes_placement_blk_inv' pinfo b).
@@ -388,8 +388,8 @@ Proof.
 Qed.
 
 Lemma phinodes_placement_getBlockIDs: forall pinfo id0 b
-  (Hin: In id0 (getBlockIDs b)),
-  In id0 (getBlockIDs (phinodes_placement_blk pinfo b)).
+  (Hin: In id0 (getStmtsIDs (snd b))),
+  In id0 (getStmtsIDs (snd (phinodes_placement_blk pinfo b))).
 Proof.
   intros.
   assert (J:=phinodes_placement_blk_inv pinfo b).
@@ -609,10 +609,10 @@ Proof.
   eapply wf_phi_operands__elim' in Hwfps; eauto.
   fold_PhiPlacement_tac.
   rewrite <- TransCFG.pres_getArgsIDsOfFdef.
-  destruct Hwfps as [b1 [J1 Hwfps]].
-  exists (phinodes_placement_blk pinfo b1).
+  destruct Hwfps as [sts1 [J1 Hwfps]].
+  exists (snd (phinodes_placement_blk pinfo (l1, sts1))).
   fold_PhiPlacement_tac.
-  rewrite <- TransCFG.pres_isReachableFromEntry.
+  rewrite <- TransCFG.pres_isReachableFromEntry'.
   split.
     apply TransCFG.pres_lookupBlockViaLabelFromFdef; auto.
 
@@ -623,8 +623,8 @@ Proof.
       simpl.
       apply phinodes_placement_lookupBlockViaIDFromFdef; auto.
 
-      fold_PhiPlacement_tac.
-      rewrite <- TransCFG.pres_blockDominates; auto.
+      fold_PhiPlacement_tac. 
+      rewrite <- TransCFG.pres_blockDominates'; auto.
 Qed.
 
 Lemma phinodes_placement_wf_phinode : forall b b' 
@@ -735,10 +735,10 @@ Proof.
   rewrite <- phinodes_placement_blk__getBlockLabel in e.
   rewrite <- phinodes_placement_blk__getBlockLabel in e.
   apply entryBlockInFdef in Hentry.
-  destruct b. destruct be.        
+  destruct b. destruct be.
   simpl in e. subst l0.
-  eapply blockInFdefB_uniq in Hin; eauto.
-  f_equal; tauto.
+  f_equal.
+    eapply blockInFdefB_uniq in Hin; eauto.
 Qed.
 
 Lemma wf_operand_pid__in__inserted_load: forall b lid pid sid scs
@@ -861,7 +861,7 @@ Proof.
     eapply phinodes_placement_blk_head_inv in HeqR1; eauto.
     destruct HeqR1 as [l0 [ps0 [cs0 [tmn0 [cs2 [J3 J4]]]]]]; subst.
     match goal with
-    | J4: _ = block_intro ?l0 ([?p0]++?ps0) ?cs2 ?tmn |- _ =>
+    | J4: _ = (?l0, stmts_intro ([?p0]++?ps0) ?cs2 ?tmn) |- _ =>
     apply uniqF__lookupPhiNodeTypViaIDFromFdef with (l1:=l0)
       (ps1:=[p0]++ps0) (cs1:=cs2)(tmn1:=tmn)(p:=p0); auto
     end.
@@ -991,11 +991,10 @@ Qed.
 Lemma WF_PhiInfo_br_preds_succs': forall (pinfo : PhiInfo) 
   (Hwfpi : WF_PhiInfo pinfo) (HuniqF : uniqFdef (PI_f pinfo)) (pds : list l)
   (b : block) (HeqR3 : ret pds = (PI_preds pinfo) ! (getBlockLabel b))
-  (l0 : l) (Hin : In l0 pds) (b1 : block)
-  (Hlkup : lookupBlockViaLabelFromFdef (PI_f pinfo) l0 = ret b1),
-  l0 = getBlockLabel b1 /\
+  (l0 : l) (Hin : In l0 pds) sts1
+  (Hlkup : lookupBlockViaLabelFromFdef (PI_f pinfo) l0 = ret sts1),
   exists succs,
-    succs <> nil /\ ret succs = (PI_succs pinfo) ! (getBlockLabel b1).
+    succs <> nil /\ ret succs = (PI_succs pinfo) ! l0.
 Proof.
   intros.
   symmetry in HeqR3.
@@ -1004,11 +1003,6 @@ Proof.
   assert (succs <> nil) as Hneq'.
     destruct succs; tinv J2. congruence.
   symmetry in J1.
-  assert (l0 = getBlockLabel b1) as EQ.
-    destruct b1.
-    apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
-    destruct Hlkup; subst. auto.
-  subst.
   eauto.
 Qed.
 
@@ -1057,15 +1051,15 @@ Proof.
     assert ((PI_newids pinfo) ! l1 <> merror) as G. congruence.
     apply PI_newids_are_in_PI_rd in G; auto.
     apply PI_rd__lookupBlockViaLabelFromFdef in G; auto.
-    destruct G as [b1 Hlkup].
+    destruct G as [sts1 Hlkup].
     assert (Hlkup':=Hlkup).
     apply (@TransCFG.pres_lookupBlockViaLabelFromFdef (PhiPlacement pinfo)) 
       in Hlkup'.
     fold_PhiPlacement_tac.
-    exists (btrans (PhiPlacement pinfo) b1).
+    exists (snd (btrans (PhiPlacement pinfo) (l1, sts1))).
     split; auto.
     left. left.
-    exists (btrans (PhiPlacement pinfo) b1).
+    exists (btrans (PhiPlacement pinfo) (l1, sts1)).
     split.
     SCase "1.1".
       apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
@@ -1076,8 +1070,9 @@ Proof.
 
       SSCase "1.1.3".
         eapply WF_PhiInfo_br_preds_succs' in HeqR3; eauto.
-        destruct HeqR3 as [EQ [succs [Hneq' J2]]]; subst.
+        destruct HeqR3 as [EQ [succs J2]]; subst.
         symmetry in Hnids.
+        replace l1 with (getBlockLabel (l1, sts1)) in Hnids; auto.
         eapply phinodes_placement_blk_tail_inv in Hnids; eauto.
         destruct Hnids as [l0 [ps0 [cs0 [tmn0 [ps2 [cs2 [J3 J4]]]]]]]; subst.
         simpl in *. rewrite J4.
@@ -1089,6 +1084,7 @@ Proof.
         solve_blockInFdefB.
 
     SCase "1.2".
+      rewrite <- pass_btrans_surjective.
       apply blockDominates_refl.
 
   Case "2".
@@ -1128,15 +1124,16 @@ Proof.
   assert ((PI_newids pinfo) ! l0 <> merror) as G. congruence.
   apply PI_newids_are_in_PI_rd in G; auto.
   apply PI_rd__lookupBlockViaLabelFromFdef in G; auto.
-  destruct G as [b1 Hlkup].
+  destruct G as [sts1 Hlkup].
   
   eapply WF_PhiInfo_br_preds_succs' in HeqR3; eauto.
-  destruct HeqR3 as [EQ [succs [Hneq' J1]]]; subst.
+  destruct HeqR3 as [EQ [succs J1]]; subst.
+  replace l0 with (getBlockLabel (l0, sts1)) in J1; auto.
   eapply phinodes_placement_blk_tail_inv in J1; eauto.
-  destruct J1 as [l0 [ps0 [cs0 [tmn0 [ps2 [cs2 [J3 J4]]]]]]]; subst.
+  destruct J1 as [? [ps0 [cs0 [tmn0 [ps2 [cs2 [J3 J4]]]]]]]; subst.
   
   match goal with
-  | J4: _ = block_intro ?l0 ?ps0 (?cs2 ++ ?cs3 ++ [?c0]) ?tmn |- _ =>
+  | J4: _ = (?l0, stmts_intro ?ps0 (?cs2 ++ ?cs3 ++ [?c0]) ?tmn) |- _ =>
     apply uniqF__lookupTypViaIDFromFdef with (l1:=l0)(ps1:=ps0)
       (cs1:=cs2 ++ cs3 ++ [c0])(tmn1:=tmn)(c:=c0); auto
   end.
@@ -1276,7 +1273,7 @@ Proof.
 Qed.
 
 Lemma phinodes_placement_wf_block : forall b (Hwfl: wf_layouts los)
-  (HwfB : wf_block [M] M (PI_f pinfo) b) (Huniq : NoDup (getBlockLocs b))
+  (HwfB : wf_block [M] M (PI_f pinfo) b) (Huniq : NoDup (getStmtsLocs (snd b)))
   (HBinF: blockInFdefB b (PI_f pinfo) = true),
   wf_block [M'] M' f' (phinodes_placement_blk pinfo b).
 Proof.
@@ -1388,7 +1385,7 @@ End PresWF.
 
 Lemma phinodes_placement_wfS: forall rd f Ps1 Ps2 los nts pid ty al
   num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = reachablity_analysis f)
-  (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
+  (Hentry: getEntryBlock f = Some (l0, stmts_intro ps0 cs0 tmn0))
   (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
   (HwfS :
      wf_system 
@@ -1528,7 +1525,7 @@ Proof.
       assert (exists b, cmdInFdefBlockB 
                 (insn_alloca id5 ty5 val5 al5) (PI_f pinfo) b) as J;
         try solve [apply Hin; auto];
-      destruct J as [[l0 ps0 cs0 tmn0] J]
+      destruct J as [[l0 [ps0 cs0 tmn0]] J]
     end.
     apply andb_true_iff in J.
     destruct J as [J1 J2].
@@ -1541,7 +1538,7 @@ Qed.
 
 Lemma phinodes_placement_wfPI: forall rd f Ps1 Ps2 los nts pid ty al
   num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = reachablity_analysis f)
-  (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
+  (Hentry: getEntryBlock f = Some (l0, stmts_intro ps0 cs0 tmn0))
   (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
   (HwfS :
      wf_system 
@@ -1567,11 +1564,11 @@ Proof.
     fold_PhiPlacement_tac. 
     rewrite <- TransCFG.pres_reachablity_analysis; auto.
   assert (getEntryBlock (phinodes_placement_f pinfo (PI_f pinfo)) =
-      Some (phinodes_placement_blk pinfo (block_intro l0 ps0 cs0 tmn0))) 
+      Some (phinodes_placement_blk pinfo (l0, stmts_intro ps0 cs0 tmn0))) 
     as Hentry'.
     fold_PhiPlacement_tac.
     erewrite TransCFG.pres_getEntryBlock; eauto.
-  assert (J:=phinodes_placement_blk_inv' pinfo (block_intro l0 ps0 cs0 tmn0)).
+  assert (J:=phinodes_placement_blk_inv' pinfo (l0, stmts_intro ps0 cs0 tmn0)).
   destruct J as [l1 [ps1 [cs1 [tmn1 [ps2 [cs3 [cs2 [EQ [J1 J2]]]]]]]]]; subst.
   inv EQ.
   assert (find_promotable_alloca 
@@ -1580,7 +1577,7 @@ Proof.
     rewrite <- find_promotable_alloca_weaken_head.
       rewrite <- find_promotable_alloca_weaken_tail.
         rewrite <- phinodes_placement_find_promotable_alloca; auto.
-        intros. exists (block_intro l1 ps1 cs1 tmn1).
+        intros. exists (l1, stmts_intro ps1 cs1 tmn1).
         apply andb_true_intro.
         simpl.
         split. solve_in_list.

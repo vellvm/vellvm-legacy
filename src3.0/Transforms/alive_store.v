@@ -26,7 +26,7 @@ Definition alive_store (sid: id) (sal: align) (v:value) (cs2:cmds) (b:block)
   (pinfo:PhiInfo) : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\
 store_in_cmds (PI_id pinfo) cs2 = false /\
-let '(block_intro _ _ cs _) := b in
+let '(_, stmts_intro _ cs _) := b in
 exists cs1, exists cs3,
   cs =
   cs1 ++
@@ -49,7 +49,7 @@ Lemma storeinfo_doesnt_use_promotable_allocas: forall pinfo stinfo
 Proof.
   intros.
   destruct stinfo. simpl in *.
-  destruct SI_block0.
+  destruct SI_block0 as [? []].
   destruct SI_alive0 as [J1 [J2 [cs1 [cs2 J3]]]]; subst.
   eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in J1; eauto using in_middle.
     apply WF_PhiInfo_spec3 in J1; auto.
@@ -69,7 +69,7 @@ forall gvsa gvsv
 
 Definition follow_alive_store (pinfo:PhiInfo) (stinfo: StoreInfo pinfo)
   (cs:cmds) : Prop :=
-let '(block_intro _ _ cs0 _) := SI_block pinfo stinfo in
+let '(_, stmts_intro _ cs0 _) := SI_block pinfo stinfo in
 forall cs1 cs3,
   cs0 =
     cs1 ++
@@ -82,7 +82,7 @@ forall cs1 cs3,
 
 Lemma follow_alive_store_cons: forall pinfo stinfo c cs l0 ps0 cs0 tmn0
   (Huniq:uniqFdef (PI_f pinfo)),
-  block_intro l0 ps0 (cs0++c::cs) tmn0 = SI_block pinfo stinfo ->
+  (l0, stmts_intro ps0 (cs0++c::cs) tmn0) = SI_block pinfo stinfo ->
   store_in_cmd (PI_id pinfo) c = false ->
   follow_alive_store pinfo stinfo cs ->
   follow_alive_store pinfo stinfo (c::cs).
@@ -91,7 +91,7 @@ Proof.
   intros.
   destruct stinfo. simpl in *.
   unfold alive_store in SI_alive0.
-  destruct SI_block0.
+  destruct SI_block0 as [? []].
   destruct SI_alive0 as [J1 [J2 [cs1 [cs3 J3]]]]; subst.
   intros.
   assert (cs1 = cs2 /\ cs3 = cs4) as J.
@@ -208,7 +208,7 @@ Qed.
 Lemma follow_alive_store_at_beginning_false: forall (pinfo : PhiInfo)
   (stinfo : StoreInfo pinfo) (l' : l) (ps' : phinodes) (cs' : cmds)
   (tmn' : terminator)
-  (J2 : block_intro l' ps' cs' tmn' = SI_block pinfo stinfo)
+  (J2 : (l', stmts_intro ps' cs' tmn') = SI_block pinfo stinfo)
   (J3 : follow_alive_store pinfo stinfo cs'),
   False.
 Proof.
@@ -241,7 +241,7 @@ Ltac destruct_stinfo :=
 match goal with
 | stinfo: StoreInfo _ |- _ =>
   destruct stinfo as [SI_id0 SI_align0 SI_value0 SI_tail0
-                       [SI_l0 SI_ps0 SI_cs0 SI_tmn0] SI_prop0];
+                       [SI_l0 [SI_ps0 SI_cs0 SI_tmn0]] SI_prop0];
   simpl in *;
   destruct SI_prop0 as 
     [SI_BInF0 [SI_stincmds0 [SI_cs1 [SI_cs3 SI_EQ]]]]; subst; simpl
@@ -250,9 +250,9 @@ end.
 Lemma alive_store_doesnt_use_its_followers_and_pid: forall l1 ps1 cs1' c cs tmn 
   id0 pinfo stinfo s m (Huniq: uniqFdef (PI_f pinfo))
   (Hreach: isReachableFromEntry (PI_f pinfo) 
-             (block_intro l1 ps1 (cs1' ++ c :: cs) tmn)),
+             (l1, stmts_intro ps1 (cs1' ++ c :: cs) tmn)),
   wf_fdef s m (PI_f pinfo) -> 
-  block_intro l1 ps1 (cs1' ++ c :: cs) tmn = SI_block pinfo stinfo ->
+  (l1, stmts_intro ps1 (cs1' ++ c :: cs) tmn) = SI_block pinfo stinfo ->
   getCmdID c = Some id0 ->
   follow_alive_store pinfo stinfo (c::cs) ->
   used_in_value id0 (SI_value pinfo stinfo) = false /\ id0 <> PI_id pinfo.
@@ -302,9 +302,9 @@ Qed.
 Lemma alive_store_doesnt_use_its_followers: forall l1 ps1 cs1' c cs tmn 
   id0 pinfo stinfo s m (Huniq: uniqFdef (PI_f pinfo))
   (Hreach: isReachableFromEntry (PI_f pinfo) 
-             (block_intro l1 ps1 (cs1' ++ c :: cs) tmn)),
+             (l1, stmts_intro ps1 (cs1' ++ c :: cs) tmn)),
   wf_fdef s m (PI_f pinfo) -> 
-  block_intro l1 ps1 (cs1' ++ c :: cs) tmn = SI_block pinfo stinfo ->
+  (l1, stmts_intro ps1 (cs1' ++ c :: cs) tmn) = SI_block pinfo stinfo ->
   getCmdID c = Some id0 ->
   follow_alive_store pinfo stinfo (c::cs) ->
   used_in_value id0 (SI_value pinfo stinfo) = false.
@@ -515,7 +515,7 @@ Lemma malloc_preserves_wf_EC_at_head : forall pinfo los nts Ps M
   (HwfF: wf_fdef s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
   (Hal: malloc (los,nts) M tsz gn align0 = ret (M', mb)) stinfo c
   (HBinF: blockInFdefB
-             (block_intro l1 ps1 (cs1' ++ c :: cs)
+             (l1, stmts_intro ps1 (cs1' ++ c :: cs)
                 tmn) F = true)
   (Hid : getCmdID c = Some id0)
   (Hnst : store_in_cmd (PI_id pinfo) c = false)
@@ -524,13 +524,13 @@ Lemma malloc_preserves_wf_EC_at_head : forall pinfo los nts Ps M
            | _ => False
            end)
   (Hreach: isReachableFromEntry F
-             (block_intro l1 ps1 (cs1' ++ c :: cs) tmn))
+             (l1, stmts_intro ps1 (cs1' ++ c :: cs) tmn))
   (Hinscope : wf_ExecutionContext pinfo stinfo (los,nts) M gl
                {|
                Opsem.CurFunction := F;
-               Opsem.CurBB := block_intro l1 ps1
+               Opsem.CurBB := (l1, stmts_intro ps1
                                 (cs1' ++ c :: cs)
-                                tmn;
+                                tmn);
                Opsem.CurCmds := c :: cs;
                Opsem.Terminator := tmn;
                Opsem.Locals := lc;
@@ -538,8 +538,8 @@ Lemma malloc_preserves_wf_EC_at_head : forall pinfo los nts Ps M
   wf_ExecutionContext pinfo stinfo (los,nts) M' gl
     {|
     Opsem.CurFunction := F;
-    Opsem.CurBB := block_intro l1 ps1
-                      (cs1' ++ c :: cs) tmn;
+    Opsem.CurBB := (l1, stmts_intro ps1
+                      (cs1' ++ c :: cs) tmn);
     Opsem.CurCmds := cs;
     Opsem.Terminator := tmn;
     Opsem.Locals := updateAddAL (GVsT DGVs) lc id0
@@ -724,9 +724,9 @@ Lemma mstore_preserves_wf_EC_at_head: forall (maxb : Z) (pinfo : PhiInfo)
   (Hinscope : wf_ExecutionContext pinfo stinfo (los,nts) Mem gl
                {|
                Opsem.CurFunction := F;
-               Opsem.CurBB := block_intro l1 ps1
+               Opsem.CurBB := (l1, stmts_intro ps1
                                 (cs1' ++ insn_store sid t v1 v2 align0 :: cs)
-                                tmn;
+                                tmn);
                Opsem.CurCmds := insn_store sid t v1 v2 align0 :: cs;
                Opsem.Terminator := tmn;
                Opsem.Locals := lc;
@@ -734,8 +734,8 @@ Lemma mstore_preserves_wf_EC_at_head: forall (maxb : Z) (pinfo : PhiInfo)
   wf_ExecutionContext pinfo stinfo (los,nts) Mem' gl
      {|
      Opsem.CurFunction := F;
-     Opsem.CurBB := block_intro l1 ps1
-                      (cs1' ++ insn_store sid t v1 v2 align0 :: cs) tmn;
+     Opsem.CurBB := (l1, stmts_intro ps1
+                      (cs1' ++ insn_store sid t v1 v2 align0 :: cs) tmn);
      Opsem.CurCmds := cs;
      Opsem.Terminator := tmn;
      Opsem.Locals := lc;
@@ -887,18 +887,18 @@ Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs
           = ret (oresult, tr, Mem'))
   (H5 : Opsem.exCallUpdateLocals (los,nts) rt1 noret0 rid oresult lc = ret lc')
   (HBinF : blockInFdefB 
-             (block_intro l1 ps1 
+             (l1, stmts_intro ps1 
                (cs1' ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn)
              F = true)
   (Hreach: isReachableFromEntry F
-             (block_intro l1 ps1 
+             (l1, stmts_intro ps1 
                (cs1' ++ insn_call rid false ca rt1 va1 fv lp :: cs) tmn))
   (Hinscope : wf_ExecutionContext pinfo stinfo (los,nts) Mem gl
                {|
                Opsem.CurFunction := F;
-               Opsem.CurBB := block_intro l1 ps1
+               Opsem.CurBB := (l1, stmts_intro ps1
                                 (cs1' ++
-                                 insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn;
+                                 insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn);
                Opsem.CurCmds := insn_call rid noret0 ca rt1 va1 fv lp :: cs;
                Opsem.Terminator := tmn;
                Opsem.Locals := lc;
@@ -906,8 +906,8 @@ Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs
    wf_ExecutionContext pinfo stinfo (los,nts) Mem' gl
      {|
      Opsem.CurFunction := F;
-     Opsem.CurBB := block_intro l1 ps1
-                      (cs1' ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn;
+     Opsem.CurBB := (l1, stmts_intro ps1
+                      (cs1' ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn);
      Opsem.CurCmds := cs;
      Opsem.Terminator := tmn;
      Opsem.Locals := lc';
@@ -977,7 +977,7 @@ Ltac preservation_pure_cmd_updated_case_helper:=
   eapply alive_store_doesnt_use_its_followers; try solve [
     eauto using wf_system__wf_fdef |
     match goal with
-    | HBinF1 : blockInFdefB (block_intro _ _ (_ ++ _ :: _) _) _ = true |- _ =>
+    | HBinF1 : blockInFdefB (_, stmts_intro _ (_ ++ _ :: _) _) _ = true |- _ =>
        eapply WF_PhiInfo_spec10 in HBinF1; eauto using wf_system__uniqFdef
     end].
 

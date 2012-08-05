@@ -22,14 +22,14 @@ end.
 
 Implicit Arguments map_filter [A].
 
-Definition subst_remove_block id' v' b :=
-let '(block_intro l0 ps0 cs0 tmn0) := b in
-block_intro l0
+Definition subst_remove_block id' v' (b:block) :=
+let '(l0, stmts_intro ps0 cs0 tmn0) := b in
+(l0, stmts_intro
   (map_filter 
      (fun p => negb (id_dec (getPhiNodeID p) id')) (subst_phi id' v') ps0)
   (map_filter 
      (fun c => negb (id_dec (getCmdLoc c) id')) (subst_cmd id' v') cs0) 
-  (subst_tmn id' v' tmn0).
+  (subst_tmn id' v' tmn0)).
 
 Definition subst_remove_fdef id' v' f :=
 let '(fdef_intro fh bs) := f in
@@ -210,9 +210,9 @@ end.
 
 Definition substs_block (mp:M.t action) (b:block) : block :=
 match b with
-| block_intro l0 ps0 cs0 tmn0 =>
-  block_intro l0 (List.map (substs_phi mp) ps0)
-    (List.map (substs_cmd mp) cs0) (substs_tmn mp tmn0)
+| (l0, stmts_intro ps0 cs0 tmn0) =>
+  (l0, stmts_intro (List.map (substs_phi mp) ps0)
+    (List.map (substs_cmd mp) cs0) (substs_tmn mp tmn0))
 end.
 
 Definition substs_fdef (mp:M.t action) (f:fdef) : fdef :=
@@ -240,8 +240,8 @@ Definition removes_cmds (mp:M.t action) (cs:cmds) : cmds :=
 
 Definition removes_block (mp:M.t action) (b:block) : block :=
 match b with
-| block_intro l0 ps0 cs0 tmn0 =>
-  block_intro l0 (removes_phinodes mp ps0) (removes_cmds mp cs0) tmn0
+| (l0, stmts_intro ps0 cs0 tmn0) =>
+  (l0, stmts_intro (removes_phinodes mp ps0) (removes_cmds mp cs0) tmn0)
 end.
 
 Definition removes_fdef (mp:M.t action) (f:fdef) : fdef :=
@@ -249,12 +249,12 @@ match f with
 | fdef_intro fh bs => fdef_intro fh (List.map (removes_block mp) bs)
 end.
 
-Definition substs_removes_block (mp:M.t action) b :=
-let '(block_intro l0 ps0 cs0 tmn0) := b in
-block_intro l0
+Definition substs_removes_block (mp:M.t action) (b:block) :=
+let '(l0, stmts_intro ps0 cs0 tmn0) := b in
+(l0, stmts_intro
   (map_filter (filters_phinode mp) (substs_phi mp) ps0)
   (map_filter (filters_cmd mp) (substs_cmd mp) cs0) 
-  (substs_tmn mp tmn0).
+  (substs_tmn mp tmn0)).
 
 Definition substs_removes_fdef (mp:M.t action) f :=
 let '(fdef_intro fh bs) := f in
@@ -335,12 +335,11 @@ Lemma substs_removes_fdef__commute: forall actions f1,
 Proof.
   destruct f1 as [fh1 bs1]. simpl.
   f_equal.
-  induction bs1 as [|[l1 ps1 cs1 tmn1] bs1]; simpl; auto.
-    f_equal; auto.
-    f_equal; auto.
+  induction bs1 as [|[l1 [ps1 cs1 tmn1]] bs1]; simpl; auto.
+    repeat (f_equal; auto).
       apply substs_removes_phinodes__commute.
       apply substs_removes_cmds__commute.
-    Qed.
+Qed.
 
 Lemma find_parent_action_inv: forall ac1 mac ac2 
   (Hfind: find_parent_action ac1 mac = ac2),
@@ -406,7 +405,7 @@ rev (snd (List.fold_left (find_stld_pair_cmd pid) cs (STLD_init, nil))).
 
 Definition find_stld_pairs_block (pid:id) (rd:list l) (b:block) 
   : AssocList action :=
-let '(block_intro l5 phinodes5 cs terminator5) := b in
+let '(l5, stmts_intro  phinodes5 cs terminator5) := b in
 if (in_dec id_dec l5 rd) then find_stld_pairs_cmds cs pid else nil.
 
 Definition elim_stld_fdef (pid:id) (rd:list l) (f:fdef) : fdef :=
@@ -427,7 +426,7 @@ AVLComposedPass.run pairs f.
 Definition macro_mem2reg_fdef_iter (f:fdef) (rd:list l) 
   (succs preds:ATree.t (list l)) (dones:list id) : fdef * bool * list id := 
 match getEntryBlock f with
-| Some (block_intro _ _ cs _) =>
+| Some (_, stmts_intro _ cs _) =>
     match find_promotable_alloca f cs dones with
     | None => (f, false, dones)
     | Some (pid, ty, num, al) =>
@@ -493,8 +492,8 @@ end.
 Definition elim_phi_phis f ps : AssocList action :=
 List.fold_left (elim_phi_phi f) ps nil.
 
-Definition elim_phi_block f b :=
-let '(block_intro l5 ps cmds5 terminator5) := b in
+Definition elim_phi_block f (b:block) :=
+let '(l5, stmts_intro ps cmds5 terminator5) := b in
 elim_phi_phis f ps.
 
 Definition elim_phi_fdef f :=
@@ -517,7 +516,7 @@ end.
 *)
 Definition mem2reg_fdef (f:fdef) : fdef :=
 match getEntryBlock f, reachablity_analysis f with
-| Some (block_intro root _ cs _), Some rd =>
+| Some (root, stmts_intro _ cs _), Some rd =>
   if print_reachablity rd then
     let '(f1, _) :=
       let succs := successors f in

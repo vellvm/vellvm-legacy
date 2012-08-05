@@ -154,15 +154,15 @@ Lemma preservation_helper1: forall los nts Ps S F l1 ps1 cs1' c0 tmn
   (HwfS : wf_system S)
   (HMinS : moduleInSystemB (module_intro los nts Ps) S = true)
   (HFinPs : InProductsB (product_fdef F) Ps = true)
-  (HBinF : blockInFdefB (block_intro l1 ps1 (cs1' ++ [c0]) tmn) F = true),
+  (HBinF : blockInFdefB (l1, stmts_intro ps1 (cs1' ++ [c0]) tmn) F = true),
   ~ In (getCmdLoc c0) (getCmdsLocs cs1').
 Proof.
   intros.
   eapply wf_system__uniq_block with (f:=F) in HwfS; eauto.
   simpl in HwfS.
-  apply NoDup_inv in HwfS.
+  apply NoDup_split in HwfS.
   destruct HwfS as [_ J].
-  apply NoDup_inv in J.
+  apply NoDup_split in J.
   destruct J as [J _].
   rewrite getCmdsLocs_app in J.
   simpl in J.
@@ -174,21 +174,21 @@ Lemma preservation_helper2: forall los nts Ps S F l1 ps1 cs1' c0 tmn c cs
   (HMinS : moduleInSystemB (module_intro los nts Ps) S = true)
   (HFinPs : InProductsB (product_fdef F) Ps = true)
   (HBinF : blockInFdefB
-            (block_intro l1 ps1 (cs1' ++ [c0] ++ [c] ++ cs) tmn) F = true),
+            (l1, stmts_intro ps1 (cs1' ++ [c0] ++ [c] ++ cs) tmn) F = true),
   NoDup (getCmdsLocs (cs1' ++ [c0] ++ [c] ++ cs)).
 Proof.
   intros.
   eapply wf_system__uniq_block with (f:=F) in HwfS; eauto.
   simpl in HwfS.
-  apply NoDup_inv in HwfS.
+  apply NoDup_split in HwfS.
   destruct HwfS as [_ J].
-  apply NoDup_inv in J.
+  apply NoDup_split in J.
   destruct J as [J _]. auto.
 Qed.
 
 Lemma impure_cmd_non_updated_preserves_wf_EC : forall maxb pinfo TD M M' lc F B
   als tmn cs c0 l1 ps1 cs1' S
-  (Heq: B = block_intro l1 ps1 (cs1' ++ c0 :: cs) tmn)
+  (Heq: B = (l1, stmts_intro ps1 (cs1' ++ c0 :: cs) tmn))
   (HwfS: wf_system S) los nts (Heq': TD = (los, nts)) Ps
   (HMinS: moduleInSystemB (module_intro los nts Ps) S = true)
   (HFinPs: InProductsB (product_fdef F) Ps = true)
@@ -2017,7 +2017,7 @@ Qed.
 
 Lemma impure_cmd_updated_preserves_wf_EC : forall maxb pinfo TD M M' lc F B
   als als' tmn cs c0 l1 ps1 cs1' S
-  (Heq: B = block_intro l1 ps1 (cs1' ++ c0 :: cs) tmn)
+  (Heq: B = (l1, stmts_intro ps1 (cs1' ++ c0 :: cs) tmn))
   (HwfS: wf_system S) los nts (Heq': TD = (los, nts)) Ps
   (HMinS: moduleInSystemB (module_intro los nts Ps) S = true)
   (HFinPs: InProductsB (product_fdef F) Ps = true)
@@ -2414,7 +2414,7 @@ Lemma preservation_Call: forall (maxb : Z) (pinfo : PhiInfo)
   (H1 : OpsemAux.lookupFdefViaPtr Ps fs fptr =
         ret fdef_intro (fheader_intro fa rt fid la va) lb)
   (H2 : getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
-        ret block_intro l' ps' cs' tmn')
+        ret (l', stmts_intro ps' cs' tmn'))
   (H3 : Opsem.params2GVs (los, nts) lp lc gl = ret gvs)
   (H4 : Opsem.initLocals (los, nts) la gvs = ret lc')
   (HwfS1 : wf_State maxb pinfo cfg
@@ -2425,7 +2425,7 @@ Lemma preservation_Call: forall (maxb : Z) (pinfo : PhiInfo)
      Opsem.ECS := {|
                   Opsem.CurFunction := fdef_intro
                                          (fheader_intro fa rt fid la va) lb;
-                  Opsem.CurBB := block_intro l' ps' cs' tmn';
+                  Opsem.CurBB := (l', stmts_intro ps' cs' tmn');
                   Opsem.CurCmds := cs';
                   Opsem.Terminator := tmn';
                   Opsem.Locals := lc';
@@ -2610,12 +2610,12 @@ Qed.
 
 Lemma wf_defs_br : forall lc l' ps' cs' lc' tmn' gl los nts Ps s
   (l3 : l) (ps : phinodes) (cs : list cmd) tmn pinfo (Hwfpi: WF_PhiInfo pinfo)
-  (Hlkup : Some (block_intro l' ps' cs' tmn') =
+  (Hlkup : Some (stmts_intro ps' cs' tmn') =
              lookupBlockViaLabelFromFdef (PI_f pinfo) l')
   (Hwfps: wf_phinodes s (module_intro los nts Ps) (PI_f pinfo)
-            (block_intro l' ps' cs' tmn') ps')
-  (Hswitch : Opsem.switchToNewBasicBlock (los,nts) (block_intro l' ps' cs' tmn')
-         (block_intro l3 ps cs tmn) gl lc = ret lc')
+            (l', stmts_intro ps' cs' tmn') ps')
+  (Hswitch : Opsem.switchToNewBasicBlock (los,nts) (l', stmts_intro ps' cs' tmn')
+         (l3, stmts_intro ps cs tmn) gl lc = ret lc')
   als Mem maxb
   (Hwfdfs : wf_defs maxb pinfo (los,nts) Mem lc als)
   (Hwflc : wf_lc Mem lc)
@@ -2653,9 +2653,8 @@ Proof.
       eapply operand__no_alias_with__head; eauto.
         symmetry in Hlkup.
         apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
-        destruct Hlkup as [_ Hlkup].
         assert (phinodeInFdefBlockB (insn_phi id1 t1 vls1) (PI_f pinfo)
-          (block_intro l' ps' cs' tmn') = true) as Hin'.
+          (l', stmts_intro ps' cs' tmn') = true) as Hin'.
           apply andb_true_iff.
           split; auto.
           simpl.
@@ -2668,10 +2667,10 @@ Qed.
 
 Lemma wf_ECStack_head_tail_br : forall (lc:DGVMap) l' ps' cs' lc' tmn' gl los
   nts Ps s (l3 : l) (ps : phinodes) (cs : list cmd) tmn F
-  (Hlkup : Some (block_intro l' ps' cs' tmn') =
+  (Hlkup : Some (stmts_intro ps' cs' tmn') =
              lookupBlockViaLabelFromFdef F l')
-  (Hswitch : Opsem.switchToNewBasicBlock (los,nts) (block_intro l' ps' cs' tmn')
-         (block_intro l3 ps cs tmn) gl lc = ret lc') EC pinfo
+  (Hswitch : Opsem.switchToNewBasicBlock (los,nts) (l', stmts_intro ps' cs' tmn')
+         (l3, stmts_intro ps cs tmn) gl lc = ret lc') EC pinfo
   Mem maxb (Hwflc : wf_ECStack_head_tail maxb pinfo (los, nts) Mem lc EC)
   (HwfM : wf_Mem maxb (los, nts) Mem)
   (Hwfg : wf_globals maxb gl)
@@ -2714,12 +2713,12 @@ Qed.
 Lemma wf_lc_br : forall (lc:DGVMap) l' ps' cs' lc' tmn' gl td
   (l3 : l) (ps : phinodes) (cs : list cmd) tmn s F los nts Ps
   (Hwfps: wf_phinodes s (module_intro los nts Ps) F
-            (block_intro l' ps' cs' tmn') ps')
-  (Hlkup : Some (block_intro l' ps' cs' tmn') =
+            (l', stmts_intro ps' cs' tmn') ps')
+  (Hlkup : Some (stmts_intro ps' cs' tmn') =
              lookupBlockViaLabelFromFdef F l')
   (Hswitch : Opsem.switchToNewBasicBlock (los,nts)
-         (block_intro l' ps' cs' tmn')
-         (block_intro l3 ps cs tmn) gl lc = ret lc')
+         (l', stmts_intro ps' cs' tmn')
+         (l3, stmts_intro ps cs tmn) gl lc = ret lc')
   Mem maxb (Hwflc : wf_lc Mem lc) (HwfM : wf_Mem maxb td Mem)
   (Hwfg : wf_globals maxb gl)
   (Huniq : uniqFdef F),
@@ -2766,15 +2765,17 @@ Lemma preservation_branch: forall (maxb : Z) (pinfo : PhiInfo) (S : system)
               OpsemAux.Globals := gl;
               OpsemAux.FunTable := fs |}))
   (Hinbd : 0 <= maxb) (HwfPI : WF_PhiInfo pinfo) (conds : GVsT DGVs)
-  (c : GenericValue) (l' : l) (ps' : phinodes) (cs' : cmds) (tmn' : terminator)
+  (c : GenericValue) (ps' : phinodes) (cs' : cmds) (tmn' : terminator)
   (lc' : Opsem.GVsMap)
   (H : Opsem.getOperandValue (los, nts) Cond lc gl = ret conds)
   (H0 : c @ conds)
-  (H1 : ret block_intro l' ps' cs' tmn' =
+  (H1 : ret stmts_intro ps' cs' tmn' =
        (if isGVZero (los, nts) c
         then lookupBlockViaLabelFromFdef F l2
         else lookupBlockViaLabelFromFdef F l1))
-  (H2 : Opsem.switchToNewBasicBlock (los, nts) (block_intro l' ps' cs' tmn') B
+  (H2 : Opsem.switchToNewBasicBlock (los, nts) 
+         (if isGVZero (los, nts) c then l2 else l1, 
+          stmts_intro ps' cs' tmn') B
          gl lc = ret lc')
   (HwfS1 : wf_State maxb pinfo cfg
             {| Opsem.ECS := ECs; Opsem.Mem := Mem |}),
@@ -2782,7 +2783,8 @@ Lemma preservation_branch: forall (maxb : Z) (pinfo : PhiInfo) (S : system)
      {|
      Opsem.ECS := {|
                   Opsem.CurFunction := F;
-                  Opsem.CurBB := block_intro l' ps' cs' tmn';
+                  Opsem.CurBB := (if isGVZero (los, nts) c then l2 else l1,
+                                  stmts_intro ps' cs' tmn');
                   Opsem.CurCmds := cs';
                   Opsem.Terminator := tmn';
                   Opsem.Locals := lc';
@@ -2799,14 +2801,14 @@ Proof.
   eapply wf_system__wf_fdef with (f:=F) in HwfF; eauto.
   assert (HuniqF := HwfSystem).
   eapply wf_system__uniqFdef with (f:=F) in HuniqF; eauto.
-  assert (ret block_intro l' ps' cs' tmn' =
-    lookupBlockViaLabelFromFdef F l') as Hlkup.
+  assert (ret stmts_intro ps' cs' tmn' =
+    lookupBlockViaLabelFromFdef F (if isGVZero (los, nts) c then l2 else l1)) 
+    as Hlkup.
     symmetry.
     apply blockInFdefB_lookupBlockViaLabelFromFdef; auto.
     symmetry in H1.
     destruct (isGVZero (los, nts) c);
-      apply lookupBlockViaLabelFromFdef_inv in H1;
-        try solve [auto | destruct H1; auto].
+      apply lookupBlockViaLabelFromFdef_inv in H1; auto.
   split; auto.
   split.
   SCase "wf_ECStack".
@@ -2845,10 +2847,10 @@ Lemma preservation_branch_uncond: forall (maxb : Z) (pinfo : PhiInfo)
               OpsemAux.Globals := gl;
               OpsemAux.FunTable := fs |}))
   (Hinbd : 0 <= maxb) (HwfPI : WF_PhiInfo pinfo)
-  (l' : l) (ps' : phinodes) (cs' : cmds) (tmn' : terminator)
+  (ps' : phinodes) (cs' : cmds) (tmn' : terminator)
   (lc' : Opsem.GVsMap)
-  (H1 : ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l0)
-  (H2 : Opsem.switchToNewBasicBlock (los, nts) (block_intro l' ps' cs' tmn') B
+  (H1 : ret stmts_intro ps' cs' tmn' = lookupBlockViaLabelFromFdef F l0)
+  (H2 : Opsem.switchToNewBasicBlock (los, nts) (l0, stmts_intro ps' cs' tmn') B
          gl lc = ret lc')
   (HwfS1 : wf_State maxb pinfo cfg
             {| Opsem.ECS := ECs; Opsem.Mem := Mem |}),
@@ -2856,7 +2858,7 @@ Lemma preservation_branch_uncond: forall (maxb : Z) (pinfo : PhiInfo)
      {|
      Opsem.ECS := {|
                   Opsem.CurFunction := F;
-                  Opsem.CurBB := block_intro l' ps' cs' tmn';
+                  Opsem.CurBB := (l0, stmts_intro ps' cs' tmn');
                   Opsem.CurCmds := cs';
                   Opsem.Terminator := tmn';
                   Opsem.Locals := lc';
@@ -2873,13 +2875,6 @@ Proof.
   eapply wf_system__wf_fdef with (f:=F) in HwfF; eauto.
   assert (HuniqF := HwfSystem).
   eapply wf_system__uniqFdef with (f:=F) in HuniqF; eauto.
-  assert (ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l')
-    as Hlkup.
-    symmetry.
-    apply blockInFdefB_lookupBlockViaLabelFromFdef; auto.
-    symmetry in H1.
-    apply lookupBlockViaLabelFromFdef_inv in H1;
-        try solve [auto | destruct H1; auto].
   split; auto.
   split.
   SCase "wf_ECStack".
