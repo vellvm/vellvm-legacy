@@ -51,12 +51,12 @@ end /\
 wf_rmap f lc rm /\
 wf_rmetadata TD M rm /\
 exists l1, exists ps, exists cs',
-b = block_intro l1 ps (cs'++cs) tmn.
+b = (l1, stmts_intro ps (cs'++cs) tmn).
 
 Definition wf_call (ec:@ExecutionContext GVsSig) (ecs:@ECStack GVsSig) : Prop :=
 let '(mkEC f _ _ _ _ _ _) := ec in
 forall b, blockInFdefB b f ->
-let '(block_intro _ _ _ tmn) := b in
+let '(_, stmts_intro _ _ tmn) := b in
 match tmn with
 | insn_return _ _ _ | insn_return_void _ =>
     match ecs with
@@ -283,10 +283,10 @@ Lemma returnUpdateLocals__wf_rmap :
   (l2 : l)
   (ps2 : phinodes)
   (cs2' : list cmd)
-  (HBinF2 : blockInFdefB (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn') F' =
+  (HBinF2 : blockInFdefB (l2, stmts_intro ps2 (cs2' ++ c' :: cs') tmn') F' =
            true)
   (Hwfc : wf_insn S (module_intro los nts Ps) F'
-           (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn')
+           (l2, stmts_intro ps2 (cs2' ++ c' :: cs') tmn')
            (insn_cmd c')),
   wf_rmap F' lc'' rm''.
 Proof.
@@ -506,8 +506,8 @@ Proof.
   intros.
   eapply getIncomingValuesForBlockFromPHINodes__wf_rmap with (t1:=t1); eauto.
     apply uniqFdef__uniqBlockLocs in HBinF; auto.
-    destruct b1. simpl in HBinF. simpl.
-    apply NoDup_inv in HBinF. destruct HBinF; auto.
+    destruct b1 as [? []]. simpl in HBinF. simpl.
+    apply NoDup_split in HBinF. destruct HBinF; auto.
 
     eapply lookupTypViaIDFromFdef__lookupTypViaIDFromPhiNodes; eauto.
       eapply getIncomingValuesForBlockFromPHINodes_spec; eauto.
@@ -556,7 +556,7 @@ Proof.
     assert (lookupTypViaIDFromArgs (la1 ++ (t, a, i0) :: la2) i0 = Some t)
       as Hlk'.
       clear - HuniqF. simpl in HuniqF. destruct HuniqF as [_ HuniqF].
-      apply NoDup_inv in HuniqF.
+      apply NoDup_split in HuniqF.
       destruct HuniqF as [J1 J2].
       apply NoDup_lookupTypViaIDFromArgs; auto.
 
@@ -669,17 +669,6 @@ Axiom insertValue_preserves_wf_rmap : forall los nts Mem0 v lc gl
    wf_rmap F lc rm ->
    wf_rmap F (updateAddAL _ lc id0 gv'') rm.
 
-(*
-Ltac preservation_tac HwfS1 :=
-  eapply preservation_cmd_updated_case in HwfS1; simpl; try solve [
-      eauto |
-      intro J;
-      apply updateAddAL_nptr__wf_rmap; try solve [auto |
-        apply wf_State__cmd__lookupTypViaIDFromFdef in HwfS1;
-        rewrite HwfS1; simpl; try solve [auto | congruence]]
-    ].
-*)
-
 Lemma wf_sbExecutionContext__wf_ExecutionContext : forall TD M ps sbEC,
   wf_ExecutionContext TD M ps sbEC ->
   OpsemPP.wf_ExecutionContext TD ps (sbEC__EC sbEC).
@@ -700,7 +689,7 @@ Proof.
   simpl in *.
   intros.
   apply H in H0. clear H.
-  destruct b as [? ? ? t]; auto.
+  destruct b as [? [? ? t]]; auto.
   destruct t; auto.
     destruct sbECs; auto.
     destruct e; auto.
@@ -974,10 +963,11 @@ Case "sBranch".
   repeat (split; auto).
     intros; congruence.
     eapply switchToNewBasicBlock__wf_rmap with
-      (b1:=block_intro l' ps' cs' tmn')
-      (b2:=block_intro l3 ps3 (cs3' ++ nil) (insn_br bid Cond l1 l2)); eauto.
+      (b1:=(if isGVZero (los, nts) c then l2 else l1, stmts_intro ps' cs' tmn'))
+      (b2:=(l3, stmts_intro ps3 (cs3' ++ nil) (insn_br bid Cond l1 l2))); eauto.
     eapply switchToNewBasicBlock__wf_rmetadata in H; eauto.
-    exists l'. exists ps'. exists nil. simpl_env. auto.
+    exists (if isGVZero (los, nts) c then l2 else l1). exists ps'. exists nil. 
+    simpl_env. auto.
 Unfocus.
 
 Focus.
@@ -991,7 +981,7 @@ Case "sBranch_uncond".
     intros; congruence.
     eapply switchToNewBasicBlock__wf_rmap in H; eauto.
     eapply switchToNewBasicBlock__wf_rmetadata in H; eauto.
-    exists l'. exists ps'. exists nil. simpl_env. auto.
+    exists l0. exists ps'. exists nil. simpl_env. auto.
 Unfocus.
 
 Case "sBop". preservation_tac.
@@ -1456,7 +1446,7 @@ Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (tmn' : terminator)
   ps2
   (H8 : wf_phinodes s (module_intro los nts ps) f
-         (block_intro l0 ps' cs' tmn') ps2)
+         (l0, stmts_intro ps' cs' tmn') ps2)
   rm (Hwfm: wf_rmap f lc rm) re
   (HgetIn : Opsem.getIncomingValuesForBlockFromPHINodes (los, nts) ps2
        b gl lc = ret re)
@@ -1866,7 +1856,7 @@ match cfg with
   end \/
   match S with
   | {| ECS := {|
-                CurBB := block_intro _ _ _ (insn_unreachable _);
+                CurBB := (_, stmts_intro _ _ (insn_unreachable _));
                 CurCmds := nil;
                 Terminator := (insn_unreachable _)
                |} :: _
@@ -2082,7 +2072,7 @@ Proof.
                       [HwfECs HwfCall]].
   subst b.
   assert (wf_insn s (module_intro los nts ps) f
-           (block_intro l1 ps1 (cs1 ++ (insn_load i0 t v a) :: cs) tmn)
+           (l1, stmts_intro ps1 (cs1 ++ (insn_load i0 t v a) :: cs) tmn)
            (insn_cmd (insn_load i0 t v a))) as Hwfc.
     eapply wf_system__wf_cmd in HbInF; eauto using in_middle.
   assert (exists omd, get_reg_metadata (los, nts) gl rm v =
@@ -2125,8 +2115,8 @@ Proof.
            {|
              ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                         (cs1 ++ insn_load i0 t v a :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                         (cs1 ++ insn_load i0 t v a :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := updateAddAL _ lc i0 ($ gv' # t $);
@@ -2144,8 +2134,8 @@ Proof.
            {|
              ECS := {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                         (cs1 ++ insn_load i0 t v a :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                         (cs1 ++ insn_load i0 t v a :: cs) tmn);
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := updateAddAL _ lc i0 ($ gv' # t $);
@@ -2241,7 +2231,7 @@ Proof.
                       [HwfECs HwfCall]].
   subst b.
   assert (wf_insn s (module_intro los nts ps) f
-           (block_intro l1 ps1 (cs1 ++ (insn_store i0 t v v0 a) :: cs) tmn)
+           (l1, stmts_intro ps1 (cs1 ++ (insn_store i0 t v v0 a) :: cs) tmn)
            (insn_cmd (insn_store i0 t v v0 a))) as Hwfc.
     eapply wf_system__wf_cmd in HbInF; eauto using in_middle.
 
@@ -2289,8 +2279,8 @@ Proof.
                {|
                ECS := {|
                     CurFunction := f;
-                    CurBB := block_intro l1 ps1
-                               (cs1 ++ insn_store i0 t v v0 a :: cs) tmn;
+                    CurBB := (l1, stmts_intro ps1
+                               (cs1 ++ insn_store i0 t v v0 a :: cs) tmn);
                     CurCmds := cs;
                     Terminator := tmn;
                     Locals := lc;
@@ -2307,8 +2297,8 @@ Proof.
                {|
                ECS := {|
                     CurFunction := f;
-                    CurBB := block_intro l1 ps1
-                               (cs1 ++ insn_store i0 t v v0 a :: cs) tmn;
+                    CurBB := (l1, stmts_intro ps1
+                               (cs1 ++ insn_store i0 t v v0 a :: cs) tmn);
                     CurCmds := cs;
                     Terminator := tmn;
                     Locals := lc;
@@ -2359,14 +2349,14 @@ Proof.
     destruct tmn; simpl in Hundef.
       destruct ecs; simpl in Hundef.
         elim_undef_false Hundef.
-        destruct b as [? ? ? t0].
+        destruct b as [? [? ? t0]].
         destruct t0; inversion Hundef.
 
         destruct e; simpl in Hundef.
         elim_undef_false Hundef.
           destruct CurCmds0; tinv Hundef.
             undefbehave.
-          destruct b as [? ? ? t0].
+          destruct b as [? [? ? t0]].
           destruct t0; inversion Hundef.
       elim_undef_false Hundef.
       destruct ecs; tinv Hundef.
@@ -2374,30 +2364,29 @@ Proof.
         simpl in Hundef.
         destruct CurCmds0; tinv Hundef.
           undefbehave.
-        destruct b as [? ? ? t].
+        destruct b as [? [? ? t]].
         destruct t; inversion Hundef.
 
       elim_undef_false Hundef.
-      destruct b as [? ? ? t].
+      destruct b as [? [? ? t]].
       destruct t; inversion Hundef.
 
       elim_undef_false Hundef.
-      destruct b as [? ? ? t].
+      destruct b as [? [? ? t]].
       destruct t; inversion Hundef.
 
       elim_undef_false Hundef.
-      destruct b as [? ? ? t].
+      destruct b as [? [? ? t]].
       destruct t; inversion Hundef.
         undefbehave.
 
     elim_undef_false Hundef.
-      destruct b as [? ? ? t].
+      destruct b as [? [? ? t]].
       destruct t; inversion Hundef.
 
       destruct_cmd c; try solve [inversion Hundef | undefbehave].
       destruct_cmd c; try solve [inversion Hundef | undefbehave].
       destruct_cmd c; try solve [inversion Hundef | undefbehave].
-(*      destruct c; try solve [inversion Hundef | undefbehave].*)
         remember (getOperandValue (los, nts) v lc gl) as R.
         destruct R as [gvs|]; tinv Hundef.
         destruct Hundef as [gv [Hin Hundef]].
@@ -2565,7 +2554,7 @@ Proof.
           end.
           destruct_typ t; inv HeqHptr.
           assert (wf_insn s (module_intro layouts5 namedts5 products5) f
-            (block_intro l1 ps1 (cs1 ++ nil)
+            (l1, stmts_intro ps1 (cs1 ++ nil)
                (insn_return id5 (typ_pointer t0) value5))
             (insn_terminator (insn_return id5 (typ_pointer t0) value5))) as Hwfc.
             eapply wf_system__wf_tmn in HbInF; eauto.
@@ -2605,17 +2594,19 @@ Proof.
       assert (uniqFdef f) as HuniqF.
         eapply wf_system__uniqFdef; eauto.
       assert (exists rm', switchToNewBasicBlock (los, nts)
-        (block_intro l' ps' cs' tmn')
-        (block_intro l1 ps1 (cs1++nil) (insn_br id5 value5 l2 l3)) gl lc rm =
+        (if isGVZero (los, nts) c then l3 else l2, stmts_intro ps' cs' tmn')
+        (l1, stmts_intro ps1 (cs1++nil) (insn_br id5 value5 l2 l3)) gl lc rm =
           Some (lc', rm')) as Hswitch.
         unfold Opsem.switchToNewBasicBlock in H19.
         remember (Opsem.getIncomingValuesForBlockFromPHINodes
-          (los, nts) (getPHINodesFromBlock (block_intro l' ps' cs' tmn'))
-          (block_intro l1 ps1 (cs1 ++ nil) (insn_br id5 value5 l2 l3)) gl lc) as R.
+          (los, nts) (getPHINodesFromBlock 
+            (if isGVZero (los, nts) c then l3 else l2, 
+             stmts_intro ps' cs' tmn'))
+            (l1, stmts_intro ps1 (cs1 ++ nil) (insn_br id5 value5 l2 l3)) gl lc) as R.
         destruct R; tinv H19.
         assert (exists RVs,
            getIncomingValuesForBlockFromPHINodes (los, nts) ps'
-             (block_intro l1 ps1 (cs1++nil) (insn_br id5 value5 l2 l3)) gl lc rm =
+             (l1, stmts_intro ps1 (cs1++nil) (insn_br id5 value5 l2 l3)) gl lc rm =
            Some RVs /\
            matched_incoming_values l0 RVs) as J.
            assert (HwfB := HbInF).
@@ -2629,7 +2620,7 @@ Proof.
              eapply wf_system__lookup__wf_block in H18; eauto.
              inv H18. clear H9 H8.
              eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes
-               with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l'); eauto.
+               with (ps':=ps')(cs':=cs')(tmn':=tmn'); eauto.
                exists nil. auto.
 
              assert (J:=H18).
@@ -2639,7 +2630,7 @@ Proof.
              eapply wf_system__lookup__wf_block in H18; eauto.
              inv H18. clear H9 H8.
              eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes
-               with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l'); eauto.
+               with (ps':=ps')(cs':=cs')(tmn':=tmn'); eauto.
                exists nil. auto.
 
          destruct J as [RVs [J J']].
@@ -2648,7 +2639,8 @@ Proof.
 
       destruct Hswitch as [rm' Hswitch].
       exists (mkState
-              ((mkEC f (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)
+              ((mkEC f (if isGVZero (los, nts) c then l3 else l2,
+                        stmts_intro ps' cs' tmn') cs' tmn' lc' rm' als)
               ::ecs) M Mmap0).
       exists E0. eauto.
 
@@ -2657,25 +2649,24 @@ Proof.
       assert (uniqFdef f) as HuniqF.
         eapply wf_system__uniqFdef; eauto.
       assert (exists rm', switchToNewBasicBlock (los, nts)
-        (block_intro l' ps' cs' tmn')
-        (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc rm =
+        (l2, stmts_intro ps' cs' tmn')
+        (l1, stmts_intro ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc rm =
           Some (lc', rm')) as Hswitch.
         unfold Opsem.switchToNewBasicBlock in H15.
         remember (Opsem.getIncomingValuesForBlockFromPHINodes
-          (los, nts) (getPHINodesFromBlock (block_intro l' ps' cs' tmn'))
-          (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc) as R.
+          (los, nts) (getPHINodesFromBlock (l2, stmts_intro ps' cs' tmn'))
+          (l1, stmts_intro ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc) as R.
         destruct R; tinv H15.
         assert (exists RVs,
            getIncomingValuesForBlockFromPHINodes (los, nts) ps'
-             (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc rm =
+             (l1, stmts_intro ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc rm =
            Some RVs /\
            matched_incoming_values l0 RVs) as J.
            assert (HwfB := HbInF).
            eapply wf_system__blockInFdefB__wf_block in HwfB; eauto.
            eapply wf_system__lookup__wf_block in H14; eauto.
            inv H14. clear H9 H8.
-           eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes
-             with (l0:=l'); eauto.
+           eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes; eauto.
              exists nil. auto.
 
          destruct J as [RVs [J J']].
@@ -2684,13 +2675,13 @@ Proof.
 
       destruct Hswitch as [rm' Hswitch].
       exists (mkState
-              ((mkEC f (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)
+              ((mkEC f (l2, stmts_intro ps' cs' tmn') cs' tmn' lc' rm' als)
               ::ecs) M Mmap0).
       exists E0. eauto.
 
   Case "cs<>nil".
     assert (wf_insn s (module_intro los nts ps) f
-      (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) (insn_cmd c)) as Hwfc.
+      (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) (insn_cmd c)) as Hwfc.
       assert (In c (cs1++c::cs)) as H.
         apply in_or_app. simpl. auto.
       eapply wf_system__wf_cmd with (c:=c) in HbInF; eauto.
@@ -2809,12 +2800,12 @@ Proof.
     exists
          {|
          ECS :=(mkEC (fdef_intro (fheader_intro fa rt fid la va) lb)
-                       (block_intro l' ps' cs' tmn') cs' tmn' lc' rm'
+                       (l', stmts_intro ps' cs' tmn') cs' tmn' lc' rm'
                        nil)::
                {|
                 CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_call i0 n c0 t0 v0 v p :: cs) tmn;
+                CurBB := (l1, stmts_intro ps1
+                           (cs1 ++ insn_call i0 n c0 t0 v0 v p :: cs) tmn);
                 CurCmds := insn_call i0 n c0 t0 v0 v p :: cs;
                 Terminator := tmn;
                 Locals := lc;

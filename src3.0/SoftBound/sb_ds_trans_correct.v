@@ -54,7 +54,7 @@ Lemma SBpass_is_correct__dsCall : forall (mi : MoreMem.meminj)
   (H : OpsemAux.lookupFdefViaPtr Ps fs fptr =
       ret fdef_intro (fheader_intro fa rt fid la va) lb)
   (H0 : getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
-       ret block_intro l' ps' cs' tmn')
+       ret (l', stmts_intro ps' cs' tmn'))
   (H1 : params2GVs TD lp lc gl rm = ret ogvs)
   (H2 : initLocals TD la ogvs = Some (lc', rm')),
    exists St' : Opsem.State,
@@ -68,7 +68,7 @@ Lemma SBpass_is_correct__dsCall : forall (mi : MoreMem.meminj)
          FunTable := fs |} {|
          ECS := {|
                 CurFunction := fdef_intro (fheader_intro fa rt fid la va) lb;
-                CurBB := block_intro l' ps' cs' tmn';
+                CurBB := (l', stmts_intro ps' cs' tmn');
                 CurCmds := cs';
                 Terminator := tmn';
                 Locals := lc';
@@ -142,8 +142,8 @@ Proof.
      exists (Opsem.mkState
       ((Opsem.mkEC
         (fdef_intro (fheader_intro fa rt (wrapper_fid fid) la va)
-                (block_intro l1 ps1 (cs3 ++ cs4) tmn1 :: bs3))
-        (block_intro l1 ps1 (cs3 ++ cs4) tmn1)
+                ((l1, stmts_intro ps1 (cs3 ++ cs4) tmn1) :: bs3))
+        (l1, stmts_intro ps1 (cs3 ++ cs4) tmn1)
         cs4
       tmn1 lc2' nil)::
       (Opsem.mkEC (fdef_intro fh2 bs2) B2
@@ -182,7 +182,6 @@ Proof.
          unfold call_suffix.
          rewrite <- HeqR2. auto.
 Qed.
-
 
 Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj)
   (mgb : Values.block)
@@ -325,10 +324,10 @@ Lemma SBpass_is_correct__dsBranch_uncond : forall
                   Allocas := als |} :: EC;
            Mem := Mem0;
            Mmap := MM |} Cfg St)
-  (l' : l) (ps' : phinodes) (cs' : cmds) (tmn' : terminator) (lc' : DGVMap)
+  (ps' : phinodes) (cs' : cmds) (tmn' : terminator) (lc' : DGVMap)
   (rm' : rmetadata)
-  (H : ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l0)
-  (H0 : switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm =
+  (H : ret stmts_intro ps' cs' tmn' = lookupBlockViaLabelFromFdef F l0)
+  (H0 : switchToNewBasicBlock TD (l0, stmts_intro ps' cs' tmn') B gl lc rm =
        ret (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
@@ -341,7 +340,7 @@ Lemma SBpass_is_correct__dsBranch_uncond : forall
          FunTable := fs |} {|
          ECS := {|
                 CurFunction := F;
-                CurBB := block_intro l' ps' cs' tmn';
+                CurBB := (l0, stmts_intro ps' cs' tmn');
                 CurCmds := cs';
                 Terminator := tmn';
                 Locals := lc';
@@ -375,28 +374,28 @@ Proof.
 
   apply trans_block_inv in Htblock.
   destruct Htblock as [ps2 [cs2 [cs [JJ1 [JJ2 [JJ3 eq]]]]]]; subst.
+  inv eq.
 
   assert (HBinF':=H).
-  apply genLabel2Block_blocks_inv with (f:=(fheader_intro f t i0 a v)) in HBinF';
+  apply lookupBlock_blocks_inv with (f:=(fheader_intro f t i0 a v)) in HBinF';
     auto.
-  destruct HBinF' as [EQ HBinF']; subst.
 
   assert (exists lc2', Opsem.switchToNewBasicBlock (los,nts)
-    (block_intro l' ps2 (cs2 ++ cs) tmn') B2 gl2 lc2 = Some lc2' /\
+    (l0, stmts_intro ps2 (cs2 ++ cs) tmn') B2 gl2 lc2 = Some lc2' /\
     reg_simulation mi (los, nts) gl2
             (fdef_intro (fheader_intro f t i0 a v) bs1) rm' rm2' lc' lc2')
     as Hswitch2.
     assert (HBinF'':=HBinF').
     eapply wf_system__blockInFdefB__wf_block in HBinF''; eauto.     
     inv HBinF''.
-    eapply switchToNewBasicBlock__reg_simulation; eauto.
+    eapply switchToNewBasicBlock__reg_simulation; eauto 2.
 
   destruct Hswitch2 as [lc2' [Hswitch2 Hrsim']].
   exists (Opsem.mkState
           ((Opsem.mkEC
             (fdef_intro (fheader_intro f t (wrapper_fid i0) a v)
-               (block_intro l1 ps1 (cs1'++ cs1) tmn1 :: bs'))
-            (block_intro l' ps2 (cs2 ++ cs) tmn')
+               ((l1, stmts_intro ps1 (cs1'++ cs1) tmn1) :: bs'))
+            (l0, stmts_intro ps2 (cs2 ++ cs) tmn')
             (cs2 ++ cs) tmn' lc2' als2)::
             ECs2) M2).
   exists mi.
@@ -406,30 +405,30 @@ Proof.
       eapply Opsem.sBranch_uncond; eauto.
         simpl. unfold lookupBlockViaLabelFromBlocks in Hlk'.
         rewrite <- Hlk'. simpl.
-        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l' l1);
+        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l1);
           subst; auto.
 
           simpl in Hlk'.
           destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l1 l1).
             inv Hlk'.
-           apply trans_blocks_inv in Htblocks.
-           destruct Htblocks as [b1 [bs1' [ex_ids3 [J1 [J7 J8]]]]]; subst.
-           destruct b1 as [l0 ? ? ?].
-           apply trans_block_inv in J1.
-           destruct J1 as [p' [cs'' [cs0' [J9 [J10 [J11 J12]]]]]].
-           inv J12.
-           assert (HuniqF:=HFinPs). eapply wf_system__uniqFdef in HuniqF; eauto.
-           eapply wf_system__wf_fdef in HFinPs; eauto.
-           clear - HBinF H Heqb1 HFinPs HuniqF.
-           destruct Heqb1 as [l1 [ps1 [cs1'' Heq1]]]; subst.
-           eapply getEntryBlock_inv with (l':=l0)(a:=l0) in HBinF; simpl; eauto.
-           contradict HBinF; auto.
-
-           contradict n; auto.
+            apply trans_blocks_inv in Htblocks.
+            destruct Htblocks as [b1 [bs1' [ex_ids3 [J1 [J7 J8]]]]]; subst.
+            destruct b1 as [l0 []].
+            apply trans_block_inv in J1.
+            destruct J1 as [p' [cs'' [cs0' [J9 [J10 [J11 J12]]]]]].
+            inv J12.
+            assert (HuniqF:=HFinPs). eapply wf_system__uniqFdef in HuniqF; eauto.
+            eapply wf_system__wf_fdef in HFinPs; eauto.
+            clear - HBinF H Heqb1 HFinPs HuniqF.
+            destruct Heqb1 as [l1 [ps1 [cs1'' Heq1]]]; subst.
+            eapply getEntryBlock_inv with (l':=l0)(a:=l0) in HBinF; simpl; eauto.
+            contradict HBinF; auto.
+ 
+            contradict n; auto.
 
   repeat (split; auto).
-    exists l'. exists ps'. exists nil. auto.
-    exists l'. exists ps2. exists nil. auto.
+    exists l0. exists ps'. exists nil. auto.
+    exists l0. exists ps2. exists nil. auto.
     exists ex_ids1. exists rm2'. exists ex_ids1'. exists ex_ids2. exists cs2.
     exists cs.
     repeat (split; auto).
@@ -438,7 +437,7 @@ Qed.
 Ltac get_wf_value_for_simop' :=
   match goal with
   | Heqb1: exists _:_, exists _:_, exists _:_,
-             ?B = block_intro _ _ (_++nil) _,
+             ?B = (_, stmts_intro _ (_++nil) _),
     HBinF: blockInFdefB ?B _ = _ |- _ =>
     let Heqb1':=fresh "Heqb1'" in
     let HBinF':=fresh "HBinF'" in
@@ -471,19 +470,19 @@ Lemma SBpass_is_correct__dsBranch : forall
            Mem := Mem0;
            Mmap := MM |} Cfg St)
   (c : GenericValue)
-  (l' : l)
   (ps' : phinodes)
   (cs' : cmds)
   (tmn' : terminator)
   (lc' : DGVMap)
   (rm' : rmetadata)
   (H : getOperandValue TD Cond lc gl = ret c)
-  (H0 : ret block_intro l' ps' cs' tmn' =
+  (H0 : ret stmts_intro ps' cs' tmn' =
        (if isGVZero TD c
         then lookupBlockViaLabelFromFdef F l2
         else lookupBlockViaLabelFromFdef F l1))
-  (H1 : switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm =
-       ret (lc', rm')),
+  (H1 : switchToNewBasicBlock TD 
+          (if isGVZero TD c then l2 else l1, 
+           stmts_intro ps' cs' tmn') B gl lc rm = ret (lc', rm')),
   exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
        Opsem.sop_star Cfg St St' E0 /\
@@ -495,7 +494,8 @@ Lemma SBpass_is_correct__dsBranch : forall
          FunTable := fs |} {|
          ECS := {|
                 CurFunction := F;
-                CurBB := block_intro l' ps' cs' tmn';
+                CurBB := (if isGVZero TD c then l2 else l1,
+                          stmts_intro ps' cs' tmn');
                 CurCmds := cs';
                 Terminator := tmn';
                 Locals := lc';
@@ -526,12 +526,14 @@ Proof.
   destruct H as [c' [H Hinj]].
 
   erewrite simulation__isGVZero in H0; eauto.
-  assert (exists ex_ids1' : ids, exists ex_ids2 : ids, exists b2 : block,
+  assert (exists ex_ids1' : ids, exists ex_ids2 : ids, exists sts2,
     (if isGVZero (los,nts) c'
-     then lookupBlockViaLabelFromBlocks (block_intro l1' ps1 cs1 tmn1 :: bs') l2
-     else lookupBlockViaLabelFromBlocks (block_intro l1' ps1 cs1 tmn1 :: bs') l1)
-      = ret b2 /\
-    trans_block ex_ids1' rm2' (block_intro l' ps' cs' tmn') = ret (ex_ids2, b2)
+     then lookupBlockViaLabelFromBlocks ((l1', stmts_intro ps1 cs1 tmn1) :: bs') l2
+     else lookupBlockViaLabelFromBlocks ((l1', stmts_intro ps1 cs1 tmn1) :: bs') l1)
+      = ret sts2 /\
+    trans_block ex_ids1' rm2' (if isGVZero (los,nts) c' then l2 else l1, 
+                               stmts_intro ps' cs' tmn') = 
+      ret (ex_ids2, (if isGVZero (los,nts) c' then l2 else l1, sts2))
       /\
     incl ex_ids1 ex_ids1') as Hfind.
    destruct (isGVZero (los,nts) c');
@@ -542,18 +544,19 @@ Proof.
 
   apply trans_block_inv in Htblock.
   destruct Htblock as [ps2 [cs2 [cs [JJ1 [JJ2 [JJ3 eq]]]]]]; subst.
+  inv eq.
 
-  assert (blockInFdefB (block_intro l' ps' cs' tmn')
+  assert (blockInFdefB (if isGVZero (los,nts) c' then l2 else l1, 
+                        stmts_intro ps' cs' tmn')
     (fdef_intro (fheader_intro f t i0 a v) bs1)) as HBinF'.
     symmetry in H0.
-    destruct (isGVZero (los,nts) c').
-      apply genLabel2Block_blocks_inv with (f:=(fheader_intro f t i0 a v)) in H0
-        ; auto. destruct H0; eauto.
-      apply genLabel2Block_blocks_inv with (f:=(fheader_intro f t i0 a v)) in H0
-        ; auto. destruct H0; eauto.
+    destruct (isGVZero (los,nts) c');
+      apply lookupBlock_blocks_inv with (f:=(fheader_intro f t i0 a v)) in H0
+        ; auto. 
 
   assert (exists lc2', Opsem.switchToNewBasicBlock (los,nts)
-    (block_intro l' ps2 (cs2 ++ cs) tmn') B2 gl2 lc2 = Some lc2' /\
+    (if isGVZero (los, nts) c' then l2 else l1,
+     stmts_intro ps2 (cs2 ++ cs) tmn') B2 gl2 lc2 = Some lc2' /\
     reg_simulation mi (los, nts) gl2
             (fdef_intro (fheader_intro f t i0 a v) bs1) rm' rm2' lc' lc2')
     as Hswitch2.
@@ -566,8 +569,9 @@ Proof.
   exists (Opsem.mkState
           ((Opsem.mkEC
             (fdef_intro (fheader_intro f t (wrapper_fid i0) a v)
-               (block_intro l1' ps1 (cs1'++ cs1) tmn1 :: bs'))
-            (block_intro l' ps2 (cs2 ++ cs) tmn')
+               ((l1', stmts_intro ps1 (cs1'++ cs1) tmn1) :: bs'))
+            (if isGVZero (los, nts) c' then l2 else l1,
+             stmts_intro ps2 (cs2 ++ cs) tmn')
             (cs2 ++ cs) tmn' lc2' als2)::
             ECs2) M2).
   exists mi.
@@ -577,7 +581,7 @@ Proof.
       eapply Opsem.sBranch; eauto.
         apply trans_blocks_inv in J3.
         destruct J3 as [b1 [bs1' [ex_ids3 [J1 [J7 J8]]]]]; subst.
-        destruct b1 as [l0 ? ? ?].
+        destruct b1 as [l0 []].
         apply trans_block_inv in J1.
         destruct J1 as [p' [cs'' [cs0' [J9 [J10 [J11 J12]]]]]].
         inv J12.
@@ -599,9 +603,16 @@ Proof.
         destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l1 l0);
           subst; try solve [auto | contradict HA1; auto].
 
+  erewrite <- simulation__isGVZero in HBinF'; eauto.
   repeat (split; auto).
-    exists l'. exists ps'. exists nil. auto.
-    exists l'. exists ps2. exists nil. auto.
+    simpl. erewrite simulation__isGVZero; eauto 1.
+
+    exists (if isGVZero (los, nts) c then l2 else l1). 
+    exists ps'. exists nil. auto.
+
+    exists (if isGVZero (los, nts) c' then l2 else l1). 
+    exists ps2. exists nil. auto.
+
     exists ex_ids1. exists rm2'. exists ex_ids1'. exists ex_ids2. exists cs2.
     exists cs.
     repeat (split; auto).
@@ -645,9 +656,9 @@ Ltac ret_insn :=
 
 Lemma cmds_at_block_tails_next' : forall B2' cs23' cs24' tmn2' cs22,
   (exists l2 : l, exists ps2 : phinodes, exists cs21 : list cmd,
-    B2' = block_intro l2 ps2 (cs21 ++ cs22 ++ cs23' ++ cs24') tmn2') ->
+    B2' = (l2, stmts_intro ps2 (cs21 ++ cs22 ++ cs23' ++ cs24') tmn2')) ->
   exists l2 : l, exists ps2 : phinodes, exists cs21 : list cmd,
-    B2' = block_intro l2 ps2 (cs21 ++ cs23' ++ cs24') tmn2'.
+    B2' = (l2, stmts_intro ps2 (cs21 ++ cs23' ++ cs24') tmn2').
 Proof.
   intros.
   destruct H as [l2' [ps2' [cs21' Heqb2']]]; subst.

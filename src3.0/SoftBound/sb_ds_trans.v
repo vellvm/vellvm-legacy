@@ -210,7 +210,7 @@ end.
 
 Definition gen_metadata_block nts (ex_ids:ids) (rm:rmap) (b:block)
   : option(ids*rmap) :=
-let '(block_intro _ ps cs _) := b in
+let '(_, stmts_intro ps cs _) := b in
 let '(ex_ids', rm') := gen_metadata_phinodes ex_ids rm ps in
 gen_metadata_cmds nts ex_ids' rm' cs.
 
@@ -573,7 +573,7 @@ Definition trans_terminator (rm:rmap) (tmn1:terminator) : option cmds :=
 
 Definition trans_block (ex_ids:ids) (rm:rmap) (b:block)
   : option (ids*block) :=
-let '(block_intro l1 ps1 cs1 tmn1) := b in
+let '(l1, stmts_intro ps1 cs1 tmn1) := b in
 match trans_phinodes rm ps1 with
 | None => None
 | Some ps2 =>
@@ -581,7 +581,7 @@ match trans_phinodes rm ps1 with
     | Some (ex_ids',cs2) =>
         match trans_terminator rm tmn1 with
         | Some cs' =>
-            Some (ex_ids',block_intro l1 ps2 (cs2++cs') tmn1)
+            Some (ex_ids', (l1, stmts_intro ps2 (cs2++cs') tmn1))
         | _ => None
         end
     | None => None
@@ -641,10 +641,10 @@ else
       match (trans_args rm la 1%Z) with
       | Some cs' =>
           match (trans_blocks ex_ids rm bs) with
-          | Some (ex_ids, (block_intro l1 ps1 cs1 tmn1)::bs') =>
+          | Some (ex_ids, (l1, stmts_intro ps1 cs1 tmn1)::bs') =>
               Some (fdef_intro
                      (fheader_intro fa t (wrapper_fid fid) la va)
-                     ((block_intro l1 ps1 (cs'++cs1) tmn1)::bs'))
+                     ((l1, stmts_intro ps1 (cs'++cs1) tmn1)::bs'))
           | _ => None
           end
       | _ => None

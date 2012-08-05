@@ -291,7 +291,7 @@ Ltac inv_trans_cmds :=
 Ltac get_wf_value_for_simop :=
   match goal with
   | Heqb1: exists _:_, exists _:_, exists _:_,
-             ?B = block_intro _ _ (_++_::_) _,
+             ?B = (_, stmts_intro _ (_++_::_) _),
     HBinF: blockInFdefB ?B _ = _ |- _ =>
     let Heqb1':=fresh "Heqb1'" in
     let HBinF':=fresh "HBinF'" in

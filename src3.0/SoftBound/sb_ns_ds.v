@@ -632,14 +632,15 @@ Case "sBranch". simpl_nd_sbds.
   end.
   destruct H as [lc2' [J3 J4]].
   exists (mkState
-    ((mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' rm' als1')
+    ((mkEC f1' (if isGVZero TD c then l2 else l1,
+                stmts_intro ps' cs' tmn') cs' tmn' lc2' rm' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sBranch_uncond". simpl_nd_sbds.
   eapply instantiate_locals__switchToNewBasicBlock in H; eauto.
   destruct H as [lc2' [J1 J2]].
   exists (mkState
-    ((mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' rm' als1')
+    ((mkEC f1' (l0, stmts_intro ps' cs' tmn') cs' tmn' lc2' rm' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sBop". simpl_nd_sbds.
@@ -917,7 +918,7 @@ Case "sCall". simpl_nd_sbds.
   destruct H0 as [lc2' [H21 H22]].
   exists (mkState
     ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb)
-                       (block_intro l' ps' cs' tmn') cs' tmn'
+                       (l', stmts_intro ps' cs' tmn') cs' tmn'
                        lc2' rm'
                        nil)::
      (mkEC f1' b1' (insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1'

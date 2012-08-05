@@ -292,7 +292,7 @@ Axiom shadow_stack_init : forall la ogvs lc' rm' gl mi lc2 lp cs1 rm2 nts los
   Opsem.getOperandValue (los, nts) (wrap_call fv) lc2 gl2 = Some fptr ->
   OpsemAux.lookupFdefViaPtr Ps2 fs2 fptr =
           ret fdef_intro (fheader_intro fa rt (wrapper_fid fid) la va)
-                (block_intro l1 ps1 (cs3 ++ cs4) tmn1 :: bs3) ->
+                ((l1, stmts_intro ps1 (cs3 ++ cs4) tmn1) :: bs3) ->
   exists M2', exists lc2',
   Opsem.sop_star (OpsemAux.mkCfg S2 (los, nts) Ps2 gl2 fs2)
     (Opsem.mkState
@@ -305,8 +305,8 @@ Axiom shadow_stack_init : forall la ogvs lc' rm' gl mi lc2 lp cs1 rm2 nts los
     (Opsem.mkState
       ((Opsem.mkEC
         (fdef_intro (fheader_intro fa rt (wrapper_fid fid) la va)
-                (block_intro l1 ps1 (cs3 ++ cs4) tmn1 :: bs3))
-        (block_intro l1 ps1 (cs3 ++ cs4) tmn1)
+                ((l1, stmts_intro ps1 (cs3 ++ cs4) tmn1) :: bs3))
+        (l1, stmts_intro ps1 (cs3 ++ cs4) tmn1)
         cs4
       tmn1 lc2' nil)::
       (Opsem.mkEC (fdef_intro fh2 bs2) B2

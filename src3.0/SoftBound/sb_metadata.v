@@ -1288,7 +1288,8 @@ Proof.
   eapply getIncomingValuesForBlockFromPHINodes__wf_rmetadata; eauto.
 
     apply uniqFdef__uniqBlockLocs in HBinF; auto.
-    apply NoDup_inv in HBinF. destruct HBinF; auto.
+    simpl in HBinF.
+    apply NoDup_split in HBinF. destruct HBinF; auto.
 Qed.
 
 Lemma get_mem_metadata__wf_rmetadata : forall los nts Mem0 rm gvp id0 MM,

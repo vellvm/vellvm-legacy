@@ -313,20 +313,20 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
 
 | sBranch : forall S TD Ps F B lc rm gl fs bid Cond l1 l2 l' ps' cs' tmn' lc'
     rm' EC Mem MM als,
-  switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm =
+  switchToNewBasicBlock TD (l', stmts_intro ps' cs' tmn') B gl lc rm = 
     Some (lc', rm') ->
   sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState ((mkEC F B nil (insn_br bid Cond l1 l2) lc rm als)::EC) Mem MM)
-    (mkState ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)::EC)
+    (mkState ((mkEC F (l', stmts_intro ps' cs' tmn') cs' tmn' lc' rm' als)::EC)
       Mem MM) E0
 
-| sBranch_uncond : forall S TD Ps F B lc rm gl fs bid l l' ps' cs' tmn' lc' rm'
+| sBranch_uncond : forall S TD Ps F B lc rm gl fs bid l ps' cs' tmn' lc' rm'
     EC Mem MM als,
-  switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm =
+  switchToNewBasicBlock TD (l, stmts_intro ps' cs' tmn') B gl lc rm =
     Some (lc', rm') ->
   sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState ((mkEC F B nil (insn_br_uncond bid l) lc rm als)::EC) Mem MM)
-    (mkState ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)::EC)
+    (mkState ((mkEC F (l, stmts_intro ps' cs' tmn') cs' tmn' lc' rm' als)::EC)
       Mem MM) E0
 
 | sBop: forall cfg F B lc rm id bop sz v1 v2 lc' EC cs tmn Mem MM als,
@@ -567,7 +567,7 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
         ::EC) Mem MM)
     (mkState
       ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb)
-                (block_intro l' ps' cs' tmn') cs' tmn'
+                (l', stmts_intro ps' cs' tmn') cs' tmn'
                 lc' rm' nil)::
        (mkEC F B ((insn_call rid noret ca rt1 va1 fv lp)::cs) tmn lc rm als)
          ::EC) Mem MM) E0

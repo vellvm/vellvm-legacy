@@ -119,12 +119,12 @@ Definition sbEC_simulates_EC_tail (TD:TargetData) Ps1 gl (mi:MoreMem.meminj)
        InProductsB (product_fdef f1) Ps1 = true /\
        trans_fdef nts f1 = Some f2 /\
        tmn1 = tmn2 /\ als_simulation mi als1 als2 /\
-       (label_of_block b1 = label_of_block b2) /\
+       (getBlockLabel b1 = getBlockLabel b2) /\
        (exists l1, exists ps1, exists cs11, b1 = 
-         block_intro l1 ps1 (cs11++(insn_call i0 nr ca t0 va0 v p)::cs13) tmn1)
+         (l1, stmts_intro ps1 (cs11++(insn_call i0 nr ca t0 va0 v p)::cs13) tmn1))
          /\
        (exists l2, exists ps2, exists cs21,
-         b2 = block_intro l2 ps2 (cs21++cs2) tmn2) /\
+         b2 = (l2, stmts_intro ps2 (cs21++cs2) tmn2)) /\
        exists ex_ids, exists rm2,
        exists ex_ids3, exists ex_ids4, exists cs22, exists cs23, exists cs24,
          gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids, rm2) /\
@@ -151,11 +151,11 @@ Definition sbEC_simulates_EC_head (TD:TargetData) Ps1 gl (mi:MoreMem.meminj)
        InProductsB (product_fdef f1) Ps1 = true /\
        trans_fdef nts f1 = Some f2 /\
        tmn1 = tmn2 /\ als_simulation mi als1 als2 /\
-       (label_of_block b1 = label_of_block b2) /\
+       (getBlockLabel b1 = getBlockLabel b2) /\
        (exists l1, exists ps1, exists cs11,
-         b1 = block_intro l1 ps1 (cs11++cs12) tmn1) /\
+         b1 = (l1, stmts_intro ps1 (cs11++cs12) tmn1)) /\
        (exists l2, exists ps2, exists cs21,
-         b2 = block_intro l2 ps2 (cs21++cs2) tmn2) /\
+         b2 = (l2, stmts_intro ps2 (cs21++cs2) tmn2)) /\
        exists ex_ids, exists rm2,
        exists ex_ids3, exists ex_ids4, exists cs22, exists cs23,
          gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids, rm2) /\

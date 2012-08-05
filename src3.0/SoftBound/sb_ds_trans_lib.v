@@ -1019,7 +1019,7 @@ Proof.
 Qed.
 
 Lemma gen_metadata_block_spec : forall nts ex_ids0 b rm1 rm2 ex_ids1 ex_ids2,
-  incl (getBlockLocs b) ex_ids0 ->
+  incl (getStmtsLocs (snd b)) ex_ids0 ->
   ids2atoms ex_ids0 [<=] ids2atoms ex_ids1 ->
   AtomSetImpl.inter (ids2atoms ex_ids0) (codom rm1) [<=] {} ->
   codom rm1 [<=] ids2atoms ex_ids1 ->
@@ -1033,7 +1033,7 @@ Lemma gen_metadata_block_spec : forall nts ex_ids0 b rm1 rm2 ex_ids1 ex_ids2,
   dom rm2 [<=] ids2atoms ex_ids0.
 Proof.
   intros nts ex_ids0 b rm1 rm2 ex_ids1 ex_ids2 Hinc H1 H2 H3 H4 H6 H5.
-  destruct b as [? p ? ?].
+  destruct b as [? [p ? ?]].
   simpl in H5.
   case_eq (gen_metadata_phinodes ex_ids1 rm1 p).
   intros ex_ids5 rm5 Hgenps. rewrite Hgenps in H5.
@@ -1608,9 +1608,9 @@ Proof.
 Qed.
 
 Lemma cmds_at_block_tail_next : forall B c cs tmn2,
-  (exists l1, exists ps1, exists cs11, B =
-    block_intro l1 ps1 (cs11 ++ c :: cs) tmn2) ->
-  exists l1, exists ps1, exists cs11, B = block_intro l1 ps1 (cs11 ++ cs) tmn2.
+  (exists l1:l, exists ps1, exists cs11, B =
+    (l1, stmts_intro ps1 (cs11 ++ c :: cs) tmn2)) ->
+  exists l1, exists ps1, exists cs11, B = (l1, stmts_intro ps1 (cs11 ++ cs) tmn2).
 Proof.
   intros.
   destruct H as [l1 [ps1 [cs11 H]]]; subst.
@@ -1621,10 +1621,10 @@ Lemma cmds_at_block_tails_next : forall B cs1 cs2 cs3 tmn,
   (exists l0 : l,
     exists ps0 : phinodes,
       exists cs0 : list cmd, B =
-        block_intro l0 ps0 (cs0 ++ (cs1 ++ cs2) ++ cs3) tmn) ->
+        (l0, stmts_intro ps0 (cs0 ++ (cs1 ++ cs2) ++ cs3) tmn)) ->
   exists l0 : l,
     exists ps0 : phinodes,
-      exists cs0 : list cmd, B = block_intro l0 ps0 (cs0 ++ cs2 ++ cs3) tmn.
+      exists cs0 : list cmd, B = (l0, stmts_intro ps0 (cs0 ++ cs2 ++ cs3) tmn).
 Proof.
   intros.
   destruct H as [l2 [ps2 [cs21 Heqb2]]]; subst;
@@ -1715,53 +1715,6 @@ Proof.
       apply ids2atoms__inc in Hinc.
       fsetdec.
 Qed.
-(*
-Lemma wf_fresh__mk_tmp' : forall ex_ids vp rm2 ptmp ex_ids1,
- union (getValueID vp) (codom rm2)[<=] ids2atoms ex_ids ->
- (ptmp, ex_ids1) = mk_tmp ex_ids ->
- union (getValueID vp) (codom rm2)[<=] ids2atoms ex_ids1.
-Proof.
-  intros.
-    unfold mk_tmp in H0.
-    destruct (atom_fresh_for_list ex_ids).
-    inv H0.
-    simpl.
-    assert (x `notin` ids2atoms ex_ids) as J.
-      intro H1. apply n.
-      apply ids2atoms_dom; auto.
-    fsetdec.
-Qed.
-Lemma get_reg_metadata_fresh'' : forall
-  (rm2 : rmap)
-  (ex_ids : ids)
-  (id0 : id)
-  (t : typ)
-  (vp : value)
-  (align0 : align)
-  (Hnotin : wf_fresh ex_ids (insn_load id0 t vp align0) rm2)
-  (vp0 : value)
-  (t0 : typ)
-  (bv0 : value)
-  (ev0 : value)
-  (J11 : get_reg_metadata rm2 vp0 = ret (bv0, ev0)),
-  id_fresh_in_value bv0 id0 /\ id_fresh_in_value ev0 id0.
-Proof.
-  intros.
-  destruct Hnotin as [Hnotin _].
-  destruct vp0; simpl in J11.
-    remember (lookupAL (id * id) rm2 i0) as R.
-    destruct R as [[bid eid]|]; inv J11.
-    simpl.
-    apply rmap_lookupAL in HeqR.
-    destruct HeqR as [J1 [J2 _]].
-    unfold getCmdIDs in Hnotin. simpl in Hnotin.
-    clear - Hnotin J2 J1. fsetdec.
-
-    destruct (SBopsem.get_const_metadata c) as [[be ec]|].
-      inv J11; simpl; auto.
-      destruct (Constant.getTyp c); inv J11; simpl; auto.
-Qed.
-*)
 
 Lemma simulation_mstore_aux : forall b b2 delta mi mgb MM TD
   (H1 : mi b = ret (b2, delta)) gv ofs gv2 Mem0 Mem2 Mem0'
@@ -2015,12 +1968,12 @@ Proof.
 Qed.
 
 Lemma trans_block_inv : forall ex_ids rm l1 p c t ex_ids3 b2,
-  trans_block ex_ids rm (block_intro l1 p c t) = ret (ex_ids3, b2) ->
+  trans_block ex_ids rm (l1, stmts_intro p c t) = ret (ex_ids3, b2) ->
   exists p', exists c', exists cs,
     trans_phinodes rm p = Some p' /\
     trans_cmds ex_ids rm c = Some (ex_ids3, c') /\
     trans_terminator rm t = Some cs /\
-    b2 = block_intro l1 p' (c'++cs) t.
+    b2 = (l1, stmts_intro p' (c'++cs) t).
 Proof.
   intros. simpl in *.
     remember (trans_phinodes rm p) as R2.
@@ -2044,10 +1997,10 @@ Lemma trans_fdef_inv : forall nts fa t fid la va bs f',
         (fdef_intro (fheader_intro fa t fid la va) bs) = Some (ex_ids,rm) /\
       trans_args rm la 1%Z = Some cs' /\
       trans_blocks ex_ids rm bs =
-        Some (ex_ids', (block_intro l1 ps1 cs1 tmn1)::bs') /\
+        Some (ex_ids', (l1, stmts_intro ps1 cs1 tmn1)::bs') /\
       f' = (fdef_intro
                      (fheader_intro fa t (wrapper_fid fid) la va)
-                     ((block_intro l1 ps1 (cs'++cs1) tmn1)::bs')).
+                     ((l1, stmts_intro ps1 (cs'++cs1) tmn1)::bs')).
 Proof.
   intros. simpl in *.
   destruct (isCallLib fid).
@@ -2061,7 +2014,7 @@ Proof.
     destruct (trans_blocks ex_ids rm bs); inv H0.
     destruct p.
     destruct b; inv H1.
-    destruct b as [l0 p c t0]; inv H0. 
+    destruct b as [l0 [p c t0]]; inv H0. 
     exists i2. exists b0. exists l0. exists p. exists c. exists t0.
     eauto.
 Qed.
@@ -2082,14 +2035,14 @@ Proof.
     exists b. exists bs1. exists e1. split; auto.
 Qed.
 
-Lemma lookup_trans_blocks__trans_block : forall ex_ids0 l0 rm b1 bs1 bs2 ex_ids
+Lemma lookup_trans_blocks__trans_block : forall ex_ids0 l0 rm sts0 bs1 bs2 ex_ids
     ex_ids',
   incl ex_ids0 ex_ids ->
   trans_blocks ex_ids rm bs1 = Some (ex_ids', bs2) ->
-  lookupBlockViaLabelFromBlocks bs1 l0 = Some b1 ->
-  exists ex_ids1, exists ex_ids2, exists b2,
-    lookupBlockViaLabelFromBlocks bs2 l0 = Some b2 /\
-    trans_block ex_ids1 rm b1 = Some (ex_ids2, b2) /\
+  lookupBlockViaLabelFromBlocks bs1 l0 = Some sts0 ->
+  exists ex_ids1, exists ex_ids2, exists sts2,
+    lookupBlockViaLabelFromBlocks bs2 l0 = Some sts2 /\
+    trans_block ex_ids1 rm (l0, sts0) = Some (ex_ids2, (l0, sts2)) /\
     incl ex_ids0 ex_ids1.
 Proof.
   induction bs1; intros bs2 ex_ids ex_ids' Hinc Htrans Hlk.
@@ -2098,12 +2051,12 @@ Proof.
     apply trans_blocks_cons_inv in Htrans.
     destruct Htrans as [ex_ids3 [b2 [bs2' [J1 [J2 eq]]]]]; subst.
 
-    destruct a as [l1 ? ? t].
+    destruct a as [l1 [? ? t]].
     apply trans_block_inv in J1.
     destruct J1 as [ps2 [cs2 [cs2' [J1 [J3 [J4 eq]]]]]]; subst.
     unfold lookupBlockViaLabelFromBlocks in *. simpl in *.
     destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l1); subst.
-    exists ex_ids. exists ex_ids3. exists (block_intro l1 ps2 (cs2 ++ cs2') t).
+    exists ex_ids. exists ex_ids3. exists (stmts_intro ps2 (cs2 ++ cs2') t).
     inv Hlk. simpl. rewrite J1. rewrite J3. rewrite J4.
     split; auto.
 
@@ -2164,7 +2117,7 @@ Proof.
           destruct (fid==fid); subst.
             inv J2.
             exists (fdef_intro (fheader_intro f t fid a v)
-              (block_intro l1 ps1 (cs ++ cs1) tmn1 :: bs)).
+              ((l1, stmts_intro ps1 (cs ++ cs1) tmn1) :: bs)).
             split; auto.
 
             contradict n; auto.
@@ -2345,7 +2298,7 @@ Qed.
 Lemma get_metadata_from_list_value_l_spec : forall mi TD gl F rm1 rm2 lc1 lc2 B1
   B2 blk1 bofs1 eofs1
   (Hrsim : reg_simulation mi TD gl F rm1 rm2 lc1 lc2)
-  (Heq : label_of_block B1 = label_of_block B2)
+  (Heq : getBlockLabel B1 = getBlockLabel B2)
   vls v
   (HeqR1 : ret v = getValueViaBlockFromValuels vls B1)
   (HeqR4 : ret (mkMD blk1 bofs1 eofs1) =
@@ -2362,7 +2315,7 @@ Lemma get_metadata_from_list_value_l_spec : forall mi TD gl F rm1 rm2 lc1 lc2 B1
     gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2.
 Proof.
   intros mi TD gl F rm1 rm2 lc1 lc2.
-  destruct B1 as [l0 ? ? ?]. destruct B2 as [l1 ? ? ?]. simpl.
+  destruct B1 as [l0 [? ? ?]]. destruct B2 as [l1 [? ? ?]]. simpl.
   induction vls; simpl; intros; subst.
     inv HeqR1.
 
@@ -2371,7 +2324,8 @@ Proof.
     destruct R as [[bv ev]|]; try solve [inv HeqR5].
     remember (get_metadata_from_list_value_l rm2 vls) as R'.
     destruct R' as [[baccum eaccum]|]; inv HeqR5.
-    simpl.
+    unfold getValueViaBlockFromValuels in *.
+    simpl. simpl in HeqR1.
     destruct (l0==l1); subst.
       inv HeqR1.
       exists bv. exists ev.
@@ -2394,7 +2348,7 @@ Lemma getIncomingValuesForBlockFromPHINodes__reg_simulation : forall M1 M2 los
   reg_simulation mi (los,nts) gl F rm1 rm2 lc1 lc2 ->
   SBspec.getIncomingValuesForBlockFromPHINodes (los,nts) ps1 B1 gl lc1 rm1
     = Some re1 ->
-  label_of_block B1 = label_of_block B2 ->
+  getBlockLabel B1 = getBlockLabel B2 ->
   trans_phinodes rm2 ps1 = Some ps2 ->
   exists re2,
     Opsem.getIncomingValuesForBlockFromPHINodes (los,nts) ps2 B2 gl lc2 = Some re2
@@ -2517,14 +2471,14 @@ Proof.
 Qed.
 
 Lemma getPhiNodeID_in_getFdefLocs : forall f1 l0 ps p cs tmn,
-  blockInFdefB (block_intro l0 ps cs tmn) f1 = true ->
+  blockInFdefB (l0, stmts_intro ps cs tmn) f1 = true ->
   In p ps ->
   In (getPhiNodeID p) (getFdefLocs f1).
 Proof.
   intros.
   destruct f1 as [f ?]. destruct f. simpl.
   apply in_or_app. right.
-  eapply in_getBlockLocs__in_getBlocksLocs in H; eauto.
+  eapply in_getStmtsLocs__in_getBlocksLocs in H; eauto.
   simpl.
   apply in_or_app. left.
   apply in_getPhiNodeID__in_getPhiNodesIDs; auto.
@@ -2532,7 +2486,7 @@ Qed.
 
 Lemma getIncomingValues_in_dom_aux : forall l0 cs1 tmn f1 TD B1 gl ps2 ps1 lc1
     rm1 re1,
-  blockInFdefB (block_intro l0 (ps1++ps2) cs1 tmn) f1 = true ->
+  blockInFdefB (l0, stmts_intro (ps1++ps2) cs1 tmn) f1 = true ->
   @SBspec.getIncomingValuesForBlockFromPHINodes DGVs TD ps2 B1 gl lc1 rm1
     = ret re1 ->
   incomingValues_in_dom re1 (getFdefLocs f1).
@@ -2564,7 +2518,7 @@ Proof.
 Qed.
 
 Lemma getIncomingValues_in_dom : forall l0 cs1 tmn f1 TD B1 gl ps1 lc1 rm1 re1,
-  blockInFdefB (block_intro l0 ps1 cs1 tmn) f1 = true ->
+  blockInFdefB (l0, stmts_intro ps1 cs1 tmn) f1 = true ->
   @SBspec.getIncomingValuesForBlockFromPHINodes DGVs TD ps1 B1 gl lc1 rm1
     = ret re1 ->
   incomingValues_in_dom re1 (getFdefLocs f1).
@@ -2578,15 +2532,15 @@ Lemma switchToNewBasicBlock__reg_simulation : forall mi nts los gl f1 rm1 rm2 lc
   B1' (Hwfps: wf_phinodes S1 (module_intro los nts Ps1) f1 B1' ps1) 
   (Hwfmi : wf_sb_mi mgb mi M1 M2)
   (Hwfg : wf_globals mgb gl),
-  blockInFdefB (block_intro l0 ps1 cs1 tmn) f1 = true ->
+  blockInFdefB (l0, stmts_intro ps1 cs1 tmn) f1 = true ->
   gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids,rm2) ->
   reg_simulation mi (los,nts) gl f1 rm1 rm2 lc1 lc2 ->
-  SBspec.switchToNewBasicBlock (los,nts) (block_intro l0 ps1 cs1 tmn) B1 gl
+  SBspec.switchToNewBasicBlock (los,nts) (l0, stmts_intro ps1 cs1 tmn) B1 gl
     lc1 rm1 = ret (lc1', rm1') ->
-  label_of_block B1 = label_of_block B2 ->
+  getBlockLabel B1 = getBlockLabel B2 ->
   trans_phinodes rm2 ps1 = Some ps2 ->
   exists lc2', Opsem.switchToNewBasicBlock (los,nts)
-    (block_intro l0 ps2 cs2 tmn) B2 gl lc2 = Some lc2' /\
+    (l0, stmts_intro ps2 cs2 tmn) B2 gl lc2 = Some lc2' /\
     reg_simulation mi (los,nts) gl f1 rm1' rm2 lc1' lc2'.
 Proof.
   intros mi nts los gl f1 rm1 rm2 lc1 lc2 B1 B2 l0 ps1 cs1 tmn ps2 cs2 lc1' rm1'
@@ -2609,7 +2563,7 @@ Qed.
 Lemma getCmdID_in_getFdefLocs : forall B f1 c cs tmn2 id0
   (HBinF : blockInFdefB B f1 = true)
   (Heqb1 : exists l1, exists ps1, exists cs11,
-                B = block_intro l1 ps1 (cs11 ++ c :: cs) tmn2)
+                B = (l1, stmts_intro ps1 (cs11 ++ c :: cs) tmn2))
   (Hget : getCmdID c = Some id0),
   In id0 (getFdefLocs f1).
 Proof.
@@ -2618,7 +2572,7 @@ Proof.
   destruct f1 as [f ?]. destruct f as [? ? ? a ?]. simpl.
   destruct (split a).
   apply in_or_app. right.
-  eapply in_getBlockLocs__in_getBlocksLocs in HBinF; eauto.
+  eapply in_getStmtsLocs__in_getBlocksLocs in HBinF; eauto.
   simpl.
   apply in_or_app. right.
   apply in_or_app. left.
@@ -2655,5 +2609,4 @@ Proof.
         apply notInBlocks__lookupTypViaIDFromBlocks in Hnotin.
         congruence.
 Qed.
-
 
