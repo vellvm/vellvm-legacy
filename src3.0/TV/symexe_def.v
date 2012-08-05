@@ -178,27 +178,27 @@ Inductive dbTerminator :
   block -> (@GVsMap DGVs) ->
   trace -> Prop :=
 | dbBranch : forall TD Mem F B lc gl bid Cond l1 l2 c
-                              l' ps' sbs' tmn' lc',
+                              ps' sbs' tmn' lc',
   @getOperandValue DGVs TD Cond lc gl = Some c ->
-  Some (block_intro l' ps' sbs' tmn') = (if isGVZero TD c
+  Some (stmts_intro ps' sbs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
   Some lc' = switchToNewBasicBlock TD
-    (block_intro l' ps' sbs' tmn') B gl lc ->
+    (if isGVZero TD c then l2 else l1, stmts_intro ps' sbs' tmn') B gl lc ->
   dbTerminator TD Mem F gl
     B lc
     (insn_br bid Cond l1 l2)
-    (block_intro l' ps' sbs' tmn') lc'
+    (if isGVZero TD c then l2 else l1, stmts_intro ps' sbs' tmn') lc'
     E0
 | dbBranch_uncond : forall TD Mem F B lc gl l bid
-                              l' ps' sbs' tmn' lc',
-  Some (block_intro l' ps' sbs' tmn') = lookupBlockViaLabelFromFdef F l ->
+                              ps' sbs' tmn' lc',
+  Some (stmts_intro ps' sbs' tmn') = lookupBlockViaLabelFromFdef F l ->
   Some lc' = switchToNewBasicBlock TD
-    (block_intro l' ps' sbs' tmn') B gl lc ->
+    (l, stmts_intro ps' sbs' tmn') B gl lc ->
   dbTerminator TD Mem F gl
     B lc
     (insn_br_uncond bid l)
-    (block_intro l' ps' sbs' tmn') lc'
+    (l, stmts_intro ps' sbs' tmn') lc'
     E0
 .
 
@@ -284,12 +284,12 @@ with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap -> fdef ->
     tr1 ->
   dbCmds TD gl lc2 als2 Mem2 cs' lc3 als3 Mem3 tr2 ->
   dbTerminator TD Mem3 F gl
-    (block_intro l ps (cs++cs') tmn) lc3
+    (l, stmts_intro ps (cs++cs') tmn) lc3
     tmn
     B' lc4
     tr3 ->
   dbBlock S TD Ps fs gl F
-    (mkState (mkEC (block_intro l ps (cs++cs') tmn) lc1 als1) Mem1)
+    (mkState (mkEC (l, stmts_intro ps (cs++cs') tmn) lc1 als1) Mem1)
     (mkState (mkEC B' lc4 als3) Mem3)
     (Eapp (Eapp tr1 tr2) tr3)
 with dbBlocks : system -> TargetData -> list product -> GVMap -> GVMap -> fdef ->
@@ -310,12 +310,12 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
   lookupFdefViaPtr Ps fs fptr =
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
-    Some (block_intro l1 ps1 cs1 tmn1) ->
+    Some (l1, stmts_intro ps1 cs1 tmn1) ->
   params2GVs TD lp lc gl = Some gvs ->
   initLocals TD la gvs = Some lc0 ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb)
-    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) lc0 nil) Mem)
-    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
+    (mkState (mkEC (l1, stmts_intro ps1 cs1 tmn1) lc0 nil) Mem)
+    (mkState (mkEC (l2, stmts_intro ps2 (cs21++cs22) (insn_return rid rt Result))
       lc1 als1) Mem1)
     tr1 ->
   dbSubblocks S TD Ps fs gl
@@ -329,7 +329,7 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     lc3 als3 Mem3
     tr3 ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3
-    (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid
+    (l2, stmts_intro ps2 (cs21++cs22) (insn_return rid rt Result)) rid
     (Some Result) (Eapp (Eapp tr1 tr2) tr3)
 | dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid fptr
                     l1 ps1 cs1 tmn1 fa rt la va lb lc1 tr1 Mem Mem1 als1
@@ -338,12 +338,12 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
   lookupFdefViaPtr Ps fs fptr =
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
-    Some (block_intro l1 ps1 cs1 tmn1) ->
+    Some (l1, stmts_intro ps1 cs1 tmn1) ->
   params2GVs TD lp lc gl = Some gvs ->
   initLocals TD la gvs = Some lc0 ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb)
-    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) lc0 nil) Mem)
-    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1
+    (mkState (mkEC (l1, stmts_intro ps1 cs1 tmn1) lc0 nil) Mem)
+    (mkState (mkEC (l2, stmts_intro ps2 (cs21++cs22) (insn_return_void rid)) lc1
       als1) Mem1)
     tr1 ->
   dbSubblocks S TD Ps fs gl
@@ -357,7 +357,7 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     lc3 als3 Mem3
     tr3 ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3
-    (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) rid None
+    (l2, stmts_intro ps2 (cs21++cs22) (insn_return_void rid)) rid None
     (Eapp (Eapp tr1 tr2) tr3)
 .
 
@@ -500,7 +500,7 @@ Inductive wf_block : block -> Prop :=
   cmds2sbs cs = (sbs,nbs) ->
   wf_subblocks sbs ->
   wf_nbranchs nbs ->
-  wf_block (block_intro l ps cs tmn).
+  wf_block (l, stmts_intro ps cs tmn).
 
 Hint Constructors wf_subblocks.
 

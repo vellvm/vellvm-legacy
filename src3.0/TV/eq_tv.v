@@ -39,7 +39,7 @@ end.
 
 Definition tv_block (b1 b2:block) :=
 match (b1, b2) with
-| (block_intro l1 ps1 cs1 tmn1, block_intro l2 ps2 cs2 tmn2) =>
+| ((l1, stmts_intro ps1 cs1 tmn1), (l2, stmts_intro ps2 cs2 tmn2)) =>
   match (cmds2sbs cs1, cmds2sbs cs2) with
   | ((sbs1, nbs1), (sbs2, nbs2)) =>
     sumbool2bool _ _ (eq_atom_dec l1 l2) &&

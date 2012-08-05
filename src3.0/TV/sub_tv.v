@@ -469,7 +469,7 @@ end.
 
 Definition tv_block Ps1 Ps2 fid (b1:block) (b2:SBsyntax.block) :=
 match (b1, b2) with
-| (block_intro l1 ps1 cs1 tmn1, SBsyntax.block_common l2 ps2 sbs2 nbs2 tmn2) =>
+| ((l1, stmts_intro ps1 cs1 tmn1), SBsyntax.block_common l2 ps2 sbs2 nbs2 tmn2) =>
   match (cmds2sbs cs1) with
   | (sbs1, nbs1) =>
     eq_l l1 l2 && tv_phinodes fid ps1 ps2 &&
@@ -477,7 +477,7 @@ match (b1, b2) with
     tv_cmds Ps1 Ps2 fid nbs1 nbs2 &&
     tv_terminator fid tmn1 tmn2
   end
-| (block_intro l1 ps1 cs1 tmn1, SBsyntax.block_ret_ptr l2 ps2 sbs2 nbs2
+| ((l1, stmts_intro ps1 cs1 tmn1), SBsyntax.block_ret_ptr l2 ps2 sbs2 nbs2
     (SBsyntax.insn_return_ptr _ _ _ _ _ _ _ _ _ _ vp _ _ _ _)) =>
   match (cmds2sbs cs1) with
   | (sbs1, nbs1) =>
@@ -1028,7 +1028,7 @@ end.
 Definition rtv_block Ps1 Ps2 fid r (b1:block) (b2:SBsyntax.block)
   : option renaming :=
 match (b1, b2) with
-| (block_intro l1 ps1 cs1 tmn1, SBsyntax.block_common l2 ps2 sbs2 nbs2 tmn2) =>
+| ((l1, stmts_intro ps1 cs1 tmn1), SBsyntax.block_common l2 ps2 sbs2 nbs2 tmn2) =>
   match cmds2sbs cs1 with
   | (sbs1, nbs1) =>
     if eq_l l1 l2 then
@@ -1038,7 +1038,7 @@ match (b1, b2) with
       fun r => rtv_terminator r tmn1 tmn2
     else None
   end
-| (block_intro l1 ps1 cs1 tmn1, SBsyntax.block_ret_ptr l2 ps2 sbs2 nbs2
+| ((l1, stmts_intro ps1 cs1 tmn1), SBsyntax.block_ret_ptr l2 ps2 sbs2 nbs2
     (SBsyntax.insn_return_ptr _ _ _ _ _ _ _ _ _ _ vp _ _ _ _)) =>
   match cmds2sbs cs1 with
   | (sbs1, nbs1) =>

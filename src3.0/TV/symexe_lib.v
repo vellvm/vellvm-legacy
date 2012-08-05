@@ -516,7 +516,7 @@ Proof.
   apply cmds2nbs_app_inv in H0.
   destruct H0 as [cs1 [cs2 [J1 [J2 J3]]]]; subst.
   rewrite getCmdsLocs_app in H1.
-  apply NoDup_inv in H1.
+  apply NoDup_split in H1.
   destruct H1.
   split; eapply wf_nbranchs_intro; eauto.
 Qed.
@@ -580,7 +580,7 @@ Proof.
             simpl_env in H.
             rewrite getCmdsLocs_app in H.
             rewrite ass_app in H.
-            apply NoDup_inv in H. destruct H as [H _].
+            apply NoDup_split in H. destruct H as [H _].
             apply wf_nbranchs_intro with (cs:=a::cs1'); auto.
               simpl.
               rewrite <- HeqR'.
@@ -588,7 +588,7 @@ Proof.
 
       inversion H0; subst. clear H0.
       simpl_env in H.
-      apply NoDup_inv in H. destruct H as [H1 H2].
+      apply NoDup_split in H. destruct H as [H1 H2].
       apply IHcs with (sbs:=sbs')(nbs0:=nbs) in H2; auto.
       destruct H2.
       split; auto.
@@ -601,13 +601,13 @@ Lemma uniqBlock__wf_block : forall B,
 Proof.
   intros B HuniqBlocks.
   unfold uniqBlocks in HuniqBlocks.
-  simpl in HuniqBlocks. destruct B as [? ? c ?].
+  simpl in HuniqBlocks. destruct B as [? [? c ?]].
   destruct HuniqBlocks as [J1 J2].
   remember (cmds2sbs c) as R.
   destruct R as [sbs nbs].
   simpl in J2. simpl_env in J2.
-  apply NoDup_inv in J2. destruct J2.
-  apply NoDup_inv in H0. destruct H0.
+  apply NoDup_split in J2. destruct J2.
+  apply NoDup_split in H0. destruct H0.
   apply uniqCmds___wf_subblocks_wf_nbranchs with (sbs:=sbs)(nbs:=nbs) in H0;auto.
   destruct H0.
   apply wf_block_intro with (sbs:=sbs)(nbs:=nbs); auto.
@@ -1275,20 +1275,13 @@ Lemma se_dbTerminator_preservation : forall TD M F B gl lc c B' lc' tr,
 Proof.
   intros TD M F gl B lc c B' lc' tr HdbTerminator Uniqlc UniqF Hblockin.
   inversion HdbTerminator; subst.
-    destruct (isGVZero TD c0).
-      split; eauto using (@switchToNewBasicBlock_uniq DGVs).
-        symmetry in H0.
+    destruct (isGVZero TD c0);
+      split; eauto using (@switchToNewBasicBlock_uniq DGVs);
+        symmetry in H0;
         apply lookupBlockViaLabelFromFdef_inv in H0; auto.
-        destruct H0; auto.
-
-      split; eauto using (@switchToNewBasicBlock_uniq DGVs).
-        symmetry in H0.
-        apply lookupBlockViaLabelFromFdef_inv in H0; auto.
-        destruct H0; auto.
 
     symmetry in H.
     apply lookupBlockViaLabelFromFdef_inv in H; auto.
-    destruct H.
     split; eauto using (@switchToNewBasicBlock_uniq DGVs).
 Qed.
 
@@ -1413,7 +1406,7 @@ Case "dbBlocks_nil".
 Case "dbBlocks_cons".
   inversion d; subst.
   assert (J:=H4).
-  eapply H with (B1:=block_intro l0 ps (cs++cs') tmn)(lc0:=lc)(als0:=als)
+  eapply H with (B1:=(l0, stmts_intro ps (cs++cs') tmn))(lc0:=lc)(als0:=als)
             (Mem:=Mem0)(B1':=B')(lc':=lc4)(als':=als3)(Mem':=Mem3) in J; eauto.
   clear H.
   destruct J as [uniqc4 B'in].
@@ -1423,8 +1416,8 @@ Case "dbFdef_func".
   rewrite e in H1. inv H1. rewrite e0 in H2. inv H2.
   apply entryBlockInSystemBlockFdef'' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)
     (fv:=fptr0)(fs:=fs)in e1; auto.
-  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc:=lc0)(als:=nil)(Mem:=Mem0)
-    (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
+  apply H with (B1:=(l1, stmts_intro ps1 cs1 tmn1))(lc:=lc0)(als:=nil)(Mem:=Mem0)
+    (B1':=(l2, stmts_intro ps2 (cs21++cs22) (insn_return rid rt Result)))
     (lc':=lc1)(als':=als1)(Mem':=Mem1) in e1; eauto.
   clear H. destruct e1 as [uniqc1 Bin].
   eapply H0 in uniqc1; eauto. clear H0.
@@ -1434,8 +1427,8 @@ Case "dbFdef_proc".
   rewrite e in H1. inv H1. rewrite e0 in H2. inv H2.
   apply entryBlockInSystemBlockFdef'' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)
     (fv:=fptr0)(fs:=fs)in e1; auto.
-  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc:=lc0)(als:=nil)(Mem:=Mem0)
-    (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(lc':=lc1)
+  apply H with (B1:=(l1, stmts_intro ps1 cs1 tmn1))(lc:=lc0)(als:=nil)(Mem:=Mem0)
+    (B1':=(l2, stmts_intro ps2 (cs21++cs22) (insn_return_void rid)))(lc':=lc1)
     (als':=als1)(Mem':=Mem1) in e1; eauto.
   clear H. destruct e1 as [uniqc1 Bin].
   eapply H0 in uniqc1; eauto. clear H0.
@@ -1832,7 +1825,7 @@ Case "dbBlocks_nil".
 
 Case "dbBlocks_cons".
   inversion d; subst.
-  apply H with (B1:=block_intro l0 ps (cs++cs') tmn)(als0:=als)(Mem:=Mem0)
+  apply H with (B1:=(l0, stmts_intro ps (cs++cs') tmn))(als0:=als)(Mem:=Mem0)
                (B1':=B')(als':=als3)(Mem':=Mem3)(lc3:=lc5) in H3; auto.
   clear H.
   destruct H3 as [lc5' [HdbBlock Heq5]].
@@ -1847,8 +1840,8 @@ Case "dbFdef_func".
   rewrite e2 in J.
   assert (eqAL _ lc0 lc0) as J'.
     apply eqAL_refl.
-  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
-    (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
+  apply H with (B1:=(l1, stmts_intro ps1 cs1 tmn1))(als:=nil)(Mem:=Mem0)(lc3:=lc1)
+    (B1':=(l2, stmts_intro ps2 (cs21++cs22) (insn_return rid rt Result)))
     (als':=als1)(Mem':=Mem1) in J'; auto.
   clear H. destruct J' as [lc2' [HdbBlocks Heq2]].
   apply H0 in Heq2. clear H0.
@@ -1865,8 +1858,8 @@ Case "dbFdef_proc".
   rewrite e2 in J.
   assert (eqAL _ lc0 lc0) as J'.
     apply eqAL_refl.
-  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
-    (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(als':=als1)
+  apply H with (B1:=(l1, stmts_intro ps1 cs1 tmn1))(als:=nil)(Mem:=Mem0)(lc3:=lc1)
+    (B1':=(l2, stmts_intro ps2 (cs21++cs22) (insn_return_void rid)))(als':=als1)
     (Mem':=Mem1) in J'; auto.
   clear H. destruct J' as [lc2' [HdbBlocks Heq2]].
   apply H0 in Heq2. clear H0.

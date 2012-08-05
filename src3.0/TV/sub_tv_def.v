@@ -367,7 +367,7 @@ end.
 Definition of_llvm_block (TD:layouts * namedts) fd (b:LLVMsyntax.block) : block
   :=
 let '(los, nts) := TD in
-let '(LLVMsyntax.block_intro l1 ps1 cs1 tmn1) := b in
+let '(l1, LLVMsyntax.stmts_intro ps1 cs1 tmn1) := b in
 let '(cs1', op) :=
   match fd with
   | fheader_intro _ _ _ ((t2,_,id2)::_) _ =>
@@ -462,16 +462,16 @@ Defined.
 Definition to_llvm_block (b:block) : LLVMsyntax.block :=
 match b with
 | block_common l1 ps1 sbs cs tmn =>
-  LLVMsyntax.block_intro l1 ps1
+  (l1, LLVMsyntax.stmts_intro ps1
    ((List.fold_left
       (fun accum => fun sb => accum ++ subblock_to_llvm_cmds sb) sbs nil) ++
-    (List.map nbranching_cmd cs)) tmn
+    (List.map nbranching_cmd cs)) tmn)
 | block_ret_ptr l1 ps1 sbs cs tmn =>
   let '(cs0,tmn0) := itmn_to_llvm_tmn tmn in
-  LLVMsyntax.block_intro l1 ps1
+  (l1, LLVMsyntax.stmts_intro ps1
    ((List.fold_left
       (fun accum => fun sb => accum ++ subblock_to_llvm_cmds sb) sbs nil) ++
-    (List.map nbranching_cmd cs) ++ cs0) tmn0
+    (List.map nbranching_cmd cs) ++ cs0) tmn0)
 end.
 
 Definition to_llvm_fdef (f:fdef) : LLVMsyntax.fdef :=

@@ -108,16 +108,3 @@ Definition phinodes_sub_prop fid (ps1 ps2:phinodes) :=
       lookupPhinode ps2 (rename_id fid i) = Some p2 /\
       tv_phinode fid p1 p2 = true.
 
-Lemma NoDup_inv : forall A (l1 l2:list A),
-  NoDup (l1++l2) -> NoDup l1 /\ NoDup l2.
-Proof.
-  induction l1; intros l2 Huniq. auto using NoDup_nil.
-    inversion Huniq; subst.
-    apply IHl1 in H2.
-    destruct H2 as [H21 H22].
-    split; auto.
-     apply NoDup_cons; auto.
-       intro Ha_in_l1.
-       apply H1.
-         apply in_app_iff; auto.
-Qed.
