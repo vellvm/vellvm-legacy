@@ -199,42 +199,6 @@ end.
 
 (************************************************)
 
-Definition find_stld_pair_cmd (pid:id) (acc:stld_state * AssocList action) 
-  (c:cmd) : stld_state * AssocList action :=
-let '(st, actions) := acc in
-match c with
-| insn_alloca qid ty value5 align5 =>
-    if id_dec pid qid
-    then (STLD_alloca ty, actions)
-    else acc
-| insn_store sid typ5 v0 value2 align5 =>
-    match value2 with
-    | value_id qid =>
-       if id_dec pid qid
-       then 
-         match st with
-         | STLD_store sid' _ => (STLD_store sid v0, (sid', AC_remove)::actions)
-         | _ => (STLD_store sid v0, actions)
-         end
-      else acc
-    | value_const const5 => acc
-    end
-| insn_load lid typ5 value1 align5 =>
-    match value1 with
-    | value_id qid =>
-       if id_dec pid qid
-       then 
-         match st with
-         | STLD_store _ v' => (st, (lid, AC_vsubst v')::actions)
-         | STLD_alloca ty' => (st, (lid, AC_tsubst ty')::actions)
-         | _ => acc
-         end
-       else acc
-    | value_const const5 => acc
-    end
-| _ => acc
-end.
-
 Definition find_stld_pairs_cmds (pid:id) (acc:stld_state * AssocList action) 
   (cs:cmds) : stld_state * AssocList action :=
 List.fold_left (find_stld_pair_cmd pid) cs acc.
