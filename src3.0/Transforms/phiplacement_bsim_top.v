@@ -28,31 +28,12 @@ Lemma s_genInitState__phiplacement_State_simulation:
     Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
     State_simulation pinfo cfg1 IS1 cfg2 IS2.
 Proof.
-  unfold Opsem.s_genInitState.
-  intros.
-  inv_mbind'.
-  destruct m as [los nts ps].
-  inv_mbind'.
-  destruct s as [ps0 cs0 tmn0].
-  destruct f as [[fa rt fid la va] bs].
-  inv_mbind'. symmetry_ctx.
-  assert (HlkF2FromS2:=HeqR).
-  eapply TopSim.system_simulation__fdef_simulation_r2l in HeqR; eauto.
-  destruct HeqR as [f1 [HlkF1fromS1 Hfsim]]. simpl in Hfsim.
-  fill_ctxhole.
-  eapply TopSim.system_simulation__getParentOfFdefFromSystem in HeqR0; eauto.
-  destruct HeqR0 as [m1 [J1 J2]].
-  fill_ctxhole. destruct m1 as [los1 nts1 ps1].
-  destruct J2 as [J2 [J3 J4]]; subst.
-  eapply TopSim.genGlobalAndInitMem_spec in HeqR1; eauto.
-  destruct HeqR1 as [gl1 [fs1 [M1 [HeqR1 [EQ1 [EQ2 EQ3]]]]]]; subst.
-  fill_ctxhole.
+  s_genInitState__State_simulation_tac.
   assert (J:=HeqR2).
   eapply getEntryBlock__simulation in J; eauto.
   destruct J as [b1 [J5 J6]].
   fill_ctxhole.
   destruct b1 as [l2 [ps2 cs2 tmn2]].
-  destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1].
   assert (J:=Hfsim).
   apply fdef_simulation__eq_fheader in J.
   inv J.
@@ -60,16 +41,11 @@ Proof.
   match goal with
   | |- exists _:_, exists _:_, Some (?A, ?B) = _ /\ _ => exists A; exists B
   end.
-  match goal with 
-  | H: getParentOfFdefFromSystem _ _ = _ |- _ =>
-    apply getParentOfFdefFromSystem__moduleInProductsInSystemB in H;
-    destruct H as [HMinS HinPs]
-  end.
   assert (J:=J6).
   apply block_simulation__inv in J.
   destruct J; subst.
   assert (blockInFdefB (l0, stmts_intro ps2 cs2 tmn0)
-           (fdef_intro (fheader_intro fa rt fid la va) bs1) = true) as HBinF.
+           (fdef_intro (fheader_intro fa rt fid la va) bs1) = true) as HBinF'.
     apply entryBlockInFdef; auto.
   repeat (split; auto).
     exists l0. exists ps2. exists nil. auto.
@@ -81,7 +57,7 @@ Qed.
 
 Lemma s_isFinialState__phiplacement_State_simulation_r2l:
   forall pinfo cfg1 FS1 cfg2 FS2 r
-  (Hwfpi: WF_PhiInfo pinfo) 
+  (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfpi: WF_PhiInfo pinfo) 
   (Hstsim : State_simulation pinfo cfg1 FS1 cfg2 FS2)
   (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r),
   Opsem.s_isFinialState cfg1 FS1 = ret r.
@@ -90,7 +66,7 @@ Proof.
   destruct CurTargetData as [los nts].
   simpl. intros.
   destruct ECS0 as [|[]]; tinv Hfinal.
-  destruct Hstsim as [J1 [J2 [J3 [J4 [J5 [J6 [J7 [J8 J9]]]]]]]]; subst.
+  destruct Hstsim as [J4 [J5 [J6 [J7 [J8 J9]]]]]; subst.
   destruct ECS as [|[]]; tinv J6.
   destruct J6 as [J61 J62].
   destruct CurCmds; tinv Hfinal. 
@@ -99,6 +75,7 @@ Proof.
                     [? [? [? G7]]] [
                     [? [? [? G8]]] [G9 G10]]]]]]]]]; subst.
   apply cmds_simulation_nil_inv in G10. subst.
+  destruct Hwfcfg1 as [_ [_ [J1 J2]]].
   assert (HwfF := J1).
   eapply wf_system__wf_fdef with (f:=CurFunction0) in HwfF; eauto.
   destruct Terminator; tinv Hfinal; 
@@ -118,6 +95,20 @@ Proof.
       end.
 
     assumption.
+Qed.
+
+Lemma s_isFinialState__phiplacement_State_simulation_r2l':
+  forall pinfo cfg1 FS1 cfg2 FS2 r
+  (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfpi: WF_PhiInfo pinfo) 
+  (Hstsim : State_simulation pinfo cfg1 FS1 cfg2 FS2)
+  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r),
+  exists FS1',
+    Opsem.sop_star cfg1 FS1 FS1' E0 /\
+    State_simulation pinfo cfg1 FS1' cfg2 FS2 /\
+    Opsem.s_isFinialState cfg1 FS1' = ret r.
+Proof.
+  intros. exists FS1.
+  split; eauto using s_isFinialState__phiplacement_State_simulation_r2l.
 Qed.
 
 Lemma simulation__lookup_pid: forall pinfo Locals Locals0
@@ -201,7 +192,7 @@ Proof.
 Qed.
 
 Lemma s_isFinialState__phiplacement_State_simulation_None_r2l:
-  forall pinfo cfg1 FS1 cfg2 FS2 maxb
+  forall pinfo cfg1 FS1 cfg2 FS2 maxb (Hwfcfg1: OpsemPP.wf_Config cfg1) 
   (Hwfpi: WF_PhiInfo pinfo) (Hundef: @OpsemPP.undefined_state DGVs cfg2 FS2)
   (Hpp: @OpsemPP.wf_State DGVs cfg2 FS2) (Hcfg: OpsemPP.wf_Config cfg2)
   (Hstsim : State_simulation pinfo cfg1 FS1 cfg2 FS2)
@@ -212,7 +203,8 @@ Proof.
   destruct cfg1, cfg2, FS1, FS2.
   destruct CurTargetData as [los nts].
   simpl. intros.
-  destruct Hstsim as [J1 [J2 [J3 [J4 [J5 [J6 [J7 [J8 J9]]]]]]]]; subst.
+  destruct Hstsim as [J4 [J5 [J6 [J7 [J8 J9]]]]]; subst.
+  destruct Hwfcfg1 as [_ [_ [J1 J2]]].
   destruct ECS as [|[]]; tinv J6; auto.
   destruct ECS0 as [|[]]; tinv J6.
   destruct J6 as [J61 J62].
@@ -458,11 +450,11 @@ Proof.
     congruence.
 Qed.
 
-Lemma undefined_state__phinodes_placement_simulation_r2l: forall pinfo cfg1 St1 
+Lemma undefined_state__phiplacement_State_simulation_r2l: forall pinfo cfg1 St1 
   cfg2 St2 (Hwfpi: WF_PhiInfo pinfo) maxb
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 St1)
   (Hundef: OpsemPP.undefined_state cfg2 St2) (Hwfpp: OpsemPP.wf_State cfg2 St2) 
-  (Hwfcfg: OpsemPP.wf_Config cfg2)
+  (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfcfg: OpsemPP.wf_Config cfg2)
   (Hsim: State_simulation pinfo cfg1 St1 cfg2 St2),
   OpsemPP.undefined_state cfg1 St1.
 Proof.
@@ -500,7 +492,7 @@ Ltac phinodes_placement_undef_tac1:=
     destruct St2 as [[|[? ? [|CurCmds] [] ?] [|[]]] ?]; try tauto;
     destruct CurCmds; try tauto;
     destruct St1 as [ECS ?];
-    destruct Hsim as [? [? [? [X [? [Hsim [? [? ?]]]]]]]]; subst;
+    destruct Hsim as [X [? [Hsim [? [? ?]]]]]; subst;
     uniq_result;
     destruct ECS as [|[] ECS]; try tauto;
     destruct Hsim as [Hsim Hsim'];
@@ -531,14 +523,16 @@ Ltac phinodes_placement_undef_tac1:=
 
 Ltac phinodes_placement_undef_tac2:=
   match goal with
-  | Hsim: State_simulation _ _ ?St1 _ _ |- _ =>
+  | Hwfcfg1: OpsemPP.wf_Config ?cfg1,
+    Hsim: State_simulation _ ?cfg1 ?St1 _ _ |- _ =>
     destruct St1 as [ECS ?];
-    destruct Hsim as [? [? [? [X [? [Hsim [? [? ?]]]]]]]]; subst;
+    destruct Hsim as [X [? [Hsim [? [? ?]]]]]; subst;
+    destruct Hwfcfg1 as [_ [_ [Hwfs HMinS]]];
     uniq_result;
     destruct ECS as [|[? [? []] ? ? ?]]; try tauto;
     destruct Hsim as [Hsim _];
     unfold EC_simulation_head in Hsim;
-    destruct Hsim as [? [? [? [? [? [? [? [? [? Hsim]]]]]]]]]; subst
+    destruct Hsim as [? [? [? [? [? [Hbsim [Hbeq1 [Hbeq2 [? Hsim]]]]]]]]]; subst
   end.
 
     destruct St2 as [[|[? [? [? ? tmn]] CurCmds tmn' ?] ?] ?]; try tauto.
@@ -549,7 +543,7 @@ Ltac phinodes_placement_undef_tac2:=
     phinodes_placement_undef_tac2.
     apply cmds_simulation_nil_inv in Hsim; subst.
     simpl.
-    apply block_simulation__inv in H8. destruct H8; subst. auto.
+    apply block_simulation__inv in Hbsim. destruct Hbsim; subst. auto.
 
   Case "4".
 
@@ -655,8 +649,8 @@ end.
                 symmetry in HeqR.
                 eapply OpsemPP.getOperandValue__wf_gvs with (t:=PI_typ pinfo)
                   (ps:=gl2) in HeqR; eauto.
-                  inv HeqR. apply H13. auto.
-                  destruct H10 as [l3 [ps3 [cs3 H10]]]; subst.
+                  inv HeqR. apply H7. auto.
+                  destruct Hbeq2 as [l3 [ps3 [cs3 H10]]]; subst.
                   eapply wf_system__wf_fdef in W4; eauto 2.
                   eapply wf_fdef__wf_cmd in W1; eauto using in_middle.
                   inv W1; auto.
@@ -718,6 +712,23 @@ end.
       erewrite TopSim.lookupExFdecViaPtr__simulation_None_r2l; eauto.
 Qed.
 
+Lemma undefined_state__phiplacement_State_simulation_r2l': forall pinfo cfg1 St1 
+  cfg2 St2 (Hwfpi: WF_PhiInfo pinfo) maxb
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 St1)
+  (Hundef: OpsemPP.undefined_state cfg2 St2) (Hwfpp: OpsemPP.wf_State cfg2 St2) 
+  (Hwfcfg1: OpsemPP.wf_Config cfg1) (Hwfcfg: OpsemPP.wf_Config cfg2)
+  (Hsim: State_simulation pinfo cfg1 St1 cfg2 St2),
+  exists St1', 
+    Opsem.sop_star cfg1 St1 St1' E0 /\
+    State_simulation pinfo cfg1 St1' cfg2 St2 /\
+    OpsemPP.undefined_state cfg1 St1'.
+Proof.
+  intros. exists St1.
+  split; eauto using undefined_state__phiplacement_State_simulation_r2l.
+Qed.
+
+Require Import Program.Tactics.
+
 Lemma phinodes_placement_sim: forall rd f Ps1 Ps2 los nts main VarArgs pid ty al
   num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = reachablity_analysis f)
   (Hentry: getEntryBlock f = Some (l0, stmts_intro ps0 cs0 tmn0))
@@ -740,71 +751,47 @@ Proof.
   eapply find_promotable_alloca__WF_PhiInfo in Hfind; eauto.
   set (pinfo:={|PI_f := f; PI_rd := rd; PI_id := pid;
                 PI_typ := ty; PI_num := num; PI_align := al |}).
-  assert (Huniq:=HwfS). apply wf_system__uniqSystem in Huniq; auto.
-  assert (system_simulation pinfo
-     [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
-     [module_intro los nts
-        (Ps1 ++
-         product_fdef (phinodes_placement rd pid ty al (successors f)
-                      (XATree.make_predecessors (successors f)) f) :: Ps2)]) as Hssim.
-    unfold system_simulation.
-    constructor; auto.
-    repeat split; auto.
-    unfold products_simulation.
-    simpl in Huniq. destruct Huniq as [[_ [_ Huniq]] _].
-    unfold TopSim.products_simulation. simpl. unfold fdef_simulation.
-    apply uniq_products_phiplacement_simulation; auto.
+  set (wf_prop1 := fun cfg st =>
+         OpsemPP.wf_Config cfg /\ OpsemPP.wf_State cfg st /\
+         exists maxb,
+           MemProps.wf_globals maxb (OpsemAux.Globals cfg) /\ 0 <= maxb /\
+           Promotability.wf_State maxb pinfo cfg st).
+  set (wf_prop2 := fun cfg st =>
+         OpsemPP.wf_Config cfg /\ @OpsemPP.wf_State DGVs cfg st).
+  set (st_sim := fun cfg1 st1 cfg2 st2 => 
+          State_simulation pinfo cfg1 st1 cfg2 st2).
+  set (sys_sim := fun s1 s2 => system_simulation pinfo s1 s2).
+  apply top_sim with (ftrans:=phinodes_placement rd pid ty al (successors f)
+                        (XATree.make_predecessors (successors f))) 
+    (wf_prop1:=wf_prop1) (wf_prop2:=wf_prop2) (state_simulation:=st_sim)
+    (system_simulation:=sys_sim); 
+    try solve [auto | unfold wf_prop1; tauto | unfold wf_prop2; tauto |
+      unfold wf_prop1, wf_prop2; intros; destruct_conjs; try solve [
+        eauto 8 using Promotability.preservation_star, 
+                      (@OpsemPP.preservation_star DGVs) |
+        eapply sop_star__phiplacement_State_simulation; eauto |
+        eapply s_isFinialState__phiplacement_State_simulation_r2l'; eauto |
+        eapply sop_div__phiplacement_State_simulation; eauto |
+        eapply undefined_state__phiplacement_State_simulation_r2l'; eauto |
+        eapply s_isFinialState__phiplacement_State_simulation_None_r2l; eauto
+      ] |
+      top_sim_syssim_tac fsim Fsim
+    ].
 
-Ltac phinodes_placement_init := 
-match goal with
-| H: Opsem.s_genInitState ?s _ _ _ = _, _: WF_PhiInfo ?pinfo |- _ =>
-    eapply s_genInitState__phiplacement_State_simulation in H; eauto;
-    destruct H as [cfg1 [IS1 [Hinit1 Hstsim]]];
-    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst;
-      try solve [eapply s_genInitState__opsem_wf; eauto];
+    intros. subst.
+    assert (OpsemPP.wf_Config cfg2 /\ OpsemPP.wf_State cfg2 IS2) as Hwfst'.
+      eapply s_genInitState__opsem_wf in Hinit; eauto.
+        eapply phinodes_placement_wfS; eauto.
+    eapply s_genInitState__phiplacement_State_simulation in Hinit; eauto.
+    destruct Hinit as [cfg1 [IS1 [Hinit1 Hstsim]]].
+    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst.
+      eapply s_genInitState__opsem_wf; eauto.
+    destruct Hwfst.
     assert (exists maxb,
               MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
-              Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom; 
-      try solve [eapply s_genInitState__wf_globals_promotable; eauto; try tauto];
-    destruct Hprom as [maxb [Hwfg [Hless Hprom]]]
-end.
-
-  constructor; auto.
-    intros tr t Hconv.
-    inv Hconv.
-    phinodes_placement_init. 
-    eapply sop_star__phiplacement_State_simulation in Hstsim; eauto; try tauto.
-    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
-    eapply s_isFinialState__phiplacement_State_simulation_r2l in Hstsim'; eauto.
-    exists t. split; auto using result_match_relf. econstructor; eauto.
-
-    intros tr Hdiv.
-    inv Hdiv.
-    phinodes_placement_init.
-    eapply sop_div__phiplacement_State_simulation in Hstsim; eauto; try tauto.
-    destruct Hstsim as [FS1 Hopdiv1].
-    econstructor; eauto.
-
-    intros tr t Hgowrong.
-    inv Hgowrong.
-    assert (OpsemPP.wf_Config cfg /\ OpsemPP.wf_State cfg t) as HwfSt.
-      eapply s_genInitState__opsem_wf in H; eauto using phinodes_placement_wfS.
-      destruct H as [Hcfg2 HwfSt2].
-      apply OpsemPP.preservation_star in H0; auto.
-    assert (OpsemPP.undefined_state cfg t) as Hundef.
-      apply stuck__undefined_state in H2; try solve [auto | tauto].
-    phinodes_placement_init.
-    eapply sop_star__phiplacement_State_simulation in Hstsim; eauto; try tauto.
-    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
-    eapply Promotability.preservation_star in Hprom; eauto; try tauto.
-    assert (OpsemPP.undefined_state cfg1 FS1) as Hundef'.
-      eapply undefined_state__phinodes_placement_simulation_r2l in Hundef; 
-        try solve [eauto | tauto].
-    assert (Opsem.s_isFinialState cfg1 FS1 = merror) as Hfinal'.
-      eapply s_isFinialState__phiplacement_State_simulation_None_r2l in H2; 
-        try solve [eauto | tauto].
-        eapply phinodes_placement_wfS in HwfS; eauto.
-    apply undefined_state__stuck' in Hundef'.
-    exists FS1.
-    econstructor; eauto.
+              Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
+      eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
+    destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
+    unfold wf_prop1, wf_prop2.
+    eauto 12.
 Qed.

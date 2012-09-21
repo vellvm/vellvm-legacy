@@ -1390,31 +1390,12 @@ Lemma s_genInitState__subst_State_simulation: forall S1 S2 main
     Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
     State_simulation cfg1 IS1 cfg2 IS2.
 Proof.
-  unfold Opsem.s_genInitState.
-  intros.
-  inv_mbind'.
-  destruct m as [los nts ps].
-  inv_mbind'.
-  destruct s as [ps0 cs0 tmn0].
-  destruct f as [[fa rt fid la va] bs].
-  inv_mbind'. symmetry_ctx.
-  assert (HlkF2FromS2:=HeqR).
-  eapply TopSim.system_simulation__fdef_simulation_r2l in HeqR; eauto.
-  destruct HeqR as [f1 [HlkF1fromS1 Hfsim]]. simpl in Hfsim.
-  fill_ctxhole.
-  eapply TopSim.system_simulation__getParentOfFdefFromSystem in HeqR0; eauto.
-  destruct HeqR0 as [m1 [J1 J2]].
-  fill_ctxhole. destruct m1 as [los1 nts1 ps1].
-  destruct J2 as [J2 [J3 J4]]; subst.
-  eapply TopSim.genGlobalAndInitMem_spec in HeqR1; eauto.
-  destruct HeqR1 as [gl1 [fs1 [M1 [HeqR1 [EQ1 [EQ2 EQ3]]]]]]; subst.
-  fill_ctxhole.
+  s_genInitState__State_simulation_tac.
   assert (J:=HeqR2).
   eapply getEntryBlock__simulation in J; eauto.
   destruct J as [b1 [J5 J6]].
   fill_ctxhole.
   destruct b1 as [l2 [ps2 cs2 tmn2]].
-  destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1].
   assert (J:=Hfsim).
   apply fdef_simulation__eq_fheader in J.
   inv J.
@@ -1422,17 +1403,9 @@ Proof.
   match goal with
   | |- exists _:_, exists _:_, Some (?A, ?B) = _ /\ _ => exists A; exists B
   end.
-  match goal with 
-  | H: getParentOfFdefFromSystem _ _ = _ |- _ =>
-    apply getParentOfFdefFromSystem__moduleInProductsInSystemB in H;
-    destruct H as [HMinS HinPs]
-  end.
   assert (J:=J6).
   apply block_simulation_inv in J.
   destruct J as [J1 [J2 [J3 J7]]]; subst.
-  assert (blockInFdefB (l0, stmts_intro ps0 cs0 tmn0)
-           (fdef_intro (fheader_intro fa rt fid la va) bs) = true) as HBinF.
-    apply entryBlockInFdef; auto.
   repeat (split; auto).
     exists l0. exists ps2. exists nil. auto.
     exists l0. exists ps0. exists nil. auto.

@@ -204,9 +204,6 @@ let '(OpsemAux.mkCfg S2 TD2 Ps2 gl2 fs2) := Cfg2 in
 match (St1, St2) with
 | (Opsem.mkState ECs1 M1, Opsem.mkState ECs2 M2) =>
     let '(los, nts) := TD1 in
-    wf_system S1 /\
-    moduleInSystemB (module_intro los nts Ps1) S1 = true /\
-    system_simulation pinfo S1 S2 /\
     TD1 = TD2 /\
     products_simulation pinfo Ps1 Ps2 /\
     ECs_simulation TD1 Ps1 pinfo ECs1 ECs2 M2 /\
@@ -942,51 +939,6 @@ match goal with
     split; try solve [auto | apply terminatorEqB_refl]
 end.
 
-Ltac destruct_ctx_return :=
-match goal with
-| [Hsim : State_simulation _ ?Cfg1 ?St1
-           {|
-           OpsemAux.CurSystem := _;
-           OpsemAux.CurTargetData := ?TD;
-           OpsemAux.CurProducts := _;
-           OpsemAux.Globals := _;
-           OpsemAux.FunTable := _ |}
-           {|
-           Opsem.ECS := {|
-                          Opsem.CurFunction := ?F;
-                          Opsem.CurBB := _;
-                          Opsem.CurCmds := nil;
-                          Opsem.Terminator := _;
-                          Opsem.Locals := _;
-                          Opsem.Allocas := _ |}
-                          :: {|
-                             Opsem.CurFunction := ?F';
-                             Opsem.CurBB := _;
-                             Opsem.CurCmds := ?c' :: _;
-                             Opsem.Terminator := _;
-                             Opsem.Locals := _;
-                             Opsem.Allocas := _ |} :: _;
-           Opsem.Mem := _ |} |- _] =>
-  destruct Cfg1 as [S1 TD1 Ps1 gl1 fs1];
-  destruct St1 as [ECs1 M1];
-  destruct TD1 as [los nts];
-  destruct Hsim as [Hwfs [HMinS [Htsym [Heq1 [Htps [HsimECs [Heq2
-    [Heq3 Heq4]]]]]]]]; subst;
-  destruct ECs1 as [|[F1 B1 cs1 tmn1 lc1 als1] ECs1];
-    try solve [inversion HsimECs];
-  simpl in HsimECs;
-  destruct HsimECs as [HsimEC HsimECs];
-  destruct ECs1 as [|[F1' B1' cs1' tmn1' lc1' als1'] ECs1];
-    try solve [inversion HsimECs];
-  destruct HsimECs as [HsimEC' HsimECs];
-  destruct HsimEC as [HBinF [HFinPs [Htfdef [Heq0 [Heq1 [Hbsim [Heqb1 [Heqb2
-    [Hrsim Htcmds]]]]]]]]]; subst;
-  destruct c'; try solve [inversion HsimEC'];
-  destruct HsimEC' as [HBinF' [HFinPs' [Htfdef' [Heq0' [Heq1' [Hbsim'
-    [Heqb1' [Heqb2' [Hrsim' Htcmds']]]]]]]]]; subst;
-  fold ECs_simulation_tail in HsimECs
-end.
-
 Ltac cmds_simulation_stable_tac :=
 match goal with
 | H3 : _ ++ [_] = _ ++ _ :: nil |- _ =>
@@ -1129,37 +1081,6 @@ Proof.
   destruct EC. destruct J1 as [J1 _].
   simpl. auto.
 Qed.
-
-Ltac destruct_ctx_br :=
-match goal with
-| [Hsim : State_simulation _ ?Cfg1 ?St1
-           {|
-           OpsemAux.CurSystem := _;
-           OpsemAux.CurTargetData := ?TD;
-           OpsemAux.CurProducts := _;
-           OpsemAux.Globals := _;
-           OpsemAux.FunTable := _ |}
-           {|
-           Opsem.ECS := {|
-                          Opsem.CurFunction := ?F;
-                          Opsem.CurBB := _;
-                          Opsem.CurCmds := nil;
-                          Opsem.Terminator := _;
-                          Opsem.Locals := _;
-                          Opsem.Allocas := _ |} :: _;
-           Opsem.Mem := _ |} |- _] =>
-  destruct Cfg1 as [S1 TD1 Ps1 gl1 fs1];
-  destruct St1 as [ECs1 M1];
-  destruct TD1 as [los nts];
-  destruct Hsim as [Hwfs [HMinS [Htsym [Heq1 [Htps [HsimECs [Heq2
-    [Heq3 Heq4]]]]]]]]; subst;
-  destruct ECs1 as [|[F1 B1 cs1 tmn1 lc1 als1] ECs1];
-    try solve [inversion HsimECs];
-  simpl in HsimECs;
-  destruct HsimECs as [HsimEC HsimECs];
-  destruct HsimEC as [HBinF [HFinPs [Htfdef [Heq0 [Heq1 [Hbsim [Heqb1 [Heqb2
-    [Hrsim Htcmds]]]]]]]]]; subst
-end.
 
 Lemma blockInFdefB_sim__block_sim : forall pinfo f1 f2 b2
   (Hwfpi: WF_PhiInfo pinfo),
@@ -2213,4 +2134,113 @@ Proof.
   erewrite <- simulation__getOperandValue in H0; eauto.
 Qed.
 
+Ltac destruct_ctx_other :=
+match goal with
+| Hwfcfg: OpsemPP.wf_Config ?Cfg1,
+  Hsim : State_simulation _ ?Cfg1 ?St1
+           {|
+           OpsemAux.CurSystem := _;
+           OpsemAux.CurTargetData := ?TD;
+           OpsemAux.CurProducts := _;
+           OpsemAux.Globals := _;
+           OpsemAux.FunTable := _ |}
+           {|
+           Opsem.ECS := {|
+                          Opsem.CurFunction := ?F;
+                          Opsem.CurBB := _;
+                          Opsem.CurCmds := _::_;
+                          Opsem.Terminator := _;
+                          Opsem.Locals := _;
+                          Opsem.Allocas := _ |} :: _;
+           Opsem.Mem := _ |} |- _ =>
+  destruct Cfg1 as [S1 TD1 Ps1 gl1 fs1];
+  destruct TD1 as [los nts];
+  destruct Hwfcfg as [_ [_ [Hwfs HmInS]]] ;
+  destruct St1 as [ECs1 M1];
+  destruct Hsim as [Heq1 [Htps [HsimECs [Heq2 [Heq3 Heq4]]]]]; subst;
+  destruct ECs1 as [|[F1 B1 cs1 tmn1 lc1 als1] ECs1];
+    try solve [inversion HsimECs];
+  simpl in HsimECs;
+  destruct HsimECs as [HsimEC HsimECs];
+  destruct HsimEC as [HBinF [HFinPs [Htfdef [Heq0 [Heq1 [Hbsim [Heqb1 [Heqb2
+    [Hrsim Htcmds]]]]]]]]]; subst
+end.
+
+Ltac destruct_ctx_return :=
+match goal with
+| Hwfcfg: OpsemPP.wf_Config ?Cfg1,
+  Hsim : State_simulation _ ?Cfg1 ?St1
+           {|
+           OpsemAux.CurSystem := _;
+           OpsemAux.CurTargetData := ?TD;
+           OpsemAux.CurProducts := _;
+           OpsemAux.Globals := _;
+           OpsemAux.FunTable := _ |}
+           {|
+           Opsem.ECS := {|
+                          Opsem.CurFunction := ?F;
+                          Opsem.CurBB := _;
+                          Opsem.CurCmds := nil;
+                          Opsem.Terminator := _;
+                          Opsem.Locals := _;
+                          Opsem.Allocas := _ |}
+                          :: {|
+                             Opsem.CurFunction := ?F';
+                             Opsem.CurBB := _;
+                             Opsem.CurCmds := ?c' :: _;
+                             Opsem.Terminator := _;
+                             Opsem.Locals := _;
+                             Opsem.Allocas := _ |} :: _;
+           Opsem.Mem := _ |} |- _ =>
+  destruct Cfg1 as [S1 TD1 Ps1 gl1 fs1];
+  destruct St1 as [ECs1 M1];
+  destruct TD1 as [los nts];
+  destruct Hwfcfg as [_ [_ [Hwfs HmInS]]] ;
+  destruct Hsim as [Heq1 [Htps [HsimECs [Heq2 [Heq3 Heq4]]]]]; subst;
+  destruct ECs1 as [|[F1 B1 cs1 tmn1 lc1 als1] ECs1];
+    try solve [inversion HsimECs];
+  simpl in HsimECs;
+  destruct HsimECs as [HsimEC HsimECs];
+  destruct ECs1 as [|[F1' B1' cs1' tmn1' lc1' als1'] ECs1];
+    try solve [inversion HsimECs];
+  destruct HsimECs as [HsimEC' HsimECs];
+  destruct HsimEC as [HBinF [HFinPs [Htfdef [Heq0 [Heq1 [Hbsim [Heqb1 [Heqb2
+    [Hrsim Htcmds]]]]]]]]]; subst;
+  destruct c'; try solve [inversion HsimEC'];
+  destruct HsimEC' as [HBinF' [HFinPs' [Htfdef' [Heq0' [Heq1' [Hbsim'
+    [Heqb1' [Heqb2' [Hrsim' Htcmds']]]]]]]]]; subst;
+  fold ECs_simulation_tail in HsimECs
+end.
+
+Ltac destruct_ctx_br :=
+match goal with
+| Hwfcfg: OpsemPP.wf_Config ?Cfg1,
+  Hsim : State_simulation _ ?Cfg1 ?St1
+           {|
+           OpsemAux.CurSystem := _;
+           OpsemAux.CurTargetData := ?TD;
+           OpsemAux.CurProducts := _;
+           OpsemAux.Globals := _;
+           OpsemAux.FunTable := _ |}
+           {|
+           Opsem.ECS := {|
+                          Opsem.CurFunction := ?F;
+                          Opsem.CurBB := _;
+                          Opsem.CurCmds := nil;
+                          Opsem.Terminator := _;
+                          Opsem.Locals := _;
+                          Opsem.Allocas := _ |} :: _;
+           Opsem.Mem := _ |} |- _ =>
+  destruct Cfg1 as [S1 TD1 Ps1 gl1 fs1];
+  destruct TD1 as [los nts];
+  destruct Hwfcfg as [_ [_ [Hwfs HmInS]]] ;
+  destruct St1 as [ECs1 M1];
+  destruct Hsim as [Heq1 [Htps [HsimECs [Heq2 [Heq3 Heq4]]]]]; subst;
+  destruct ECs1 as [|[F1 B1 cs1 tmn1 lc1 als1] ECs1];
+    try solve [inversion HsimECs];
+  simpl in HsimECs;
+  destruct HsimECs as [HsimEC HsimECs];
+  destruct HsimEC as [HBinF [HFinPs [Htfdef [Heq0 [Heq1 [Hbsim [Heqb1 [Heqb2
+    [Hrsim Htcmds]]]]]]]]]; subst
+end.
 

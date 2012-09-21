@@ -2,6 +2,8 @@ Require Import vellvm.
 Require Import genericvalues_inject.
 Require Import palloca_props.
 Require Import primitives.
+Require Import opsem_props.
+Require Import program_sim.
 
 Structure FunSim := mkFunSim {
 fsim: fdef -> fdef -> Prop;
@@ -1077,3 +1079,248 @@ Hint Unfold RemoveSim.fdef_simulation RemoveSim.cmds_simulation
   RemoveSim.stmts_simulation RemoveSim.block_simulation RemoveSim.phis_simulation
   RemoveSim.removable_State.
 
+Ltac s_genInitState__State_simulation_tac :=
+  unfold Opsem.s_genInitState;
+  intros;
+  inv_mbind';
+  match goal with
+  | m: module |- _ => destruct m as [los nts ps]
+  end;
+  inv_mbind';
+  match goal with
+  | l0: l, s: stmts, f: fdef |- _ =>
+    assert (blockInFdefB (l0, s) f  = true) as HBinF; 
+      try solve [apply entryBlockInFdef; auto];
+    destruct s as [ps0 cs0 tmn0]; destruct f as [[fa rt fid la va] bs]
+  end;
+  inv_mbind'; symmetry_ctx;
+  match goal with
+  | HeqR: lookupFdefViaIDFromSystem _ _ = _ |- _ =>
+    assert (HlkF2FromS2:=HeqR);
+    eapply TopSim.system_simulation__fdef_simulation_r2l in HeqR; eauto;
+    destruct HeqR as [f1 [HlkF1fromS1 Hfsim]]; simpl in Hfsim;
+    destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1]
+  end;
+  fill_ctxhole;
+  match goal with
+  | HeqR0: getParentOfFdefFromSystem _ _ = _ |- _ =>
+    eapply TopSim.system_simulation__getParentOfFdefFromSystem in HeqR0; eauto;
+    destruct HeqR0 as [m1 [J1 J2]];
+    destruct m1 as [los1 nts1 ps1];
+    destruct J2 as [J2 [J3 J4]]; subst
+  end;
+  fill_ctxhole; 
+  match goal with
+  | HeqR1: OpsemAux.genGlobalAndInitMem _ _ _ _ _ = _ |- _ =>
+    eapply TopSim.genGlobalAndInitMem_spec in HeqR1; eauto;
+    destruct HeqR1 as [gl1 [fs1 [M1 [HeqR1 [EQ1 [EQ2 EQ3]]]]]]; subst
+  end;
+  fill_ctxhole;
+  match goal with 
+  | H: getParentOfFdefFromSystem _ _ = _ |- _ =>
+    apply getParentOfFdefFromSystem__moduleInProductsInSystemB in H;
+    destruct H as [HMinS HinPs]
+  end.
+
+Section ProgramSim.
+
+Variable ftrans: fdef -> fdef.
+Variable wf_prop1: OpsemAux.Config -> @Opsem.State DGVs -> Prop.
+Variable wf_prop2: OpsemAux.Config -> @Opsem.State DGVs -> Prop.
+Variable state_simulation: OpsemAux.Config -> @Opsem.State DGVs -> 
+                           OpsemAux.Config -> @Opsem.State DGVs -> Prop.
+Variable system_simulation: system -> system -> Prop.
+
+Hypothesis wf_prop1_preservation_star: forall cfg St1 St2 tr
+  (Hops: Opsem.sop_star cfg St1 St2 tr) (Hp: wf_prop1 cfg St1), wf_prop1 cfg St2.
+
+Hypothesis wf_prop2_preservation_star: forall cfg St1 St2 tr
+  (Hops: Opsem.sop_star cfg St1 St2 tr) (Hp: wf_prop2 cfg St1), wf_prop2 cfg St2.
+
+Hypothesis sop_star__state_simulation: forall 
+  (cfg1 : OpsemAux.Config) (IS1 : Opsem.State)
+  (cfg2 : OpsemAux.Config) (IS2 : Opsem.State) (tr : trace) (FS2 : Opsem.State)
+  (Hp1: wf_prop1 cfg1 IS1) (Hp2: wf_prop2 cfg2 IS2)
+  (Hstsim: state_simulation cfg1 IS1 cfg2 IS2)
+  (Hop: Opsem.sop_star cfg2 IS2 FS2 tr) (Hwrong: ~ sop_goeswrong cfg1 IS1),
+  exists FS1 : Opsem.State,
+    Opsem.sop_star cfg1 IS1 FS1 tr /\
+    state_simulation cfg1 FS1 cfg2 FS2.
+
+Hypothesis s_isFinialState__state_simulation_r2l: forall 
+  (cfg1 : OpsemAux.Config) (FS1 : Opsem.State)
+  (cfg2 : OpsemAux.Config) (FS2 : Opsem.State) (r : GVsT DGVs)
+  (Hp1: wf_prop1 cfg1 FS1) (Hstsim: state_simulation cfg1 FS1 cfg2 FS2)
+  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r) 
+  (Hwrong: ~ sop_goeswrong cfg1 FS1),
+  exists FS1' : Opsem.State,
+    Opsem.sop_star cfg1 FS1 FS1' E0 /\
+    state_simulation cfg1 FS1' cfg2 FS2 /\
+    Opsem.s_isFinialState cfg1 FS1' = ret r.
+
+Hypothesis sop_div__state_simulation: forall 
+  (cfg1 : OpsemAux.Config) (IS1 : Opsem.State)
+  (cfg2 : OpsemAux.Config) (IS2 : Opsem.State) (tr : traceinf)
+  (Hp1: wf_prop1 cfg1 IS1) (Hp2: wf_prop2 cfg2 IS2)
+  (Hstsim: state_simulation cfg1 IS1 cfg2 IS2)
+  (Hop: Opsem.sop_diverges cfg2 IS2 tr),
+  ~ sop_goeswrong cfg1 IS1 -> Opsem.sop_diverges cfg1 IS1 tr.
+
+Hypothesis undefined_state__state_simulation_r2l: forall 
+  (cfg1 : OpsemAux.Config) (St1 : Opsem.State)
+  (cfg2 : OpsemAux.Config) (St2 : Opsem.State)
+  (Hp1: wf_prop1 cfg1 St1) (Hp2: wf_prop2 cfg2 St2)
+  (Hstsim: state_simulation cfg1 St1 cfg2 St2)
+  (Hundef: OpsemPP.undefined_state cfg2 St2)
+  (Hwrong: ~ sop_goeswrong cfg1 St1),
+  exists St1' : Opsem.State,
+    Opsem.sop_star cfg1 St1 St1' E0 /\
+    state_simulation cfg1 St1' cfg2 St2 /\
+    OpsemPP.undefined_state cfg1 St1'.
+
+Hypothesis s_isFinialState__state_simulation_None_r2l: forall 
+  (cfg1 : OpsemAux.Config) (FS1 : Opsem.State)
+  (cfg2 : OpsemAux.Config) (FS2 : Opsem.State)
+  (Hp1: wf_prop1 cfg1 FS1) (Hp2: wf_prop2 cfg2 FS2)
+  (Hundef: @OpsemPP.undefined_state DGVs cfg2 FS2)
+  (Hstsim: state_simulation cfg1 FS1 cfg2 FS2)
+  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = merror),
+  Opsem.s_isFinialState cfg1 FS1 = merror.
+
+Hypothesis wf_prop1__wf_Config: forall cfg S
+  (Hp: wf_prop1 cfg S), OpsemPP.wf_Config cfg.
+
+Hypothesis wf_prop1__wf_State: forall cfg S
+  (Hp: wf_prop1 cfg S), OpsemPP.wf_State cfg S.
+
+Hypothesis wf_prop2__wf_Config: forall cfg S
+  (Hp: wf_prop2 cfg S), OpsemPP.wf_Config cfg.
+
+Hypothesis wf_prop2__wf_State: forall cfg S
+  (Hp: wf_prop2 cfg S), OpsemPP.wf_State cfg S.
+
+Variable (S1: list module) (los:layouts) (nts:namedts) 
+  (Ps1 Ps2:products) (f0:fdef).
+Hypothesis Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)].
+
+Hypothesis s_genInitState__state_simulation: forall S2
+  (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef (ftrans f0) :: Ps2)])
+  (main : id) (VarArgs : list (GVsT DGVs))
+  (cfg2 : OpsemAux.Config) (IS2 : Opsem.State)
+  (Hsyssim: system_simulation S1 S2) (Hwfs: wf_system S1)
+  (Hinit: Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2)),
+  exists cfg1 : OpsemAux.Config,
+    exists IS1 : Opsem.State,
+      Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
+      state_simulation cfg1 IS1 cfg2 IS2 /\
+      wf_prop1 cfg1 IS1 /\ wf_prop2 cfg2 IS2.
+
+Hypothesis ftrans_wfs:
+  wf_system [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)] ->
+  wf_system [module_intro los nts (Ps1 ++ product_fdef (ftrans f0) :: Ps2)].
+
+Hypothesis ftrans__system_simulation:
+  system_simulation
+     [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)]
+     [module_intro los nts
+        (Ps1 ++ product_fdef (ftrans f0) :: Ps2)].
+
+Hint Resolve wf_prop1__wf_Config wf_prop2__wf_Config
+             wf_prop1__wf_State wf_prop2__wf_State.
+
+Lemma top_sim: forall 
+  (main : id) (VarArgs : list (GVsT DGVs))
+  (Hok: defined_program S1 main VarArgs)
+  (HwfS : wf_system S1),
+  program_sim
+    [module_intro los nts (Ps1 ++ product_fdef (ftrans f0) :: Ps2)]
+    S1 main VarArgs.
+Proof.
+  intros.
+  assert (wf_fdef [module_intro los nts (Ps1++product_fdef f0::Ps2)]
+            (module_intro los nts (Ps1++product_fdef f0::Ps2)) 
+            f0 /\ uniqFdef f0) as J.
+    subst.
+    apply wf_single_system__wf_uniq_fdef; auto.
+  destruct J as [HwfF HuniqF].
+  assert (Huniq:=HwfS). apply wf_system__uniqSystem in Huniq; auto.
+  assert (system_simulation
+     [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)]
+     [module_intro los nts
+        (Ps1 ++ product_fdef (ftrans f0) :: Ps2)]) as Hssim.
+    apply ftrans__system_simulation.
+
+Ltac sas_sim_init :=
+match goal with
+| H: Opsem.s_genInitState [module_intro ?los ?nts _] _ _ _ = Some (?cfg, ?IS) |- _ =>
+    eapply s_genInitState__state_simulation in H; eauto;
+    destruct H as [cfg1 [IS1 [Hinit [Hstsim [Hwfp1 Hwfp2]]]]]
+end.
+
+Ltac sas_sim_end :=
+match goal with
+| Hstsim : state_simulation ?cfg1 ?FS1 ?cfg ?FS |- _ =>
+    assert (wf_prop2 cfg FS) as Hwfst''; 
+      try solve [eapply wf_prop2_preservation_star; eauto; try tauto];
+    assert (wf_prop1 cfg1 FS1) as Hwfst1''; 
+      try solve [eapply wf_prop1_preservation_star; eauto; try tauto]
+end.
+
+  constructor; auto.
+    intros tr t Hconv.
+    inv Hconv.
+    sas_sim_init.
+    eapply sop_star__state_simulation in Hstsim; 
+      eauto using defined_program__doesnt__go_wrong; try tauto.
+    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
+    sas_sim_end.
+    eapply s_isFinialState__state_simulation_r2l in Hstsim';
+      eauto using sop_goeswrong__star, defined_program__doesnt__go_wrong; try tauto.
+    destruct Hstsim' as [FS1' [Hopstar1' [Hstsim'' Hfinal]]].
+    assert (Opsem.sop_star cfg1 IS1 FS1' tr) as Hopstar1''.
+      rewrite <- E0_right.
+      eapply OpsemProps.sop_star_trans; eauto.
+    exists t. split; auto using result_match_relf. econstructor; eauto.
+
+    intros tr Hdiv.
+    inv Hdiv.
+    sas_sim_init.
+    eapply sop_div__state_simulation in Hstsim; 
+      eauto using defined_program__doesnt__go_wrong; try tauto.
+    destruct Hstsim as [FS1 Hopdiv1].
+    econstructor; eauto.
+
+    intros tr t Hgowrong.
+    inv Hgowrong.
+    sas_sim_init.
+    assert (OpsemPP.undefined_state cfg t) as Hundef.
+      apply stuck__undefined_state in H2; try solve [eauto | tauto].
+    eapply sop_star__state_simulation in Hstsim;
+      eauto using defined_program__doesnt__go_wrong; try tauto.
+    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
+    sas_sim_end.
+    assert (Hundef':=Hundef).
+    eapply undefined_state__state_simulation_r2l in Hundef'; 
+      try solve [eauto using sop_goeswrong__star, defined_program__doesnt__go_wrong | tauto].
+    destruct Hundef' as [FS1' [Hopstar2 [Hsim Hundef']]].
+    assert (Opsem.s_isFinialState cfg1 FS1' = merror) as Hfinal'.
+      apply wf_prop1_preservation_star in Hopstar2; eauto; try tauto.
+      eapply s_isFinialState__state_simulation_None_r2l in H2; 
+        try solve [eauto | tauto].
+    apply undefined_state__stuck' in Hundef'.
+    rewrite <- E0_right with (t:=tr). exists FS1'.
+    econstructor; eauto using (@OpsemProps.sop_star_trans DGVs).   
+Qed.
+
+End ProgramSim.
+
+Ltac top_sim_syssim_tac fsim Fsim :=
+match goal with
+| HwfS: wf_system ?S |- _ ?S _ =>
+    constructor; auto;
+    repeat split; auto;
+    assert (Huniq:=HwfS); apply wf_system__uniqSystem in Huniq; auto;
+    simpl in Huniq; destruct Huniq as [[_ [_ Huniq]] _];
+    unfold TopSim.products_simulation; unfold fsim; unfold Fsim;
+    apply uniq_products_simulation; auto
+end.

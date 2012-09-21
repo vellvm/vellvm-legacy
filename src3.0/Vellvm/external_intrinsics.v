@@ -827,8 +827,8 @@ Inductive extcall_other_sem (TD:TargetData) (tret: typ)
     (targs: list typ) (ge: Genv.t GenericValue):
       list GenericValue -> mem -> trace -> option GenericValue -> mem -> Prop :=
   | extcall_other_sem_intro: forall vargs m args res vres,
-      ~ eventgv_list_match TD ge args targs vargs \/ 
-      ~ option_f2t (eventgv_match TD ge) res tret vres ->
+      eventgv_list_match TD ge args targs vargs ->
+      option_f2t (eventgv_match TD ge) res tret vres ->
       extcall_other_sem TD tret targs ge vargs m E0 vres m.
 
 Axiom extcall_other_ok: forall TD tret targs,

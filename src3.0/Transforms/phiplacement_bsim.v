@@ -28,7 +28,7 @@ Lemma phinodes_placement_is_correct__dsBranch: forall
                    OpsemAux.CurProducts := Ps;
                    OpsemAux.Globals := gl;
                    OpsemAux.FunTable := fs |})
-  (Hwfpp: OpsemPP.wf_State Cfg1 St1)
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1)
   (Heq2: EC1 = {| Opsem.CurFunction := F;
                   Opsem.CurBB := B;
@@ -278,7 +278,7 @@ Lemma phinodes_placement_is_correct__dsBranch_uncond: forall
                    OpsemAux.CurProducts := Ps;
                    OpsemAux.Globals := gl;
                    OpsemAux.FunTable := fs |})
-  (Hwfpp: OpsemPP.wf_State Cfg1 St1)
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1)
   (Heq2: EC1 = {| Opsem.CurFunction := F;
                   Opsem.CurBB := B;
@@ -479,40 +479,10 @@ Proof.
         apply cmds_simulation_neq_refl; auto.
 Qed.
 
-Ltac destruct_ctx_other :=
-match goal with
-| [Hsim : State_simulation _ ?Cfg1 ?St1
-           {|
-           OpsemAux.CurSystem := _;
-           OpsemAux.CurTargetData := ?TD;
-           OpsemAux.CurProducts := _;
-           OpsemAux.Globals := _;
-           OpsemAux.FunTable := _ |}
-           {|
-           Opsem.ECS := {|
-                          Opsem.CurFunction := ?F;
-                          Opsem.CurBB := _;
-                          Opsem.CurCmds := _::_;
-                          Opsem.Terminator := _;
-                          Opsem.Locals := _;
-                          Opsem.Allocas := _ |} :: _;
-           Opsem.Mem := _ |} |- _] =>
-  destruct Cfg1 as [S1 TD1 Ps1 gl1 fs1];
-  destruct St1 as [ECs1 M1];
-  destruct TD1 as [los nts];
-  destruct Hsim as [Hwfs [HMinS [Htsym [Heq1 [Htps [HsimECs [Heq2
-    [Heq3 Heq4]]]]]]]]; subst;
-  destruct ECs1 as [|[F1 B1 cs1 tmn1 lc1 als1] ECs1];
-    try solve [inversion HsimECs];
-  simpl in HsimECs;
-  destruct HsimECs as [HsimEC HsimECs];
-  destruct HsimEC as [HBinF [HFinPs [Htfdef [Heq0 [Heq1 [Hbsim [Heqb1 [Heqb2
-    [Hrsim Htcmds]]]]]]]]]; subst
-end.
-
 Lemma phinodes_placement_is_correct__dsLoad: forall (maxb : Values.block) 
   (pinfo : PhiInfo)
   (Cfg1 : OpsemAux.Config) (St1 : Opsem.State) (Hwfpi : WF_PhiInfo pinfo)
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) 
   (Hnoalias : wf_State maxb pinfo Cfg1 St1) (S : system) (TD : TargetData)
   (Ps : list product) (F : fdef) (B : block) (lc : Opsem.GVsMap) (gl : GVMap)
   (fs : GVMap) (id0 : id) (t : typ) (align0 : align) (v : value)
@@ -708,6 +678,7 @@ Qed.
 Lemma phinodes_placement_is_correct__dsStore: forall (maxb : Values.block)
   (pinfo : PhiInfo)
   (Cfg1 : OpsemAux.Config) (St1 : Opsem.State) (Hwfpi : WF_PhiInfo pinfo)
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) 
   (Hnoalias : wf_State maxb pinfo Cfg1 St1) (S : system) (TD : TargetData)
   (Ps : list product) (F : fdef) (B : block) (lc : Opsem.GVsMap) (gl : GVMap)
   (fs : GVMap) (sid : id) (t : typ) (align0 : align) (v1 v2 : value)
@@ -1134,6 +1105,7 @@ Ltac phinodes_placement_is_correct__common :=
 Lemma phinodes_placement_is_correct__dsAlloca: forall (maxb: Values.block)
   (pinfo: PhiInfo)
   (Cfg1 : OpsemAux.Config) (St1 : Opsem.State) (Hwfpi : WF_PhiInfo pinfo)
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) 
   (Hnoalias : wf_State maxb pinfo Cfg1 St1) (S : system) (TD : TargetData)
   (Ps : list product) (F : fdef) (B : block) (lc : Opsem.GVsMap) (gl : GVMap)
   (fs : GVMap) (id0 : id) (t : typ) (align0 : align) (v : value)
@@ -1179,6 +1151,7 @@ Qed.
 Lemma phinodes_placement_is_correct__dsMalloc: forall (maxb: Values.block)
   (pinfo: PhiInfo)
   (Cfg1 : OpsemAux.Config) (St1 : Opsem.State) (Hwfpi : WF_PhiInfo pinfo)
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) 
   (Hnoalias : wf_State maxb pinfo Cfg1 St1) (S : system) (TD : TargetData)
   (Ps : list product) (F : fdef) (B : block) (lc : Opsem.GVsMap) (gl : GVMap)
   (fs : GVMap) (id0 : id) (t : typ) (align0 : align) (v : value)
@@ -1223,6 +1196,7 @@ Qed.
 
 Lemma phinodes_placement_is_correct__dsCall: forall (maxb : Values.block)
   (pinfo : PhiInfo) (Cfg1 : OpsemAux.Config) (St1 : Opsem.State)
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) 
   (Hwfpi : WF_PhiInfo pinfo) (Hnoalias : wf_State maxb pinfo Cfg1 St1)
   (S : system) (TD : TargetData) (Ps : products) (F : fdef) (B : block)
   (lc : Opsem.GVsMap) (gl : GVMap) (fs : GVMap) (rid : id) (noret0 : noret)
@@ -1410,6 +1384,7 @@ Qed.
 
 Lemma phinodes_placement_is_correct__dsExCall: forall (maxb : Values.block)
   (pinfo : PhiInfo) (Cfg1 : OpsemAux.Config) (St1 : Opsem.State)
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) 
   (Hwfpi : WF_PhiInfo pinfo) (Hnoalias : wf_State maxb pinfo Cfg1 St1)
   (S : system) (TD : TargetData) (Ps : products) (F : fdef) (B : block)
   (lc : Opsem.GVsMap) (gl : GVMap) (fs : GVMap) (rid : id) (noret0 : bool)
@@ -1538,7 +1513,7 @@ Qed.
 
 Lemma phinodes_placement_is_bsim : forall maxb pinfo Cfg1 St1 Cfg2 St2 St2' tr
   (Hwfpi: WF_PhiInfo pinfo)
-  (Hwfpp: OpsemPP.wf_State Cfg1 St1)
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1)
   (Hsim: State_simulation pinfo Cfg1 St1 Cfg2 St2)
   (Hop: Opsem.sInsn Cfg2 St2 St2' tr),
@@ -1642,7 +1617,7 @@ Qed.
 
 Lemma phinodes_placement_is_bsim' : forall maxb pinfo Cfg1 St1 Cfg2 St2 St2' tr
   (Hwfpi: WF_PhiInfo pinfo) 
-  (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
   (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1) 
   (Hsim: State_simulation pinfo Cfg1 St1 Cfg2 St2)
   (Hop: Opsem.sInsn Cfg2 St2 St2' tr), 

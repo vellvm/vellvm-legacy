@@ -26,49 +26,22 @@ Lemma s_genInitState__die_State_simulation':
     genericvalues_inject.wf_globals (Mem.nextblock (Opsem.Mem IS1) - 1) 
       (OpsemAux.Globals cfg1).
 Proof.
-    unfold Opsem.s_genInitState.
-    intros.
-    inv_mbind'.
-    destruct m as [los nts ps].
-    inv_mbind'.
-    destruct s as [ps0 cs0 tmn0].
-    destruct f as [[fa rt fid la va] bs].
-    inv_mbind'. symmetry_ctx.
-    assert (HlkF2FromS2:=HeqR).
-    eapply TopSim.system_simulation__fdef_simulation_r2l in HeqR; eauto.
-    destruct HeqR as [f1 [HlkF1fromS1 Hfsim]]. simpl in Hfsim.
-    fill_ctxhole.
-    eapply TopSim.system_simulation__getParentOfFdefFromSystem in HeqR0; eauto.
-    destruct HeqR0 as [m1 [J1 J2]].
-    fill_ctxhole. destruct m1 as [los1 nts1 ps1].
-    destruct J2 as [J2 [J3 J4]]; subst.
-    eapply TopSim.genGlobalAndInitMem_spec in HeqR1; eauto.
-    destruct HeqR1 as [gl1 [fs1 [M1 [HeqR1 [EQ1 [EQ2 EQ3]]]]]]; subst.
-    fill_ctxhole.
-    assert (J:=HeqR2).
-    eapply RemoveSim.getEntryBlock__simulation in J; eauto.
-    destruct J as [b1 [J5 J6]].
-    fill_ctxhole.
-    destruct b1 as [l2 [ps2 cs2 tmn2]].
-    destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1].
-    assert (J:=Hfsim).
-    apply RemoveSim.fdef_simulation__eq_fheader in J.
-    inv J.
-    fill_ctxhole. eauto.
+  s_genInitState__State_simulation_tac.
+  assert (J:=HeqR2).
+  eapply RemoveSim.getEntryBlock__simulation in J; eauto.
+  destruct J as [b1 [J5 J6]].
+  fill_ctxhole.
+  destruct b1 as [l2 [ps2 cs2 tmn2]].
+  assert (J:=Hfsim).
+  apply RemoveSim.fdef_simulation__eq_fheader in J.
+  inv J.
+  fill_ctxhole. eauto.
   match goal with
   | |- exists _:_, exists _:_, Some (?A, ?B) = _ /\ _ => exists A; exists B
-  end.
-  match goal with 
-  | H: getParentOfFdefFromSystem _ _ = _ |- _ =>
-    apply getParentOfFdefFromSystem__moduleInProductsInSystemB in H;
-    destruct H as [HMinS HinPs]
   end.
   assert (J:=J6).
   apply RemoveSim.block_simulation_inv in J.
   destruct J as [J1 [J2 [J3 J7]]]; subst.
-  assert (blockInFdefB (l0, stmts_intro ps0 cs0 tmn0)
-           (fdef_intro (fheader_intro fa rt fid la va) bs) = true) as HBinF.
-    apply entryBlockInFdef; auto.
   split; auto.
   eapply genGlobalAndInitMem__wf_globals_Mem in HeqR1; eauto.
   destruct HeqR1 as [J7 [J8 [J9 [J10 [J11 [J12 [J13 J14]]]]]]].
@@ -142,7 +115,7 @@ Lemma s_isFinialState__die_State_simulation_l2r:
   (Hnuse: runused_in_fdef (DI_id diinfo) (DI_f diinfo))
   (Hstsim : State_simulation diinfo cfg1 FS1 cfg2 FS2)
   (Hfinal: Opsem.s_isFinialState cfg1 FS1 = ret r1),
-  exists r2, Opsem.s_isFinialState cfg2 FS2 = ret r2 /\ result_match r1 r2.
+  Opsem.s_isFinialState cfg2 FS2 = ret r1.
 Proof.
   unfold Opsem.s_isFinialState.
   intros.
@@ -205,7 +178,7 @@ Lemma s_isFinialState__die_State_simulation_r2l':
   (Hstsim : State_simulation dinfo cfg1 FS1 cfg2 FS2)
   (Hnrem: ~removable_State dinfo FS1) 
   (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r2),
-  exists r1, Opsem.s_isFinialState cfg1 FS1 = ret r1 /\ result_match r1 r2.
+  Opsem.s_isFinialState cfg1 FS1 = ret r2.
 Proof.
   unfold Opsem.s_isFinialState.
   intros.
@@ -386,8 +359,7 @@ Lemma s_isFinialState__die_State_simulation_r2l:
   exists FS1', 
     Opsem.sop_star cfg1 FS1 FS1' E0 /\
     State_simulation diinfo cfg1 FS1' cfg2 FS2 /\
-  exists r1,
-    Opsem.s_isFinialState cfg1 FS1' = ret r1 /\ result_match r1 r2.
+   Opsem.s_isFinialState cfg1 FS1' = ret r2.
 Proof.
   intros.
   eapply die_is_bsim_removable_steps in Hstsim; eauto.
@@ -798,6 +770,8 @@ Proof.
     (@OpsemPP.preservation_plus DGVs), sop_goeswrong__plus.
 Qed.
 
+Require Import Program.Tactics.
+
 Lemma die_sim: forall id0 f dinfo los nts Ps1 Ps2 main VarArgs
   (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Hok: defined_program [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
@@ -812,91 +786,39 @@ Proof.
   intros. subst.
   assert (Hnuse: runused_in_fdef (DI_id dinfo) (DI_f dinfo)).  
     destruct dinfo. auto.
-  assert (Huniq:=HwfS). apply wf_system__uniqSystem in Huniq; auto.
-  assert (system_simulation dinfo
-    [module_intro los nts (Ps1 ++ product_fdef (DI_f dinfo) :: Ps2)]
-    [module_intro los nts
-      (Ps1 ++ product_fdef (remove_fdef (DI_id dinfo) (DI_f dinfo)) :: Ps2)])
-    as Hssim.
-    constructor; auto.
-    repeat split; auto.
-    simpl in Huniq. destruct Huniq as [[_ [_ Huniq]] _].
-    unfold TopSim.products_simulation. simpl. unfold system_simulation.
-    apply uniq_products_simulation; auto.
+  set (wf_prop1 := fun cfg st =>
+         OpsemPP.wf_Config cfg /\ @OpsemPP.wf_State DGVs cfg st /\
+         exists maxb,
+           genericvalues_inject.wf_globals maxb (OpsemAux.Globals cfg) /\
+           0 <= maxb).
+  set (wf_prop2 := fun cfg st =>
+         OpsemPP.wf_Config cfg /\ @OpsemPP.wf_State DGVs cfg st).
+  set (st_sim := fun cfg1 st1 cfg2 st2 => 
+          State_simulation dinfo cfg1 st1 cfg2 st2).
+  set (sys_sim := fun s1 s2 => system_simulation dinfo s1 s2).
+  apply top_sim with (ftrans:=remove_fdef (DI_id dinfo)) 
+    (wf_prop1:=wf_prop1) (wf_prop2:=wf_prop2) (state_simulation:=st_sim)
+    (system_simulation:=sys_sim); 
+     try solve [auto | unfold wf_prop1; tauto | unfold wf_prop2; tauto |
+      unfold wf_prop1, wf_prop2; intros; destruct_conjs; try solve [
+        eauto 6 using (@OpsemPP.preservation_star DGVs) |
+        eapply sop_star__die_State_simulation; eauto |
+        eapply s_isFinialState__die_State_simulation_r2l; eauto |
+        eapply sop_div__die_State_simulation; eauto |
+        eapply undefined_state__die_State_simulation_r2l; eauto |
+        eapply s_isFinialState__die_State_simulation_None_r2l; eauto
+      ] |
+      top_sim_syssim_tac fsim Fsim
+    ].
 
-Ltac die_sim_init :=
-match goal with
-| H: Opsem.s_genInitState [module_intro ?los ?nts _] _ _ _ = Some (?cfg, ?IS)
-  |- _ =>
-    assert (OpsemPP.wf_Config cfg /\ OpsemPP.wf_State cfg IS) as Hwfst';
-      try solve [eapply s_genInitState__opsem_wf in H; eauto using die_wfS];
-    eapply s_genInitState__die_State_simulation in H; eauto;
-    destruct H as [maxb [cfg1 [IS1 [Hinit1 [Hstsim [Hwfg Hless]]]]]];
-    assert (OpsemPP.wf_Config cfg1/\ OpsemPP.wf_State cfg1 IS1) as Hwfst;
-      try solve [eapply s_genInitState__opsem_wf; eauto]
-end.
-
-Ltac die_sim_end :=
- match goal with
-| Hstsim' : State_simulation ?dinfo ?cfg1 ?FS1 ?cfg ?FS,
-  Hopstar1 : Opsem.sop_star ?cfg1 _ ?FS1 _ |- _ =>
-    assert (OpsemPP.wf_State cfg FS) as Hwfst''; 
-      try solve [eapply OpsemPP.preservation_star; eauto; try tauto];
-    assert (OpsemPP.wf_State cfg1 FS1) as Hwfst1'';
-      try solve [eapply OpsemPP.preservation_star; eauto; try tauto]
-end.
-
-  constructor; auto.
-    intros tr t Hconv.
-    inv Hconv.
-    die_sim_init.
-    eapply sop_star__die_State_simulation in Hstsim;
-      eauto using defined_program__doesnt__go_wrong; try tauto.
-    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
-    die_sim_end.
-    eapply s_isFinialState__die_State_simulation_r2l in Hstsim'; 
-      eauto using sop_goeswrong__star, defined_program__doesnt__go_wrong; try tauto.
-    destruct Hstsim' 
-      as [FS1' [Hopstar1' [Hstsim'' [r1 [Hfinal Hrmatch]]]]].
-    assert (Opsem.sop_star cfg1 IS1 FS1' tr) as Hopstar1''.
-      rewrite <- E0_right.
-      eapply OpsemProps.sop_star_trans; eauto.
-    exists r1. 
-    split; auto using result_match_symm. 
-      econstructor; eauto.
-
-    intros tr Hdiv.
-    inv Hdiv.
-    die_sim_init.
-    eapply sop_div__die_State_simulation in Hstsim; 
-      try solve [eauto using defined_program__doesnt__go_wrong| tauto].
-    destruct Hstsim as [FS1 Hopdiv1].
-    econstructor; eauto.
-
-    intros tr t Hgowrong.
-    inv Hgowrong.
-    assert (OpsemPP.wf_Config cfg /\ OpsemPP.wf_State cfg t) as HwfSt.
-      eapply s_genInitState__opsem_wf in H; eauto using die_wfS.
-      destruct H as [Hcfg2 HwfSt2].
-      apply OpsemPP.preservation_star in H0; auto.
-    assert (OpsemPP.undefined_state cfg t) as Hundef.
-      apply stuck__undefined_state in H2; try solve [auto | tauto].
-    die_sim_init.
-    eapply sop_star__die_State_simulation in Hstsim; eauto;
-      eauto using defined_program__doesnt__go_wrong; try tauto.
-    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
-    die_sim_end.
-    assert (Hundef':=Hundef).
-    eapply undefined_state__die_State_simulation_r2l in Hundef'; 
-      try solve [eauto using sop_goeswrong__star, defined_program__doesnt__go_wrong | 
-                 tauto].
-    destruct Hundef' as [FS1' [Hopstar2 [Hsim Hundef']]].
-    assert (Opsem.s_isFinialState cfg1 FS1' = merror) as Hfinal'.
-      apply OpsemPP.preservation_star in Hopstar2; auto; try tauto.
-      eapply s_isFinialState__die_State_simulation_None_r2l in H2; 
-        try solve [eauto | tauto].
-    apply undefined_state__stuck' in Hundef'.
-    rewrite <- E0_right with (t:=tr). exists FS1'.    
-    econstructor; eauto using (@OpsemProps.sop_star_trans DGVs).   
+    intros. subst.
+    assert (OpsemPP.wf_Config cfg2 /\ OpsemPP.wf_State cfg2 IS2) as Hwfst'.
+      eapply s_genInitState__opsem_wf in Hinit; eauto using die_wfS.
+    eapply s_genInitState__die_State_simulation in Hinit; eauto.
+    destruct Hinit as [maxb [cfg1 [IS1 [Hinit1 [Hstsim [Hwfg Hless]]]]]].
+    assert (OpsemPP.wf_Config cfg1/\ OpsemPP.wf_State cfg1 IS1) as Hwfst.
+      eapply s_genInitState__opsem_wf; eauto.
+    destruct Hwfst.
+    unfold wf_prop1, wf_prop2.
+    eauto 10.
 Qed.
-
