@@ -15,6 +15,7 @@ Require Import vmem2reg.
 Require Import memory_props.
 Require Import trans_tactic.
 Require Import top_sim.
+Require Import partitioning.
 
 (* We define a special las used by vmem2reg that only considers local commands.
    In general, it should be extended to the las defined w.r.t domination and
@@ -46,16 +47,11 @@ Require Import top_sim.
 
 Definition las (lid sid: id) (lalign salign: align) (v:value) (cs2:cmds) 
   (b:block) (pinfo:PhiInfo) : Prop :=
-blockInFdefB b (PI_f pinfo) = true /\
-store_in_cmds (PI_id pinfo) cs2 = false /\
-let '(_, stmts_intro _ cs _) := b in
-exists cs1, exists cs3,
-  cs =
-  cs1 ++
-  insn_store sid (PI_typ pinfo) v (value_id (PI_id pinfo)) salign ::
-  cs2 ++
-  insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) lalign ::
-  cs3.
+partitioning 
+    (insn_store sid (PI_typ pinfo) v (value_id (PI_id pinfo)) salign)
+    (insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) lalign)
+    cs2 b pinfo
+    (fun cs2 pinfo => store_in_cmds (PI_id pinfo) cs2 = false).
 
 Record LASInfo (pinfo: PhiInfo) := mkLASInfo {
   LAS_lid : id;
@@ -78,6 +74,14 @@ match goal with
     [LAS_BInF0 [LAS_stincmds0 [LAS_cs1 [LAS_cs3 LAS_EQ]]]]; subst; simpl
 end.
 
+Ltac destruct_lasinfo' :=
+match goal with
+| lasinfo: LASInfo _ |- _ =>
+  destruct lasinfo as [LAS_lid0 LAS_sid0 LAS_lalign0 LAS_salign0 LAS_value0 
+                       LAS_tail0 [LAS_l0 [LAS_ps0 LAS_cs0 LAS_tmn0]] LAS_prop0];
+  simpl
+end.
+
 Lemma lookup_LAS_lid__load: forall pinfo lasinfo
   (Huniq: uniqFdef (PI_f pinfo)),
   lookupInsnViaIDFromFdef (PI_f pinfo) (LAS_lid pinfo lasinfo) =
@@ -86,26 +90,16 @@ Lemma lookup_LAS_lid__load: forall pinfo lasinfo
              (value_id (PI_id pinfo)) (LAS_lalign pinfo lasinfo)).
 Proof.
   intros.
-  destruct_lasinfo.
-  match goal with 
-  | H: context [?A1++?a2::?A3++?a4::?A5] |- _ =>
-       rewrite_env ((A1++a2::A3)++a4::A5) in H;
-       eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in H; 
-         eauto using in_middle
-  end.
-  auto.
+  destruct_lasinfo'.
+  eapply par_lookup_id2__c2 in LAS_prop0; eauto.
 Qed.  
 
 Lemma LAS_lid__in_LAS_block_IDs: forall pinfo lasinfo,
   In (LAS_lid pinfo lasinfo) (getStmtsIDs (snd (LAS_block pinfo lasinfo))).
 Proof.
   intros.
-  destruct_lasinfo.
-  apply in_or_app. right.
-  rewrite getCmdsIDs_app. apply in_or_app. right.
-  simpl.
-  rewrite getCmdsIDs_app. apply in_or_app. right.
-  simpl. auto.
+  destruct_lasinfo'.
+  eapply par_id2__in_block_IDs in LAS_prop0; eauto.
 Qed.
 
 Lemma lookup_LAS_sid__store: forall pinfo lasinfo
@@ -117,10 +111,9 @@ Lemma lookup_LAS_sid__store: forall pinfo lasinfo
         (LAS_salign pinfo lasinfo)).
 Proof.
   intros.
-  destruct_lasinfo.
-  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in LAS_BInF0;eauto using in_middle.
-  simpl in LAS_BInF0. auto.
-Qed.
+  destruct_lasinfo'.
+  eapply par_lookup_id1__c1 in LAS_prop0; eauto.
+Qed.  
 
 Lemma LAS_value_is_substing: forall S m pinfo lasinfo
   (Huniq : uniqFdef (PI_f pinfo)) (HwfF : wf_fdef S m (PI_f pinfo)),
@@ -356,12 +349,6 @@ Defined.
 Lemma LAS_block_spec: forall (pinfo : PhiInfo) (lasinfo : LASInfo pinfo)
   (CurCmds : list cmd) (Terminator : terminator) (l' : l) (ps' : phinodes)
   (cs' : list cmd) (Huniq: uniqFdef (PI_f pinfo))
-  (Hnodup : NoDup
-             (getCmdsLocs
-                (cs' ++
-                 insn_load (LAS_lid pinfo lasinfo) 
-                   (PI_typ pinfo) (value_id (PI_id pinfo)) 
-                   (LAS_lalign pinfo lasinfo) :: CurCmds)))
   (HbInF : blockInFdefB
             (l', stmts_intro ps'
                (cs' ++
@@ -375,48 +362,9 @@ Lemma LAS_block_spec: forall (pinfo : PhiInfo) (lasinfo : LASInfo pinfo)
   LAS_block pinfo lasinfo.
 Proof.
   intros.
-  assert (In
-    (LAS_lid pinfo lasinfo)
-    (getStmtsIDs
-      (stmts_intro ps'
-        (cs' ++
-          insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
-          (value_id (PI_id pinfo)) (LAS_lalign pinfo lasinfo) :: CurCmds)
-        Terminator))) as Hin.
-    simpl.
-    rewrite getCmdsIDs_app.
-    simpl.
-    rewrite_env ((getPhiNodesIDs ps' ++ getCmdsIDs cs') ++
-                  LAS_lid pinfo lasinfo :: getCmdsIDs CurCmds).
-    apply in_middle.
-  
-  apply inGetBlockIDs__lookupBlockViaIDFromFdef with
-    (id1:=LAS_lid pinfo lasinfo) in HbInF; auto.
-  clear Hin.
-  destruct lasinfo. simpl in *.
-  destruct LAS_block0 as [l1 [p ? t]].
-  destruct LAS_prop0 as [J1 [J2 [cs1 [cs3 J3]]]]. subst.
-  assert (In LAS_lid0
-    (getStmtsIDs
-      (stmts_intro p
-         (cs1 ++
-          insn_store LAS_sid0 (PI_typ pinfo)
-            LAS_value0 (value_id (PI_id pinfo)) LAS_salign0
-          :: (LAS_tail0 ++
-              [insn_load LAS_lid0
-                 (PI_typ pinfo) (value_id (PI_id pinfo))
-                 LAS_lalign0] ++ cs3)) t))) as Hin.
-    simpl.
-    apply in_or_app. right.
-    rewrite getCmdsIDs_app.
-    apply in_or_app. right.
-    simpl. rewrite getCmdsIDs_app.
-    apply in_or_app. right. simpl. auto.
-  
-  eapply inGetBlockIDs__lookupBlockViaIDFromFdef with
-    (id1:=LAS_lid0) in J1; eauto.
-  rewrite HbInF in J1. inv J1. auto.
-Qed.
+  destruct_lasinfo'.
+  eapply par_block_eq2 in HbInF; eauto.
+Qed.  
 
 Lemma lookup_LAS_lid__LAS_block: forall pinfo lasinfo
   (Huniq: uniqFdef (PI_f pinfo)),
@@ -424,9 +372,8 @@ Lemma lookup_LAS_lid__LAS_block: forall pinfo lasinfo
     ret (LAS_block pinfo lasinfo).
 Proof.
   intros.
-  apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
-    apply LAS_lid__in_LAS_block_IDs.
-    destruct_lasinfo. auto.
+  destruct_lasinfo'.
+  eapply par_lookup_id2__block in LAS_prop0; eauto.
 Qed.
 
 Lemma LAS_block__reachable: forall (pinfo : PhiInfo) (lasinfo : LASInfo pinfo)

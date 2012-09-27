@@ -778,7 +778,7 @@ Lemma filter_phinodes_neq_inv : forall ps p1 ps3 ps0
     filter_phinodes check ps2 = ps3.
 Proof.
   induction ps as [|a]; simpl; intros.
-    solve_in_list'.
+    solve_in_list.
 
     destruct_if.
       destruct ps0; inv H0.
@@ -806,7 +806,7 @@ Lemma filter_cmds_neq_inv : forall cs c1 cs3 cs0
     filter_cmds check cs2 = cs3.
 Proof.
   induction cs as [|a]; simpl; intros.
-    solve_in_list'.
+    solve_in_list.
 
     destruct_if.
       destruct cs0; inv H0.

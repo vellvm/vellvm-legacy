@@ -51,64 +51,7 @@ Ltac simpl_s_genInitState :=
   end;
   symmetry_ctx.
 
-Ltac uniq_result :=
-repeat dgvs_instantiate_inv;
-repeat match goal with
-| H1 : ?f ?a ?b ?c ?d = _,
-  H2 : ?f ?a ?b ?c ?d = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b ?c = _,
-  H2 : ?f ?a ?b ?c = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b = _,
-  H2 : ?f ?a ?b = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a = _,
-  H2 : ?f ?a = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : _ @ _ |- _ => inv H1
-| H : ?f _ = ?f _ |- _ => inv H
-| H : ?f _ _ = ?f _ _ |- _ => inv H
-| H : ?f _ _ _ = ?f _ _ _ |- _ => inv H
-| H : ?f _ _ _ _ = ?f _ _ _ _ |- _ => inv H
-| H : ?f _ _ _ _ _ = ?f _ _ _ _ _ |- _ => inv H
-| H : False |- _ => inv H
-| H: moduleEqB _ _ = true |- _ => apply moduleEqB_inv in H; inv H
-| H: valueEqB _ _ = true |- _ => apply valueEqB_inv in H; inv H
-| H: true = valueEqB _ _ |- _ => 
-     symmetry in H; apply valueEqB_inv in H; inv H
-| H: phinodeEqB _ _ = true |- _ => apply phinodeEqB_inv in H; inv H
-| H: _ =cmd= _ = true |- _ => apply cmdEqB_inv in H; inv H
-| H: _ =tmn= _ = true |- _ => apply terminatorEqB_inv in H; inv H
-| H: _ =b= _ = true |- _ => apply blockEqB_inv in H; inv H
-| H: left ?e = false |- _ => inv H
-end.
-
 Ltac unfold_blk2GV := unfold blk2GV, ptr2GV, val2GV.
-
-Ltac anti_simpl_env :=
-simpl_env in *;
-repeat match goal with
-| H: ?A ++ _ = ?A ++ _ |- _ => apply app_inv_head in H
-| H: ?A ++ ?B ++ ?C = _ |- _ => rewrite_env ((A++B)++C) in H
-| H: ?A ++ ?B ++ ?C ++ ?D = _ |- _ => rewrite_env (((A++B)++C)++D) in H
-| H: ?A ++ ?B ++ ?C ++ ?D ++ ?E = _ |- _ =>rewrite_env ((((A++B)++C)++D)++E) in H
-| H: _ = ?A ++ ?B ++ ?C |- _ => rewrite_env ((A++B)++C) in H
-| H: _ = ?A ++ ?B ++ ?C ++ ?D |- _ => rewrite_env (((A++B)++C)++D) in H
-| H: _ = ?A ++ ?B ++ ?C ++ ?D ++ ?E |- _ =>rewrite_env ((((A++B)++C)++D)++E) in H
-end;
-repeat match goal with
-| H: _ ++ ?A = _ ++ ?A |- _ => apply app_inv_tail in H
-| H: _ ++ [?a] = _ ++ [?b] |- _ => apply app_inj_tail in H; destruct H; subst
-| H: ?A = _ ++ ?A |- _ => symmetry in H; apply app_inv_tail_nil in H
-| H: _ ++ ?A = ?A |- _ => apply app_inv_tail_nil in H
-| H: (_++[_])++_ = nil |- _ => 
-    contradict H; simpl_env; simpl; apply app_cons_not_nil
-| H: _++[_]++_ = nil |- _ => contradict H; simpl; apply app_cons_not_nil
-| H: ?A++[?a] = nil |- _ => 
-       rewrite_env (A++[a]++nil) in H;
-       contradict H; simpl; apply app_cons_not_nil
-end.
 
 (* go to *)
 Lemma getTypeSizeInBits_and_Alignment__getTypeStoreSize: forall TD t sz al,
@@ -150,26 +93,6 @@ match type of Hwfpp1 with
           simpl; auto
       ];
     destruct G as [gvs G]
-end.
-
-(* go to *)
-Ltac destruct_dec :=
-match goal with
-| |- context [id_dec ?b ?a] =>
-  destruct (id_dec b a); subst; try congruence; auto
-| H2: context [id_dec ?b ?a] |- _ =>
-  destruct (id_dec b a); subst; try solve [auto | congruence | inv H2]
-| _ : context [productInModuleB_dec ?p1 ?p2] |- _ =>
-  destruct (productInModuleB_dec p1 p2); try congruence
-end.
-
-Ltac solve_in_list' :=
-match goal with
-| Heq : nil = _ ++ _ :: _ |- _ =>
-    symmetry in Heq; contradict Heq; apply app_cons_not_nil; auto
-| Heq : _ ++ _ :: _ = nil |- _ =>
-    contradict Heq; apply app_cons_not_nil; auto
-| _ => solve_in_list
 end.
 
 (* copied from SB *)

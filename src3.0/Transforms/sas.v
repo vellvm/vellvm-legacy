@@ -14,6 +14,7 @@ Require Import trans_tactic.
 Require Import sas_msim.
 Require Import memory_sim.
 Require Import top_sim.
+Require Import partitioning.
 
 (*
   We allow the stores use different alignments from (PI_align pinfo). See
@@ -21,16 +22,11 @@ Require Import top_sim.
 *)
 Definition sas (sid1 sid2: id) (align1 align2: align) (v1 v2:value) (cs2:cmds) 
   (b:block) (pinfo:PhiInfo) : Prop :=
-blockInFdefB b (PI_f pinfo) = true /\
-load_in_cmds (PI_id pinfo) cs2 = false /\
-let '(_, stmts_intro _ cs _) := b in
-exists cs1, exists cs3,
-  cs =
-  cs1 ++
-  insn_store sid1 (PI_typ pinfo) v1 (value_id (PI_id pinfo)) align1 ::
-  cs2 ++
-  insn_store sid2 (PI_typ pinfo) v2 (value_id (PI_id pinfo)) align2 ::
-  cs3.
+partitioning 
+   (insn_store sid1 (PI_typ pinfo) v1 (value_id (PI_id pinfo)) align1)
+   (insn_store sid2 (PI_typ pinfo) v2 (value_id (PI_id pinfo)) align2)
+   cs2 b pinfo
+   (fun cs2 pinfo => load_in_cmds (PI_id pinfo) cs2 = false).
 
 Record SASInfo (pinfo: PhiInfo) := mkSASInfo {
   SAS_sid1 : id;
@@ -216,22 +212,29 @@ match goal with
     [SAS_BInF0 [SAS_ldincmds0 [SAS_cs1 [SAS_cs3 SAS_EQ]]]]; subst; simpl
 end.
 
+Ltac destruct_sasinfo' :=
+match goal with
+| sasinfo: SASInfo _ |- _ =>
+  destruct sasinfo as [SAS_sid1 SAS_sid2 SAS_align1 SAS_align2 SAS_value1 
+                       SAS_value2 SAS_tail0
+                       [SAS_l0 [SAS_ps0 SAS_cs0 SAS_tmn0]] SAS_prop0];
+  simpl
+end.
+
 Lemma SAS_lid1__in_SAS_block_locs: forall pinfo sasinfo,
   In (SAS_sid1 pinfo sasinfo) (getStmtsLocs (snd (SAS_block pinfo sasinfo))).
 Proof.
   intros.
-  destruct_sasinfo.
-  repeat simpl_locs.
-  xsolve_in_list.
+  destruct_sasinfo'.
+  eapply par_id1__in_block_locs in SAS_prop0; eauto.
 Qed.
 
 Lemma SAS_lid2__in_SAS_block_locs: forall pinfo sasinfo,
   In (SAS_sid2 pinfo sasinfo) (getStmtsLocs (snd (SAS_block pinfo sasinfo))).
 Proof.
   intros.
-  destruct_sasinfo.
-  repeat simpl_locs.
-  xsolve_in_list.
+  destruct_sasinfo'.
+  eapply par_id2__in_block_locs in SAS_prop0; eauto.
 Qed.
 
 Lemma SAS_block_spec: forall B pinfo sasinfo (Huniq: uniqFdef (PI_f pinfo))
@@ -241,11 +244,8 @@ Lemma SAS_block_spec: forall B pinfo sasinfo (Huniq: uniqFdef (PI_f pinfo))
   B = SAS_block pinfo sasinfo.
 Proof.
   intros.
-  assert (J1:=@SAS_lid1__in_SAS_block_locs pinfo sasinfo).
-  assert (J2:=@SAS_lid2__in_SAS_block_locs pinfo sasinfo).
-  destruct_sasinfo.
-  destruct Hin;
-    eapply block_eq2; eauto 2.
+  destruct_sasinfo'.
+  eapply par_block_eq in HBinF; eauto.
 Qed.
 
 Lemma lookup_SAS_lid1__store: forall l1 ps1 cs1 pinfo sasinfo
@@ -257,14 +257,8 @@ Lemma lookup_SAS_lid1__store: forall l1 ps1 cs1 pinfo sasinfo
         (SAS_align1 pinfo sasinfo).
 Proof.
   intros.
-  assert ((l1, stmts_intro ps1 cs1 tmn1) = SAS_block pinfo sasinfo) as EQ.
-    apply SAS_block_spec; auto.
-      rewrite <- Heq.
-      simpl. left. xsolve_in_list.
-  destruct_sasinfo. simpl in *. inv EQ.
-  eapply NoDup_getCmdsLocs_prop; eauto.
-    solve_NoDup.
-    solve_in_list.
+  destruct_sasinfo'.
+  eapply par_id1__eq__c1 in Hin; eauto.
 Qed.
 
 Lemma lookup_SAS_lid2__store: forall l1 ps1 cs1 pinfo sasinfo
@@ -276,14 +270,8 @@ Lemma lookup_SAS_lid2__store: forall l1 ps1 cs1 pinfo sasinfo
         (SAS_align2 pinfo sasinfo).
 Proof.
   intros.
-  assert ((l1, stmts_intro ps1 cs1 tmn1) = SAS_block pinfo sasinfo) as EQ.
-    apply SAS_block_spec; auto.
-      rewrite <- Heq.
-      simpl. right. xsolve_in_list.
-  destruct_sasinfo. simpl in *. inv EQ.
-  eapply NoDup_getCmdsLocs_prop; eauto.
-    solve_NoDup.
-    solve_in_list.
+  destruct_sasinfo'.
+  eapply par_id2__eq__c2 in Hin; eauto.
 Qed.
 
 Lemma SAS_blockInFdefB: forall pinfo sasinfo,
@@ -312,21 +300,8 @@ Lemma SAS_block_inv1: forall l1 ps1 cs11 t1 v1 v2 cs tmn2 align0 pinfo
      :: cs3.
 Proof.
   intros.  
-  assert (blockInFdefB (SAS_block pinfo sasinfo) (PI_f pinfo)) as HBinF.
-    apply SAS_blockInFdefB; auto.
-  assert (EQ':=HBinF). rewrite <- EQ in EQ'.
-  eapply lookup_SAS_lid1__store with (sasinfo:=sasinfo) in EQ'; 
-    simpl; eauto using in_middle.
-  inv EQ'.
-  split; auto.
-  destruct_sasinfo. simpl in *. clear HBinF.
-  inv EQ.
-  apply NoDup_cmds_split_middle in H2; auto.
-    destruct H2; subst.
-    exists SAS_cs3. auto.
-    
-    rewrite H2.
-    solve_NoDup.
+  destruct_sasinfo'.
+  eapply par_block_inv1 in EQ; eauto.
 Qed.
 
 Lemma SAS_sid1_is_in_SAS_tail: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
@@ -434,18 +409,6 @@ Proof.
     inv J1. contradict H; auto.
 
     inv J1. exists (csa++[c0]). exists csb. simpl_env. split; auto.
-Qed.
-
-Lemma list_prop1: forall A (l1 l3 l4:list A) a2 a5,
-  l1 ++ [a2] ++ l3 = l4 ++ [a5] ->
-  exists l6, [a2] ++ l3 = l6 ++ [a5].
-Proof.
-  induction l1; simpl; intros.
-    exists l4. auto.
-
-    destruct l4; inv H.
-      anti_simpl_env.
-      simpl in *. apply IHl1 in H2; auto.
 Qed.
 
 Lemma cs_follow_dead_store_tail': forall pinfo sasinfo c cs
@@ -671,12 +634,8 @@ Lemma lookup_SAS_lid1__cmd: forall pinfo sasinfo (Huniq : uniqFdef (PI_f pinfo))
             (SAS_align1 pinfo sasinfo)).
 Proof.
   intros.
-  destruct_sasinfo.
-  replace SAS_sid1 with (getCmdLoc 
-     (insn_store SAS_sid1 (PI_typ pinfo)
-        SAS_value1 (value_id (PI_id pinfo)) SAS_align1)); auto.
-  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef; eauto.
-  simpl. solve_in_list.
+  destruct_sasinfo'.
+  eapply par_lookup_id1__c1 in SAS_prop0; eauto.
 Qed.
 
 Lemma SAS_sid1__isnt__phi: forall (pinfo : PhiInfo) sasinfo (ps1 : phinodes) 
@@ -987,51 +946,6 @@ Proof.
     replace (lo+0) with lo by omega.
     replace (hi+0) with hi by omega. 
     rewrite J2 in H3. rewrite <- H3' in H3. inv H3. auto.
-Qed.
-
-Lemma list_prop2: forall A (l2:list A) (H: (length l2 > 0)%nat),
-  exists l1, exists b2, l2 = l1 ++ [b2].
-Proof.
-  induction l2; simpl; intros.
-    contradict H. omega.
-
-    destruct l2.
-      exists nil. exists a. auto.
-
-      destruct IHl2 as [l1 [b2 J]]; simpl; try omega.
-      rewrite J.
-      exists (a::l1). exists b2. simpl_env. auto.
-Qed.
-    
-Lemma list_prop3: forall A (a1:A) l2,
-  exists l1, exists b2, a1 :: l2 = l1 ++ [b2].
-Proof.
-  intros.
-  apply list_prop2. simpl. omega.
-Qed.
-
-Lemma list_suffix_dec: forall A (Hdec: forall (x y : A), {x = y}+{x <> y})
-  (l1 l2: list A), (exists l3, l1 = l3 ++ l2) \/ (~ exists l3, l1 = l3 ++ l2).
-Proof.
-  induction l2; simpl; eauto.
-    destruct IHl2 as [IHl2 | IHl2].
-      destruct IHl2 as [l3 IHl2]; subst.
-      destruct l3.
-        right.
-        intro J. destruct J as [l3 J].
-        anti_simpl_env.
-
-        destruct (@list_prop3 _ a0 l3) as [l4 [b5 J]].
-        rewrite J.
-        destruct (@Hdec b5 a); subst.
-          left. exists l4. simpl_env. auto.
-          right. intro J'. destruct J' as [l6 J'].
-          simpl_env in J'. anti_simpl_env. auto.
-
-
-      right. intro J. apply IHl2.
-      destruct J as [l3 J]; subst.
-      exists (l3 ++ [a]). simpl_env. auto.
 Qed.
 
 Lemma cs_follow_dead_store_dec: forall (pinfo : PhiInfo) 
@@ -1784,24 +1698,8 @@ Lemma SAS_block_inv2: forall l1 ps1 cs11 t1 v1 v2 cs tmn2 align0 pinfo
      SAS_tail pinfo sasinfo.
 Proof.
   intros.  
-  assert (blockInFdefB (SAS_block pinfo sasinfo) (PI_f pinfo)) as HBinF.
-    apply SAS_blockInFdefB; auto.
-  assert (EQ':=HBinF). rewrite <- EQ in EQ'.
-  eapply lookup_SAS_lid2__store with (sasinfo:=sasinfo) in EQ'; 
-    simpl; eauto using in_middle.
-  inv EQ'.
-  split; auto.
-  destruct_sasinfo. simpl in *. clear HBinF.
-  inv EQ.
-  match goal with
-  | H: _ = ?A ++ ?b :: ?C ++ ?d :: ?E |- _ =>
-     rewrite_env ((A ++ b :: C) ++ d :: E) in H
-  end.
-  apply NoDup_cmds_split_middle in H2; auto.
-    destruct H2; subst.
-    exists SAS_cs1. auto.
-    
-    rewrite H2. simpl_env. simpl. solve_NoDup.
+  destruct_sasinfo'.
+  eapply par_block_inv2 in EQ; eauto.
 Qed.
 
 Lemma SAS_sid2_isnt_in_SAS_tail: forall (pinfo : PhiInfo) 

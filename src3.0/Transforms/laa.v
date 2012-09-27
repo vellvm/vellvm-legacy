@@ -14,23 +14,20 @@ Require Import vmem2reg.
 Require Import memory_props.
 Require Import trans_tactic.
 Require Import top_sim.
+Require Import partitioning.
 
 (* 
    The load can use a different alignment from (PI_align pinfo).
    See the comments in alive_store.
 *)
+
 Definition laa (lid: id) (lalign:align) (cs2:cmds) (b:block) (pinfo:PhiInfo) 
   : Prop :=
-blockInFdefB b (PI_f pinfo) = true /\
-store_in_cmds (PI_id pinfo) cs2 = false /\
-let '(_, stmts_intro _ cs _) := b in
-exists cs1, exists cs3,
-  cs =
-  cs1 ++
-  insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) (PI_align pinfo) ::
-  cs2 ++
-  insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) lalign ::
-  cs3.
+partitioning 
+    (insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) (PI_align pinfo))
+    (insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) lalign)
+    cs2 b pinfo
+    (fun cs2 pinfo => store_in_cmds (PI_id pinfo) cs2 = false).
 
 Record LAAInfo (pinfo: PhiInfo) := mkLAAInfo {
   LAA_lid : id;
@@ -49,6 +46,13 @@ match goal with
     [LAA_BInF0 [LAA_stincmds0 [LAA_cs1 [LAA_cs3 LAA_EQ]]]]; subst; simpl
 end.
 
+Ltac destruct_laainfo' :=
+match goal with
+| laainfo: LAAInfo _ |- _ =>
+  destruct laainfo as [LAA_lid0 LAA_lalign0 LAA_tail0
+                       [LAA_l0 [LAA_ps0 LAA_cs0 LAA_tmn0]] LAA_prop0]; simpl
+end.
+
 Lemma lookup_LAA_lid__load: forall pinfo laainfo
   (Huniq: uniqFdef (PI_f pinfo)),
   lookupInsnViaIDFromFdef (PI_f pinfo) (LAA_lid pinfo laainfo) =
@@ -57,18 +61,12 @@ Lemma lookup_LAA_lid__load: forall pinfo laainfo
              (value_id (PI_id pinfo)) (LAA_lalign pinfo laainfo)).
 Proof.
   intros.
-  destruct_laainfo.
-  match goal with 
-  | H: context [?A1++?a2::?A3++?a4::?A5] |- _ =>
-       rewrite_env ((A1++a2::A3)++a4::A5) in H;
-       eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in H; 
-         eauto using in_middle
-  end.
-  auto.
+  destruct_laainfo'.
+  eapply par_lookup_id2__c2 in LAA_prop0; eauto.
 Qed.  
 
-Lemma laa__alive_alloca: forall lid lalign cs2 b pinfo,
-  laa lid lalign cs2 b pinfo ->
+Lemma laa__alive_alloca: forall lid lalign cs2 b pinfo
+  (H: laa lid lalign cs2 b pinfo),
   alive_alloca (cs2 ++
     [insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) lalign])
     b pinfo.
@@ -109,12 +107,6 @@ Notation "[! pinfo !]" :=
 Lemma LAA_block_spec: forall (pinfo : PhiInfo) (laainfo : LAAInfo pinfo)
   (CurCmds : list cmd) (Terminator : terminator) (l' : l) (ps' : phinodes)
   (cs' : list cmd) (Huniq: uniqFdef (PI_f pinfo))
-  (Hnodup : NoDup
-             (getCmdsLocs
-                (cs' ++
-                 insn_load (LAA_lid pinfo laainfo) 
-                   (PI_typ pinfo) (value_id (PI_id pinfo)) 
-                   (LAA_lalign pinfo laainfo) :: CurCmds)))
   (HbInF : blockInFdefB
             (l', stmts_intro ps'
                (cs' ++
@@ -129,59 +121,16 @@ Lemma LAA_block_spec: forall (pinfo : PhiInfo) (laainfo : LAAInfo pinfo)
   LAA_block pinfo laainfo.
 Proof.
   intros.
-      assert (In
-        (LAA_lid pinfo laainfo)
-        (getStmtsIDs
-          (stmts_intro ps'
-            (cs' ++
-              insn_load (LAA_lid pinfo laainfo) (PI_typ pinfo)
-              (value_id (PI_id pinfo)) (LAA_lalign pinfo laainfo) :: CurCmds)
-            Terminator))) as Hin.
-        simpl.
-        rewrite getCmdsIDs_app.
-        simpl.
-        rewrite_env ((getPhiNodesIDs ps' ++ getCmdsIDs cs') ++
-                      LAA_lid pinfo laainfo :: getCmdsIDs CurCmds).
-        apply in_middle.
-
-      apply inGetBlockIDs__lookupBlockViaIDFromFdef with
-        (id1:=LAA_lid pinfo laainfo) in HbInF; auto.
-      clear Hin.
-      destruct laainfo. simpl in *.
-      destruct LAA_block0 as [l1 [p ? t]].
-      destruct LAA_prop0 as [J1 [J2 [cs1 [cs3 J3]]]]. subst.
-      assert (In LAA_lid0
-        (getStmtsIDs
-          (stmts_intro p
-             (cs1 ++
-              insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) 
-                 (PI_align pinfo)
-              :: (LAA_tail0 ++
-                  [insn_load LAA_lid0
-                     (PI_typ pinfo) (value_id (PI_id pinfo))
-                     LAA_lalign0] ++ cs3)) t))) as Hin.
-        simpl.
-        apply in_or_app. right.
-        rewrite getCmdsIDs_app.
-        apply in_or_app. right.
-        simpl. rewrite getCmdsIDs_app. right.
-        apply in_or_app. right. simpl. auto.
-
-      eapply inGetBlockIDs__lookupBlockViaIDFromFdef with
-        (id1:=LAA_lid0) in J1; eauto.
-      rewrite HbInF in J1. inv J1. auto.
-Qed.
+  destruct_laainfo'.
+  eapply par_block_eq2 in HbInF; eauto.
+Qed.  
 
 Lemma LAA_lid__in_LAA_block_IDs: forall pinfo laainfo,
   In (LAA_lid pinfo laainfo) (getStmtsIDs (snd (LAA_block pinfo laainfo))).
 Proof.
   intros.
-  destruct_laainfo.
-  apply in_or_app. right.
-  rewrite getCmdsIDs_app. apply in_or_app. right.
-  simpl. right.
-  rewrite getCmdsIDs_app. apply in_or_app. right.
-  simpl. auto.
+  destruct_laainfo'.
+  eapply par_id2__in_block_IDs in LAA_prop0; eauto.
 Qed.
 
 Lemma lookup_LAA_lid__LAA_block: forall pinfo laainfo 
@@ -190,9 +139,8 @@ Lemma lookup_LAA_lid__LAA_block: forall pinfo laainfo
     = Some (LAA_block pinfo laainfo).
 Proof.
   intros.
-  apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
-    apply LAA_lid__in_LAA_block_IDs.
-    destruct_laainfo. auto.
+  destruct_laainfo'.
+  eapply par_lookup_id2__block in LAA_prop0; eauto.
 Qed.
 
 Lemma PI_id__dominates__LAA_lid: forall S m pinfo laainfo

@@ -3408,9 +3408,9 @@ repeat match goal with
 | |- InPhiNodesB ?a (?a::_) = true => simpl; apply orb_true_iff; left; solve_refl
 | |- InCmdsB ?a (?a::_) = true => simpl; apply orb_true_iff; left; solve_refl
 | Heq : nil = _ ++ _ :: _ |- _ =>
-    symmetry in Heq; contradict Heq; apply app_cons_not_nil; auto
+    symmetry in Heq; contradict Heq; apply CoqListFacts.app_cons_not_nil; auto
 | Heq : _ ++ _ :: _ = nil |- _ =>
-    contradict Heq; apply app_cons_not_nil; auto
+    contradict Heq; apply CoqListFacts.app_cons_not_nil; auto
 end.
 
 Lemma lookupBlockViaIDFromBlocks__in_getBlocksLocs: forall b1 id1 bs,
@@ -5641,4 +5641,95 @@ Proof.
   destruct bs as [|[]]; simpl; intros; eauto.
     congruence.
 Qed.
+
+Ltac anti_simpl_env :=
+simpl_env in *;
+repeat match goal with
+| H: ?A ++ _ = ?A ++ _ |- _ => apply app_inv_head in H
+| H: ?A ++ ?B ++ ?C = _ |- _ => rewrite_env ((A++B)++C) in H
+| H: ?A ++ ?B ++ ?C ++ ?D = _ |- _ => rewrite_env (((A++B)++C)++D) in H
+| H: ?A ++ ?B ++ ?C ++ ?D ++ ?E = _ |- _ =>rewrite_env ((((A++B)++C)++D)++E) in H
+| H: _ = ?A ++ ?B ++ ?C |- _ => rewrite_env ((A++B)++C) in H
+| H: _ = ?A ++ ?B ++ ?C ++ ?D |- _ => rewrite_env (((A++B)++C)++D) in H
+| H: _ = ?A ++ ?B ++ ?C ++ ?D ++ ?E |- _ =>rewrite_env ((((A++B)++C)++D)++E) in H
+end;
+repeat match goal with
+| H: _ ++ ?A = _ ++ ?A |- _ => apply app_inv_tail in H
+| H: _ ++ [?a] = _ ++ [?b] |- _ => apply app_inj_tail in H; destruct H; subst
+| H: ?A = _ ++ ?A |- _ => symmetry in H; apply app_inv_tail_nil in H
+| H: _ ++ ?A = ?A |- _ => apply app_inv_tail_nil in H
+| H: (_++[_])++_ = nil |- _ => 
+    contradict H; simpl_env; simpl; apply CoqListFacts.app_cons_not_nil
+| H: _++[_]++_ = nil |- _ => contradict H; simpl; apply CoqListFacts.app_cons_not_nil
+| H: ?A++[?a] = nil |- _ => 
+       rewrite_env (A++[a]++nil) in H;
+       contradict H; simpl; apply CoqListFacts.app_cons_not_nil
+end.
+
+Lemma list_prop1: forall A (l1 l3 l4:list A) a2 a5,
+  l1 ++ [a2] ++ l3 = l4 ++ [a5] ->
+  exists l6, [a2] ++ l3 = l6 ++ [a5].
+Proof.
+  induction l1; simpl; intros.
+    exists l4. auto.
+
+    destruct l4; inv H.
+      anti_simpl_env.
+      simpl in *. apply IHl1 in H2; auto.
+Qed.
+
+Lemma list_prop2: forall A (l2:list A) (H: (length l2 > 0)%nat),
+  exists l1, exists b2, l2 = l1 ++ [b2].
+Proof.
+  induction l2; simpl; intros.
+    contradict H. omega.
+
+    destruct l2.
+      exists nil. exists a. auto.
+
+      destruct IHl2 as [l1 [b2 J]]; simpl; try omega.
+      rewrite J.
+      exists (a::l1). exists b2. simpl_env. auto.
+Qed.
+    
+Lemma list_prop3: forall A (a1:A) l2,
+  exists l1, exists b2, a1 :: l2 = l1 ++ [b2].
+Proof.
+  intros.
+  apply list_prop2. simpl. omega.
+Qed.
+
+Lemma list_suffix_dec: forall A (Hdec: forall (x y : A), {x = y}+{x <> y})
+  (l1 l2: list A), (exists l3, l1 = l3 ++ l2) \/ (~ exists l3, l1 = l3 ++ l2).
+Proof.
+  induction l2; simpl; eauto.
+    destruct IHl2 as [IHl2 | IHl2].
+      destruct IHl2 as [l3 IHl2]; subst.
+      destruct l3.
+        right.
+        intro J. destruct J as [l3 J].
+        anti_simpl_env.
+
+        destruct (@list_prop3 _ a0 l3) as [l4 [b5 J]].
+        rewrite J.
+        destruct (@Hdec b5 a); subst.
+          left. exists l4. simpl_env. auto.
+          right. intro J'. destruct J' as [l6 J'].
+          simpl_env in J'. anti_simpl_env. auto.
+
+
+      right. intro J. apply IHl2.
+      destruct J as [l3 J]; subst.
+      exists (l3 ++ [a]). simpl_env. auto.
+Qed.
+
+Ltac destruct_dec :=
+match goal with
+| |- context [id_dec ?b ?a] =>
+  destruct (id_dec b a); subst; try congruence; auto
+| H2: context [id_dec ?b ?a] |- _ =>
+  destruct (id_dec b a); subst; try solve [auto | congruence | inv H2]
+| _ : context [productInModuleB_dec ?p1 ?p2] |- _ =>
+  destruct (productInModuleB_dec p1 p2); try congruence
+end.
 

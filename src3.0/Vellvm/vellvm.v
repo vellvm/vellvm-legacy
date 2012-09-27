@@ -93,3 +93,36 @@ destruct tmn as [id5 t value5 | id5 | id5 value5 l2 l3 | i0 l2 | ].
 Ltac repeat_bsplit :=
   repeat (bsplit; auto using eq_sumbool2bool_true).
 
+Ltac uniq_result :=
+repeat dgvs_instantiate_inv;
+repeat match goal with
+| H1 : ?f ?a ?b ?c ?d = _,
+  H2 : ?f ?a ?b ?c ?d = _ |- _ =>
+  rewrite H1 in H2; inv H2
+| H1 : ?f ?a ?b ?c = _,
+  H2 : ?f ?a ?b ?c = _ |- _ =>
+  rewrite H1 in H2; inv H2
+| H1 : ?f ?a ?b = _,
+  H2 : ?f ?a ?b = _ |- _ =>
+  rewrite H1 in H2; inv H2
+| H1 : ?f ?a = _,
+  H2 : ?f ?a = _ |- _ =>
+  rewrite H1 in H2; inv H2
+| H1 : _ @ _ |- _ => inv H1
+| H : ?f _ = ?f _ |- _ => inv H
+| H : ?f _ _ = ?f _ _ |- _ => inv H
+| H : ?f _ _ _ = ?f _ _ _ |- _ => inv H
+| H : ?f _ _ _ _ = ?f _ _ _ _ |- _ => inv H
+| H : ?f _ _ _ _ _ = ?f _ _ _ _ _ |- _ => inv H
+| H : False |- _ => inv H
+| H: moduleEqB _ _ = true |- _ => apply moduleEqB_inv in H; inv H
+| H: valueEqB _ _ = true |- _ => apply valueEqB_inv in H; inv H
+| H: true = valueEqB _ _ |- _ => 
+     symmetry in H; apply valueEqB_inv in H; inv H
+| H: phinodeEqB _ _ = true |- _ => apply phinodeEqB_inv in H; inv H
+| H: _ =cmd= _ = true |- _ => apply cmdEqB_inv in H; inv H
+| H: _ =tmn= _ = true |- _ => apply terminatorEqB_inv in H; inv H
+| H: _ =b= _ = true |- _ => apply blockEqB_inv in H; inv H
+| H: left ?e = false |- _ => inv H
+end.
+
