@@ -9,24 +9,29 @@ Require Import vmem2reg.
 Require Import opsem_props.
 Require Import trans_tactic.
 
+(* The record of a promotable alloca
+     PI_id = alloca PI_typ PI_num PI_align *)
 Record PhiInfo := mkPhiInfo {
-  PI_f: fdef;
-  PI_rd: list l;
-  PI_id: id;
-  PI_typ: typ;
+  PI_f: fdef;            (* The function of the alloca PI_id *)
+  PI_rd: list l;         (* The reachable blocks of PI_f *)
+  PI_id: id;             
+  PI_typ: typ;          
   PI_num: value;
   PI_align: align
 }.
 
+(* New identifiers generated for pinfo *)
 Definition PI_newids (pinfo: PhiInfo): ATree.t (id * id * id) :=
   (fst (gen_fresh_ids (PI_rd pinfo) (getFdefLocs (PI_f pinfo)))).
 
+(* The successors and predecessors of pinfo's function *)
 Definition PI_succs (pinfo: PhiInfo): ATree.t (list l):=
   successors (PI_f pinfo).
 
 Definition PI_preds (pinfo: PhiInfo): ATree.t (list l):=
   XATree.make_predecessors (PI_succs pinfo).
 
+(* [pid = alloca ty num al] is promotable in f *)
 Definition promotable_alloca (f:fdef) (pid:id) (ty:typ) (num:value) (al:align)
   : Prop :=
 match getEntryBlock f with
@@ -35,25 +40,11 @@ match getEntryBlock f with
 | _ => False
 end.
 
+(* The well-formedness of pinfo *)
 Definition WF_PhiInfo (pinfo: PhiInfo) : Prop :=
 promotable_alloca (PI_f pinfo) (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
   (PI_align pinfo) /\
 reachablity_analysis (PI_f pinfo) = Some (PI_rd pinfo).
-
-Lemma find_promotable_alloca_spec: forall f cs nids pid ptyp num pal,
-  find_promotable_alloca f cs nids = Some (pid, ptyp, num, pal) ->
-  In (insn_alloca pid ptyp num pal) cs /\ is_promotable f pid.
-Proof.
-  induction cs; simpl; intros.
-    congruence.
-
-    destruct_cmd a; try solve [apply IHcs in H; destruct H as [H1 H2]; eauto].
-    remember (negb (in_dec id_dec i0 nids) && is_promotable f i0) as R.
-    destruct R; try solve [apply IHcs in H; destruct H as [H1 H2]; eauto].
-    inv H.
-    symmetry in HeqR. apply andb_true_iff in HeqR. destruct HeqR.
-    eauto.
-Qed.
 
 Ltac simpl_WF_PhiInfo :=
 match goal with
@@ -70,22 +61,23 @@ match goal with
   end
 end.
 
-Lemma WF_PhiInfo_spec1: forall pinfo,
-  WF_PhiInfo pinfo ->
-  uniqFdef (PI_f pinfo) ->
-  lookupInsnViaIDFromFdef (PI_f pinfo) (PI_id pinfo) =
-    Some
-     (insn_cmd
-       (insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
-         (PI_align pinfo))).
+(******************************************************************)
+(* The specification of find_promotable_alloca and is_promotable. *)
+
+(* find_promotable_alloca must find promotable alloca's.          *)
+Lemma find_promotable_alloca_spec: forall f cs nids pid ptyp num pal,
+  find_promotable_alloca f cs nids = Some (pid, ptyp, num, pal) ->
+  In (insn_alloca pid ptyp num pal) cs /\ is_promotable f pid.
 Proof.
-  intros.
-  simpl_WF_PhiInfo.
-  destruct H as [H _].
-  symmetry in HeqR.
-  apply entryBlockInFdef in HeqR.
-  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in HeqR; eauto.
-  simpl in HeqR. auto.
+  induction cs; simpl; intros.
+    congruence.
+
+    destruct_cmd a; try solve [apply IHcs in H; destruct H as [H1 H2]; eauto].
+    remember (negb (in_dec id_dec i0 nids) && is_promotable f i0) as R.
+    destruct R; try solve [apply IHcs in H; destruct H as [H1 H2]; eauto].
+    inv H.
+    symmetry in HeqR. apply andb_true_iff in HeqR. destruct HeqR.
+    eauto.
 Qed.
 
 Lemma is_promotable_cmd_spec: forall pid (a0 : bool) (b : cmd)
@@ -169,168 +161,6 @@ Proof.
       apply IHbs in H0; auto.
 Qed.
 
-Lemma WF_PhiInfo_spec3: forall pinfo,
-  WF_PhiInfo pinfo ->
-  forall instr id0,
-    lookupInsnViaIDFromFdef (PI_f pinfo) id0 = Some instr ->
-    match instr with
-    | insn_cmd c0 =>
-      match c0 with
-      | insn_load _ _ _ _ => True
-      | insn_store _ _ v _ _ => negb (valueEqB v (value_id (PI_id pinfo)))
-      | _ => used_in_cmd (PI_id pinfo) c0 = false
-      end
-    | _ => used_in_insn (PI_id pinfo) instr = false
-    end.
-Proof.
-  intros.
-  simpl_WF_PhiInfo.
-  destruct H as [_ H].
-  destruct (PI_f pinfo). simpl in *.
-  eapply is_promotable_spec in H0; eauto.
-Qed.
-
-Definition wf_use_at_head (pinfo:PhiInfo) (v:value) :=
-used_in_value (PI_id pinfo) v = false.
-
-Lemma used_in_phi__wf_use_at_head: forall pinfo v0 (p : phinode)
-  (H0 : used_in_phi (PI_id pinfo) p = false)
-  (H1 : valueInInsnOperands v0 (insn_phinode p)),
-  wf_use_at_head pinfo v0.
-Proof.
-  intros.
-  unfold wf_use_at_head.
-  destruct p; simpl in *.
-  induction l0; tinv H1.
-    simpl_prod.
-    simpl in *.
-    apply orb_false_iff in H0.
-    destruct H0 as [J1 J2].
-    destruct H1 as [H1 | H1]; subst; auto.
-Qed.
-
-Lemma WF_PhiInfo_spec4: forall pinfo,
-  WF_PhiInfo pinfo ->
-  forall instr id0 v0,
-    lookupInsnViaIDFromFdef (PI_f pinfo) id0 = Some instr ->
-    match instr with
-    | insn_cmd c0 =>
-      match c0 with
-      | insn_load _ _ _ _ => False
-      | insn_store _ _ v _ _ => v = v0
-      | _ => valueInCmdOperands v0 c0
-      end
-    | _ => valueInInsnOperands v0 instr
-    end ->
-    wf_use_at_head pinfo v0.
-Proof.
-  intros.
-  apply WF_PhiInfo_spec3 in H0; auto.
-  destruct instr as [p|c|t].
-    simpl in H0.
-    eapply used_in_phi__wf_use_at_head in H1; eauto.
-
-    unfold wf_use_at_head.
-    destruct c; tinv H1; simpl in *;
-      try solve [
-        subst; auto |
-        match goal with
-        | H0 : used_in_value _ ?v1 || used_in_value _ ?v2 = false,
-          H1 : ?v0 = ?v1 \/ ?v0 = ?v2 |- _ =>
-            apply orb_false_iff in H0;
-            destruct H0 as [J1 J2];
-            destruct H1; subst; auto
-        end
-      ].
-
-      subst.
-      apply neg_valueEqB__unused_in_value; auto.
-
-      apply orb_false_iff in H0.
-      destruct H0 as [J1 J2].
-      destruct H1 as [H1 | H1]; subst; auto.
-      eapply unused_in_list_value__unused_in_value in J2; eauto.
-
-      apply orb_false_iff in H0.
-      destruct H0 as [J1 J2].
-      apply orb_false_iff in J1.
-      destruct J1 as [J1 J3].
-      destruct H1 as [H1 | [H1 | H1]]; subst; auto.
-
-      apply orb_false_iff in H0.
-      destruct H0 as [J1 J2].
-      destruct H1 as [H1 | H1]; subst;
-        eauto using unused_in_params__used_in_value.
-
-    unfold wf_use_at_head.
-    destruct t; simpl in *; subst;
-      try solve [auto | match goal with
-                        | H1: False |- _ => inv H1
-                        end].
-Qed.
-
-Lemma unused_in_cmds__unused_in_cmd': forall (pid id0 : id) (cs : cmds)
-  (c0 : cmd) (J1 : InCmdsB c0 cs)
-  (J2 : fold_left
-          (fun acc0 c =>
-           if used_in_cmd pid c then
-             match c with
-             | insn_load _ _ _ _ => acc0
-             | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && acc0
-             | _ => false
-             end
-           else acc0) cs true = true),
-  match c0 with
-  | insn_load _ _ _ _ => True
-  | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid))
-  | _ => used_in_cmd pid c0 = false
-  end.
-Proof.
-  induction cs; simpl; intros.
-    congruence.
-
-    assert (
-      fold_left
-        (fun acc0 c =>
-         if used_in_cmd pid c then
-           match c with
-           | insn_load _ _ _ _ => acc0
-           | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && acc0
-           | _ => false
-           end
-         else acc0) cs true = true /\
-      (if used_in_cmd pid a then
-         match a with
-         | insn_load _ _ _ _ => true
-         | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && true
-         | _ => false
-         end
-       else true) = true) as J3.
-      apply fold_left_and_true; auto.
-        apply used_in_cmd_fun_spec.
-
-    destruct J3 as [J3 J4]. clear J2.
-    apply orb_true_iff in J1.
-    destruct J1 as [J1 | J1].
-      clear IHcs J3.
-      apply cmdEqB_inv in J1. subst.
-      remember (used_in_cmd pid a) as R.
-      destruct R.
-        destruct a; auto.
-          apply andb_true_iff in J4.
-          destruct J4; auto.
-
-        destruct a; auto.
-          simpl in *.
-          symmetry in HeqR.
-          apply orb_false_iff in HeqR.
-          destruct HeqR.
-          apply unused_in_value__neg_valueEqB; auto.
-
-      clear J4.
-      eapply IHcs in J3; eauto.
-Qed.
-
 Lemma is_promotable_spec': forall pid b instr bs,
   fold_left (is_promotable_fun pid) bs true = true ->
   insnInBlockB instr b ->
@@ -378,108 +208,8 @@ Proof.
       apply IHbs in J1; auto.
 Qed.
 
-Lemma WF_PhiInfo_spec5: forall pinfo pn b,
-  WF_PhiInfo pinfo ->
-  phinodeInFdefBlockB pn (PI_f pinfo) b = true ->
-  used_in_phi (PI_id pinfo) pn = false.
-Proof.
-  intros.
-  simpl_WF_PhiInfo.
-  destruct H as [_ H].
-  destruct (PI_f pinfo). simpl in *.
-  unfold phinodeInFdefBlockB in H0.
-  apply andb_true_iff in H0.
-  destruct H0.
-  eapply is_promotable_spec' with (instr:=insn_phinode pn) in H1; eauto.
-Qed.
-
-Lemma WF_PhiInfo_spec6: forall pinfo l' ps' cs' tmn',
-  WF_PhiInfo pinfo ->
-  uniqFdef (PI_f pinfo) ->
-  ret (stmts_intro ps' cs' tmn') = lookupBlockViaLabelFromFdef (PI_f pinfo) l'
-    ->
-  ~ In (PI_id pinfo) (getPhiNodesIDs ps').
-Proof.
-  intros.
-  simpl_WF_PhiInfo.
-  destruct H as [H _].
-  symmetry in HeqR.
-  apply entryBlockInFdef in HeqR.
-  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in H; eauto.
-  simpl in H.
-
-  symmetry in H1.
-  apply lookupBlockViaLabelFromFdef_inv in H1; auto.
-  intro J.
-  eapply IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef in J; eauto 2.
-  destruct J as [p2 [J1 J2]].
-  rewrite H in J1. congruence.
-Qed.
-
-Lemma PhiInfo_must_be_promotable_alloca: forall pinfo l0 ps0 cs1 c cs2 tmn0,
-  WF_PhiInfo pinfo ->
-  uniqFdef (PI_f pinfo) ->
-  getCmdLoc c = PI_id pinfo ->
-  (forall id1 typ1 v1 al1, c <> insn_alloca id1 typ1 v1 al1) ->
-  blockInFdefB (l0, stmts_intro ps0 (cs1++c::cs2) tmn0) (PI_f pinfo) = true ->
-  False.
-Proof.
-  intros.
-  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in H3; eauto using in_middle.
-  apply WF_PhiInfo_spec1 in H; auto.
-  simpl in H3. rewrite H1 in H3. rewrite H3 in H. inv H.
-  assert (W:=@H2 (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) (PI_align pinfo)).
-  auto.
-Qed.
-
-Lemma WF_PhiInfo_spec2: forall pinfo S los nts Ps,
-  WF_PhiInfo pinfo ->
-  wf_fdef S (module_intro los nts Ps) (PI_f pinfo) ->
-  exists mc, flatten_typ (los, nts) (PI_typ pinfo) = Some mc.
-Proof.
-  intros.
-  simpl_WF_PhiInfo.
-  destruct H as [J1 J2].
-  symmetry in HeqR.
-  apply entryBlockInFdef in HeqR.
-  eapply wf_fdef__wf_cmd in HeqR; eauto.
-  inv HeqR.
-  eapply flatten_typ_total; eauto.
-Qed.
-
-Lemma WF_PhiInfo__succs : forall pinfo l1 ps1 cs1 tmn1
-  (Huniq: uniqFdef (PI_f pinfo)),
-  blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) (PI_f pinfo) = true ->
-  successors_terminator tmn1 <> nil ->
-  exists sc, exists scs, (PI_succs pinfo) ! l1 = Some (sc::scs).
-Proof.
-  intros.
-  eapply blockInFdefB__successors in H; eauto.
-  unfold ls in *. unfold PI_succs.
-  destruct (successors_terminator tmn1); try congruence. eauto.
-Qed.
-
-Lemma WF_PhiInfo__preds : forall pinfo l1 ps1 cs1 tmn1 l0
-  (Huniq: uniqFdef (PI_f pinfo)),
-  blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) (PI_f pinfo) = true ->
-  In l0 (successors_terminator tmn1) ->
-  exists prd, exists prds, (PI_preds pinfo) ! l0 = Some (prd::prds).
-Proof.
-  intros.
-  eapply blockInFdefB__successors in H; eauto.
-  assert (In l0 (successors (PI_f pinfo))!!!l1) as Hin.
-    unfold XATree.successors_list.
-    unfold ls, l in *.
-    rewrite H. auto.
-  apply XATree.make_predecessors_correct in Hin.
-  unfold XATree.successors_list in Hin.
-  unfold ls, l in *. unfold PI_preds, PI_succs.
-  change atom with ATree.elt.
-  destruct ((XATree.make_predecessors (successors (PI_f pinfo))) ! l0); tinv Hin.
-  destruct l2; tinv Hin.
-  eauto.
-Qed.
-
+(******************************************************************)
+(* Properties of generated temporaries *)
 Definition is_temporary i0 (newids : ATree.t (id * id * id)) : Prop :=
 exists l0,
   match ATree.get l0 newids with
@@ -576,75 +306,41 @@ Proof.
   apply gen_fresh_ids__spec in Hld; auto.
 Qed.
 
-Lemma WF_PhiInfo_fresh: forall pinfo lid pid sid l0 (Huniq: uniqFdef (PI_f pinfo)),
-  WF_PhiInfo pinfo ->
-  ret (lid, pid, sid) = (PI_newids pinfo) ! l0 ->
-  PI_id pinfo <> lid /\ PI_id pinfo <> pid /\ PI_id pinfo <> sid.
+Lemma gen_fresh_ids__spec2_aux: forall l1 rds newids nids exids,
+  fst (fold_left gen_fresh_ids_fun rds (nids, exids)) = newids ->
+  In l1 rds \/ nids ! l1 <> None ->
+  newids ! l1 <> None.
 Proof.
-  intros.
-  apply WF_PhiInfo_spec1 in Huniq; auto.
-  apply lookupInsnViaIDFromFdef__insnInFdefBlockB in Huniq.
-  destruct Huniq as [b1 HbInF].
-  simpl in HbInF.
-  apply andb_true_iff in HbInF.
-  destruct HbInF as [J1 J2].
-  destruct b1 as [? []]. simpl in J1.
-  apply InCmdsB_in in J1.
-  apply in_split in J1.
-  destruct J1 as [cs1 [cs2 J1]]; subst.
-  destruct H as [J1 J6].
-  destruct (PI_id pinfo == lid); subst.
-    eapply temporary_must_be_fresh in J2; eauto.
-    simpl. exists l0. rewrite <- H0.
-    destruct (PI_id pinfo == PI_id pinfo); try congruence.
-      simpl. left. reflexivity.
-  destruct (PI_id pinfo == pid); subst.
-    eapply temporary_must_be_fresh in J2; eauto.
-    simpl. exists l0. rewrite <- H0.
-    destruct (PI_id pinfo == PI_id pinfo); try congruence.
-      simpl. right. left. reflexivity.
-  destruct (PI_id pinfo == sid); subst; auto.
-    eapply temporary_must_be_fresh in J2; eauto.
-    simpl. exists l0. rewrite <- H0.
-    destruct (PI_id pinfo == PI_id pinfo); try congruence.
-      simpl. right. right. reflexivity.
+  induction rds; simpl; intros.
+    subst.
+    destruct H0 as [H0 | H0]; auto.
+
+    remember (atom_fresh_for_list exids) as R1.
+    destruct R1 as [lid' Jlid'].
+    remember (atom_fresh_for_list (lid'::exids)) as R2.
+    destruct R2 as [pid' Jpid'].
+    remember (atom_fresh_for_list (pid'::lid'::exids)) as R3.
+    destruct R3 as [sid' Jsid'].
+    apply IHrds in H; auto.
+    destruct H0 as [[H0 | H0]| H0]; subst; auto.
+      right.
+      rewrite ATree.gss. congruence.
+
+      right.
+      destruct (l1 == a); subst.
+        rewrite ATree.gss. congruence.
+        rewrite ATree.gso; auto.
 Qed.
 
-Lemma WF_PhiInfo_spec9: forall pinfo l0 l3 ps3 cs3 ps1 cs1 tmn1 bid
-  (Huniq: uniqFdef (PI_f pinfo)),
-  lookupBlockViaLabelFromFdef (PI_f pinfo) l0 =
-    ret stmts_intro ps1 cs1 tmn1 ->
-  blockInFdefB (l3, stmts_intro ps3 cs3 (insn_br_uncond bid l0)) (PI_f pinfo) ->
-  exists succs, (PI_succs pinfo) ! l3 = Some succs /\ In l0 succs.
+Lemma gen_fresh_ids__spec2: forall l1 newids rds exids,
+  fst (gen_fresh_ids rds exids) = newids ->
+  In l1 rds ->
+  newids ! l1 <> None.
 Proof.
+  unfold gen_fresh_ids.
+  fold gen_fresh_ids_fun.
   intros.
-  apply blockInFdefB__successors in H0; auto.
-  simpl in H0.
-  unfold ls, l in *. unfold PI_succs.
-  rewrite H0.
-  exists (l0::nil).
-  split; simpl; auto.
-Qed.
-
-Lemma WF_PhiInfo_spec8: forall pinfo td c l1 l2 l3 ps3 cs3 ps0 cs0 tmn0 bid
-  Cond (Huniq: uniqFdef (PI_f pinfo)),
-  (if isGVZero td c
-   then lookupBlockViaLabelFromFdef (PI_f pinfo) l2
-   else lookupBlockViaLabelFromFdef (PI_f pinfo) l1) =
-  ret stmts_intro ps0 cs0 tmn0 ->
-  blockInFdefB (l3, stmts_intro ps3 cs3 (insn_br bid Cond l1 l2)) (PI_f pinfo) ->
-  exists succs, (PI_succs pinfo) ! l3 = Some succs /\ 
-    In (if isGVZero td c then l2 else l1) succs.
-Proof.
-  intros.
-  apply blockInFdefB__successors in H0; auto.
-  simpl in H0.
-  unfold ls, l in *. unfold PI_succs.
-  rewrite H0.
-  exists (l1::l2::nil).
-  split; auto.
-  destruct (isGVZero td c);
-    apply lookupBlockViaLabelFromFdef_inv in H; simpl; auto.
+  eapply gen_fresh_ids__spec2_aux in H; eauto.
 Qed.
 
 Lemma gen_fresh_ids__spec3_aux: forall rds nids ex_ids i0 a b c,
@@ -688,41 +384,6 @@ Proof.
   eapply gen_fresh_ids__spec3_aux in H; eauto.
     intros a b c j0 J.
     rewrite ATree.gempty in J. inv J.
-Qed.
-
-Lemma gen_fresh_ids__spec5_aux: forall rds nids' nids ex_ids ex_ids',
-  (forall i0, is_temporary i0 nids -> In i0 ex_ids) ->
-  (nids', ex_ids') = (fold_left gen_fresh_ids_fun rds (nids, ex_ids)) ->
-  (forall i0, is_temporary i0 nids' -> In i0 ex_ids').
-Proof.
-  induction rds; simpl; intros.
-    inv H0. auto.
-
-    remember (atom_fresh_for_list ex_ids) as R1.
-    destruct R1 as [lid' Jlid'].
-    remember (atom_fresh_for_list (lid'::ex_ids)) as R2.
-    destruct R2 as [pid' Jpid'].
-    remember (atom_fresh_for_list (pid'::lid'::ex_ids)) as R3.
-    destruct R3 as [sid' Jsid'].
-    eapply IHrds in H0; eauto.
-    intros.
-    destruct H2 as [l0 H2].
-    unfold id in *.
-    remember ((ATree.set a (lid', pid', sid') nids) ! l0) as R.
-    destruct R as [[[]]|]; tinv H2.
-    destruct (a == l0); subst.
-      rewrite ATree.gss in HeqR.
-      inv HeqR.
-      simpl.
-      destruct H2 as [H2 | [H2 | H2]].
-        destruct (i1 == lid'); simpl in H2; try congruence; auto.
-        destruct (i1 == pid'); simpl in H2; try congruence; auto.
-        destruct (i1 == sid'); simpl in H2; try congruence; auto.
-
-      simpl. right. right. right.
-      rewrite ATree.gso in HeqR; auto.
-      apply H.
-      exists l0. unfold id in *. rewrite <- HeqR. auto.
 Qed.
 
 Lemma gen_fresh_ids__spec4_aux: forall rds nids' nids ex_ids
@@ -841,41 +502,419 @@ Proof.
     intros. rewrite ATree.gempty in H4. congruence.
 Qed.
 
-Lemma gen_fresh_ids__spec2_aux: forall l1 rds newids nids exids,
-  fst (fold_left gen_fresh_ids_fun rds (nids, exids)) = newids ->
-  In l1 rds \/ nids ! l1 <> None ->
-  newids ! l1 <> None.
+Lemma gen_fresh_ids__spec5_aux: forall rds nids' nids ex_ids ex_ids',
+  (forall i0, is_temporary i0 nids -> In i0 ex_ids) ->
+  (nids', ex_ids') = (fold_left gen_fresh_ids_fun rds (nids, ex_ids)) ->
+  (forall i0, is_temporary i0 nids' -> In i0 ex_ids').
 Proof.
   induction rds; simpl; intros.
-    subst.
-    destruct H0 as [H0 | H0]; auto.
+    inv H0. auto.
 
-    remember (atom_fresh_for_list exids) as R1.
+    remember (atom_fresh_for_list ex_ids) as R1.
     destruct R1 as [lid' Jlid'].
-    remember (atom_fresh_for_list (lid'::exids)) as R2.
+    remember (atom_fresh_for_list (lid'::ex_ids)) as R2.
     destruct R2 as [pid' Jpid'].
-    remember (atom_fresh_for_list (pid'::lid'::exids)) as R3.
+    remember (atom_fresh_for_list (pid'::lid'::ex_ids)) as R3.
     destruct R3 as [sid' Jsid'].
-    apply IHrds in H; auto.
-    destruct H0 as [[H0 | H0]| H0]; subst; auto.
-      right.
-      rewrite ATree.gss. congruence.
+    eapply IHrds in H0; eauto.
+    intros.
+    destruct H2 as [l0 H2].
+    unfold id in *.
+    remember ((ATree.set a (lid', pid', sid') nids) ! l0) as R.
+    destruct R as [[[]]|]; tinv H2.
+    destruct (a == l0); subst.
+      rewrite ATree.gss in HeqR.
+      inv HeqR.
+      simpl.
+      destruct H2 as [H2 | [H2 | H2]].
+        destruct (i1 == lid'); simpl in H2; try congruence; auto.
+        destruct (i1 == pid'); simpl in H2; try congruence; auto.
+        destruct (i1 == sid'); simpl in H2; try congruence; auto.
 
-      right.
-      destruct (l1 == a); subst.
-        rewrite ATree.gss. congruence.
-        rewrite ATree.gso; auto.
+      simpl. right. right. right.
+      rewrite ATree.gso in HeqR; auto.
+      apply H.
+      exists l0. unfold id in *. rewrite <- HeqR. auto.
 Qed.
 
-Lemma gen_fresh_ids__spec2: forall l1 newids rds exids,
-  fst (gen_fresh_ids rds exids) = newids ->
-  In l1 rds ->
-  newids ! l1 <> None.
+Definition not_temporaries (i0 : id) (newids : ATree.t (id * id * id)) : Prop :=
+forall l0,
+  match ATree.get l0 newids with
+  | Some (lid, pid, sid) => i0 <> lid /\ i0 <> pid /\ i0 <> sid
+  | None => True
+  end.
+
+Lemma is_temporary_dec : forall id0 newids,
+  is_temporary id0 newids \/ not_temporaries id0 newids.
 Proof.
-  unfold gen_fresh_ids.
-  fold gen_fresh_ids_fun.
   intros.
-  eapply gen_fresh_ids__spec2_aux in H; eauto.
+  assert (not_temporaries id0 newids \/ ~ not_temporaries id0 newids) as J.
+    tauto.
+  destruct J; auto.
+  left.
+  unfold is_temporary, not_temporaries in *.
+  apply Coq.Logic.Classical_Pred_Type.not_all_ex_not in H.
+  destruct H as [n H].
+  exists n.
+  destruct (newids ! n) as [[[]]|]; auto.
+    destruct (id0 == i0); subst; simpl.
+      left. reflexivity.
+    destruct (id0 == i1); subst; simpl.
+      right. left. reflexivity.
+    destruct (id0 == i2); subst; simpl.
+      right. right. reflexivity.
+    contradict H; auto.
+Qed.
+
+Lemma temporaries_exclusive: forall i0 newids0
+  (H1: not_temporaries i0 newids0) (H0: is_temporary i0 newids0), False.
+Proof.
+  intros.
+  unfold not_temporaries in H1.
+  unfold is_temporary in H0.
+  destruct H0 as [l0 H0].
+  assert (J:=@H1 l0).
+  destruct newids0 ! l0 as [[[]]|].
+    destruct J as [J1 [J2 J3]].
+    destruct H0 as [H0 | [H0 | H0]].
+      contradict J1; auto.
+      destruct (i0 == i1); auto.
+        simpl in H0. congruence.
+      contradict J2; auto.
+      destruct (i0 == i2); auto.
+        simpl in H0. congruence.
+      contradict J3; auto.
+      destruct (i0 == i3); auto.
+        simpl in H0. congruence.
+    inv H0.
+Qed.
+
+Definition value_has_no_tmps (pinfo:PhiInfo) (v:value) : Prop :=
+match v with
+| value_const _ => True
+| value_id vid => not_temporaries vid (PI_newids pinfo)
+end.
+
+Lemma params_has_no_tmps__intro_aux: forall pinfo lp (init:Prop),
+  init ->
+  (forall v, valueInParams v lp -> value_has_no_tmps pinfo v) ->
+  fold_left
+      (fun (acc : Prop) (p : typ * attributes * value) =>
+       let '(_, v) := p in value_has_no_tmps pinfo v /\ acc) lp init.
+Proof.
+  induction lp as [|[]]; simpl; intros; auto.
+    apply IHlp.
+    split; auto.
+      apply H0.
+      unfold valueInParams. simpl.
+      destruct (split lp). simpl. auto.
+
+      intros.
+      apply H0.
+      unfold valueInParams in *. simpl in *.
+      destruct (split lp). simpl. auto.
+Qed.
+
+Lemma params_has_no_tmps__intro: forall pinfo lp,
+  (forall v, valueInParams v lp -> value_has_no_tmps pinfo v) ->
+  fold_left
+      (fun (acc : Prop) (p : typ * attributes * value) =>
+       let '(_, v) := p in value_has_no_tmps pinfo v /\ acc) lp True.
+Proof.
+  intros.
+  apply params_has_no_tmps__intro_aux; auto.
+Qed.
+
+(******************************************************************)
+Lemma WF_PhiInfo_spec1: forall pinfo,
+  WF_PhiInfo pinfo ->
+  uniqFdef (PI_f pinfo) ->
+  lookupInsnViaIDFromFdef (PI_f pinfo) (PI_id pinfo) =
+    Some
+     (insn_cmd
+       (insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
+         (PI_align pinfo))).
+Proof.
+  intros.
+  simpl_WF_PhiInfo.
+  destruct H as [H _].
+  symmetry in HeqR.
+  apply entryBlockInFdef in HeqR.
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in HeqR; eauto.
+  simpl in HeqR. auto.
+Qed.
+
+Lemma WF_PhiInfo_spec2: forall pinfo S los nts Ps,
+  WF_PhiInfo pinfo ->
+  wf_fdef S (module_intro los nts Ps) (PI_f pinfo) ->
+  exists mc, flatten_typ (los, nts) (PI_typ pinfo) = Some mc.
+Proof.
+  intros.
+  simpl_WF_PhiInfo.
+  destruct H as [J1 J2].
+  symmetry in HeqR.
+  apply entryBlockInFdef in HeqR.
+  eapply wf_fdef__wf_cmd in HeqR; eauto.
+  inv HeqR.
+  eapply flatten_typ_total; eauto.
+Qed.
+
+Lemma WF_PhiInfo_spec3: forall pinfo,
+  WF_PhiInfo pinfo ->
+  forall instr id0,
+    lookupInsnViaIDFromFdef (PI_f pinfo) id0 = Some instr ->
+    match instr with
+    | insn_cmd c0 =>
+      match c0 with
+      | insn_load _ _ _ _ => True
+      | insn_store _ _ v _ _ => negb (valueEqB v (value_id (PI_id pinfo)))
+      | _ => used_in_cmd (PI_id pinfo) c0 = false
+      end
+    | _ => used_in_insn (PI_id pinfo) instr = false
+    end.
+Proof.
+  intros.
+  simpl_WF_PhiInfo.
+  destruct H as [_ H].
+  destruct (PI_f pinfo). simpl in *.
+  eapply is_promotable_spec in H0; eauto.
+Qed.
+
+Definition wf_use_at_head (pinfo:PhiInfo) (v:value) :=
+used_in_value (PI_id pinfo) v = false.
+
+Lemma used_in_phi__wf_use_at_head: forall pinfo v0 (p : phinode)
+  (H0 : used_in_phi (PI_id pinfo) p = false)
+  (H1 : valueInInsnOperands v0 (insn_phinode p)),
+  wf_use_at_head pinfo v0.
+Proof.
+  intros.
+  unfold wf_use_at_head.
+  destruct p; simpl in *.
+  induction l0; tinv H1.
+    simpl_prod.
+    simpl in *.
+    apply orb_false_iff in H0.
+    destruct H0 as [J1 J2].
+    destruct H1 as [H1 | H1]; subst; auto.
+Qed.
+
+Lemma WF_PhiInfo_spec4: forall pinfo,
+  WF_PhiInfo pinfo ->
+  forall instr id0 v0,
+    lookupInsnViaIDFromFdef (PI_f pinfo) id0 = Some instr ->
+    match instr with
+    | insn_cmd c0 =>
+      match c0 with
+      | insn_load _ _ _ _ => False
+      | insn_store _ _ v _ _ => v = v0
+      | _ => valueInCmdOperands v0 c0
+      end
+    | _ => valueInInsnOperands v0 instr
+    end ->
+    wf_use_at_head pinfo v0.
+Proof.
+  intros.
+  apply WF_PhiInfo_spec3 in H0; auto.
+  destruct instr as [p|c|t].
+    simpl in H0.
+    eapply used_in_phi__wf_use_at_head in H1; eauto.
+
+    unfold wf_use_at_head.
+    destruct c; tinv H1; simpl in *;
+      try solve [
+        subst; auto |
+        match goal with
+        | H0 : used_in_value _ ?v1 || used_in_value _ ?v2 = false,
+          H1 : ?v0 = ?v1 \/ ?v0 = ?v2 |- _ =>
+            apply orb_false_iff in H0;
+            destruct H0 as [J1 J2];
+            destruct H1; subst; auto
+        end
+      ].
+
+      subst.
+      apply neg_valueEqB__unused_in_value; auto.
+
+      apply orb_false_iff in H0.
+      destruct H0 as [J1 J2].
+      destruct H1 as [H1 | H1]; subst; auto.
+      eapply unused_in_list_value__unused_in_value in J2; eauto.
+
+      apply orb_false_iff in H0.
+      destruct H0 as [J1 J2].
+      apply orb_false_iff in J1.
+      destruct J1 as [J1 J3].
+      destruct H1 as [H1 | [H1 | H1]]; subst; auto.
+
+      apply orb_false_iff in H0.
+      destruct H0 as [J1 J2].
+      destruct H1 as [H1 | H1]; subst;
+        eauto using unused_in_params__used_in_value.
+
+    unfold wf_use_at_head.
+    destruct t; simpl in *; subst;
+      try solve [auto | match goal with
+                        | H1: False |- _ => inv H1
+                        end].
+Qed.
+
+Lemma WF_PhiInfo_spec5: forall pinfo pn b,
+  WF_PhiInfo pinfo ->
+  phinodeInFdefBlockB pn (PI_f pinfo) b = true ->
+  used_in_phi (PI_id pinfo) pn = false.
+Proof.
+  intros.
+  simpl_WF_PhiInfo.
+  destruct H as [_ H].
+  destruct (PI_f pinfo). simpl in *.
+  unfold phinodeInFdefBlockB in H0.
+  apply andb_true_iff in H0.
+  destruct H0.
+  eapply is_promotable_spec' with (instr:=insn_phinode pn) in H1; eauto.
+Qed.
+
+Lemma WF_PhiInfo_spec6: forall pinfo l' ps' cs' tmn',
+  WF_PhiInfo pinfo ->
+  uniqFdef (PI_f pinfo) ->
+  ret (stmts_intro ps' cs' tmn') = lookupBlockViaLabelFromFdef (PI_f pinfo) l'
+    ->
+  ~ In (PI_id pinfo) (getPhiNodesIDs ps').
+Proof.
+  intros.
+  simpl_WF_PhiInfo.
+  destruct H as [H _].
+  symmetry in HeqR.
+  apply entryBlockInFdef in HeqR.
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in H; eauto.
+  simpl in H.
+
+  symmetry in H1.
+  apply lookupBlockViaLabelFromFdef_inv in H1; auto.
+  intro J.
+  eapply IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef in J; eauto 2.
+  destruct J as [p2 [J1 J2]].
+  rewrite H in J1. congruence.
+Qed.
+
+Lemma PhiInfo_must_be_promotable_alloca: forall pinfo l0 ps0 cs1 c cs2 tmn0,
+  WF_PhiInfo pinfo ->
+  uniqFdef (PI_f pinfo) ->
+  getCmdLoc c = PI_id pinfo ->
+  (forall id1 typ1 v1 al1, c <> insn_alloca id1 typ1 v1 al1) ->
+  blockInFdefB (l0, stmts_intro ps0 (cs1++c::cs2) tmn0) (PI_f pinfo) = true ->
+  False.
+Proof.
+  intros.
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in H3; eauto using in_middle.
+  apply WF_PhiInfo_spec1 in H; auto.
+  simpl in H3. rewrite H1 in H3. rewrite H3 in H. inv H.
+  assert (W:=@H2 (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) (PI_align pinfo)).
+  auto.
+Qed.
+
+Lemma WF_PhiInfo__succs : forall pinfo l1 ps1 cs1 tmn1
+  (Huniq: uniqFdef (PI_f pinfo)),
+  blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) (PI_f pinfo) = true ->
+  successors_terminator tmn1 <> nil ->
+  exists sc, exists scs, (PI_succs pinfo) ! l1 = Some (sc::scs).
+Proof.
+  intros.
+  eapply blockInFdefB__successors in H; eauto.
+  unfold ls in *. unfold PI_succs.
+  destruct (successors_terminator tmn1); try congruence. eauto.
+Qed.
+
+Lemma WF_PhiInfo__preds : forall pinfo l1 ps1 cs1 tmn1 l0
+  (Huniq: uniqFdef (PI_f pinfo)),
+  blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) (PI_f pinfo) = true ->
+  In l0 (successors_terminator tmn1) ->
+  exists prd, exists prds, (PI_preds pinfo) ! l0 = Some (prd::prds).
+Proof.
+  intros.
+  eapply blockInFdefB__successors in H; eauto.
+  assert (In l0 (successors (PI_f pinfo))!!!l1) as Hin.
+    unfold XATree.successors_list.
+    unfold ls, l in *.
+    rewrite H. auto.
+  apply XATree.make_predecessors_correct in Hin.
+  unfold XATree.successors_list in Hin.
+  unfold ls, l in *. unfold PI_preds, PI_succs.
+  change atom with ATree.elt.
+  destruct ((XATree.make_predecessors (successors (PI_f pinfo))) ! l0); tinv Hin.
+  destruct l2; tinv Hin.
+  eauto.
+Qed.
+
+Lemma WF_PhiInfo_fresh: forall pinfo lid pid sid l0 (Huniq: uniqFdef (PI_f pinfo)),
+  WF_PhiInfo pinfo ->
+  ret (lid, pid, sid) = (PI_newids pinfo) ! l0 ->
+  PI_id pinfo <> lid /\ PI_id pinfo <> pid /\ PI_id pinfo <> sid.
+Proof.
+  intros.
+  apply WF_PhiInfo_spec1 in Huniq; auto.
+  apply lookupInsnViaIDFromFdef__insnInFdefBlockB in Huniq.
+  destruct Huniq as [b1 HbInF].
+  simpl in HbInF.
+  apply andb_true_iff in HbInF.
+  destruct HbInF as [J1 J2].
+  destruct b1 as [? []]. simpl in J1.
+  apply InCmdsB_in in J1.
+  apply in_split in J1.
+  destruct J1 as [cs1 [cs2 J1]]; subst.
+  destruct H as [J1 J6].
+  destruct (PI_id pinfo == lid); subst.
+    eapply temporary_must_be_fresh in J2; eauto.
+    simpl. exists l0. rewrite <- H0.
+    destruct (PI_id pinfo == PI_id pinfo); try congruence.
+      simpl. left. reflexivity.
+  destruct (PI_id pinfo == pid); subst.
+    eapply temporary_must_be_fresh in J2; eauto.
+    simpl. exists l0. rewrite <- H0.
+    destruct (PI_id pinfo == PI_id pinfo); try congruence.
+      simpl. right. left. reflexivity.
+  destruct (PI_id pinfo == sid); subst; auto.
+    eapply temporary_must_be_fresh in J2; eauto.
+    simpl. exists l0. rewrite <- H0.
+    destruct (PI_id pinfo == PI_id pinfo); try congruence.
+      simpl. right. right. reflexivity.
+Qed.
+
+Lemma WF_PhiInfo_spec8: forall pinfo td c l1 l2 l3 ps3 cs3 ps0 cs0 tmn0 bid
+  Cond (Huniq: uniqFdef (PI_f pinfo)),
+  (if isGVZero td c
+   then lookupBlockViaLabelFromFdef (PI_f pinfo) l2
+   else lookupBlockViaLabelFromFdef (PI_f pinfo) l1) =
+  ret stmts_intro ps0 cs0 tmn0 ->
+  blockInFdefB (l3, stmts_intro ps3 cs3 (insn_br bid Cond l1 l2)) (PI_f pinfo) ->
+  exists succs, (PI_succs pinfo) ! l3 = Some succs /\ 
+    In (if isGVZero td c then l2 else l1) succs.
+Proof.
+  intros.
+  apply blockInFdefB__successors in H0; auto.
+  simpl in H0.
+  unfold ls, l in *. unfold PI_succs.
+  rewrite H0.
+  exists (l1::l2::nil).
+  split; auto.
+  destruct (isGVZero td c);
+    apply lookupBlockViaLabelFromFdef_inv in H; simpl; auto.
+Qed.
+
+Lemma WF_PhiInfo_spec9: forall pinfo l0 l3 ps3 cs3 ps1 cs1 tmn1 bid
+  (Huniq: uniqFdef (PI_f pinfo)),
+  lookupBlockViaLabelFromFdef (PI_f pinfo) l0 =
+    ret stmts_intro ps1 cs1 tmn1 ->
+  blockInFdefB (l3, stmts_intro ps3 cs3 (insn_br_uncond bid l0)) (PI_f pinfo) ->
+  exists succs, (PI_succs pinfo) ! l3 = Some succs /\ In l0 succs.
+Proof.
+  intros.
+  apply blockInFdefB__successors in H0; auto.
+  simpl in H0.
+  unfold ls, l in *. unfold PI_succs.
+  rewrite H0.
+  exists (l0::nil).
+  split; simpl; auto.
 Qed.
 
 Lemma reachable_blk_has_newids : forall S M pinfo l1 
@@ -1037,208 +1076,6 @@ Proof.
     rewrite <- lookupAL_updateAddAL_neq; auto.
 
     eapply WF_PhiInfo__getIncomingValuesForBlockFromPHINodes in Hlkp1; eauto.
-Qed.
-
-Definition not_temporaries (i0 : id) (newids : ATree.t (id * id * id)) : Prop :=
-forall l0,
-  match ATree.get l0 newids with
-  | Some (lid, pid, sid) => i0 <> lid /\ i0 <> pid /\ i0 <> sid
-  | None => True
-  end.
-
-Lemma is_temporary_dec : forall id0 newids,
-  is_temporary id0 newids \/ not_temporaries id0 newids.
-Proof.
-  intros.
-  assert (not_temporaries id0 newids \/ ~ not_temporaries id0 newids) as J.
-    tauto.
-  destruct J; auto.
-  left.
-  unfold is_temporary, not_temporaries in *.
-  apply Coq.Logic.Classical_Pred_Type.not_all_ex_not in H.
-  destruct H as [n H].
-  exists n.
-  destruct (newids ! n) as [[[]]|]; auto.
-    destruct (id0 == i0); subst; simpl.
-      left. reflexivity.
-    destruct (id0 == i1); subst; simpl.
-      right. left. reflexivity.
-    destruct (id0 == i2); subst; simpl.
-      right. right. reflexivity.
-    contradict H; auto.
-Qed.
-
-Lemma temporaries_exclusive: forall i0 newids0
-  (H1: not_temporaries i0 newids0) (H0: is_temporary i0 newids0), False.
-Proof.
-  intros.
-  unfold not_temporaries in H1.
-  unfold is_temporary in H0.
-  destruct H0 as [l0 H0].
-  assert (J:=@H1 l0).
-  destruct newids0 ! l0 as [[[]]|].
-    destruct J as [J1 [J2 J3]].
-    destruct H0 as [H0 | [H0 | H0]].
-      contradict J1; auto.
-      destruct (i0 == i1); auto.
-        simpl in H0. congruence.
-      contradict J2; auto.
-      destruct (i0 == i2); auto.
-        simpl in H0. congruence.
-      contradict J3; auto.
-      destruct (i0 == i3); auto.
-        simpl in H0. congruence.
-    inv H0.
-Qed.
-
-Definition value_has_no_tmps (pinfo:PhiInfo) (v:value) : Prop :=
-match v with
-| value_const _ => True
-| value_id vid => not_temporaries vid (PI_newids pinfo)
-end.
-
-Lemma params_has_no_tmps__intro_aux: forall pinfo lp (init:Prop),
-  init ->
-  (forall v, valueInParams v lp -> value_has_no_tmps pinfo v) ->
-  fold_left
-      (fun (acc : Prop) (p : typ * attributes * value) =>
-       let '(_, v) := p in value_has_no_tmps pinfo v /\ acc) lp init.
-Proof.
-  induction lp as [|[]]; simpl; intros; auto.
-    apply IHlp.
-    split; auto.
-      apply H0.
-      unfold valueInParams. simpl.
-      destruct (split lp). simpl. auto.
-
-      intros.
-      apply H0.
-      unfold valueInParams in *. simpl in *.
-      destruct (split lp). simpl. auto.
-Qed.
-
-Lemma params_has_no_tmps__intro: forall pinfo lp,
-  (forall v, valueInParams v lp -> value_has_no_tmps pinfo v) ->
-  fold_left
-      (fun (acc : Prop) (p : typ * attributes * value) =>
-       let '(_, v) := p in value_has_no_tmps pinfo v /\ acc) lp True.
-Proof.
-  intros.
-  apply params_has_no_tmps__intro_aux; auto.
-Qed.
-
-(* from sb_ds_trans *)
-Definition getValueIDs (v:value) : atoms :=
-match v with
-| value_id id => {{id}}
-| value_const _ => {}
-end.
-
-(* from sb_ds_trans *)
-Definition id_fresh_in_value v1 i2 : Prop :=
-match v1 with
-| value_id i1 => i1 <> i2
-| _ => True
-end.
-
-(* from sb_ds_trans *)
-Fixpoint ids2atoms (ids0:ids) : atoms :=
-match ids0 with
-| nil => {}
-| id0::ids0' => {{id0}} `union` ids2atoms ids0'
-end.
-
-(* from sb_ds_trans_lib *)
-Lemma getPhiNodeID_in_getFdefLocs : forall f1 l0 ps p cs tmn,
-  blockInFdefB (l0, stmts_intro ps cs tmn) f1 = true ->
-  In p ps ->
-  In (getPhiNodeID p) (getFdefLocs f1).
-Proof.
-  intros.
-  destruct f1 as [f ?]. destruct f. simpl.
-  apply in_or_app. right.
-  eapply in_getStmtsLocs__in_getBlocksLocs in H; eauto.
-  xsolve_in_list.
-Qed.
-
-(* from sb_ds_trans_lib *)
-Lemma in_singleton : forall a d, singleton a [<=] d <-> a `in` d.
-Proof.
-  intros.
-  unfold AtomSetImpl.Subset.
-  split; intros; eauto.
-    assert (a0 = a) as EQ. fsetdec.
-    subst. auto.
-Qed.
-
-(* from sb_ds_trans_lib *)
-Lemma ids2atoms__in : forall a d, In a d <-> singleton a [<=] (ids2atoms d).
-Proof.
-  induction d; simpl.
-    split; intros.
-      inv H.
-
-      apply in_singleton in H.
-      fsetdec.
-    destruct IHd as [J1 J2].
-    split; intros.
-      destruct H as [H | H]; subst.
-        fsetdec.
-        apply J1 in H. fsetdec.
-        assert (a = a0 \/ a `in` (ids2atoms d)) as J.
-          fsetdec.
-        destruct J as [J | J]; subst; auto.
-          apply in_singleton in J. eauto.
-Qed.
-
-(* from sb_ds_trans_lib *)
-Lemma ids2atoms__notin : forall a d, ~ In a d <-> a `notin` (ids2atoms d).
-Proof.
-  split; intros.
-    destruct (AtomSetProperties.In_dec a (ids2atoms d)); auto.
-      apply in_singleton in i0.
-      apply ids2atoms__in in i0. congruence.
-    destruct (in_dec eq_atom_dec a d); auto.
-      apply ids2atoms__in in i0.
-      apply in_singleton in i0. congruence.
-Qed.
-
-(* from sb_ds_trans_lib *)
-Lemma wf_value_id__in_getFdefLocs : forall S m f v t,
-  wf_value S m f v t -> getValueIDs v[<=]ids2atoms (getFdefLocs f).
-Proof.
-  intros.
-  inv H; simpl.
-    clear. fsetdec.
-
-    destruct f as [f b]. destruct f as [? ? ? a ?]. simpl in *.
-    apply ids2atoms__in.
-    destruct_match.
-      symmetry in HeqR.
-      destruct (In_dec eq_atom_dec id5 (getArgsIDs a)) as [Hin | Hnotin].
-        apply in_or_app. auto.
-
-        apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
-        congruence.
-      destruct (In_dec eq_atom_dec id5 (getBlocksLocs b)) as [Hin | Hnotin].
-        apply in_or_app. auto.
-
-        apply notInBlocks__lookupTypViaIDFromBlocks in Hnotin.
-        congruence.
-Qed.
-
-Lemma wf_value_id__in_getFdefLocs' : forall S m f v t,
-  wf_value S m f v t ->
-  match v with
-  | value_id vid => In vid (getFdefLocs f)
-  | _ => True
-  end.
-Proof.
-  intros.
-  destruct v; auto.
-  apply wf_value_id__in_getFdefLocs in H.
-  simpl in H.
-  apply ids2atoms__in in H; auto.
 Qed.
 
 Lemma original_values_arent_tmps: forall S m pinfo F B v instr

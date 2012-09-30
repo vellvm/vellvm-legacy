@@ -31,6 +31,8 @@ Require Import iter_pass_correct.
 Require Import pass_combinators.
 Require Import phielim_top.
 
+(* If elim_stld_cmds returns false, it does not change the processed function
+   and bookkeeping list. *)
 Lemma elim_stld_cmds_unchanged: forall f' dones' f cs0 pid dones,
   (f', false, dones') = elim_stld_cmds f cs0 pid dones ->
   f' = f /\ dones = dones'.
@@ -43,6 +45,9 @@ Proof.
     inv H; auto.
 Qed.
 
+(* elim_stld_cmds preserves CFG. 
+   elim_stld_cmds calls the primitives remove and subst, so the proof
+     uses the fact that the primitives preserve CFG. *)
 Lemma elim_stld_cmds_reachablity_successors: forall f cs0 f0
   dones0 dones id0 (Hpass : (f0, true, dones0) = elim_stld_cmds f cs0 id0 dones),
   reachablity_analysis f = reachablity_analysis f0 /\
@@ -67,6 +72,8 @@ Proof.
       split; auto.
 Qed.
 
+(* elim_stld_cmds preserves promotability. The proof needs that
+   LAA/LAS/SAS preserve promotability. *)
 Lemma elim_stld_cmds_wfPI: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
   bs1 l0 ps0 cs0 tmn0 bs2 Ps1 Ps2 (Hreach:  In l0 (PI_rd pinfo))
   (Hpass : (f0, true, dones0) =
@@ -101,6 +108,8 @@ Proof.
       instantiate_pinfo.
 Qed.
 
+(* elim_stld_cmds preserves safety. The proof needs that
+   LAA/LAS/SAS preserve safety. *)
 Lemma elim_stld_cmds_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
   main VarArgs bs1 l0 ps0 cs0 tmn0 bs2 Ps1 Ps2 (Hreach:  In l0 (PI_rd pinfo))
   (Hpass : (f0, true, dones0) =
@@ -154,6 +163,7 @@ match goal with
 | _ => solve_keep_pinfo
 end.
 
+(* The pipelined LAA/LAS/SAS passes are safe. *)
 Lemma elim_stld_sim_wfS_wfPI: forall f1 f2 Ps1 Ps2 los nts main
   VarArgs pid rd (pinfo:PhiInfo) (dones1 dones2:ElimStld.(effects))
   (Hpass: SafePrimIter.iterate _ (IterationPass.iter_step ElimStld pid rd)
@@ -177,9 +187,17 @@ Hint Unfold keep_pinfo.
 
 Section Macro_mem2reg_fdef_sim_wfS.
 
-Variable (Ps1 Ps2:products) (los:layouts) (nts:namedts) (main:id) 
-         (VarArgs:list (GVsT DGVs)) (f1:fdef).
+Variable 
+  (* The products before and after f1. These are not changed. *)
+  (Ps1 Ps2:products)            
+  (* The layouts and type tables of the module *)
+  (los:layouts) (nts:namedts)           
+  (* main entry and input arguments *) 
+  (main:id) (VarArgs:list (GVsT DGVs)) 
+  (* The original function to update. *)
+  (f1:fdef).
 
+(* Check if a function [f] preserves the properties of [f1]. *)
 Definition Pmm2r' :=
   fun (f:fdef) =>
        (program_sim [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
@@ -192,12 +210,21 @@ Definition Pmm2r' :=
        reachablity_analysis f1 = reachablity_analysis f /\
        successors f1 = successors f.
 
+(* The internal predicate used by macro_mem2reg_fdef_sim_wfS.
+   It also carries the list of visited alloca's. *)
 Definition Pmm2r :=
    fun (re:(fdef * list id)) => let '(f, _) := re in Pmm2r' f.
 
 Lemma Pmm2r'_Pmm2r: forall f ds, Pmm2r' f -> Pmm2r (f, ds).
 Proof. simpl. auto. Qed.
 
+(* The pipelined passes preserve well-formedness, 
+   definedness and semantics. The proof needs to show that 
+   phiplacement/LAA/LAS/SAS/DSE/DAE passes are safe respectively. 
+
+   For strengthening, we prove that the passes also preserve CFGs (reachability
+   and successors). All the passes except DAE preserve promotability.
+*)
 Lemma macro_mem2reg_fdef_sim_wfS: forall rd dones1 f2 dones2 
   (Hreach: ret rd = reachablity_analysis f1) S1 S2
   (Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
@@ -386,6 +413,10 @@ Qed.
 
 End Macro_mem2reg_fdef_sim_wfS.
 
+(* The function pass of mem2reg preserves well-formedness, definedness and 
+   semantics. The proof needs macro_mem2reg_fdef_sim_wfS---pipelined 
+   phiplacement/LAA/LAS/SAS/DSE/DAE are safe, and elimphi_sim_wfS---phinode 
+   elimination is safe. *)
 Lemma mem2reg_fdef_sim_wfS: forall (main : id) (VarArgs : list (GVsT DGVs))
   (los : layouts) (nts : namedts) (f : fdef) (Ps2 Ps1 : products) S1 S2
   (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
@@ -425,6 +456,9 @@ Proof.
     split; auto using program_sim_refl.
 Qed.
 
+(* mem2reg preserves well-formedness, definedness and semantics. 
+   The proof is by induction on the list of functions in the module.
+   The induction case uses mem2reg_fdef_sim_wfS. *) 
 Lemma mem2reg_run_sim_wfS_aux: forall (main : id) (VarArgs : list (GVsT DGVs))
   (los : layouts) (nts : namedts) (Ps2 Ps1: products) S1 S2
   (HwfS : wf_system S2)

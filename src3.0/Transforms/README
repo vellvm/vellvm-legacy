@@ -10,8 +10,8 @@ Section 2.
   1.3 s_converges in Vellvm/opsem.v
   1.4 s_diverges in Vellvm/opsem.v
   1.5 s_goeswrong in Vellvm/opsem.v
-  1.6 defined_program in Transforms/program_sim.v
-  1.7 program_sim in Transforms/program_sim.v 
+  1.6 defined_program in Vellvm/program_sim.v
+  1.7 program_sim in Vellvm/program_sim.v 
 
 Section 3.1
 
@@ -156,7 +156,7 @@ Section 5.4
 Contents
 
 * Program refinement
-  Transforms/program_sim.v
+  Vellvm/program_sim.v
 * Primitive and pipelined transformations
   Transforms/primitives.v
   Transforms/pass_combinators.v
@@ -165,7 +165,7 @@ Contents
 * vmem2reg
   Transforms/vmem2reg.v
 * Memory properties
-  Transforms/memory_props.v 
+  Vellvm/memory_props.v 
 * Promotability
   Transforms/palloca_props.v
   Transforms/promotable_props.v

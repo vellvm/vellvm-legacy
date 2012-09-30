@@ -723,7 +723,7 @@ Proof.
     next_insn.
       eapply Opsem.sLoad with (mp:=gvp2); eauto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (SB_ds_pass.getValueID vp[<=]
+          assert (getValueID' vp[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             assert (Hwfc := HBinF).
             destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
@@ -890,7 +890,7 @@ Proof.
     next_insn.
       eapply Opsem.sLoad with (mp:=gvp2); eauto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-        assert (SB_ds_pass.getValueID vp[<=]
+        assert (getValueID' vp[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             assert (Hwfc := HBinF).
             destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
@@ -1036,19 +1036,19 @@ Proof.
       inv Hwfc.
       eapply Opsem.sStore with (mp2:=gvp2)(gv1:=gv2); eauto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (SB_ds_pass.getValueID v[<=]
+          assert (getValueID' v[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             match goal with
-            | H12: wf_value _ _ _ ?v _ |- SB_ds_pass.getValueID ?v [<=] _ =>
+            | H12: wf_value _ _ _ ?v _ |- getValueID' ?v [<=] _ =>
               eapply wf_value_id__in_getFdefLocs in H12; auto
             end.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (SB_ds_pass.getValueID vp[<=]
+          assert (getValueID' vp[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             match goal with
-            | H12: wf_value _ _ _ ?v _ |- SB_ds_pass.getValueID ?v [<=] _ =>
+            | H12: wf_value _ _ _ ?v _ |- getValueID' ?v [<=] _ =>
               eapply wf_value_id__in_getFdefLocs in H12; auto
             end.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
@@ -1256,19 +1256,19 @@ Proof.
       inv Hwfc.
       eapply Opsem.sStore with (mp2:=gvp2)(gv1:=gv2); eauto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (SB_ds_pass.getValueID v[<=]
+          assert (getValueID' v[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             match goal with
-            | H12: wf_value _ _ _ ?v _ |- SB_ds_pass.getValueID ?v [<=] _ =>
+            | H12: wf_value _ _ _ ?v _ |- getValueID' ?v [<=] _ =>
               eapply wf_value_id__in_getFdefLocs in H12; auto
             end.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (SB_ds_pass.getValueID vp[<=]
+          assert (getValueID' vp[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             match goal with
-            | H12: wf_value _ _ _ ?v _ |- SB_ds_pass.getValueID ?v [<=] _ =>
+            | H12: wf_value _ _ _ ?v _ |- getValueID' ?v [<=] _ =>
               eapply wf_value_id__in_getFdefLocs in H12; auto
             end.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.

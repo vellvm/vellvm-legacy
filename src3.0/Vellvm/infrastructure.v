@@ -3073,4 +3073,30 @@ Inductive reflect (P:Prop) : bool -> Set :=
 | ReflectF : ~P -> reflect P false
 .
 
+(**********************************)
+(* get locs of a function *)
+
+Definition getValueID' (v:value) : atoms :=
+match v with
+| value_id id => {{id}}
+| value_const _ => {}
+end.
+
+Definition getFdefLocs fdef : ids :=
+match fdef with
+| fdef_intro (fheader_intro _ _ _ la _) bs => getArgsIDs la ++ getBlocksLocs bs
+end.
+
+Definition id_fresh_in_value v1 i2 : Prop :=
+match v1 with
+| value_id i1 => i1 <> i2
+| _ => True
+end.
+
+Fixpoint ids2atoms (ids0:ids) : atoms :=
+match ids0 with
+| nil => {}
+| id0::ids0' => {{id0}} `union` ids2atoms ids0'
+end.
+
 End LLVMinfra.

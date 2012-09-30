@@ -12,14 +12,6 @@ Require Import subst_sim.
 Require Import phielim_spec.
 Require Import phisubst_inv.
 
-Lemma remove_reachablity_successors: forall did f1,
-  reachablity_analysis f1 = reachablity_analysis (remove_fdef did f1) /\
-  successors f1 = successors (remove_fdef did f1).
-Proof.
-  intros.
-  split; eauto using remove_reachablity_analysis, remove_successors.
-Qed.
-
 Lemma eliminate_phi_true_simpl_spec: forall p f f'
   (Helim: (f', true) = eliminate_phi f p),
   f' = remove_fdef (getPhiNodeID p) f \/

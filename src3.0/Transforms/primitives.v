@@ -1820,6 +1820,68 @@ Proof.
       apply phinodeEqB_inv in J1. subst. auto.
 Qed.
 
+Lemma unused_in_cmds__unused_in_cmd': forall (pid id0 : id) (cs : cmds)
+  (c0 : cmd) (J1 : InCmdsB c0 cs)
+  (J2 : fold_left
+          (fun acc0 c =>
+           if used_in_cmd pid c then
+             match c with
+             | insn_load _ _ _ _ => acc0
+             | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && acc0
+             | _ => false
+             end
+           else acc0) cs true = true),
+  match c0 with
+  | insn_load _ _ _ _ => True
+  | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid))
+  | _ => used_in_cmd pid c0 = false
+  end.
+Proof.
+  induction cs; simpl; intros.
+    congruence.
+
+    assert (
+      fold_left
+        (fun acc0 c =>
+         if used_in_cmd pid c then
+           match c with
+           | insn_load _ _ _ _ => acc0
+           | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && acc0
+           | _ => false
+           end
+         else acc0) cs true = true /\
+      (if used_in_cmd pid a then
+         match a with
+         | insn_load _ _ _ _ => true
+         | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && true
+         | _ => false
+         end
+       else true) = true) as J3.
+      apply fold_left_and_true; auto.
+        apply used_in_cmd_fun_spec.
+
+    destruct J3 as [J3 J4]. clear J2.
+    apply orb_true_iff in J1.
+    destruct J1 as [J1 | J1].
+      clear IHcs J3.
+      apply cmdEqB_inv in J1. subst.
+      remember (used_in_cmd pid a) as R.
+      destruct R.
+        destruct a; auto.
+          apply andb_true_iff in J4.
+          destruct J4; auto.
+
+        destruct a; auto.
+          simpl in *.
+          symmetry in HeqR.
+          apply orb_false_iff in HeqR.
+          destruct HeqR.
+          apply unused_in_value__neg_valueEqB; auto.
+
+      clear J4.
+      eapply IHcs in J3; eauto.
+Qed.
+
 Definition transf_from_module (transf:fdef -> fdef) (m:module) :=
 let '(module_intro los nts ps) := m in
 module_intro los nts

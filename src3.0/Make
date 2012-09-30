@@ -78,6 +78,8 @@
 ./Vellvm/util.v
 ./Vellvm/vellvm_tactics.v
 ./Vellvm/vellvm.v
+./Vellvm/memory_props.v
+./Vellvm/program_sim.v
 
 ./SoftBound/sb_def.v
 ./SoftBound/sb_ds_sim.v
@@ -124,8 +126,9 @@
 ./Transforms/phiplacement_bsim_wfS.v
 ./Transforms/phiplacement_bsim.v
 ./Transforms/phiplacement_bsim_top.v
-./Transforms/memory_props.v
 ./Transforms/palloca_props.v
+./Transforms/partitioning.v
+./Transforms/alive_mop.v
 ./Transforms/alive_store.v
 ./Transforms/las.v
 ./Transforms/las_top.v
@@ -149,9 +152,6 @@
 ./Transforms/die_top.v
 ./Transforms/die_wfS.v
 ./Transforms/vmem2reg_correct.v
-./Transforms/vmem2reg_opt_compose_props.v
-./Transforms/vmem2reg_opt_correct.v
-./Transforms/program_sim.v
 ./Transforms/subst.v
 ./Transforms/subst_inv.v
 ./Transforms/subst_sim.v

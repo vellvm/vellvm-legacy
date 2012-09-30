@@ -3206,3 +3206,41 @@ Proof.
   unfold XATree.successors_list in J.
   rewrite <- HeqR3 in J. auto.
 Qed.
+
+(****************************************************)
+Lemma wf_value_id__in_getFdefLocs : forall S m f v t,
+  wf_value S m f v t -> getValueID' v[<=]ids2atoms (getFdefLocs f).
+Proof.
+  intros.
+  inv H; simpl.
+    clear. fsetdec.
+
+    destruct f as [f b]. destruct f as [? ? ? a ?]. simpl in *.
+    apply ids2atoms__in.
+    destruct_match.
+      destruct (In_dec eq_atom_dec id5 (getArgsIDs a)) as [Hin | Hnotin].
+        apply in_or_app. auto.
+
+        apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
+        congruence.
+      destruct (In_dec eq_atom_dec id5 (getBlocksLocs b)) as [Hin | Hnotin].
+        apply in_or_app. auto.
+
+        apply notInBlocks__lookupTypViaIDFromBlocks in Hnotin.
+        congruence.
+Qed.
+
+Lemma wf_value_id__in_getFdefLocs' : forall S m f v t,
+  wf_value S m f v t ->
+  match v with
+  | value_id vid => In vid (getFdefLocs f)
+  | _ => True
+  end.
+Proof.
+  intros.
+  destruct v; auto.
+  apply wf_value_id__in_getFdefLocs in H.
+  simpl in H.
+  apply ids2atoms__in in H; auto.
+Qed.
+

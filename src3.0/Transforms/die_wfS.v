@@ -94,6 +94,14 @@ Proof.
   eapply filter_reachablity_analysis; eauto.
 Qed.
 
+Lemma remove_reachablity_successors: forall did f1,
+  reachablity_analysis f1 = reachablity_analysis (remove_fdef did f1) /\
+  successors f1 = successors (remove_fdef did f1).
+Proof.
+  intros.
+  split; eauto using remove_reachablity_analysis, remove_successors.
+Qed.
+
 Lemma remove_subst_reachablity_successors : forall i2 i1 v1 f,
   reachablity_analysis f =
     reachablity_analysis (remove_fdef i2 (subst_fdef i1 v1 f)) /\

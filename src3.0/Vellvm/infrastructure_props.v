@@ -5733,3 +5733,114 @@ match goal with
   destruct (productInModuleB_dec p1 p2); try congruence
 end.
 
+(*****************************************************)
+Lemma getPhiNodeID_in_getFdefLocs : forall f1 l0 ps p cs tmn,
+  blockInFdefB (l0, stmts_intro ps cs tmn) f1 = true ->
+  In p ps ->
+  In (getPhiNodeID p) (getFdefLocs f1).
+Proof.
+  intros.
+  destruct f1 as [f ?]. destruct f. simpl.
+  apply in_or_app. right.
+  eapply in_getStmtsLocs__in_getBlocksLocs in H; eauto.
+  simpl.
+  apply in_or_app. left.
+  apply in_getPhiNodeID__in_getPhiNodesIDs; auto.
+Qed.
+
+Lemma in_singleton : forall a d, singleton a [<=] d <-> a `in` d.
+Proof.
+  intros.
+  unfold AtomSetImpl.Subset.
+  split; intros; eauto.
+    assert (a0 = a) as EQ. fsetdec.
+    subst. auto.
+Qed.
+
+Lemma ids2atoms__in : forall a d, In a d <-> singleton a [<=] (ids2atoms d).
+Proof.
+  induction d; simpl.
+    split; intros.
+      inv H.
+
+      apply in_singleton in H.
+      fsetdec.
+    destruct IHd as [J1 J2].
+    split; intros.
+      destruct H as [H | H]; subst.
+        fsetdec.
+        apply J1 in H. fsetdec.
+        assert (a = a0 \/ a `in` (ids2atoms d)) as J.
+          fsetdec.
+        destruct J as [J | J]; subst; auto.
+          apply in_singleton in J. eauto.
+Qed.
+
+Lemma ids2atoms__notin : forall a d, ~ In a d <-> a `notin` (ids2atoms d).
+Proof.
+  split; intros.
+    destruct (AtomSetProperties.In_dec a (ids2atoms d)); auto.
+      apply in_singleton in i0.
+      apply ids2atoms__in in i0. congruence.
+    destruct (in_dec eq_atom_dec a d); auto.
+      apply ids2atoms__in in i0.
+      apply in_singleton in i0. congruence.
+Qed.
+
+Lemma incl_nil : forall A (d:list A), incl nil d.
+Proof. intros. intros x J. inv J. Qed.
+
+Lemma ids2atoms__inc : forall d1 d2,
+  incl d1 d2 <-> ids2atoms d1 [<=] ids2atoms d2.
+Proof.
+  intros.
+  split; intros.
+    induction d1; simpl.
+      fsetdec.
+      simpl_env in H.
+      assert (H':=H).
+      apply AtomSet.incl_app_invr in H.
+      apply AtomSet.incl_app_invl in H'.
+      apply IHd1 in H.
+      assert (In a [a]) as Hin. simpl. auto.
+      apply H' in Hin.
+      apply ids2atoms__in in Hin.
+      fsetdec.
+    induction d1; simpl in *; auto using incl_nil.
+      intros x J.
+      simpl in J.
+      destruct J as [J | J]; subst.
+      apply ids2atoms__in. fsetdec.
+
+      revert J. revert x.
+      apply IHd1. fsetdec.
+Qed.
+
+Lemma ids2atoms_app : forall d1 d2,
+  ids2atoms (d1++d2) [=] ids2atoms d1 `union` ids2atoms d2.
+Proof.
+  induction d1; intros; simpl.
+    fsetdec.
+    rewrite IHd1. fsetdec.
+Qed.
+
+Lemma getCmdID_in_getFdefLocs : forall B f1 c cs tmn2 id0
+  (HBinF : blockInFdefB B f1 = true)
+  (Heqb1 : exists l1, exists ps1, exists cs11,
+                B = (l1, stmts_intro ps1 (cs11 ++ c :: cs) tmn2))
+  (Hget : getCmdID c = Some id0),
+  In id0 (getFdefLocs f1).
+Proof.
+  intros.
+  destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
+  destruct f1 as [f ?]. destruct f as [? ? ? a ?]. simpl.
+  destruct (split a).
+  apply in_or_app. right.
+  eapply in_getStmtsLocs__in_getBlocksLocs in HBinF; eauto.
+  simpl.
+  apply in_or_app. right.
+  apply in_or_app. left.
+  apply getCmdID_in_getCmdsLocs with (c:=c); auto.
+  apply in_or_app. simpl. auto.
+Qed.
+

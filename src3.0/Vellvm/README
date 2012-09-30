@@ -1,0 +1,72 @@
+
+analysis.v               : Domination/reachability analysis
+
+datatype_base.v          : Primitive data type used by syntax_base.ott
+
+dopsem.v                 : A deterministic instance of Opsem.
+
+events.v                 : Events and traces.
+
+external_intrinsics.v    : The semantics of external functions and intrinsics.
+
+genericvalues.v          : Representations of run-time values used in the
+  operational semantics, and the LLVM memory model, which is actually a wrapper of
+  the CompCert memory model, with conversion between LLVM datatypes and datatypes
+  that CompCert memory model can handle.
+
+genericvalues_inject.v   : Simulation between generic values.
+
+genericvalues_props.v    : Other properties of generic values.
+
+infrastructure.v         : Operations over LLVM IR, such as, returning types and
+  operands of an instruction, classifying instructions, traversing functions,
+  checking if an instruction  dominates others, building explicit CFGs, ...
+
+infrastructure_props.v   : Equivalence over types, instructions, and other
+  components, uniqueness of IDs, inclusion between functions and modules, ...
+
+interpreter.v            : An interpreter that is consistent with small-step
+  deterministic operational semantics. 
+
+memory_props.v           : More memory properties than Vellvm/compcert
+
+memory_sim.v             : More memory simulation relations than Vellvm/compcert
+
+ndopsem.v                : A non-deterministic instance of Opsem.
+
+opsem.v                  : A generic semantics (small-step/big-step) that can be
+  instantiated as either a deterministic version or a non-deterministic version.
+
+opsem_dom.v              : Dynamic properties for SSA
+
+opsem_inst.v             : Deterministic instances are included by
+  non-deterministic instances.
+
+opsem_props.v            : Other properties of operational semantics
+
+opsem_wf.v               : Progress and preservation of operational semantics
+
+program_sim.v            : Program refinement
+
+static.v                 : The main lib of typing rules and properties
+
+syntax.v                 : The main lib of syntax definitions
+
+syntax_base.ott          : The definitions of LLVM IR in Ott
+
+targetdata.v	         : Calculating bitsize, alignment, padding information
+  in terms of user-defined data layout in IR.
+
+targetdata_props.v       : Properties of data layout
+
+typing_rules.ott         : LLVM IR typings
+
+typings.v                : The main lib of typing rules.
+
+typings_props.v          : Properties of typing rules.
+
+util.v                   : Facts of lists
+
+vellvm.v                 : The main lib of the Vellvm formalization.
+
+vellvm_tactics.v         : Tacticals

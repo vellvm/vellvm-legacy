@@ -785,74 +785,6 @@ Proof.
   apply ids2atoms_dom; auto.
 Qed.
 
-Lemma in_singleton : forall a d, singleton a [<=] d <-> a `in` d.
-Proof.
-  intros.
-  unfold AtomSetImpl.Subset.
-  split; intros; eauto.
-    assert (a0 = a) as EQ. fsetdec.
-    subst. auto.
-Qed.
-
-Lemma ids2atoms__in : forall a d, In a d <-> singleton a [<=] (ids2atoms d).
-Proof.
-  induction d; simpl.
-    split; intros.
-      inv H.
-
-      apply in_singleton in H.
-      fsetdec.
-    destruct IHd as [J1 J2].
-    split; intros.
-      destruct H as [H | H]; subst.
-        fsetdec.
-        apply J1 in H. fsetdec.
-        assert (a = a0 \/ a `in` (ids2atoms d)) as J.
-          fsetdec.
-        destruct J as [J | J]; subst; auto.
-          apply in_singleton in J. eauto.
-Qed.
-
-Lemma ids2atoms__notin : forall a d, ~ In a d <-> a `notin` (ids2atoms d).
-Proof.
-  split; intros.
-    destruct (AtomSetProperties.In_dec a (ids2atoms d)); auto.
-      apply in_singleton in i0.
-      apply ids2atoms__in in i0. congruence.
-    destruct (in_dec eq_atom_dec a d); auto.
-      apply ids2atoms__in in i0.
-      apply in_singleton in i0. congruence.
-Qed.
-
-Lemma incl_nil : forall A (d:list A), incl nil d.
-Proof. intros. intros x J. inv J. Qed.
-
-Lemma ids2atoms__inc : forall d1 d2,
-  incl d1 d2 <-> ids2atoms d1 [<=] ids2atoms d2.
-Proof.
-  intros.
-  split; intros.
-    induction d1; simpl.
-      fsetdec.
-      simpl_env in H.
-      assert (H':=H).
-      apply AtomSet.incl_app_invr in H.
-      apply AtomSet.incl_app_invl in H'.
-      apply IHd1 in H.
-      assert (In a [a]) as Hin. simpl. auto.
-      apply H' in Hin.
-      apply ids2atoms__in in Hin.
-      fsetdec.
-    induction d1; simpl in *; auto using incl_nil.
-      intros x J.
-      simpl in J.
-      destruct J as [J | J]; subst.
-      apply ids2atoms__in. fsetdec.
-
-      revert J. revert x.
-      apply IHd1. fsetdec.
-Qed.
-
 Lemma gen_metadata_id_spec : forall (ex_ids1 ex_ids0 : ids) i0 rm1
   (Hin : i0 `in` ids2atoms ex_ids0)
   (H1 : ids2atoms ex_ids0[<=]ids2atoms ex_ids1)
@@ -1699,7 +1631,7 @@ Qed.
 
 Lemma get_reg_metadata_fresh' : forall nts vp rm2 ex_ids3 f1
   (Hgenmd : gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids3,rm2))
-  (Hnotin : (getValueID vp) [<=] ids2atoms ((getFdefLocs f1)))
+  (Hnotin : (getValueID' vp) [<=] ids2atoms ((getFdefLocs f1)))
   (ptmp : id)
   (ex_ids1 ex_ids: ids)
   (Hinc : incl ex_ids3 ex_ids)
@@ -2470,20 +2402,6 @@ Proof.
       eapply reg_simulation__updateAddAL_lc; eauto.
 Qed.
 
-Lemma getPhiNodeID_in_getFdefLocs : forall f1 l0 ps p cs tmn,
-  blockInFdefB (l0, stmts_intro ps cs tmn) f1 = true ->
-  In p ps ->
-  In (getPhiNodeID p) (getFdefLocs f1).
-Proof.
-  intros.
-  destruct f1 as [f ?]. destruct f. simpl.
-  apply in_or_app. right.
-  eapply in_getStmtsLocs__in_getBlocksLocs in H; eauto.
-  simpl.
-  apply in_or_app. left.
-  apply in_getPhiNodeID__in_getPhiNodesIDs; auto.
-Qed.
-
 Lemma getIncomingValues_in_dom_aux : forall l0 cs1 tmn f1 TD B1 gl ps2 ps1 lc1
     rm1 re1,
   blockInFdefB (l0, stmts_intro (ps1++ps2) cs1 tmn) f1 = true ->
@@ -2560,53 +2478,4 @@ Proof.
     eapply updateValuesForNewBlock__reg_simulation in H0; eauto.
 Qed.
 
-Lemma getCmdID_in_getFdefLocs : forall B f1 c cs tmn2 id0
-  (HBinF : blockInFdefB B f1 = true)
-  (Heqb1 : exists l1, exists ps1, exists cs11,
-                B = (l1, stmts_intro ps1 (cs11 ++ c :: cs) tmn2))
-  (Hget : getCmdID c = Some id0),
-  In id0 (getFdefLocs f1).
-Proof.
-  intros.
-  destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
-  destruct f1 as [f ?]. destruct f as [? ? ? a ?]. simpl.
-  destruct (split a).
-  apply in_or_app. right.
-  eapply in_getStmtsLocs__in_getBlocksLocs in HBinF; eauto.
-  simpl.
-  apply in_or_app. right.
-  apply in_or_app. left.
-  apply getCmdID_in_getCmdsLocs with (c:=c); auto.
-  apply in_or_app. simpl. auto.
-Qed.
-
-Lemma ids2atoms_app : forall d1 d2,
-  ids2atoms (d1++d2) [=] ids2atoms d1 `union` ids2atoms d2.
-Proof.
-  induction d1; intros; simpl.
-    fsetdec.
-    rewrite IHd1. fsetdec.
-Qed.
-
-Lemma wf_value_id__in_getFdefLocs : forall S m f v t,
-  wf_value S m f v t -> SB_ds_pass.getValueID v[<=]ids2atoms (getFdefLocs f).
-Proof.
-  intros.
-  inv H; simpl.
-    clear. fsetdec.
-
-    destruct f as [f b]. destruct f as [? ? ? a ?]. simpl in *.
-    apply ids2atoms__in.
-    destruct_match.
-      destruct (In_dec eq_atom_dec id5 (getArgsIDs a)) as [Hin | Hnotin].
-        apply in_or_app. auto.
-
-        apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
-        congruence.
-      destruct (In_dec eq_atom_dec id5 (getBlocksLocs b)) as [Hin | Hnotin].
-        apply in_or_app. auto.
-
-        apply notInBlocks__lookupTypViaIDFromBlocks in Hnotin.
-        congruence.
-Qed.
 

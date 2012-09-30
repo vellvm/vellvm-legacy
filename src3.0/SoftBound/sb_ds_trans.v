@@ -172,11 +172,6 @@ end.
 
 Definition rmap := list (id*(id*id)).
 
-Definition getFdefLocs fdef : ids :=
-match fdef with
-| fdef_intro (fheader_intro _ _ _ la _) bs => getArgsIDs la ++ getBlocksLocs bs
-end.
-
 Definition gen_metadata_id (ex_ids:ids) (rm:rmap) (id0:id)
   : id * id * ids * rmap :=
 let '(exist b _) := AtomImpl.atom_fresh_for_list ex_ids in
@@ -701,24 +696,6 @@ match ms with
 end.
 
 (* Freshness *)
-
-Definition getValueID (v:value) : atoms :=
-match v with
-| value_id id => {{id}}
-| value_const _ => {}
-end.
-
-Definition id_fresh_in_value v1 i2 : Prop :=
-match v1 with
-| value_id i1 => i1 <> i2
-| _ => True
-end.
-
-Fixpoint ids2atoms (ids0:ids) : atoms :=
-match ids0 with
-| nil => {}
-| id0::ids0' => {{id0}} `union` ids2atoms ids0'
-end.
 
 Fixpoint codom (rm:rmap) : atoms :=
 match rm with

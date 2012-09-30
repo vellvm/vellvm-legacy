@@ -2,7 +2,6 @@ Require Import vellvm.
 Require Import opsem_props.
 Require Import memory_sim.
 Require Import memory_props.
-Require Import trans_tactic.
 
 Definition undefined_program (P:system) (main:id) (VarArgs:list (GVsT DGVs)) :=
   exists tr, exists St, Opsem.s_goeswrong P main VarArgs tr St.

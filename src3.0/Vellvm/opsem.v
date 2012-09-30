@@ -1403,4 +1403,25 @@ Tactic Notation "sop_star_cases" tactic(first) tactic(c) :=
   first;
   [ c "sop_star_nil" | c "sop_star_cons" ].
 
+Ltac simpl_s_genInitState :=
+  match goal with
+  | Hinit: Opsem.s_genInitState _ _ _ _ = _ |- _ =>
+    unfold Opsem.s_genInitState in Hinit;
+    inv_mbind'
+  end;
+  match goal with
+  | m : module |- _ =>
+    destruct m as [CurLayouts CurNamedts CurProducts];
+    inv_mbind'
+  end;
+  match goal with
+  | H: ret (_, ?s0) = getEntryBlock ?f |- _ =>
+    destruct s0 as [ps0 cs0 tmn0];
+    destruct f as [[f t i0 a v] b];
+    inv_mbind'
+  end;
+  try repeat match goal with
+  | H: ret _ = ret _ |- _ => inv H
+  end;
+  symmetry_ctx.
 
