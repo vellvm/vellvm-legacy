@@ -21,6 +21,8 @@ Require Import partitioning.
    See the comments in alive_store.
 *)
 
+(***************************************************************************)
+(* Define laa by partitioning *)
 Definition laa (lid: id) (lalign:align) (cs2:cmds) (b:block) (pinfo:PhiInfo) 
   : Prop :=
 partitioning 
@@ -53,6 +55,8 @@ match goal with
                        [LAA_l0 [LAA_ps0 LAA_cs0 LAA_tmn0]] LAA_prop0]; simpl
 end.
 
+(***************************************************************************)
+(* Instantiate properties of partitioning to LAA *)
 Lemma lookup_LAA_lid__load: forall pinfo laainfo
   (Huniq: uniqFdef (PI_f pinfo)),
   lookupInsnViaIDFromFdef (PI_f pinfo) (LAA_lid pinfo laainfo) =
@@ -180,6 +184,8 @@ Proof.
   inv H. auto.
 Qed.
 
+(***************************************************************************)
+(* Prove that LAA implies vev_State used by subst_inv.  *)
 Lemma laa__alive_alloca__vev_EC: forall pinfo laainfo los nts M gl ps ec s 
   (Hwfs: wf_system s) (Hwfg: wf_global (los,nts) s gl) (Hwfpi: WF_PhiInfo pinfo)
   (HmInS: moduleInSystemB (module_intro los nts ps) s = true)
@@ -323,7 +329,7 @@ Proof.
     eapply G in G2; eauto.
 Qed.
 
-(* it is same to laa's *)
+(* it is same to las's *)
 Lemma laa__alive_alloca__vev_ECStack: forall pinfo laainfo los nts M gl ps s
   (Hwfs: wf_system s) stinfo Hp (Hwfg: wf_global (los,nts) s gl)
   (HmInS: moduleInSystemB (module_intro los nts ps) s = true)
@@ -340,7 +346,7 @@ Proof.
       eapply laa__alive_alloca__vev_EC; eauto.
 Qed.
 
-(* it is same to laa's *)
+(* it is same to las's *)
 Lemma laa__alive_alloca__vev: forall pinfo laainfo cfg S
   (Hwfcfg: OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S) stinfo Hp
   (Hlas2st : exist _ stinfo Hp = laainfo__alinfo pinfo laainfo)

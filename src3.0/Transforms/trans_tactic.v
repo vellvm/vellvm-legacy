@@ -1,7 +1,5 @@
 Require Import vellvm.
 
-Ltac unfold_blk2GV := unfold blk2GV, ptr2GV, val2GV.
-
 (* copied from SB *)
 Lemma cmds_at_block_tail_next : forall B c cs tmn2,
   (exists l1:l, exists ps1, exists cs11, B =
@@ -16,4 +14,28 @@ Qed.
 Ltac repeat_solve :=
   repeat (split; eauto 2 using cmds_at_block_tail_next).
 
+
+Ltac fill_holes_in_ctx :=
+let fill e H :=
+  match goal with
+  | H1: _ = e |- _ => rewrite <- H1 in H
+  | H1: e = _ |- _ => rewrite H1 in H
+  end
+in
+repeat match goal with
+| H: match ?e with
+     | Some _ => _
+     | None => _
+     end |- _ => fill e H
+| H: match ?e with
+     | inl _ => _
+     | inr _ => _
+     end |- _ => fill e H
+| H: match ?e with
+     | (_,_) => _
+     end = _ |- _ => fill e H
+| H: _ = match ?e with
+     | (_,_) => _
+     end |- _ => fill e H
+end.
 

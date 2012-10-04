@@ -45,6 +45,8 @@ Require Import partitioning.
    promotable's. See the comments in alive_store
  *)
 
+(***************************************************************************)
+(* Define las by partitioning *)
 Definition las (lid sid: id) (lalign salign: align) (v:value) (cs2:cmds) 
   (b:block) (pinfo:PhiInfo) : Prop :=
 partitioning 
@@ -81,6 +83,9 @@ match goal with
                        LAS_tail0 [LAS_l0 [LAS_ps0 LAS_cs0 LAS_tmn0]] LAS_prop0];
   simpl
 end.
+
+(***************************************************************************)
+(* Instantiate properties of partitioning to LAS *)
 
 Lemma lookup_LAS_lid__load: forall pinfo lasinfo
   (Huniq: uniqFdef (PI_f pinfo)),
@@ -386,6 +391,85 @@ Proof.
   inv H. auto.
 Qed.
 
+Lemma LAS_block__reachable': forall (pinfo : PhiInfo) (lasinfo : LASInfo pinfo)
+  (Huniq : uniqFdef (PI_f pinfo))
+  (Hreach: id_in_reachable_block (PI_f pinfo) (LAS_lid pinfo lasinfo)),
+  isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo).
+Proof.
+  intros. apply Hreach. apply lookup_LAS_lid__LAS_block; auto.
+Qed.
+
+(***************************************************************************)
+(* Prove that LAS implies vev_State used by subst_inv.  *)
+
+Lemma LAS_value_doms_LAS_lid__lid_in_tmn_scope____LAS_value_inscope: forall
+  (s : system) (pinfo : PhiInfo) (lasinfo : LASInfo pinfo) (tmn : terminator)
+  (l1 : l) (ps1 : phinodes) (cs1 : list cmd) (l0 : list atom) m
+  (HwfF : wf_fdef s m (PI_f pinfo))
+  (Huniq : uniqFdef (PI_f pinfo))
+  (Hreach : isReachableFromEntry (PI_f pinfo) (l1, stmts_intro ps1 cs1 tmn))
+  (Hreach': isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo))
+  (HbInF : blockInFdefB (l1, stmts_intro ps1 cs1 tmn) (PI_f pinfo) = true)
+  (HeqR : ret l0 =
+          inscope_of_tmn (PI_f pinfo) (l1, stmts_intro ps1 cs1 tmn) tmn)
+  (Hin : In (LAS_lid pinfo lasinfo) l0),
+  value_in_scope (LAS_value pinfo lasinfo) l0.
+Proof.
+  intros.
+  assert (Hdom:=HwfF).
+  apply LAS_value__dominates__LAS_lid with (lasinfo:=lasinfo) in Hdom; auto.
+  assert (Hsval:=@LAS_value__exists pinfo lasinfo _ _ HwfF Huniq).
+  destruct (LAS_value pinfo lasinfo); auto.
+  simpl in Hdom. symmetry in HeqR.
+  destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst; auto.
+    eapply in_getArgsIDsOfFdef__inscope_of_tmn; eauto.
+
+    assert (idDominates (PI_f pinfo) id5 (LAS_lid pinfo lasinfo)) as Hidom.
+      apply Hdom. apply LAS_block__reachable; auto.
+    eapply idDominates_inscope_of_tmn__inscope_of_tmn
+        with (instr0:=insn_cmd 
+               (insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
+                  (value_id (PI_id pinfo)) (LAS_lalign pinfo lasinfo))) 
+      in HeqR; eauto 1.
+      symmetry. apply lookup_LAS_lid__load; auto.
+Qed.
+
+Lemma LAS_value_doms_LAS_lid__lid_in_cmd_scope____LAS_value_inscope: forall
+  (s : system) (pinfo : PhiInfo) (lasinfo : LASInfo pinfo) (tmn : terminator)
+  (l1 : l) (ps1 : phinodes) (cs1 : list cmd) (cs : list cmd) (c : cmd) m
+  (l0 : list atom) (HwfF : wf_fdef s m (PI_f pinfo)) 
+  (Huniq : uniqFdef (PI_f pinfo))
+  (Hreach : isReachableFromEntry (PI_f pinfo)
+             (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn))
+  (Hreach': isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo))
+  (HbInF : blockInFdefB (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) (PI_f pinfo) =
+           true)
+  (HeqR : ret l0 =
+         inscope_of_cmd (PI_f pinfo)
+           (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) c)
+  (Hin : In (LAS_lid pinfo lasinfo) l0),
+  value_in_scope (LAS_value pinfo lasinfo) l0.
+Proof.
+  intros.
+  assert (Hdom:=HwfF).
+  apply LAS_value__dominates__LAS_lid with (lasinfo:=lasinfo) in Hdom; auto.
+  assert (Hsval:=@LAS_value__exists pinfo lasinfo _ _ HwfF Huniq).
+  destruct (LAS_value pinfo lasinfo); auto.
+  simpl in Hdom. symmetry in HeqR.
+  destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst; auto.
+    eapply in_getArgsIDsOfFdef__inscope_of_cmd; eauto.
+
+    assert (idDominates (PI_f pinfo) id5 (LAS_lid pinfo lasinfo)) as Hidom.
+      apply Hdom. apply LAS_block__reachable; auto.
+    eapply idDominates_inscope_of_cmd__inscope_of_cmd 
+      with (c:=c)
+           (instr0:=insn_cmd (insn_load (LAS_lid pinfo lasinfo) 
+             (PI_typ pinfo) (value_id (PI_id pinfo)) 
+             (LAS_lalign pinfo lasinfo))) in HeqR; 
+      eauto 1.
+      symmetry. apply lookup_LAS_lid__load; auto.
+Qed.
+
 Lemma las__alive_store__vev_EC: forall pinfo lasinfo los nts M gl ps ec s 
   (Hwfs: wf_system s)
   (HmInS: moduleInSystemB (module_intro los nts ps) s = true)
@@ -551,81 +635,5 @@ Proof.
   unfold alive_store.wf_State in H.
   simpl in H. simpl.
   eapply las__alive_store__vev_ECStack; eauto.
-Qed.
-
-Lemma LAS_value_doms_LAS_lid__lid_in_tmn_scope____LAS_value_inscope: forall
-  (s : system) (pinfo : PhiInfo) (lasinfo : LASInfo pinfo) (tmn : terminator)
-  (l1 : l) (ps1 : phinodes) (cs1 : list cmd) (l0 : list atom) m
-  (HwfF : wf_fdef s m (PI_f pinfo))
-  (Huniq : uniqFdef (PI_f pinfo))
-  (Hreach : isReachableFromEntry (PI_f pinfo) (l1, stmts_intro ps1 cs1 tmn))
-  (Hreach': isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo))
-  (HbInF : blockInFdefB (l1, stmts_intro ps1 cs1 tmn) (PI_f pinfo) = true)
-  (HeqR : ret l0 =
-          inscope_of_tmn (PI_f pinfo) (l1, stmts_intro ps1 cs1 tmn) tmn)
-  (Hin : In (LAS_lid pinfo lasinfo) l0),
-  value_in_scope (LAS_value pinfo lasinfo) l0.
-Proof.
-  intros.
-  assert (Hdom:=HwfF).
-  apply LAS_value__dominates__LAS_lid with (lasinfo:=lasinfo) in Hdom; auto.
-  assert (Hsval:=@LAS_value__exists pinfo lasinfo _ _ HwfF Huniq).
-  destruct (LAS_value pinfo lasinfo); auto.
-  simpl in Hdom. symmetry in HeqR.
-  destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst; auto.
-    eapply in_getArgsIDsOfFdef__inscope_of_tmn; eauto.
-
-    assert (idDominates (PI_f pinfo) id5 (LAS_lid pinfo lasinfo)) as Hidom.
-      apply Hdom. apply LAS_block__reachable; auto.
-    eapply idDominates_inscope_of_tmn__inscope_of_tmn
-        with (instr0:=insn_cmd 
-               (insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
-                  (value_id (PI_id pinfo)) (LAS_lalign pinfo lasinfo))) 
-      in HeqR; eauto 1.
-      symmetry. apply lookup_LAS_lid__load; auto.
-Qed.
-
-Lemma LAS_block__reachable': forall (pinfo : PhiInfo) (lasinfo : LASInfo pinfo)
-  (Huniq : uniqFdef (PI_f pinfo))
-  (Hreach: id_in_reachable_block (PI_f pinfo) (LAS_lid pinfo lasinfo)),
-  isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo).
-Proof.
-  intros. apply Hreach. apply lookup_LAS_lid__LAS_block; auto.
-Qed.
-
-Lemma LAS_value_doms_LAS_lid__lid_in_cmd_scope____LAS_value_inscope: forall
-  (s : system) (pinfo : PhiInfo) (lasinfo : LASInfo pinfo) (tmn : terminator)
-  (l1 : l) (ps1 : phinodes) (cs1 : list cmd) (cs : list cmd) (c : cmd) m
-  (l0 : list atom) (HwfF : wf_fdef s m (PI_f pinfo)) 
-  (Huniq : uniqFdef (PI_f pinfo))
-  (Hreach : isReachableFromEntry (PI_f pinfo)
-             (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn))
-  (Hreach': isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo))
-  (HbInF : blockInFdefB (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) (PI_f pinfo) =
-           true)
-  (HeqR : ret l0 =
-         inscope_of_cmd (PI_f pinfo)
-           (l1, stmts_intro ps1 (cs1 ++ c :: cs) tmn) c)
-  (Hin : In (LAS_lid pinfo lasinfo) l0),
-  value_in_scope (LAS_value pinfo lasinfo) l0.
-Proof.
-  intros.
-  assert (Hdom:=HwfF).
-  apply LAS_value__dominates__LAS_lid with (lasinfo:=lasinfo) in Hdom; auto.
-  assert (Hsval:=@LAS_value__exists pinfo lasinfo _ _ HwfF Huniq).
-  destruct (LAS_value pinfo lasinfo); auto.
-  simpl in Hdom. symmetry in HeqR.
-  destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst; auto.
-    eapply in_getArgsIDsOfFdef__inscope_of_cmd; eauto.
-
-    assert (idDominates (PI_f pinfo) id5 (LAS_lid pinfo lasinfo)) as Hidom.
-      apply Hdom. apply LAS_block__reachable; auto.
-    eapply idDominates_inscope_of_cmd__inscope_of_cmd 
-      with (c:=c)
-           (instr0:=insn_cmd (insn_load (LAS_lid pinfo lasinfo) 
-             (PI_typ pinfo) (value_id (PI_id pinfo)) 
-             (LAS_lalign pinfo lasinfo))) in HeqR; 
-      eauto 1.
-      symmetry. apply lookup_LAS_lid__load; auto.
 Qed.
 

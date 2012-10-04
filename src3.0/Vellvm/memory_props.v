@@ -1,6 +1,19 @@
 Require Import vellvm.
 Require Import memory_sim.
 
+Ltac unfold_blk2GV := unfold blk2GV, ptr2GV, val2GV.
+
+Lemma simpl_blk2GV: forall td mb t,
+  $ blk2GV td mb # typ_pointer t $ =
+  ((Vptr mb (Int.repr 31 0),
+    AST.Mint (Size.mul Size.Eight (getPointerSize td) - 1)) :: nil).
+Proof.
+  intros. unfold_blk2GV.
+Local Transparent gv2gvs.
+  unfold gv2gvs. simpl. auto.
+Opaque gv2gvs.
+Qed.
+
 Module MemProps.
 
 (* wf_global and wf_globals are copied from sb_ds_gv_inject.v
@@ -1222,6 +1235,42 @@ Proof.
   eapply mstore_aux_preserves_mload_aux'; eauto.
 Qed.
 
+(* We assume alignment is correct. *)
+Axiom align_is_always_correct: forall m ofs, (align_chunk m | ofs).
+
+Lemma mstore_aux_ex: forall mb lo hi gv m ofs
+  (Hperm : Mem.range_perm m mb lo hi Freeable)
+  (Hle: lo <= ofs) (Hge: Z_of_nat (sizeGenericValue gv) + ofs <= hi),
+  exists m', mstore_aux m gv mb ofs = ret m'.
+Proof.
+  induction gv as [|[]]; simpl; intros.
+    eauto.
+
+    rewrite inj_plus in Hge.
+    rewrite <- size_chunk_conv in Hge.
+    assert ({ m2: mem | Mem.store m m0 mb ofs v = Some m2 }) as J.
+      apply Mem.valid_access_store.
+      split.
+        intros ofs1 H.
+        apply Mem.perm_implies with (p1:=Freeable); try constructor.
+        apply Hperm.
+        split.
+          omega.
+          omega.
+
+        apply align_is_always_correct.
+    destruct J as [m2 J].
+    fill_ctxhole.
+    apply IHgv.
+      intros ofs1 H.
+      eapply Mem.perm_store_1; eauto.
+
+      rewrite size_chunk_conv.
+      omega.
+
+      omega.
+Qed.
+
 Lemma no_alias_with_blk__neq_blk: forall b1 b2 ofs2 m2 gvs,
   no_alias_with_blk gvs b1 -> In (Vptr b2 ofs2, m2) gvs -> b2 <> b1.
 Proof.
@@ -1336,6 +1385,21 @@ Proof.
 
       split; eauto.
       eapply in_valid_ptrs in H; eauto.
+Qed.
+
+Lemma valid_ptrs__no_alias__fresh_ptr: forall bound TD mb t (Hbd: bound <= mb)
+  gvs, valid_ptrs bound gvs ->
+  no_alias gvs ($ blk2GV TD mb # typ_pointer t $).
+Proof.
+  induction gvs as [|[]]; simpl; intros.
+    apply no_alias_nil.
+
+    destruct v; auto.
+    destruct H.
+    apply IHgvs in H0. rewrite simpl_blk2GV in *. simpl in *.
+    destruct H0.
+    repeat split; auto.
+      intro J. subst. contradict H; omega.
 Qed.
 
 Lemma mstore_preserves_wf_als : forall TD M mp2 t gv1 align M' maxb als
@@ -2662,6 +2726,405 @@ Proof.
     apply IHals with (b:=b) in H1.
     apply bounds_mfree with (b:=b) in HeqR.
     congruence.
+Qed.
+
+Lemma zeroconst2GV_disjoint_with_runtime_alloca: forall t maxb gl g td mb t0
+  (Hwfg: wf_globals maxb gl) S (Hwft: wf_typ S td t)
+  (Hc2g : ret g = zeroconst2GV td t)
+  (Hle: maxb < mb),
+  no_alias g ($ blk2GV td mb # typ_pointer t0 $) /\ valid_ptrs (maxb + 1) g.
+Proof.
+  intros. rewrite simpl_blk2GV.
+  eapply zeroconst2GV_disjoint_with_runtime_ptr; eauto.
+Qed.
+
+Lemma wf_globals_disjoint_with_runtime_alloca: forall maxb td t0
+  (g0 : GenericValue) i0  mb (Hle : maxb < mb) gl (Hwfg : wf_globals maxb gl)
+  (HeqR : ret g0 = lookupAL GenericValue gl i0),
+  no_alias g0 ($ blk2GV td mb # typ_pointer t0 $) /\ valid_ptrs (maxb + 1) g0.
+Proof.
+  intros. rewrite simpl_blk2GV.
+  eapply wf_globals_disjoint_with_runtime_ptr; eauto.
+Qed.
+
+Lemma const2GV_disjoint_with_runtime_alloca: forall c0 maxb gl g td mb t t'
+  (Hwfg: wf_globals maxb gl) S (Hwfc: wf_const S td c0 t')
+  (Hc2g : ret g = @Opsem.const2GV DGVs td gl c0)
+  (Hle: maxb < mb),
+  no_alias g ($ blk2GV td mb # typ_pointer t $).
+Proof.
+  unfold Opsem.const2GV.
+  intros.
+  inv_mbind'. inv H0.
+  destruct const2GV_disjoint_with_runtime_ptr_mutrec as [J1 J2].
+  unfold const2GV_disjoint_with_runtime_ptr_prop in J1.
+  symmetry in HeqR.
+  eapply J1 in HeqR; eauto.
+  destruct HeqR as [J4 [J5 J3]]; subst.
+  rewrite simpl_blk2GV.
+  destruct Hwfg.
+  eapply cgv2gvs_preserves_no_alias; eauto.
+Qed.
+
+Lemma const2GV_valid_ptrs: forall c0 maxb gl g S td t
+  (Hwfg: wf_globals maxb gl) (Hwfc: wf_const S td c0 t)
+  (Hc2g : ret g = @Opsem.const2GV DGVs td gl c0),
+  valid_ptrs (maxb + 1) g.
+Proof.
+  unfold Opsem.const2GV.
+  intros.
+  inv_mbind'. inv H0.
+  destruct const2GV_disjoint_with_runtime_ptr_mutrec as [J1 J2].
+  unfold const2GV_disjoint_with_runtime_ptr_prop in J1.
+  symmetry in HeqR.
+  eapply J1 with (mb:=maxb+1)(ofs:=Int.repr 31 0)
+    (m:=AST.Mint (Size.mul Size.Eight (getPointerSize td) - 1)) in HeqR;
+    eauto; try omega.
+  destruct HeqR as [J4 [J5 J3]]; subst.
+  destruct Hwfg.
+  eapply cgv2gvs_preserves_valid_ptrs; eauto; try omega.
+Qed.
+
+Lemma free_preserves_encode_decode_ident_prop: forall M blk lo hi M' b
+  (Hfree: Mem.free M blk lo hi = Some M') (Hneq: blk <> b) ofs chunk
+  (Hid: encode_decode_ident_prop M b ofs chunk),
+  encode_decode_ident_prop M' b ofs chunk.
+Proof.
+  unfold encode_decode_ident_prop in *.
+  intros.
+  apply Hid; auto.
+  erewrite Mem.free_getN_out; eauto.
+Qed.
+
+Lemma free_preserves_encode_decode_ident_aux: forall M blk lo hi M' b
+  (Hfree: Mem.free M blk lo hi = Some M') (Hneq: blk <> b) mc ofs
+  (Hid: encode_decode_ident_aux M mc b ofs),
+  encode_decode_ident_aux M' mc b ofs.
+Proof.
+  induction mc; simpl; intros; auto.
+  destruct Hid; split; auto.
+  eapply free_preserves_encode_decode_ident_prop; eauto.
+Qed.
+
+Lemma free_preserves_encode_decode_ident: forall TD M ptr1 ty al M' ptr2
+  (Hnoalias: no_alias ptr2 ptr1)
+  (Hid: encode_decode_ident TD M ptr1 ty al) (Hfree: free TD M ptr2 = Some M'),
+  encode_decode_ident TD M' ptr1 ty al.
+Proof.
+  unfold encode_decode_ident. intros.
+  match goal with
+  | Hid: context [GV2ptr ?td ?sz ?ptr] |- _ =>
+      remember (GV2ptr td sz ptr) as R;
+      destruct R as [[]|]; tinv Hid
+  end.
+  match goal with
+  | Hid: context [flatten_typ ?td ?ty] |- _ =>
+      remember (flatten_typ td ty) as R;
+      destruct R as [|]; tinv Hid
+  end.
+  apply free_inv in Hfree.
+  destruct Hfree as [blk' [ofs' [hi [lo [J4 [J5 [J6 J7]]]]]]].
+  eapply free_preserves_encode_decode_ident_aux;
+    eauto using no_alias_GV2ptr__neq_blk.
+Qed.
+
+Lemma free_allocas_preserves_mload: forall TD al t mb gv als Mem' Mem
+  (H0 : ~ In mb als)
+  (H1 : free_allocas TD Mem als = ret Mem')
+  (H2 : mload TD Mem ($ blk2GV TD mb # typ_pointer t $) t al = ret gv),
+  mload TD Mem' ($ blk2GV TD mb # typ_pointer t $) t al = ret gv.
+Proof.
+  induction als; simpl; intros.
+    inv H1. auto.
+
+    inv_mbind'.
+    apply IHals in H3; auto.
+    eapply free_preserves_mload; eauto.
+    rewrite simpl_blk2GV. simpl. tauto.
+Qed.
+
+Lemma free_allocas_preserves_encode_decode_ident: forall TD mb ty al als M M'
+  (Hnoalias: ~ In mb als)
+  (Hid: encode_decode_ident TD M ($ blk2GV TD mb # typ_pointer ty $) ty al)
+  (Hfrees: free_allocas TD M als = Some M'),
+  encode_decode_ident TD M' ($ blk2GV TD mb # typ_pointer ty $) ty al.
+Proof.
+  induction als; simpl; intros.
+    inv Hfrees. auto.
+
+    inv_mbind.
+    apply IHals in H0; auto.
+    eapply free_preserves_encode_decode_ident; eauto.
+    rewrite simpl_blk2GV. simpl. tauto.
+Qed.
+
+Lemma operand__lt_nextblock: forall maxb los nts M (lc:DGVMap) mptr gl
+  (Hwfgl : wf_globals maxb gl) v mptrs (Hlt: maxb < Mem.nextblock M)
+  (Hwflc: wf_lc M lc)
+  (Hin: mptr @ mptrs) S Ps t F
+  (Hwft: wf_value S (module_intro los nts Ps) F v t)
+  (Hgetop : Opsem.getOperandValue (los,nts) v lc gl = ret mptrs),
+  valid_ptrs (Mem.nextblock M) mptr.
+Proof.
+  intros.
+  inv Hin.
+  destruct v; simpl in Hgetop.
+    apply Hwflc in Hgetop; auto.
+
+    inv Hwft.
+    eapply const2GV_valid_ptrs in Hwfgl; eauto.
+    eapply valid_ptrs__trans; eauto.
+      omega.
+Qed.
+
+Lemma GEP_preserves_no_alias: forall TD t mp vidxs inbounds0 mp' gvsa t',
+  @Opsem.GEP DGVs TD t mp vidxs inbounds0 t' = ret mp' ->
+  no_alias mp gvsa -> no_alias mp' gvsa.
+Proof.
+Local Transparent lift_op1.
+  unfold Opsem.GEP. unfold lift_op1. simpl. unfold MDGVs.lift_op1. unfold gep.
+  unfold GEP. intros.
+  remember (GV2ptr TD (getPointerSize TD) mp) as R1.
+  destruct R1; eauto using undef_disjoint_with_ptr.
+  destruct (GVs2Nats TD vidxs); eauto using undef_disjoint_with_ptr.
+  remember (mgep TD t v l0) as R2.
+  destruct R2; eauto using undef_disjoint_with_ptr.
+  inv H.
+  eapply GV2ptr_preserves_no_alias in HeqR1; eauto.
+  eapply mgep_preserves_no_alias; eauto.
+Opaque lift_op1.
+Qed.
+
+Lemma params2GVs_preserves_no_alias: forall maxb gl
+  (Hwfg : wf_globals maxb gl) los nts lc mb t (Hinbound: maxb < mb) S F Ps tavl
+  lp (Hwf : forall (id1 : atom) (gvs1 : GVsT DGVs) t1,
+         In (t1, value_id id1) lp ->
+         lookupAL (GVsT DGVs) lc id1 = ret gvs1 ->
+         no_alias gvs1 ($ blk2GV (los,nts) mb # typ_pointer t $)) gvs
+  (Heq: lp = (List.map
+    (fun p : typ * attributes * value =>
+      let '(typ_', attributes_', value_'') := p in
+        (( typ_' ,  attributes_' ),  value_'' )  ) tavl))
+  (Hv: wf_value_list
+    (List.map
+      (fun p : typ * attributes * value =>
+        let '(typ_', attributes_', value_'') := p in
+         (S,(module_intro los nts Ps),F,value_'',typ_')) tavl))
+  (Hps2GVs : Opsem.params2GVs (los,nts) lp lc gl = ret gvs),
+  forall gv,
+    In gv gvs -> no_alias gv ($ blk2GV (los,nts) mb # typ_pointer t $).
+Proof.
+  induction tavl; simpl; intros; subst.
+    inv Hps2GVs. inv H.
+
+    simpl in Hps2GVs. simpl_prod.
+    inv_mbind. rewrite wf_value_list_cons_iff in Hv. destruct Hv.
+    simpl in H.
+    destruct H as [H | H]; subst.
+      destruct v; simpl in HeqR; eauto.
+        eapply Hwf; simpl; eauto.
+
+        inv H1.
+        eapply const2GV_disjoint_with_runtime_alloca; eauto.
+      symmetry in HeqR0.
+      eapply IHtavl in HeqR0; eauto.
+        intros. eapply Hwf; simpl; eauto.
+Qed.
+
+Lemma alloc_preserves_encode_decode_ident: forall (M : mem) (mb' : Z)
+  (Hlt : mb' < Mem.nextblock M) (l0 : list AST.memory_chunk) (m : Mem.mem_)
+  (ofs : Z) (Hid : encode_decode_ident_aux M l0 mb' ofs)
+  (Hup : update (Mem.nextblock M) (fun _ : Z => Undef) (Mem.mem_contents M) =
+         Mem.mem_contents m),
+  encode_decode_ident_aux m l0 mb' ofs.
+Proof.
+  intros.
+  generalize dependent ofs.
+  induction l0; simpl; auto.
+    intros.
+    simpl in Hid.
+    destruct Hid as [Hid1 Hid2].
+    apply IHl0 in Hid2.
+    split; auto.
+      unfold encode_decode_ident_prop in *.
+      intros.
+      apply Hid1. subst.
+      rewrite <- Hup.
+      apply Mem.getN_exten.
+      intros.
+      rewrite update_o; auto. omega.
+Qed.
+
+Lemma malloc_preserves_encode_decode_ident: forall TD M tsz gn align0 M' mb
+  ty al mb' (Hal: malloc TD M tsz gn align0 = ret (M', mb))
+  (Hlt: mb' < Mem.nextblock M)
+  (Hid: encode_decode_ident TD M ($ blk2GV TD mb' # typ_pointer ty $) ty al),
+  encode_decode_ident TD M' ($ blk2GV TD mb' # typ_pointer ty $) ty al.
+Proof.
+  unfold encode_decode_ident. intros.
+  match goal with
+  | Hid: context [GV2ptr ?td ?sz ?ptr] |- _ =>
+      remember (GV2ptr td sz ptr) as R;
+      destruct R as [[]|]; tinv Hid
+  end.
+  match goal with
+  | Hid: context [flatten_typ ?td ?ty] |- _ =>
+      remember (flatten_typ td ty) as R;
+      destruct R as [|]; tinv Hid
+  end.
+  apply malloc_inv in Hal.
+  destruct Hal as [n [J1 [J2 J3]]].
+  rewrite simpl_blk2GV in HeqR. inv HeqR.
+  assert (update (Mem.nextblock M)
+                 (fun ofs => Undef)
+                 (Mem.mem_contents M) = (Mem.mem_contents M')) as Hup.
+    eapply Mem.alloc_mem_contents; eauto.
+  remember (Int.signed 31 (Int.repr 31 0)) as ofs.
+  clear - Hid Hlt Hup.
+  eapply alloc_preserves_encode_decode_ident; eauto.
+Qed.
+
+(* The current design of malloc does not check alignment! It must ensure that 
+   mload is successful at the allocated address. To do so, malloc must ensure 
+   all subcomponents in an aggregated object are well-aligned! *)
+Axiom malloc_mload_aux_undef: forall TD t tsz mcs M gn align0 M' mb gvs gl
+  (Hsz: getTypeAllocSize TD t = Some tsz)
+  (Hflatten: flatten_typ TD t = Some mcs)
+  (Hal : malloc TD M tsz gn align0 = ret (M', mb))
+  (Hc2v : @Opsem.const2GV DGVs TD gl (const_undef t) = ret gvs),
+  mload_aux M' mcs mb (Int.signed 31 (Int.repr 31 0)) = ret gvs.
+  
+Lemma malloc_mload_undef: forall TD t tsz M gn align0 M' mb gvs gl S
+  (Hwft: wf_typ S TD t)
+  (Hsz: getTypeAllocSize TD t = Some tsz)
+  (Hal : malloc TD M tsz gn align0 = ret (M', mb))
+  (Hc2v : @Opsem.const2GV DGVs TD gl (const_undef t) = ret gvs),
+  mload TD M' ($ blk2GV TD mb # typ_pointer t $) t align0 = ret gvs.
+Proof.
+  intros.
+  unfold mload. rewrite simpl_blk2GV. simpl.
+  apply flatten_typ_total in Hwft.
+  destruct Hwft as [gv Hwft].
+  rewrite Hwft.
+  eapply malloc_mload_aux_undef; eauto.
+Qed.
+
+Lemma mload_aux_malloc_same': forall TD M M' mb align0 gn tsz mcs t
+  (Hsz: getTypeAllocSize TD t = Some tsz)
+  (Hflatten: flatten_typ TD t = Some mcs)
+  (Hal : malloc TD M tsz gn align0 = ret (M', mb)),
+  exists gvs1, mload_aux M' mcs mb (Int.signed 31 (Int.repr 31 0)) = ret gvs1.
+Proof.
+  intros.
+  assert (exists gvs, @Opsem.const2GV DGVs TD nil (const_undef t) = ret gvs) 
+    as J.
+    unfold Opsem.const2GV. simpl. unfold gundef. rewrite Hflatten. eauto.
+  destruct J as [gvs J].
+  exists gvs. eapply malloc_mload_aux_undef; eauto.
+Qed.
+
+Lemma promotable_alloc_encode_decode_ident_aux: forall (M : mem) (M' : mem)
+  (mc : list AST.memory_chunk)
+  (Hup : update (Mem.nextblock M) (fun _ : Z => Undef) (Mem.mem_contents M) =
+         Mem.mem_contents M'),
+  forall z : Z, encode_decode_ident_aux M' mc (Mem.nextblock M) z.
+Proof.
+  induction mc; simpl; intros; auto.
+    split; eauto.
+      unfold encode_decode_ident_prop.
+      intros.
+      rewrite <- Hup in H.
+      rewrite update_s in H.
+      assert (bs = list_repeat (size_chunk_nat a) Undef) as EQ.
+        erewrite <- Mem.getN_Undef__list_repeat_Undef; eauto.
+      subst.
+      repeat rewrite EQ.
+      rewrite encode_decode_undef; auto.
+        assert (J:=@size_chunk_nat_pos a).
+        destruct J as [n J]. rewrite J. omega.
+Qed.
+
+Lemma initializeFrameValues_preserves_no_alias: forall TD mb t la
+  (gvs:list (GVsT DGVs))
+  (Hwf: forall gv, In gv gvs -> no_alias gv ($ blk2GV TD mb # typ_pointer t $))
+  lc (Hinit : Opsem.initLocals TD la gvs = ret lc)
+  (id1 : atom) (gvs1 : GVsT DGVs)
+  (Hlkup : lookupAL (GVsT DGVs) lc id1 = ret gvs1),
+  no_alias gvs1 ($ blk2GV TD mb # typ_pointer t $).
+Proof.
+Local Transparent lift_op1.
+  unfold Opsem.initLocals.
+  induction la; simpl; intros.
+    inv Hinit. inv Hlkup.
+
+    destruct a as [[]].
+    destruct gvs.
+      inv_mbind. symmetry in HeqR.
+      destruct (id_dec i0 id1); subst.
+        rewrite lookupAL_updateAddAL_eq in Hlkup. inv Hlkup.
+        eapply undef_disjoint_with_ptr; eauto.
+
+        rewrite <- lookupAL_updateAddAL_neq in Hlkup; auto.
+        eapply IHla in HeqR; eauto.
+
+      inv_mbind. symmetry in HeqR.
+      destruct (id_dec i0 id1); subst.
+        rewrite lookupAL_updateAddAL_eq in Hlkup. inv Hlkup.
+        unfold MDGVs.lift_op1, fit_gv in HeqR0.
+        symmetry in HeqR0.
+        inv_mbind.
+        destruct_if.
+          apply Hwf. simpl. auto.
+
+          eapply undef_disjoint_with_ptr; eauto.
+
+        rewrite <- lookupAL_updateAddAL_neq in Hlkup; auto.
+        eapply IHla in HeqR; eauto.
+        intros. apply Hwf. simpl. auto.
+Opaque lift_op1.
+Qed.
+
+Lemma promotable_mstore_aux_preserves_encode_decode_ident:
+  forall mb gv1 ofs mc M M'
+  (Hsplit: snd (split gv1) = mc) (Hst : mstore_aux M gv1 mb ofs = ret M'),
+  encode_decode_ident_aux M' mc mb ofs.
+Proof.
+  induction gv1 as [|[]]; intros; subst; simpl in *; auto.
+    inv_mbind.
+    remember (split gv1) as R.
+    destruct R. simpl.
+    assert (J:=H0).
+    eapply IHgv1 in H0; eauto.
+    simpl in H0.
+    split; auto.
+      unfold encode_decode_ident_prop.
+      intros.
+      symmetry in HeqR.
+      apply Mem.store_mem_contents in HeqR.
+
+      assert (Mem.getN (size_chunk_nat m) ofs (Mem.mem_contents m0 mb) =
+                Mem.getN (size_chunk_nat m) ofs (Mem.mem_contents M' mb)) as EQ.
+        apply Mem.getN_exten.
+        intros.
+        eapply MemProps.mstore_aux_mem_contents_outside with
+          (ofs2:=ofs + Z_of_nat (size_chunk_nat m)); eauto.
+          unfold size_chunk_nat.
+          rewrite nat_of_Z_max.
+          assert (J':=@size_chunk_pos m).
+          rewrite Zmax_spec.
+          destruct (zlt 0 (size_chunk m)).
+            omega.
+            contradict z. omega.
+
+          omega.
+
+      rewrite <- EQ in H.
+      rewrite HeqR in H.
+      rewrite <- Mem.getN_update_setN_s in H.
+        subst.
+        rewrite encode_decode_encode_val__eq__encode_val; auto.
+
+        rewrite encode_val_length; auto.
 Qed.
 
 End MemProps.

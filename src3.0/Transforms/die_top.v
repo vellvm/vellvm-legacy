@@ -274,7 +274,7 @@ Proof.
     eapply die_is_sim in Hsim; eauto.
     destruct Hsim as [Hstsim1 _].
     assert (tr0 = E0 /\ ~ removable_State dinfo IS1'') as Hnrm.
-      apply palloca_props.wf_State__uniqECs in Hwfpp; auto.
+      apply wf_State__uniqECs in Hwfpp; auto.
       inv Hwfpp. destruct H1 as [J1 [J2 J3]]. simpl in *.
       eapply removable_State__non_removable_State' in Hop1; eauto.
     destruct Hnrm as [EQ Hnrm]; subst.

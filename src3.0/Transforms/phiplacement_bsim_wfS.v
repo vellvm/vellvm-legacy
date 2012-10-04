@@ -12,11 +12,13 @@ Require Import phiplacement_bsim_defs.
 Require Import top_wfS.
 Require Import trans_tactic.
 
-(*********************************************************)
-(*
-   preserving reachablity and succ does not require WF_PhiInfo 
-   So, we do not use PhiInfo 
-*)
+(****************************************************************************)
+(* This file first proves that phinodes_placement preserves well-formedness
+   [phinodes_placement_wfS]. In terms of the results in top_wfS, it is sufficient 
+   to show that the transformed function is well-formed (See [PresWF]). *)
+
+(* preserving reachablity and succ does not require WF_PhiInfo 
+   So, we do not use PhiInfo *)
 
 Definition phinodes_placement_fdef pid ty al nids sccs prds (f:fdef): fdef :=
 match f with
@@ -1383,6 +1385,7 @@ Qed.
     
 End PresWF.
 
+(* one of the main result. *)
 Lemma phinodes_placement_wfS: forall rd f Ps1 Ps2 los nts pid ty al
   num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = reachablity_analysis f)
   (Hentry: getEntryBlock f = Some (l0, stmts_intro ps0 cs0 tmn0))
@@ -1414,6 +1417,8 @@ Proof.
     eapply phinodes_placement__uniqFdef in Hfind; eauto.
 Qed.
 
+(****************************************************************************)
+(* Then, we show phinodes placement also preserves Wf_PhiInfo.              *)
 Lemma inserted_store_is_promotable: forall id5 pinfo acc lid pid sid l0
   (Hfresh: In id5 (getFdefLocs (PI_f pinfo)))
   (Hnids: ret (lid, pid, sid) = (PI_newids pinfo) ! l0),
@@ -1536,6 +1541,7 @@ Proof.
     eapply getCmdLoc_in_getFdefLocs in J2; eauto.
 Qed.
 
+(* The second main result. *)
 Lemma phinodes_placement_wfPI: forall rd f Ps1 Ps2 los nts pid ty al
   num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = reachablity_analysis f)
   (Hentry: getEntryBlock f = Some (l0, stmts_intro ps0 cs0 tmn0))

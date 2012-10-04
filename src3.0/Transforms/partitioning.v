@@ -1,6 +1,9 @@
 Require Import vellvm.
 Require Import palloca_props.
 
+(* b is in pinfo's function, (c1,cs2,c1) is in b. 
+   This is to define LAS and LAA. 
+   The following proves the properties of partitioning. *)
 Definition partitioning (c1 c2:cmd) (cs2:cmds) (b:block) (pinfo:PhiInfo) 
   (p: cmds -> PhiInfo -> Prop) : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\

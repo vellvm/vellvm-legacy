@@ -4,6 +4,26 @@ Require Import Maps.
 Require Import dom_tree.
 Require Import trans_tactic.
 
+(* This file defines primitives to implement transformations. *)
+
+(**************************************************************)
+(* transformers                                               *)
+Definition trans_block (trans_stmts: stmts -> stmts) (b:block) : block :=
+match b with
+| (l0, sts0) => (l0, trans_stmts sts0)
+end.
+
+Definition transf_from_module (transf:fdef -> fdef) (m:module) :=
+let '(module_intro los nts ps) := m in
+module_intro los nts
+  (List.map (fun p =>
+             match p with
+             | product_fdef f => product_fdef (transf f)
+             | _ => p
+             end) ps).
+
+(**************************************************************)
+(* substitution                                               *)
 Definition subst_value (id':id) (v':value) (v:value) : value :=
 match v with
 | value_id id1 => if id_dec id1 id' then v' else v
@@ -87,11 +107,6 @@ match sts with
     (List.map (subst_cmd id' v') cs0) (subst_tmn id' v' tmn0)
 end.
 
-Definition trans_block (trans_stmts: stmts -> stmts) (b:block) : block :=
-match b with
-| (l0, sts0) => (l0, trans_stmts sts0)
-end.
-
 Definition subst_block (id':id) (v':value) (b:block) : block :=
 trans_block (subst_stmts id' v') b.
 
@@ -100,6 +115,8 @@ match f with
 | fdef_intro fh bs => fdef_intro fh (List.map (subst_block id' v') bs)
 end.
 
+(**************************************************************)
+(* substitution instance: substituting constants              *)
 Definition csubst_fdef (id':id) (cst':const) : fdef -> fdef :=
 subst_fdef id' (value_const cst').
 
@@ -121,6 +138,8 @@ subst_insn id' (value_const cst').
 Definition csubst_value (id':id) (cst':const) : value -> value :=
 subst_value id' (value_const cst').
 
+(**************************************************************)
+(* substitution instance: substituting variables              *)
 Definition isubst_fdef (id1 id2:id) : fdef -> fdef :=
 subst_fdef id1 (value_id id2).
 
@@ -144,6 +163,8 @@ subst_value id1 (value_id id2).
 
 Hint Unfold isubst_fdef isubst_block isubst_insn.
 
+(**************************************************************)
+(* removal                                                    *)
 Definition remove_phinodes (id':id) (ps:phinodes) : phinodes :=
   (List.filter (fun p => negb (id_dec (getPhiNodeID p) id')) ps).
 
@@ -164,6 +185,8 @@ match f with
 | fdef_intro fh bs => fdef_intro fh (List.map (remove_block id') bs)
 end.
 
+(**************************************************************)
+(* check if a variable is used                                *)
 Definition used_in_value (id0:id) (v:value) : bool :=
 match v with
 | value_id id1 => id_dec id1 id0
@@ -244,6 +267,8 @@ match f with
   List.fold_left (fun re b => re || used_in_block id' b) bs false
 end.
 
+(**************************************************************)
+(* find all uses of a definition                              *)
 Definition find_uses_in_block (id':id) (b:block) : list insn :=
 let '(_, stmts_intro ps cs tmn) := b in
 let is1 := 
@@ -260,6 +285,8 @@ Definition find_uses_in_fdef (id':id) (f:fdef) : list insn :=
 let '(fdef_intro _ bs) := f in
 List.fold_left (fun acc b => find_uses_in_block id' b++acc) bs nil.
 
+(**************************************************************)
+(* Check if there exist stores that write to a location      *)
 Definition store_in_cmd (id':id) (c:cmd) : bool :=
 match c with
 | insn_store _ _ _ ptr _ => used_in_value id' ptr
@@ -269,6 +296,8 @@ end.
 Definition store_in_cmds (id':id) (cs:cmds) : bool :=
 (List.fold_left (fun re c => re || store_in_cmd id' c) cs false).
 
+(**************************************************************)
+(* insertion                                                  *)
 Definition insert_cmds (n:nat) (c:cmd) (cs : cmds) : cmds :=
 firstn n cs ++ c :: skipn n cs.
 
@@ -285,6 +314,8 @@ Definition insert_fdef (l1:l) (n:nat) (c:cmd) (f:fdef) : fdef :=
 let '(fdef_intro fh bs) := f in
 fdef_intro fh (List.map (insert_block l1 n c) bs).
 
+(**************************************************************)
+(* renaming defs and uses                                     *)
 Definition rename_id (id1:id) (id2:id) (id0:id) : id :=
 if id_dec id0 id1 then id2 else id0.
 
@@ -404,6 +435,8 @@ match f with
     fdef_intro (rename_fheader id1 id2 fh) (List.map (rename_block id1 id2) bs)
 end.
 
+(**************************************************************)
+(* renaming definitions                                        *)
 Definition gen_fresh_cmd (id0:id) (c:cmd) : cmd :=
 match c with
 | insn_bop _ t0 bop0 v1 v2 => insn_bop id0 t0 bop0 v1 v2
@@ -425,6 +458,8 @@ match c with
 | insn_call _ noret0 cl0 rt1 va1 v1 ps => insn_call id0 noret0 cl0 rt1 va1 v1 ps
 end.
 
+(**************************************************************)
+(* moving                                                     *)
 Definition motion_block (l1:l) (n:nat) (newid:id) (c:cmd) (b:block) : block :=
 let b1 := insert_block l1 n (gen_fresh_cmd newid c) b in
 let b2 := isubst_block (getCmdLoc c) newid b1 in
@@ -444,6 +479,8 @@ Parameter print_reachablity : list l -> bool.
 Parameter print_dominators : list l -> (l -> ListSet.set l) -> bool.
 Parameter print_adtree: @DTree atom -> bool.
 
+(**************************************************************)
+(* renaming labels                                            *)
 Fixpoint renamel_list_value_l (l1 l2:l) (l0:list (value * l)) : list (value * l) :=
 match l0 with
 | nil => nil
@@ -477,11 +514,73 @@ match f with
     fdef_intro fh (List.map (renamel_block l1 l2) bs)
 end.
 
-Definition getFdefLocs fdef : ids :=
-match fdef with
-| fdef_intro (fheader_intro _ _ _ la _) bs => getArgsIDs la ++ getBlocksLocs bs
+(**************************************************************)
+(* Check if there exist loads that read from a location      *)
+Definition load_in_cmd (id':id) (c:cmd) : bool :=
+match c with
+| insn_load _ _ v _ => used_in_value id' v
+| _ => false
 end.
 
+Definition load_in_cmds (id':id) (cs:cmds) : bool :=
+(List.fold_left (fun re c => re || load_in_cmd id' c) cs false).
+
+Definition load_in_block (id':id) (b:block) : bool :=
+match b with
+| (_, stmts_intro _ cs0 _) => load_in_cmds id' cs0
+end.
+
+Definition load_in_fdef (id':id) (f:fdef) : bool :=
+match f with
+| fdef_intro _ bs =>
+  List.fold_left (fun re b => re || load_in_block id' b) bs false
+end.
+
+(**************************************************************)
+Lemma fdef_sim__lookupAL_stmts : forall f l0 bs sts sts',
+  lookupAL _ bs l0 = Some sts ->
+  lookupAL _ (List.map (trans_block f) bs) l0 = Some sts' ->
+  f sts = sts'.
+Proof.
+  induction bs as [|a ?]; simpl; intros.
+    congruence.
+ 
+    destruct a as [l1 sts1]. simpl in *.
+    destruct (l0 == l1); subst; auto.
+      congruence.
+Qed.
+
+Lemma fdef_sim__lookupAL_block : forall f l0 bs sts sts',
+  lookupAL _ bs l0 = Some sts ->
+  lookupAL _ (List.map (trans_block f) bs) l0 = Some sts' ->
+  trans_block f (l0, sts) = (l0, sts').
+Proof.
+  intros.
+  unfold trans_block.
+  f_equal.
+  eapply fdef_sim__lookupAL_stmts; eauto.
+Qed.
+
+Lemma fdef_sim__lookupAL_remove_stmts : forall id0 l0 bs sts sts',
+  lookupAL _ bs l0 = Some sts ->
+  lookupAL _ (List.map (remove_block id0) bs) l0 = Some sts' ->
+  remove_stmts id0 sts = sts'.
+Proof.
+  intros.
+  eapply fdef_sim__lookupAL_stmts; eauto.
+Qed.
+
+Lemma fdef_sim__lookupAL_subst_stmts : forall id0 v0 l0 bs sts sts',
+  lookupAL _ bs l0 = Some sts ->
+  lookupAL _ (List.map (subst_block id0 v0) bs) l0 = Some sts' ->
+  subst_stmts id0 v0 sts = sts'.
+Proof.
+  intros.
+  eapply fdef_sim__lookupAL_stmts; eauto.
+Qed.
+
+(**************************************************************)
+(* properties of store_in_...                                 *)
 Lemma store_in_cmds_app: forall i0 cs2 cs1,
   store_in_cmds i0 (cs1++cs2) = false ->
   store_in_cmds i0 cs1 = false /\ store_in_cmds i0 cs2 = false.
@@ -505,6 +604,74 @@ Proof.
   rewrite H1. auto.
 Qed.
 
+(**************************************************************)
+
+Lemma load_notin_cmds__unused_in_value: forall vid0 id0 t v align0 cs cs11,
+  load_in_cmds vid0 (cs11 ++ insn_load id0 t v align0 :: cs) = false ->
+  used_in_value vid0 v = false.
+Proof. 
+  unfold load_in_cmds. intros.
+  remember false as R. rewrite HeqR in H at 2. rewrite HeqR. clear HeqR.
+  generalize dependent R. 
+  induction cs11; simpl; intros; eauto.
+    apply fold_left_eq in H.
+      apply orb_false_iff in H.
+      destruct H; auto.
+
+      intros a b J.
+      apply orb_false_iff in J.
+      destruct J; auto.
+Qed.
+
+Lemma load_in_cmds_true: forall id1 id0 t align0 csb csa,
+  load_in_cmds id1 (csa ++ insn_load id0 t (value_id id1) align0 :: csb) = true.
+Proof.
+  unfold load_in_cmds.
+  intros.
+  generalize false.
+  induction csa; simpl; intros; eauto.
+    destruct (id_dec id1 id1); try congruence. 
+    simpl.
+    rewrite orb_true_intro; auto.
+    apply fold_left_or_spec.
+    intros. subst. auto.
+Qed.
+
+Lemma load_in_cmds_app: forall i0 cs2 cs1,
+  load_in_cmds i0 (cs1++cs2) = false ->
+  load_in_cmds i0 cs1 = false /\ load_in_cmds i0 cs2 = false.
+Proof.
+  unfold load_in_cmds.
+  intros.
+  rewrite fold_left_app in H.
+  apply fold_left_or_false in H.
+    tauto.
+    intros. apply orb_false_iff in H0. tauto.
+Qed.
+
+Lemma load_in_cmds_merge: forall i0 cs1 cs2,
+  load_in_cmds i0 cs1 = false /\ load_in_cmds i0 cs2 = false ->
+  load_in_cmds i0 (cs1++cs2) = false.
+Proof.
+  unfold load_in_cmds.
+  intros.
+  rewrite fold_left_app.
+  destruct H as [H1 H2].
+  rewrite H1. auto.
+Qed.
+
+(**************************************************************)
+Lemma remove_phinodes_stable: forall id' ps 
+  (Hnotin: ~ In id' (getPhiNodesIDs ps)), ps = remove_phinodes id' ps.
+Proof.
+  induction ps; simpl; intros; auto.
+    destruct_dec.
+      contradict Hnotin. auto.
+      simpl. rewrite <- IHps; auto.
+Qed.
+
+(**************************************************************)
+(* properties of used_in_...                                  *)
 Lemma used_in_blocks_cons_inv : forall bs5 id0 b5,
   fold_left (fun (re : bool) b => re || used_in_block id0 b)
     bs5 (used_in_block id0 b5) = false ->
@@ -691,48 +858,6 @@ Proof.
     destruct (l0 == l1); subst; inv HeqR0; auto.
 Qed.
 
-Lemma fdef_sim__lookupAL_stmts : forall f l0 bs sts sts',
-  lookupAL _ bs l0 = Some sts ->
-  lookupAL _ (List.map (trans_block f) bs) l0 = Some sts' ->
-  f sts = sts'.
-Proof.
-  induction bs as [|a ?]; simpl; intros.
-    congruence.
- 
-    destruct a as [l1 sts1]. simpl in *.
-    destruct (l0 == l1); subst; auto.
-      congruence.
-Qed.
-
-Lemma fdef_sim__lookupAL_block : forall f l0 bs sts sts',
-  lookupAL _ bs l0 = Some sts ->
-  lookupAL _ (List.map (trans_block f) bs) l0 = Some sts' ->
-  trans_block f (l0, sts) = (l0, sts').
-Proof.
-  intros.
-  unfold trans_block.
-  f_equal.
-  eapply fdef_sim__lookupAL_stmts; eauto.
-Qed.
-
-Lemma fdef_sim__lookupAL_remove_stmts : forall id0 l0 bs sts sts',
-  lookupAL _ bs l0 = Some sts ->
-  lookupAL _ (List.map (remove_block id0) bs) l0 = Some sts' ->
-  remove_stmts id0 sts = sts'.
-Proof.
-  intros.
-  eapply fdef_sim__lookupAL_stmts; eauto.
-Qed.
-
-Lemma fdef_sim__lookupAL_subst_stmts : forall id0 v0 l0 bs sts sts',
-  lookupAL _ bs l0 = Some sts ->
-  lookupAL _ (List.map (subst_block id0 v0) bs) l0 = Some sts' ->
-  subst_stmts id0 v0 sts = sts'.
-Proof.
-  intros.
-  eapply fdef_sim__lookupAL_stmts; eauto.
-Qed.
-
 Lemma in_params__used: forall id1 A (t1 : A) (lp : list (A * value)) init,
   fold_left
     (fun (acc : bool) (p : A * value) =>
@@ -750,89 +875,6 @@ Proof.
         intros. subst. destruct b. apply orb_true_iff; auto.
 
       apply IHlp in H. congruence.
-Qed.
-
-Definition load_in_cmd (id':id) (c:cmd) : bool :=
-match c with
-| insn_load _ _ v _ => used_in_value id' v
-| _ => false
-end.
-
-Definition load_in_cmds (id':id) (cs:cmds) : bool :=
-(List.fold_left (fun re c => re || load_in_cmd id' c) cs false).
-
-Definition load_in_block (id':id) (b:block) : bool :=
-match b with
-| (_, stmts_intro _ cs0 _) => load_in_cmds id' cs0
-end.
-
-Definition load_in_fdef (id':id) (f:fdef) : bool :=
-match f with
-| fdef_intro _ bs =>
-  List.fold_left (fun re b => re || load_in_block id' b) bs false
-end.
-
-Lemma load_notin_cmds__unused_in_value: forall vid0 id0 t v align0 cs cs11,
-  load_in_cmds vid0 (cs11 ++ insn_load id0 t v align0 :: cs) = false ->
-  used_in_value vid0 v = false.
-Proof. 
-  unfold load_in_cmds. intros.
-  remember false as R. rewrite HeqR in H at 2. rewrite HeqR. clear HeqR.
-  generalize dependent R. 
-  induction cs11; simpl; intros; eauto.
-    apply fold_left_eq in H.
-      apply orb_false_iff in H.
-      destruct H; auto.
-
-      intros a b J.
-      apply orb_false_iff in J.
-      destruct J; auto.
-Qed.
-
-Lemma load_in_cmds_true: forall id1 id0 t align0 csb csa,
-  load_in_cmds id1 (csa ++ insn_load id0 t (value_id id1) align0 :: csb) = true.
-Proof.
-  unfold load_in_cmds.
-  intros.
-  generalize false.
-  induction csa; simpl; intros; eauto.
-    destruct (id_dec id1 id1); try congruence. 
-    simpl.
-    rewrite orb_true_intro; auto.
-    apply fold_left_or_spec.
-    intros. subst. auto.
-Qed.
-
-Lemma load_in_cmds_app: forall i0 cs2 cs1,
-  load_in_cmds i0 (cs1++cs2) = false ->
-  load_in_cmds i0 cs1 = false /\ load_in_cmds i0 cs2 = false.
-Proof.
-  unfold load_in_cmds.
-  intros.
-  rewrite fold_left_app in H.
-  apply fold_left_or_false in H.
-    tauto.
-    intros. apply orb_false_iff in H0. tauto.
-Qed.
-
-Lemma load_in_cmds_merge: forall i0 cs1 cs2,
-  load_in_cmds i0 cs1 = false /\ load_in_cmds i0 cs2 = false ->
-  load_in_cmds i0 (cs1++cs2) = false.
-Proof.
-  unfold load_in_cmds.
-  intros.
-  rewrite fold_left_app.
-  destruct H as [H1 H2].
-  rewrite H1. auto.
-Qed.
-
-Lemma remove_phinodes_stable: forall id' ps 
-  (Hnotin: ~ In id' (getPhiNodesIDs ps)), ps = remove_phinodes id' ps.
-Proof.
-  induction ps; simpl; intros; auto.
-    destruct_dec.
-      contradict Hnotin. auto.
-      simpl. rewrite <- IHps; auto.
 Qed.
 
 Definition conditional_used_in_value (F0 F:fdef) id0 v :=
@@ -1881,15 +1923,6 @@ Proof.
       clear J4.
       eapply IHcs in J3; eauto.
 Qed.
-
-Definition transf_from_module (transf:fdef -> fdef) (m:module) :=
-let '(module_intro los nts ps) := m in
-module_intro los nts
-  (List.map (fun p =>
-             match p with
-             | product_fdef f => product_fdef (transf f)
-             | _ => p
-             end) ps).
 
 (*************************************************************)
 (* remove lifetime intrinsics                                *)

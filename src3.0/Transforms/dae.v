@@ -99,7 +99,7 @@ Opaque Mem.alloc.
       inv Hin. simpl. unfold is_alloca_in_EC.
       destruct (fdef_dec (PI_f pinfo) ); try congruence.
       rewrite lookupAL_updateAddAL_eq.
-      rewrite Promotability.simpl_blk2GV.
+      rewrite simpl_blk2GV.
       destruct (Z_eq_dec (Mem.nextblock Mem1) blk); try congruence.
 
       apply J. simpl; auto.

@@ -14,16 +14,13 @@ Require Import trans_tactic.
 
 Import Promotability.
 
-(* 
-  An alive store can use a different alignment from the promotable alloca's.
-  If the store's alignment is not legal w.r.t the promotable's, the original
-  program is undefined. Otherwise, the value we load should be the same.
+(* This file proves that in the same block if between a load follows a store 
+   or an alloca there is no other store, the load must read the same value 
+   stored by the store or the alloca. We call the store or the alloca mop
+   for memory operation. *)
 
-  So far, the memory model assumes all programs' alignments are correct. So,
-  we will not check if an alignment is proper. This is one of our future work.
-*)
-
-Definition store_or_alloca_of_pid c (pinfo:PhiInfo) : Prop := 
+(* Check if the store or the alloca is for pinfo. *)
+Definition store_or_alloca_of_pid (c:cmd) (pinfo:PhiInfo) : Prop := 
 match c with
 | insn_store _ t _ v _ => t = PI_typ pinfo /\ v = value_id (PI_id pinfo)
 | insn_alloca id0 t0 v0 a0 =>
@@ -32,14 +29,19 @@ match c with
 | _ => False
 end.
 
-Definition value_of_store_or_alloca c v0 (pinfo:PhiInfo) : Prop := 
+(* Check if the value v0 is written by the store, or undef created by the
+   alloca. *)
+Definition value_of_store_or_alloca (c:cmd) (v0:value) (pinfo:PhiInfo) : Prop := 
 match c with
 | insn_store _ _ v _ _ => v0 = v
 | insn_alloca _ _ _ _ => v0 = value_const (const_undef (PI_typ pinfo))
 | _ => False
 end.
 
-Definition alive_mop v c (cs2:cmds) (b:block) (pinfo:PhiInfo) : Prop :=
+(* c in b is a store or an alloca with value v for pinfo.
+   cs2 exactly follows c in b. *)
+Definition alive_mop (v:value) (c:cmd) (cs2:cmds) (b:block) (pinfo:PhiInfo) 
+  : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\
 store_in_cmds (PI_id pinfo) cs2 = false /\
 store_or_alloca_of_pid c pinfo /\
@@ -47,6 +49,7 @@ value_of_store_or_alloca c v pinfo /\
 let '(_, stmts_intro _ cs _) := b in
 exists cs1, exists cs3, cs = cs1 ++ c :: cs2 ++ cs3.
 
+(* A record for alive memory operation. *)
 Record MopInfo (pinfo: PhiInfo) := mkMopInfo {
   M_value : value;
   M_c : cmd;
@@ -65,32 +68,15 @@ match goal with
   subst; simpl
 end.
 
-Lemma alive_mop_doesnt_use_promotable_allocas: forall pinfo minfo
-  (Huniq: uniqFdef (PI_f pinfo)),
-  WF_PhiInfo pinfo -> 
-  match (M_c pinfo minfo) with
-  | insn_store _ _ v _ _ => v <> value_id (PI_id pinfo)
-  | insn_alloca _ _ _ _ => used_in_cmd (PI_id pinfo) (M_c pinfo minfo) = false
-  | _ => False
-  end.
-Proof.
-  intros.
-  destruct_mopinfo.
-  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in M_BInF0; eauto using in_middle.
-    apply WF_PhiInfo_spec3 in M_BInF0; auto.
-    destruct M_c0; tinv M_mop; auto.
-    intro EQ; subst.
-    assert (G:=@valueEqB_refl (value_id (PI_id pinfo))).
-    destruct (valueEqB (value_id (PI_id pinfo)) (value_id (PI_id pinfo)));
-      simpl in *; try congruence.
-Qed.
-
+(* This invariant says that the pinfo's value stored in memory equals to the 
+   value of mop. *)
 Definition wf_defs (pinfo:PhiInfo) minfo TD M gl (lc:DGVMap) : Prop :=
 forall gvsa gvsv
   (Hlkpa: lookupAL _ lc (PI_id pinfo) = Some gvsa)
   (Hlkpv: Opsem.getOperandValue TD (M_value pinfo minfo) lc gl = Some gvsv),
   mload TD M gvsa (PI_typ pinfo) (PI_align pinfo) = Some gvsv.
 
+(* cs is a chunk of commands following the mop. *)
 Definition follow_alive_mop (pinfo:PhiInfo) minfo (cs:cmds) : Prop :=
 let '(_, stmts_intro _ cs0 _) := M_block pinfo minfo in
 forall cs1 cs3,
@@ -98,50 +84,7 @@ forall cs1 cs3,
   (exists csa, exists csb,
     cs = csb ++ cs3 /\ M_tail pinfo minfo = csa ++ csb).
 
-Lemma follow_alive_mop_cons: forall pinfo minfo c cs l0 ps0 cs0 tmn0
-  (Hneq: match M_c pinfo minfo, c with
-         | insn_alloca _ _ _ _, insn_alloca _ _ _ _ => getCmdLoc c <> PI_id pinfo
-         | _, _ => True
-         end)
-  (Huniq:uniqFdef (PI_f pinfo)),
-  (l0, stmts_intro ps0 (cs0++c::cs) tmn0) = M_block pinfo minfo ->
-  store_in_cmd (PI_id pinfo) c = false ->
-  follow_alive_mop pinfo minfo cs ->
-  follow_alive_mop pinfo minfo (c::cs).
-Proof.
-  unfold follow_alive_mop.
-  intros.
-  destruct_mopinfo. 
-  intros.
-  assert (M_cs1 = cs1 /\ M_cs3 = cs3) as J.
-    eapply uniqFdef_cmds_split_middle in H2; eauto.
-    destruct H2 as [G1 G2].
-    split; auto.
-      apply app_inv_head in G2; auto.
-
-  destruct J as [EQ1 EQ2]; subst. clear H2.
-  edestruct H1 as [csa [csb [EQ1 EQ2]]]; eauto. clear H1.
-  subst. inv H.
-  anti_simpl_env.
-  destruct csa.
-    anti_simpl_env.
-    destruct M_c0; tinv M_mop; destruct M_mop as [? ?]; subst.
-      contradict Hneq; auto.
-
-      simpl in H0.
-      destruct (id_dec (PI_id pinfo) (PI_id pinfo)); simpl in H0; congruence.
-
-    assert (exists csa', exists c2, [c0] ++ csa = csa' ++ [c2]) as EQ.
-      apply head_tail_commut.
-    destruct EQ as [csa' [c2 EQ]].
-    simpl_env in H4.
-    rewrite EQ in H4. anti_simpl_env.
-    exists csa'. exists (c2::csb). simpl_env.
-    rewrite_env (([c0] ++ csa) ++ csb).
-    rewrite EQ. simpl_env.
-    split; auto.
-Qed.
-
+(* If the EC follows mop, then it must satisfy wf_defs. *)
 Definition wf_ExecutionContext (pinfo:PhiInfo) minfo TD M gl
   (ec:Opsem.ExecutionContext) : Prop :=
 Opsem.CurFunction ec = PI_f pinfo ->
@@ -163,98 +106,30 @@ Definition wf_State (pinfo:PhiInfo) minfo
 wf_ECStack pinfo minfo (OpsemAux.CurTargetData cfg) (Opsem.Mem S)
   (OpsemAux.Globals cfg) (Opsem.ECS S).
 
-Lemma free_allocas_preserves_wf_defs: forall pinfo minfo TD Mem lc' als0 als Mem'
-  gl maxb,
-  Promotability.wf_defs maxb pinfo TD Mem lc' als0 ->
-  wf_defs pinfo minfo TD Mem gl lc' ->
-  NoDup (als ++ als0) ->
-  free_allocas TD Mem als = ret Mem' ->
-  wf_defs pinfo minfo TD Mem' gl lc'.
-Proof.
-  intros. unfold wf_defs in *. intros.
-  assert (Hlkpa':=Hlkpa).
-  eapply H0 in Hlkpa; eauto. clear H0.
-  eapply H in Hlkpa'; eauto.
-  destruct Hlkpa' as [J1 J2].
-  destruct J1 as [_ [[mb [J1 [J3 J4]]] _]]; subst.
-  eapply alist.NoDup_disjoint in H1; eauto.
-  eapply free_allocas_preserves_mload; eauto.
-Qed.
+(************************************************************)
+(* Properties of follow_alive_mop *)
 
-Lemma wf_defs_updateAddAL: forall pinfo minfo TD M lc' i1 gv1 gl
-  (Hwfpi: WF_PhiInfo pinfo) (Huniq: uniqFdef (PI_f pinfo))
-  (HwfDef: wf_defs pinfo minfo TD M gl lc')
-  (Hneq: i1 <> PI_id pinfo)
-  (Hnouse: used_in_value i1 (M_value pinfo minfo) = false),
-  wf_defs pinfo minfo TD M gl (updateAddAL _ lc' i1 gv1).
-Proof.
-  intros. unfold wf_defs in *. intros.
-  rewrite <- lookupAL_updateAddAL_neq in Hlkpa; auto.
-  eapply HwfDef; eauto.
-  eapply alive_mop_doesnt_use_promotable_allocas with (minfo:=minfo) in Hwfpi; 
-    eauto.
-  destruct (M_value pinfo minfo) as [i0|]; simpl in *; auto.
-  destruct (id_dec i0 i1); simpl in Hnouse; try congruence.
-  rewrite <- lookupAL_updateAddAL_neq in Hlkpv; auto.
-Qed.
-
-Lemma free_allocas_preserves_wf_ECStack: forall maxb pinfo minfo td als gl ECs
-  Mem Mem'
-  (HwfECs : Promotability.wf_ECStack maxb pinfo td Mem ECs)
-  (Hwfpi: WF_PhiInfo pinfo)
-  (Hndup: NoDup (als ++ (flat_map
-                  (fun ec : Opsem.ExecutionContext =>
-                   let '{| Opsem.Allocas := als |} := ec in als)
-                   ECs)))
-  (Hwf: wf_ECStack pinfo minfo td Mem gl ECs)
-  (Hfrees: free_allocas td Mem als = ret Mem'),
-  wf_ECStack pinfo minfo td Mem' gl ECs.
-Proof.
-  induction ECs as [|[]]; simpl; intros; auto.
-    destruct Hwf as [J1 J2].
-    assert (Hndup' := Hndup).
-    apply NoDup_strenthening in Hndup.
-    destruct HwfECs as [[Hwfdefs _] [HwfECs _]].
-    split; eauto.
-      intros G1 G2 G3. simpl in G1, G2, G3. subst. simpl.
-      apply J1 in G3; auto. simpl in G3.
-      destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-      rewrite_env ((als ++ Allocas) ++
-        flat_map
-          (fun ec : Opsem.ExecutionContext =>
-           let '{| Opsem.Allocas := als |} := ec in als) ECs) in Hndup'.
-      apply NoDup_split in Hndup'. destruct Hndup'.
-      eapply free_allocas_preserves_wf_defs in G3; eauto.
-Qed.
-
-Lemma follow_alive_mop_at_beginning_false: forall (pinfo : PhiInfo)
-  minfo (l' : l) (ps' : phinodes) (cs' : cmds)
-  (tmn' : terminator)
-  (J2 : (l', stmts_intro ps' cs' tmn') = M_block pinfo minfo)
-  (J3 : follow_alive_mop pinfo minfo cs'),
-  False.
+(* SSA ensures that the alive alloca cannot use pinfo; and
+   Promotability ensures that the alive store cannot write pinfo into memory. *)
+Lemma alive_mop_doesnt_use_promotable_allocas: forall pinfo minfo
+  (Huniq: uniqFdef (PI_f pinfo)),
+  WF_PhiInfo pinfo -> 
+  match (M_c pinfo minfo) with
+  | insn_store _ _ v _ _ => v <> value_id (PI_id pinfo)
+  | insn_alloca _ _ _ _ => used_in_cmd (PI_id pinfo) (M_c pinfo minfo) = false
+  | _ => False
+  end.
 Proof.
   intros.
-  unfold follow_alive_mop in J3.
-  rewrite <- J2 in J3.
   destruct_mopinfo.
-  inv J2.
-  destruct (J3 M_cs1 M_cs3) as [csa [csb [EQ1 EQ2]]]; subst; auto.
-  anti_simpl_env.
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in M_BInF0; eauto using in_middle.
+    apply WF_PhiInfo_spec3 in M_BInF0; auto.
+    destruct M_c0; tinv M_mop; auto.
+    intro EQ; subst.
+    assert (G:=@valueEqB_refl (value_id (PI_id pinfo))).
+    destruct (valueEqB (value_id (PI_id pinfo)) (value_id (PI_id pinfo)));
+      simpl in *; try congruence.
 Qed.
-
-Ltac preservation_sBranch :=
-match goal with
-| HwfS1 : wf_State _ _ _ _ |- _ =>
-  destruct HwfS1 as [_ HwfECs];
-  simpl in HwfECs;
-  fold wf_ECStack in HwfECs;
-  split; try solve [
-    auto |
-    intros J1 J2 J3; simpl in *; subst;
-    eapply follow_alive_mop_at_beginning_false in J3; eauto;
-    inv J3]
-end.
 
 Lemma alive_mop_doesnt_use_its_followers_and_pid: forall l1 ps1 cs1' c cs tmn 
   id0 pinfo minfo s m (Huniq: uniqFdef (PI_f pinfo))
@@ -332,6 +207,146 @@ Proof.
     eapply alive_mop_doesnt_use_its_followers_and_pid in H2; simpl; eauto.
     tauto.
 Qed.
+
+Lemma follow_alive_mop_cons: forall pinfo minfo c cs l0 ps0 cs0 tmn0
+  (Hneq: match M_c pinfo minfo, c with
+         | insn_alloca _ _ _ _, insn_alloca _ _ _ _ => getCmdLoc c <> PI_id pinfo
+         | _, _ => True
+         end)
+  (Huniq:uniqFdef (PI_f pinfo)),
+  (l0, stmts_intro ps0 (cs0++c::cs) tmn0) = M_block pinfo minfo ->
+  store_in_cmd (PI_id pinfo) c = false ->
+  follow_alive_mop pinfo minfo cs ->
+  follow_alive_mop pinfo minfo (c::cs).
+Proof.
+  unfold follow_alive_mop.
+  intros.
+  destruct_mopinfo. 
+  intros.
+  assert (M_cs1 = cs1 /\ M_cs3 = cs3) as J.
+    eapply uniqFdef_cmds_split_middle in H2; eauto.
+    destruct H2 as [G1 G2].
+    split; auto.
+      apply app_inv_head in G2; auto.
+
+  destruct J as [EQ1 EQ2]; subst. clear H2.
+  edestruct H1 as [csa [csb [EQ1 EQ2]]]; eauto. clear H1.
+  subst. inv H.
+  anti_simpl_env.
+  destruct csa.
+    anti_simpl_env.
+    destruct M_c0; tinv M_mop; destruct M_mop as [? ?]; subst.
+      contradict Hneq; auto.
+
+      simpl in H0.
+      destruct (id_dec (PI_id pinfo) (PI_id pinfo)); simpl in H0; congruence.
+
+    assert (exists csa', exists c2, [c0] ++ csa = csa' ++ [c2]) as EQ.
+      apply head_tail_commut.
+    destruct EQ as [csa' [c2 EQ]].
+    simpl_env in H4.
+    rewrite EQ in H4. anti_simpl_env.
+    exists csa'. exists (c2::csb). simpl_env.
+    rewrite_env (([c0] ++ csa) ++ csb).
+    rewrite EQ. simpl_env.
+    split; auto.
+Qed.
+
+Lemma follow_alive_mop_at_beginning_false: forall (pinfo : PhiInfo)
+  minfo (l' : l) (ps' : phinodes) (cs' : cmds)
+  (tmn' : terminator)
+  (J2 : (l', stmts_intro ps' cs' tmn') = M_block pinfo minfo)
+  (J3 : follow_alive_mop pinfo minfo cs'),
+  False.
+Proof.
+  intros.
+  unfold follow_alive_mop in J3.
+  rewrite <- J2 in J3.
+  destruct_mopinfo.
+  inv J2.
+  destruct (J3 M_cs1 M_cs3) as [csa [csb [EQ1 EQ2]]]; subst; auto.
+  anti_simpl_env.
+Qed.
+
+(************************************************************)
+(* The following shows that wf_State is preserved by small-steps. *)
+
+Lemma wf_defs_updateAddAL: forall pinfo minfo TD M lc' i1 gv1 gl
+  (Hwfpi: WF_PhiInfo pinfo) (Huniq: uniqFdef (PI_f pinfo))
+  (HwfDef: wf_defs pinfo minfo TD M gl lc')
+  (Hneq: i1 <> PI_id pinfo)
+  (Hnouse: used_in_value i1 (M_value pinfo minfo) = false),
+  wf_defs pinfo minfo TD M gl (updateAddAL _ lc' i1 gv1).
+Proof.
+  intros. unfold wf_defs in *. intros.
+  rewrite <- lookupAL_updateAddAL_neq in Hlkpa; auto.
+  eapply HwfDef; eauto.
+  eapply alive_mop_doesnt_use_promotable_allocas with (minfo:=minfo) in Hwfpi; 
+    eauto.
+  destruct (M_value pinfo minfo) as [i0|]; simpl in *; auto.
+  destruct (id_dec i0 i1); simpl in Hnouse; try congruence.
+  rewrite <- lookupAL_updateAddAL_neq in Hlkpv; auto.
+Qed.
+
+Lemma free_allocas_preserves_wf_defs: forall pinfo minfo TD Mem lc' als0 als Mem'
+  gl maxb,
+  Promotability.wf_defs maxb pinfo TD Mem lc' als0 ->
+  wf_defs pinfo minfo TD Mem gl lc' ->
+  NoDup (als ++ als0) ->
+  free_allocas TD Mem als = ret Mem' ->
+  wf_defs pinfo minfo TD Mem' gl lc'.
+Proof.
+  intros. unfold wf_defs in *. intros.
+  assert (Hlkpa':=Hlkpa).
+  eapply H0 in Hlkpa; eauto. clear H0.
+  eapply H in Hlkpa'; eauto.
+  destruct Hlkpa' as [J1 J2].
+  destruct J1 as [_ [[mb [J1 [J3 J4]]] _]]; subst.
+  eapply alist.NoDup_disjoint in H1; eauto.
+  eapply free_allocas_preserves_mload; eauto.
+Qed.
+
+Lemma free_allocas_preserves_wf_ECStack: forall maxb pinfo minfo td als gl ECs
+  Mem Mem'
+  (HwfECs : Promotability.wf_ECStack maxb pinfo td Mem ECs)
+  (Hwfpi: WF_PhiInfo pinfo)
+  (Hndup: NoDup (als ++ (flat_map
+                  (fun ec : Opsem.ExecutionContext =>
+                   let '{| Opsem.Allocas := als |} := ec in als)
+                   ECs)))
+  (Hwf: wf_ECStack pinfo minfo td Mem gl ECs)
+  (Hfrees: free_allocas td Mem als = ret Mem'),
+  wf_ECStack pinfo minfo td Mem' gl ECs.
+Proof.
+  induction ECs as [|[]]; simpl; intros; auto.
+    destruct Hwf as [J1 J2].
+    assert (Hndup' := Hndup).
+    apply NoDup_strenthening in Hndup.
+    destruct HwfECs as [[Hwfdefs _] [HwfECs _]].
+    split; eauto.
+      intros G1 G2 G3. simpl in G1, G2, G3. subst. simpl.
+      apply J1 in G3; auto. simpl in G3.
+      destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
+      rewrite_env ((als ++ Allocas) ++
+        flat_map
+          (fun ec : Opsem.ExecutionContext =>
+           let '{| Opsem.Allocas := als |} := ec in als) ECs) in Hndup'.
+      apply NoDup_split in Hndup'. destruct Hndup'.
+      eapply free_allocas_preserves_wf_defs in G3; eauto.
+Qed.
+
+Ltac preservation_sBranch :=
+match goal with
+| HwfS1 : wf_State _ _ _ _ |- _ =>
+  destruct HwfS1 as [_ HwfECs];
+  simpl in HwfECs;
+  fold wf_ECStack in HwfECs;
+  split; try solve [
+    auto |
+    intros J1 J2 J3; simpl in *; subst;
+    eapply follow_alive_mop_at_beginning_false in J3; eauto;
+    inv J3]
+end.
 
 Lemma preservation_return : forall maxb pinfo minfo (HwfPI : WF_PhiInfo pinfo)
   F B rid RetTy Result lc F' B' c' cs' tmn' lc' EC Mem als als' cfg
@@ -830,12 +845,6 @@ Proof.
     unfold follow_alive_mop in J3.
     rewrite <- J2 in J3.
     destruct_mopinfo.
-(*
-    assert (SI_alive0':=SI_alive0).
-    rewrite <- J2 in SI_alive0'.
-    destruct SI_alive0' as [G1 [G2 [cs1 [cs2 EQ]]]].
-    assert (EQ':=EQ).
-*)
     inv J2.
     assert (EQ':=H7).
     apply J3 in H7. clear J3.
@@ -1092,6 +1101,7 @@ match goal with
     ]
 end.
 
+(* The main result. *)
 Lemma preservation : forall maxb pinfo minfo cfg S1 S2 tr
   (Hwfg: wf_globals maxb (OpsemAux.Globals cfg))
   (Hwfcfg: OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S1) 

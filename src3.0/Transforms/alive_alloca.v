@@ -15,6 +15,8 @@ Require Import alive_mop.
 
 Import Promotability.
 
+(* This file instantiates alive_mop with alive allocas. *)
+
 Definition alive_alloca (cs2:cmds) (b:block) (pinfo:PhiInfo) : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\
 store_in_cmds (PI_id pinfo) cs2 = false /\

@@ -1904,7 +1904,7 @@ Proof.
         assert (ofs' = Int.repr 31 0) as EQ. 
           apply Hinscope' in H25. clear - H25.
           destruct H25 as [[_ [[mb [H25 _]] _]] _].
-          rewrite Promotability.simpl_blk2GV in H25. inv H25. auto.            
+          rewrite simpl_blk2GV in H25. inv H25. auto.            
         subst.
         assert (in_SAS_tails pinfo sasinfo (Some b'::l') (los, nts)
                  ({|Opsem.CurFunction := PI_f pinfo;
@@ -1924,7 +1924,7 @@ Proof.
           eapply wf__getTypeStoreSize_eq_sizeGenericValue; eauto.
         rewrite EQ in *. clear EQ. 
         eapply SASmsim.mstore_aux_inject_id_inside_inj2; eauto.
-        rewrite Int.signed_repr; auto using Promotability.min_le_zero_le_max.
+        rewrite Int.signed_repr; auto using min_le_zero_le_max.
   
         SSSCase "PI_f <> F".
         assert (y = None) as EQ. 

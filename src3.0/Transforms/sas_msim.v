@@ -832,10 +832,10 @@ Lemma mstore_inside_inj_left: forall (TD : TargetData) (M1 : mem)
 Proof.
   intros.
   apply mstore_inversion in H23.
-  rewrite Promotability.simpl_blk2GV in H23.
+  rewrite simpl_blk2GV in H23.
   destruct H23 as [b [ofs [cm [J1 J2]]]].
   inv J1.
-  rewrite Int.signed_repr in J2; auto using Promotability.min_le_zero_le_max.
+  rewrite Int.signed_repr in J2; auto using min_le_zero_le_max.
   eapply mstore_aux_inside_inj_left'; eauto.
   unfold Size.to_Z.
   split; omega.
@@ -851,10 +851,10 @@ Lemma mstore_inside_inj_left': forall (TD : TargetData) (M1 : mem)
 Proof.
   intros.
   apply mstore_inversion in H23.
-  rewrite Promotability.simpl_blk2GV in H23.
+  rewrite simpl_blk2GV in H23.
   destruct H23 as [b [ofs [cm [J1 J2]]]].
   inv J1.
-  rewrite Int.signed_repr in J2; auto using Promotability.min_le_zero_le_max.
+  rewrite Int.signed_repr in J2; auto using min_le_zero_le_max.
   eapply mstore_aux_inside_inj_left; eauto.
     unfold in_ignores_with_size.
     simpl. exists b. exists 0. exists (Size.to_Z (sizeGenericValue gv1)).

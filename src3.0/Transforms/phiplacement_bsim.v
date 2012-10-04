@@ -17,6 +17,9 @@ Require Import phiplacement_bsim_defs.
 
 Import Promotability.
 
+(* The file proves that phinode placement refines programs in term of the
+   simulation relations defined in phiplacement_bsim_defs.v *)
+
 Lemma phinodes_placement_is_correct__dsBranch: forall
   (pinfo : PhiInfo) (Cfg1 : OpsemAux.Config) (St1 : Opsem.State)
   (S : system) (TD : TargetData) (Ps : list product) (F : fdef) (B : block)
@@ -64,7 +67,6 @@ Lemma phinodes_placement_is_correct__dsBranch: forall
 Proof.
   intros. subst.
   destruct_ctx_br.
-  destruct Hwfpp as [_ [[Hreachb _] _]]; auto.
 
   assert (HuniqF:=HFinPs).
   eapply wf_system__uniqFdef in HuniqF; eauto.
@@ -307,7 +309,6 @@ Lemma phinodes_placement_is_correct__dsBranch_uncond: forall
 Proof.
   intros. subst.
   destruct_ctx_br.
-  destruct Hwfpp as [_ [[Hreachb _] _]]; auto.
 
   assert (HuniqF:=HFinPs).
   eapply wf_system__uniqFdef in HuniqF; eauto.
@@ -482,7 +483,7 @@ Qed.
 Lemma phinodes_placement_is_correct__dsLoad: forall (maxb : Values.block) 
   (pinfo : PhiInfo)
   (Cfg1 : OpsemAux.Config) (St1 : Opsem.State) (Hwfpi : WF_PhiInfo pinfo)
-  (Hwfcfg: OpsemPP.wf_Config Cfg1) 
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hnoalias : wf_State maxb pinfo Cfg1 St1) (S : system) (TD : TargetData)
   (Ps : list product) (F : fdef) (B : block) (lc : Opsem.GVsMap) (gl : GVMap)
   (fs : GVMap) (id0 : id) (t : typ) (align0 : align) (v : value)
@@ -678,7 +679,7 @@ Qed.
 Lemma phinodes_placement_is_correct__dsStore: forall (maxb : Values.block)
   (pinfo : PhiInfo)
   (Cfg1 : OpsemAux.Config) (St1 : Opsem.State) (Hwfpi : WF_PhiInfo pinfo)
-  (Hwfcfg: OpsemPP.wf_Config Cfg1) 
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hnoalias : wf_State maxb pinfo Cfg1 St1) (S : system) (TD : TargetData)
   (Ps : list product) (F : fdef) (B : block) (lc : Opsem.GVsMap) (gl : GVMap)
   (fs : GVMap) (sid : id) (t : typ) (align0 : align) (v1 v2 : value)
@@ -1105,7 +1106,7 @@ Ltac phinodes_placement_is_correct__common :=
 Lemma phinodes_placement_is_correct__dsAlloca: forall (maxb: Values.block)
   (pinfo: PhiInfo)
   (Cfg1 : OpsemAux.Config) (St1 : Opsem.State) (Hwfpi : WF_PhiInfo pinfo)
-  (Hwfcfg: OpsemPP.wf_Config Cfg1) 
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hnoalias : wf_State maxb pinfo Cfg1 St1) (S : system) (TD : TargetData)
   (Ps : list product) (F : fdef) (B : block) (lc : Opsem.GVsMap) (gl : GVMap)
   (fs : GVMap) (id0 : id) (t : typ) (align0 : align) (v : value)
@@ -1151,7 +1152,7 @@ Qed.
 Lemma phinodes_placement_is_correct__dsMalloc: forall (maxb: Values.block)
   (pinfo: PhiInfo)
   (Cfg1 : OpsemAux.Config) (St1 : Opsem.State) (Hwfpi : WF_PhiInfo pinfo)
-  (Hwfcfg: OpsemPP.wf_Config Cfg1) 
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hnoalias : wf_State maxb pinfo Cfg1 St1) (S : system) (TD : TargetData)
   (Ps : list product) (F : fdef) (B : block) (lc : Opsem.GVsMap) (gl : GVMap)
   (fs : GVMap) (id0 : id) (t : typ) (align0 : align) (v : value)
@@ -1196,7 +1197,7 @@ Qed.
 
 Lemma phinodes_placement_is_correct__dsCall: forall (maxb : Values.block)
   (pinfo : PhiInfo) (Cfg1 : OpsemAux.Config) (St1 : Opsem.State)
-  (Hwfcfg: OpsemPP.wf_Config Cfg1) 
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hwfpi : WF_PhiInfo pinfo) (Hnoalias : wf_State maxb pinfo Cfg1 St1)
   (S : system) (TD : TargetData) (Ps : products) (F : fdef) (B : block)
   (lc : Opsem.GVsMap) (gl : GVMap) (fs : GVMap) (rid : id) (noret0 : noret)
@@ -1315,7 +1316,6 @@ Proof.
           true) as Hin.
         eapply OpsemAux.lookupFdefViaPtr_inv; eauto.
       repeat (split; eauto 2 using cmds_at_block_tail_next).
-        apply entryBlockInFdef; auto.
         exists l'. exists ps0. exists nil. auto.
         exists l'. exists ps'. exists nil. auto.
         apply reg_simulation_refl.
@@ -1374,7 +1374,6 @@ Proof.
           true) as Hin.
         eapply OpsemAux.lookupFdefViaPtr_inv; eauto.
       repeat (split; eauto 2 using cmds_at_block_tail_next).
-        apply entryBlockInFdef; auto.
         exists l'. exists ps0. exists nil. auto.
         exists l'. exists ps'. exists nil. auto.
         apply reg_simulation_refl.
@@ -1384,7 +1383,7 @@ Qed.
 
 Lemma phinodes_placement_is_correct__dsExCall: forall (maxb : Values.block)
   (pinfo : PhiInfo) (Cfg1 : OpsemAux.Config) (St1 : Opsem.State)
-  (Hwfcfg: OpsemPP.wf_Config Cfg1) 
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hwfpi : WF_PhiInfo pinfo) (Hnoalias : wf_State maxb pinfo Cfg1 St1)
   (S : system) (TD : TargetData) (Ps : products) (F : fdef) (B : block)
   (lc : Opsem.GVsMap) (gl : GVMap) (fs : GVMap) (rid : id) (noret0 : bool)
@@ -1511,6 +1510,7 @@ Proof.
         eapply ECs_simulation_tail_stable; eauto].
 Qed.
 
+(* The main result. *)
 Lemma phinodes_placement_is_bsim : forall maxb pinfo Cfg1 St1 Cfg2 St2 St2' tr
   (Hwfpi: WF_PhiInfo pinfo)
   (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)

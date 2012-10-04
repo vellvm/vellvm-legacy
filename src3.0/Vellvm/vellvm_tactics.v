@@ -23,6 +23,7 @@ repeat match goal with
 | H : ?f _ _ _ _ = ?f _ _ _ _ |- _ => inv H
 | H : ?f _ _ _ _ _ = ?f _ _ _ _ _ |- _ => inv H
 | H : False |- _ => inv H
+| H : (_, _) = (_, _) |- _ => inv H
 end.
 
 Ltac destruct_if :=

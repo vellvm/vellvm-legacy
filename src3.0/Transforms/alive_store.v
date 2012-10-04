@@ -15,6 +15,8 @@ Require Import alive_mop.
 
 Import Promotability.
 
+(* This file instantiates alive_mop with alive stores. *)
+
 (* 
   An alive store can use a different alignment from the promotable alloca's.
   If the store's alignment is not legal w.r.t the promotable's, the original

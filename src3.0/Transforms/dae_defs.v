@@ -664,7 +664,7 @@ Proof.
   destruct HeqR as [HeqR _].
   destruct HeqR as [_ [HeqR _]].
   destruct HeqR as [mb [J1 [J2 J3]]].
-  rewrite Promotability.simpl_blk2GV in J1.
+  rewrite simpl_blk2GV in J1.
   inv J1.
   contradict J3; omega.
 Qed.
@@ -794,7 +794,7 @@ Proof.
   destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
   destruct (id_dec (PI_id pinfo) (PI_id pinfo)); try congruence.
   rewrite lookupAL_updateAddAL_eq.
-  rewrite Promotability.simpl_blk2GV.
+  rewrite simpl_blk2GV.
   destruct (Z_eq_dec mb mb); try congruence.
   split; auto.
     eapply als_simulation_weaken_palloca; eauto.
@@ -827,7 +827,7 @@ Proof.
   apply reg_simulation_update_non_palloca; auto.
     eapply inject_incr__preserves__reg_simulation; eauto.
 
-    repeat rewrite Promotability.simpl_blk2GV.
+    repeat rewrite simpl_blk2GV.
     constructor; auto.
       assert (Int.repr 31 0 = Int.add 31 (Int.repr 31 0) (Int.repr 31 0))
         as EQ.

@@ -1,12 +1,153 @@
 Require Import vellvm.
 Require Import Lattice.
 Require Import phielim_spec.
+Require Import Program.Tactics.
+Require Import opsem_props.
 
-Definition DGVMap := @Opsem.GVsMap DGVs.
+(* This file proves the generic results of that substitution refines programs. 
+   This is used by LAA/LAS. *)
 
-(* The invariant is fine to prove subst v1 by v2 in f when v2 >> v1.
-   when value_in_scope v1 ids0, we must have value_in_scope v2 ids0. 
-*)
+(******************************************************)
+(* SSA-based optimizations substitute a value v1 by v2 when the following
+   conditions hold. *)
+
+(* The substituting values must be variables defined or constants. *) 
+Definition substing_value (f:fdef) (v:value) : Prop :=
+match v with
+| value_const _ => True
+| value_id vid =>
+    In vid (getArgsIDsOfFdef f) \/
+    exists instr, lookupInsnViaIDFromFdef f vid = ret instr
+end.
+
+(* The substituting value is not defined by an effectful commands,
+   and if it is defined by a phinode, the phinode must be an AH-phinode. *)
+Definition substable_cmd (c:cmd) : Prop :=
+match c with
+| insn_call _ _ _ _ _ _ _ => False
+| insn_free _ _ _ => False
+| insn_store _ _ _ _ _ => False
+| _ => True
+end.
+
+Definition substable_value (f:fdef) (v1 v2:value) : Prop :=
+match v1 with
+| value_const _ => True
+| value_id vid1 =>
+    match lookupInsnViaIDFromFdef f vid1 with
+    | Some (insn_cmd c1) => substable_cmd c1
+    | Some (insn_phinode p1) => assigned_phi v2 p1
+    | _ => False
+    end
+end.
+
+(* If v1 and v2 satisfy the above predicates, v2 >> v1, and v2 and v1 
+   have the same semantic value when they are constant, we could substitute v2 
+   by v1 *)
+Definition substable_values TD gl (f:fdef) (v1 v2:value) : Prop :=
+substable_value f v1 v2 /\ substing_value f v2 /\ valueDominates f v2 v1 /\
+match v1, v2 with
+| value_const vc1, value_const vc2 =>
+    @Opsem.const2GV DGVs TD gl vc1 = Opsem.const2GV TD gl vc2
+| _, _ => True
+end.
+
+(* Moreover, if v1 is defined by a command c, then v1's semantic value 
+   computed by c must equal to v2's. *)
+
+(* A predicate that checks if c's value equals to gv. *)
+Definition eval_rhs TD (M:mem) gl (lc:DGVMap) (c:cmd) gv : Prop :=
+match c with
+| insn_bop _ bop0 sz v1 v2 => BOP TD lc gl bop0 sz v1 v2 = Some gv
+| insn_fbop _ fbop fp v1 v2 => FBOP TD lc gl fbop fp v1 v2  = Some gv
+| insn_extractvalue id t v idxs t' =>
+    exists gv0, Opsem.getOperandValue TD v lc gl = Some gv0 /\
+                extractGenericValue TD t gv0 idxs = Some gv
+| insn_insertvalue _ t v t' v' idxs =>
+    exists gv1, exists gv2,
+      Opsem.getOperandValue TD v lc gl = Some gv1 /\
+      Opsem.getOperandValue TD v' lc gl = Some gv2 /\
+      insertGenericValue TD t gv1 idxs t' gv2 = Some gv
+| insn_malloc _ t v aln | insn_alloca _ t v aln =>
+    exists tsz, exists gns, exists gn, exists M', exists mb,
+      getTypeAllocSize TD t = Some tsz /\
+      Opsem.getOperandValue TD v lc gl = Some gns /\
+      gn @ gns /\
+      malloc TD M tsz gn aln = Some (M', mb) /\
+      gv = ($ (blk2GV TD mb) # (typ_pointer t) $)
+| insn_load _ t v aln =>
+    exists mps, exists mp, exists gv0,
+      Opsem.getOperandValue TD v lc gl = Some mps /\
+      mp @ mps /\
+      mload TD M mp t aln = Some gv0 /\
+      gv = ($ gv0 # t$)
+| insn_gep _ inbounds t v idxs t' =>
+    exists mp, exists vidxss, exists vidxs,
+      Opsem.getOperandValue TD v lc gl = Some mp /\
+      values2GVs TD idxs lc gl = Some vidxss /\
+      vidxs @@ vidxss /\
+      GEP TD t mp vidxs inbounds t' = Some gv
+| insn_trunc _ truncop t1 v1 t2 => TRUNC TD lc gl truncop t1 v1 t2 = Some gv
+| insn_ext _ extop t1 v1 t2 => EXT TD lc gl extop t1 v1 t2 = Some gv
+| insn_cast _ castop t1 v1 t2 => CAST TD lc gl castop t1 v1 t2 = Some gv
+| insn_icmp _ cond0 t v1 v2 => ICMP TD lc gl cond0 t v1 v2 = Some gv
+| insn_fcmp _ fcond fp v1 v2 => FCMP TD lc gl fcond fp v1 v2 = Some gv
+| insn_select _ v0 t v1 v2 =>
+    exists cond, exists gvs1, exists gvs2, exists c,
+      Opsem.getOperandValue TD v0 lc gl = Some cond /\
+      Opsem.getOperandValue TD v1 lc gl = Some gvs1 /\
+      Opsem.getOperandValue TD v2 lc gl = Some gvs2 /\
+      c @ cond /\
+      gv = if isGVZero TD c then gvs2 else gvs1
+| _ => True (* We may also consider call/excall, but ignore them so far *)
+end.
+
+(* Invariant: in f, v2 >> v1 /\ v1 is defined by c => [|v1|] = [|v2|] *)
+Definition vev_defs (v1 v2:value) F TD M gl (f:fdef) (lc:DGVMap) c ids0: Prop :=
+  F = f ->
+  (value_in_scope v2 ids0 ->
+   match Opsem.getOperandValue TD v2 lc gl with
+   | Some gv2 =>
+       match v1 with
+       | value_const _ => True
+       | value_id id1 =>
+           if (id1 == getCmdLoc c) then eval_rhs TD M gl lc c gv2
+           else True
+       end
+   | _ => True
+   end).
+
+(* Lift vev_defs to entire program states. *)
+Definition vev_ExecutionContext v1 v2 F TD M gl (ec:Opsem.ExecutionContext)
+  : Prop :=
+let '(Opsem.mkEC f b cs _ lc _) := ec in
+match cs with
+| nil => True
+| c::_ =>
+    match inscope_of_cmd f b c with
+    | None => True
+    | Some ids0 => vev_defs v1 v2 F TD M gl f lc c ids0
+    end
+end.
+
+Fixpoint vev_ECStack v1 v2 F TD M gl (ecs:Opsem.ECStack) : Prop :=
+match ecs with
+| nil => True
+| ec::ecs' =>
+    vev_ExecutionContext v1 v2 F TD M gl ec /\
+    vev_ECStack v1 v2 F TD M gl ecs'
+end.
+
+Definition vev_State v1 v2 F (cfg:OpsemAux.Config) (S:Opsem.State) : Prop :=
+let '(OpsemAux.mkCfg s td _ gl _ ) := cfg in
+let '(Opsem.mkState ecs M) := S in
+vev_ECStack v1 v2 F td M gl ecs.
+
+(******************************************************)
+(* The above conditions are safe, because we can prove that the following 
+   invariant holds: 
+     ids0 includes the definitions of the scope of the current program point,
+     if v1 is in ids0, then v1 and v2's values must equal. *)
 Definition wf_defs (v1 v2:value) F TD gl (f:fdef) (lc:DGVMap) ids0: Prop :=
 F = f ->
 forall gvs1 gvs2,
@@ -42,30 +183,34 @@ let '(OpsemAux.mkCfg s td ps gl _ ) := cfg in
 let '(Opsem.mkState ecs _) := S in
 wf_ECStack v1 v2 F td gl ps ecs.
 
-Lemma wf_defs_eq : forall ids2 ids1 v1 v2 F td gl F' lc',
-  AtomSet.set_eq ids1 ids2 ->
-  wf_defs v1 v2 F td gl F' lc' ids1 ->
-  wf_defs v1 v2 F td gl F' lc' ids2.
+(******************************************************)
+(* Properties of substition conditions *) 
+Lemma substable_value_isnt_arg: forall fa rt fid la va lb vid v2
+  (HuniqF: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
+  (Hvals : substable_value (fdef_intro (fheader_intro fa rt fid la va) lb)
+             (value_id vid) v2),
+  ~ In vid (getArgsIDs la).
 Proof.
   intros.
-  intros EQ gv1 gv2 Hin1 Hget1 Hget2; subst.
-  destruct H as [J1 J2].
-  eapply H0; eauto.
-    destruct v1; simpl in *; eauto.
+  symmetry_ctx.
+  intro J.
+  eapply IngetArgsIDs__lookupCmdViaIDFromFdef in J; eauto.
+  unfold substable_value in Hvals.
+  rewrite J in Hvals. auto.
 Qed.
 
-Definition substing_value (f:fdef) (v:value) : Prop :=
-match v with
-| value_const _ => True
-| value_id vid =>
-    In vid (getArgsIDsOfFdef f) \/
-    exists instr, lookupInsnViaIDFromFdef f vid = ret instr
-end.
+Lemma substable_vid__notin__args: forall f i0 v2 (Huniq: uniqFdef f), 
+  substable_value f (value_id i0) v2 ->
+  ~ value_in_scope (value_id i0) (getArgsIDsOfFdef f).
+Proof.
+  simpl. intros.
+  remember (lookupInsnViaIDFromFdef f i0) as R.
+  destruct R as [[]|]; tinv H;
+    eapply getInsnLoc__notin__getArgsIDs'; eauto.
+Qed.
 
 (******************************************************)
-
-Require Import Program.Tactics.
-Require Import opsem_props.
+(* Properties of scoping in terms of variable substitution *) 
 
 Lemma valueDominates_value_in_scope__value_in_scope__cmd: forall 
   v1 v2 S M (F' : fdef) (c : cmd) (ids1 : list atom) (Huniq : uniqFdef F')
@@ -153,120 +298,10 @@ Proof.
     destruct_in Hin0; xsolve_in_list.
 Qed.
 
-Definition eval_rhs TD (M:mem) gl (lc:DGVMap) (c:cmd) gv : Prop :=
-match c with
-| insn_bop _ bop0 sz v1 v2 => BOP TD lc gl bop0 sz v1 v2 = Some gv
-| insn_fbop _ fbop fp v1 v2 => FBOP TD lc gl fbop fp v1 v2  = Some gv
-| insn_extractvalue id t v idxs t' =>
-    exists gv0, Opsem.getOperandValue TD v lc gl = Some gv0 /\
-                extractGenericValue TD t gv0 idxs = Some gv
-| insn_insertvalue _ t v t' v' idxs =>
-    exists gv1, exists gv2,
-      Opsem.getOperandValue TD v lc gl = Some gv1 /\
-      Opsem.getOperandValue TD v' lc gl = Some gv2 /\
-      insertGenericValue TD t gv1 idxs t' gv2 = Some gv
-| insn_malloc _ t v aln | insn_alloca _ t v aln =>
-    exists tsz, exists gns, exists gn, exists M', exists mb,
-      getTypeAllocSize TD t = Some tsz /\
-      Opsem.getOperandValue TD v lc gl = Some gns /\
-      gn @ gns /\
-      malloc TD M tsz gn aln = Some (M', mb) /\
-      gv = ($ (blk2GV TD mb) # (typ_pointer t) $)
-| insn_load _ t v aln =>
-    exists mps, exists mp, exists gv0,
-      Opsem.getOperandValue TD v lc gl = Some mps /\
-      mp @ mps /\
-      mload TD M mp t aln = Some gv0 /\
-      gv = ($ gv0 # t$)
-| insn_gep _ inbounds t v idxs t' =>
-    exists mp, exists vidxss, exists vidxs,
-      Opsem.getOperandValue TD v lc gl = Some mp /\
-      values2GVs TD idxs lc gl = Some vidxss /\
-      vidxs @@ vidxss /\
-      GEP TD t mp vidxs inbounds t' = Some gv
-| insn_trunc _ truncop t1 v1 t2 => TRUNC TD lc gl truncop t1 v1 t2 = Some gv
-| insn_ext _ extop t1 v1 t2 => EXT TD lc gl extop t1 v1 t2 = Some gv
-| insn_cast _ castop t1 v1 t2 => CAST TD lc gl castop t1 v1 t2 = Some gv
-| insn_icmp _ cond0 t v1 v2 => ICMP TD lc gl cond0 t v1 v2 = Some gv
-| insn_fcmp _ fcond fp v1 v2 => FCMP TD lc gl fcond fp v1 v2 = Some gv
-| insn_select _ v0 t v1 v2 =>
-    exists cond, exists gvs1, exists gvs2, exists c,
-      Opsem.getOperandValue TD v0 lc gl = Some cond /\
-      Opsem.getOperandValue TD v1 lc gl = Some gvs1 /\
-      Opsem.getOperandValue TD v2 lc gl = Some gvs2 /\
-      c @ cond /\
-      gv = if isGVZero TD c then gvs2 else gvs1
-| _ => True (* We may also consider call/excall, but ignore them so far *)
-end.
-
-(* Invariant: in f, v2 >> v1 /\ v1 is defined by c => [|v1|] = [|v2|] *)
-Definition vev_defs (v1 v2:value) F TD M gl (f:fdef) (lc:DGVMap) c ids0: Prop :=
-  F = f ->
-  (value_in_scope v2 ids0 ->
-   match Opsem.getOperandValue TD v2 lc gl with
-   | Some gv2 =>
-       match v1 with
-       | value_const _ => True
-       | value_id id1 =>
-           if (id1 == getCmdLoc c) then eval_rhs TD M gl lc c gv2
-           else True
-       end
-   | _ => True
-   end).
-
-Definition vev_ExecutionContext v1 v2 F TD M gl (ec:Opsem.ExecutionContext)
-  : Prop :=
-let '(Opsem.mkEC f b cs _ lc _) := ec in
-match cs with
-| nil => True
-| c::_ =>
-    match inscope_of_cmd f b c with
-    | None => True
-    | Some ids0 => vev_defs v1 v2 F TD M gl f lc c ids0
-    end
-end.
-
-Fixpoint vev_ECStack v1 v2 F TD M gl (ecs:Opsem.ECStack) : Prop :=
-match ecs with
-| nil => True
-| ec::ecs' =>
-    vev_ExecutionContext v1 v2 F TD M gl ec /\
-    vev_ECStack v1 v2 F TD M gl ecs'
-end.
-
-Definition vev_State v1 v2 F (cfg:OpsemAux.Config) (S:Opsem.State) : Prop :=
-let '(OpsemAux.mkCfg s td _ gl _ ) := cfg in
-let '(Opsem.mkState ecs M) := S in
-vev_ECStack v1 v2 F td M gl ecs.
-
-Definition substable_cmd (c:cmd) : Prop :=
-match c with
-| insn_call _ _ _ _ _ _ _ => False
-| insn_free _ _ _ => False
-| insn_store _ _ _ _ _ => False
-| _ => True
-end.
-
-Definition substable_value (f:fdef) (v1 v2:value) : Prop :=
-match v1 with
-| value_const _ => True
-| value_id vid1 =>
-    match lookupInsnViaIDFromFdef f vid1 with
-    | Some (insn_cmd c1) => substable_cmd c1
-    | Some (insn_phinode p1) => assigned_phi v2 p1
-    | _ => False
-    end
-end.
-
-Definition substable_values TD gl (f:fdef) (v1 v2:value) : Prop :=
-substable_value f v1 v2 /\ substing_value f v2 /\ valueDominates f v2 v1 /\
-match v1, v2 with
-| value_const vc1, value_const vc2 =>
-    @Opsem.const2GV DGVs TD gl vc1 = Opsem.const2GV TD gl vc2
-| _, _ => True
-end.
-
 Require Import trans_tactic.
+
+(******************************************************)
+(* Properties of eval_rhs *) 
 
 Lemma eval_rhs_det: forall td M gl lc c gv1 gv2,
   substable_cmd c ->
@@ -274,6 +309,21 @@ Lemma eval_rhs_det: forall td M gl lc c gv1 gv2,
 Proof.
   destruct c; simpl; intros; destruct_exists; destruct_ands;
     try solve [uniq_result; auto | tauto].
+Qed.
+
+(******************************************************)
+(* Properties of wf_defs *) 
+
+Lemma wf_defs_eq : forall ids2 ids1 v1 v2 F td gl F' lc',
+  AtomSet.set_eq ids1 ids2 ->
+  wf_defs v1 v2 F td gl F' lc' ids1 ->
+  wf_defs v1 v2 F td gl F' lc' ids2.
+Proof.
+  intros.
+  intros EQ gv1 gv2 Hin1 Hget1 Hget2; subst.
+  destruct H as [J1 J2].
+  eapply H0; eauto.
+    destruct v1; simpl in *; eauto.
 Qed.
 
 Lemma wf_defs_updateAddAL: forall v1 v2 F td Mem gl F' lc' c ids1 ids2 g0
@@ -362,72 +412,6 @@ Local Opaque inscope_of_cmd.
       tauto.
 Transparent inscope_of_cmd.
 Qed.
-
-Ltac destruct_ctx_return :=
-match goal with
-| Hwfcfg : OpsemPP.wf_Config ?cfg,
-  Hwfpp : OpsemPP.wf_State ?cfg _,
-  HwfS1 : wf_State _ _ _ _ _,
-  Hvev : vev_State _ _ _ _ _ |- _ =>
-  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]];
-  destruct Hwfpp as 
-    [Hnempty [
-     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l1 [ps1 [cs1' Heq1]]]]]]]]
-     [
-      [
-        [Hreach2 [HBinF2 [HFinPs2 [Hwflc2 [Hinscope2 [l2 [ps2 [cs2' Heq2]]]]]]]]
-        [HwfECs HwfCall]
-      ]
-      HwfCall'
-     ]]
-    ]; subst;
-  fold (@OpsemPP.wf_ECStack DGVs) in HwfECs;
-  destruct Hvev as [Hvinscope1 [Hvinscope2 Hvev]];
-  fold vev_ECStack in Hvev;
-  unfold vev_ExecutionContext in Hvinscope1, Hvinscope2;
-  destruct HwfS1 as [Hinscope1' [Hinscope2' HwfECs']];
-  fold wf_ECStack in HwfECs';
-  unfold wf_ExecutionContext in Hinscope1', Hinscope2';
-  simpl in Hinscope1', Hinscope2'
-end.
-
-Lemma substable_value_isnt_arg: forall fa rt fid la va lb vid v2
-  (HuniqF: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
-  (Hvals : substable_value (fdef_intro (fheader_intro fa rt fid la va) lb)
-             (value_id vid) v2),
-  ~ In vid (getArgsIDs la).
-Proof.
-  intros.
-  symmetry_ctx.
-  intro J.
-  eapply IngetArgsIDs__lookupCmdViaIDFromFdef in J; eauto.
-  unfold substable_value in Hvals.
-  rewrite J in Hvals. auto.
-Qed.
-
-Ltac fill_holes_in_ctx :=
-let fill e H :=
-  match goal with
-  | H1: _ = e |- _ => rewrite <- H1 in H
-  | H1: e = _ |- _ => rewrite H1 in H
-  end
-in
-repeat match goal with
-| H: match ?e with
-     | Some _ => _
-     | None => _
-     end |- _ => fill e H
-| H: match ?e with
-     | inl _ => _
-     | inr _ => _
-     end |- _ => fill e H
-| H: match ?e with
-     | (_,_) => _
-     end = _ |- _ => fill e H
-| H: _ = match ?e with
-     | (_,_) => _
-     end |- _ => fill e H
-end.
 
 Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl S M lc l' ps' cs' lc' F tmn' l1 ps1 cs1 
   tmn1 (HBinF: blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) F = true)
@@ -548,6 +532,9 @@ Local Opaque inscope_of_tmn.
 
 Transparent inscope_of_tmn.
 Qed.
+
+(******************************************************)
+(* Preservation of wf_State *) 
 
 Lemma inscope_of_tmn_br_aux : forall S M F l3 ps cs tmn ids0 ps' cs' tmn'
   l0 lc lc' gl TD (Hreach : isReachableFromEntry F (l3, stmts_intro ps cs tmn))
@@ -676,6 +663,34 @@ Proof.
   remember (isGVZero TD c) as R.
   destruct R; eapply inscope_of_tmn_br_aux; eauto; simpl; auto.
 Qed.
+
+Ltac destruct_ctx_return :=
+match goal with
+| Hwfcfg : OpsemPP.wf_Config ?cfg,
+  Hwfpp : OpsemPP.wf_State ?cfg _,
+  HwfS1 : wf_State _ _ _ _ _,
+  Hvev : vev_State _ _ _ _ _ |- _ =>
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]];
+  destruct Hwfpp as 
+    [Hnempty [
+     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l1 [ps1 [cs1' Heq1]]]]]]]]
+     [
+      [
+        [Hreach2 [HBinF2 [HFinPs2 [Hwflc2 [Hinscope2 [l2 [ps2 [cs2' Heq2]]]]]]]]
+        [HwfECs HwfCall]
+      ]
+      HwfCall'
+     ]]
+    ]; subst;
+  fold (@OpsemPP.wf_ECStack DGVs) in HwfECs;
+  destruct Hvev as [Hvinscope1 [Hvinscope2 Hvev]];
+  fold vev_ECStack in Hvev;
+  unfold vev_ExecutionContext in Hvinscope1, Hvinscope2;
+  destruct HwfS1 as [Hinscope1' [Hinscope2' HwfECs']];
+  fold wf_ECStack in HwfECs';
+  unfold wf_ExecutionContext in Hinscope1', Hinscope2';
+  simpl in Hinscope1', Hinscope2'
+end.
 
 Ltac destruct_ctx_other :=
 match goal with
@@ -884,6 +899,7 @@ Proof.
     simpl in *. rewrite Hget1 in Hcst. rewrite Hget2 in Hcst. congruence.
 Qed.
 
+(* The main result *)
 Lemma preservation : forall v1 v2 F cfg S1 S2 tr
   (Hvals : substable_values (OpsemAux.CurTargetData cfg) (OpsemAux.Globals cfg)
              F v1 v2) (Hvev: vev_State v1 v2 F cfg S1)
@@ -1137,16 +1153,6 @@ Case "sExCall".
       eapply preservation_cmd_updated_case with (Mem1:=Mem') in HwfS1; 
         simpl; eauto; simpl; auto]
   end).
-Qed.
-
-Lemma substable_vid__notin__args: forall f i0 v2 (Huniq: uniqFdef f), 
-  substable_value f (value_id i0) v2 ->
-  ~ value_in_scope (value_id i0) (getArgsIDsOfFdef f).
-Proof.
-  simpl. intros.
-  remember (lookupInsnViaIDFromFdef f i0) as R.
-  destruct R as [[]|]; tinv H;
-    eapply getInsnLoc__notin__getArgsIDs'; eauto.
 Qed.
 
 Lemma initLocals__wf_defs : forall F0 fid l' fa rt la va

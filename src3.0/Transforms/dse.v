@@ -459,7 +459,7 @@ Proof.
   intros.
   destruct H1 as [H1 _]. simpl in H1.
   rewrite Hlkup in H1.
-  rewrite Promotability.simpl_blk2GV in H1. tauto.
+  rewrite simpl_blk2GV in H1. tauto.
 Qed.
 
 Lemma mstore_palloca_mem_simulation: forall los nts M1 mp2 gv1 a M1' pinfo lc2 
@@ -1113,7 +1113,7 @@ Proof.
       destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
       apply Hinscope in G.
       destruct G as [[_ [[mb0 [G1 [G2 [G3 G4]]]] _]] _]; subst.
-      rewrite Promotability.simpl_blk2GV in G1. inv G1.
+      rewrite simpl_blk2GV in G1. inv G1.
       intros.
       unfold Promotability.alloca_size_prop in G4.
       unfold getTypeAllocSize in G4.

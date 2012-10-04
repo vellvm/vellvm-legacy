@@ -1,6 +1,8 @@
 Require Import vellvm.
 Require Import Maps.
 
+(* This file proves the generic facts about preserving well-formedness. *)
+
 Lemma subst_module_preserves_uniqModules: forall Ms2 M M'
   (HuniqM': uniqModule M') Ms1 
   (HuniqMs: uniqModules (Ms1 ++ M :: Ms2)),
@@ -16,11 +18,15 @@ match goal with
 | _ => idtac
 end.
 
+(************************************************************************)
+(* First, we prove that transformations preserve uniqueness if we can 
+   show the transformed function is unique. *)
 Module TopWFS.
 
 Section Uniqness.
 
 Variable (f f':fdef).
+(* Assume transformations must preserve function signatures. *)
 Hypothesis (Heq_fheader: fheaderOfFdef f = fheaderOfFdef f').
 
 Lemma fheaderOfFdef__getFdefTyp: getFdefTyp f = getFdefTyp f'.
@@ -78,6 +84,8 @@ Qed.
 
 End Uniqness.
 
+(************************************************************************)
+(* Second, the properties of equivalent function signatures.            *)
 Section EqSig.
 
 Definition eq_product_sig (prod1 prod2: product) : Prop :=
@@ -392,6 +400,11 @@ Qed.
 
 End EqSig.
 
+(************************************************************************)
+(* Next, we prove that given a signature-preserving function pass, if the
+   original program is well-formed and we can show that the transformed 
+   function is also well-formed, then the transformed program is well-
+   formed. *)
 Section SubstFdefWF.
 
 Variable (f f':fdef) (M M':module) (los:layouts) (nts:namedts) (Ps1 Ps2:products)
@@ -554,6 +567,9 @@ Qed.
 
 End SubstFdefWF.
 
+(************************************************************************)
+(* We specialized the result of SubstFdefWF for a program with a single
+   module, which is the case that Vellvm supports currently. *)
 Section SubstFdefSingleWF.
 
 Variable (f f':fdef) (M M':module) (los:layouts) (nts:namedts)(Ps1 Ps2:products).
@@ -626,6 +642,8 @@ Qed.
 
 End TopWFS.
 
+(************************************************************************)
+(* Properties of a program with a single module, which.                 *)
 Section SingleModule.
 
 Variable (los:layouts) (nts:namedts) (Ps1 Ps2:products) (M M':module) 
@@ -665,6 +683,9 @@ End SingleModule.
 
 End TopWFS.
 
+(*************************************************************************)
+(* Finally, we show what kind of transformations can preserve CFGs. First,
+   they need to satisfy the following spec. *)
 Structure Pass := mkPass {
 btrans: block -> block;
 ftrans: fdef -> fdef;
@@ -704,13 +725,12 @@ Proof.
   unfold getBlockLabel in J. auto.
 Qed.
 
+(* Such transformations preserve CFGs. *)
 Module TransCFG.
 
 Section TransCFG.
 
 Context `{pass: Pass}.
-
-(************** Preserving wellformedness **************************************)
 
 Lemma pres_getEntryBlock : forall f b
   (Hentry : getEntryBlock f = Some b),

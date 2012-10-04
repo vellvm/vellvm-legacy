@@ -5,6 +5,15 @@ Require Import primitives.
 Require Import opsem_props.
 Require Import program_sim.
 
+(* This file defines the generic simulation relations and facts. *)
+
+(*****************************************************************************)
+(* The transformations we defined only work in the function-level, and do not
+   change upper level components. So, those unchanged components have the
+   following results. 
+
+   We first define the specification of a function-level transformation:
+   1) preserve headers; 2) deterministic. *)
 Structure FunSim := mkFunSim {
 fsim: fdef -> fdef -> Prop;
 eq_fheader: forall f1 f2
@@ -19,6 +28,8 @@ Section TopSim.
 
 Context `{FSim : FunSim}.
 
+(* relating products, module and system in terms of the function-level 
+   transformation. *)
 Definition products_simulation Ps1 Ps2: Prop :=
 List.Forall2
   (fun P1 P2 =>
@@ -43,6 +54,8 @@ match M1, M2 with
     products_simulation Ps1 Ps2
 end.
 
+(********************************************************************)
+(* Related functions have the same name. *)
 Lemma fdef_simulation__inv: forall f1 f2,
   FSim.(fsim) f1 f2 -> getFdefID f1 = getFdefID f2.
 Proof.
@@ -51,6 +64,8 @@ Proof.
   destruct f1 as [[]]; destruct f2 as [[]]; inv H; auto.
 Qed.
 
+(********************************************************************)
+(* properties of products_simulation.                               *)
 Lemma products_simulation__fdef_simulation_l2r : forall fid Ps1 Ps2
   (Hsim: products_simulation Ps1 Ps2) f1,
   lookupFdefViaIDFromProducts Ps1 fid = Some f1 ->
@@ -183,36 +198,6 @@ Proof.
   erewrite <- products_simulation__fdec_eq; eauto. 
 Qed.
 
-Lemma system_simulation__fdef_simulation_r2l : forall fid f2 S1 S2
-  (Hssim: system_simulation S1 S2)
-  (Hlkup: lookupFdefViaIDFromSystem S2 fid = ret f2),
-  exists f1, 
-    lookupFdefViaIDFromSystem S1 fid = ret f1 /\
-    FSim.(fsim) f1 f2.
-Proof.
-  induction 1; simpl; intros.
-    inv Hlkup.
-
-    match goal with
-    | H: match ?x with
-         | module_intro _ _ _ => 
-             match ?y with | module_intro _ _ _ => _ end
-         end |- _ => 
-        destruct x as [los1 nts1 Ps1]; destruct y as [los2 nts2 Ps2];
-        destruct H as [J1 [J2 J3]]; subst
-    end.
-    simpl in *.
-
-   destruct_match.
-     eapply products_simulation__fdef_simulation_r2l in HeqR; eauto.
-     destruct HeqR as [f1 [J1 J2]].
-     fill_ctxhole. eauto.
-
-     symmetry in HeqR.
-     eapply products_simulation__fdef_None_r2l in HeqR; eauto.
-     fill_ctxhole. eauto.
-Qed.
-
 Lemma products_simulation__eq_getFdefsIDs: forall Ps1 Ps2
   (Hpsim: products_simulation Ps1 Ps2),
   getFdefsIDs Ps1 = getFdefsIDs Ps2.
@@ -252,115 +237,6 @@ Proof.
 
         rewrite IHForall2; auto.
         apply orb_true_r.
-Qed.
-
-Lemma system_simulation__getParentOfFdefFromSystem: forall S1 S2 f1 f2 m2
-  fid (Hsim: system_simulation S1 S2)
-  (Hfsim: FSim.(fsim) f1 f2)
-  (Hparent: getParentOfFdefFromSystem f2 S2 = Some m2)
-  (Hlkup: lookupFdefViaIDFromSystem S1 fid = ret f1),
-  exists m1, getParentOfFdefFromSystem f1 S1 = Some m1 /\
-             module_simulation m1 m2.
-Proof.
-  intros.
-  assert (J:=Hlkup).
-  apply lookupFdefViaIDFromSystem_ideq in J. subst.
-  induction Hsim; simpl in *; intros.
-    congruence.
-
-    match goal with
-    | H: match ?x with
-         | module_intro _ _ _ => 
-             match ?y with | module_intro _ _ _ => _ end
-         end |- _ => 
-        destruct x as [los1 nts1 Ps1]; destruct y as [los2 nts2 Ps2];
-        destruct H as [J1 [J2 J3]]; subst
-    end.
-    simpl in *.
-    assert (J:=Hfsim).
-    apply fdef_simulation__inv in J.
-    destruct_if.
-      destruct_match; simpl in e.       
-        exists (module_intro los2 nts2 Ps1).
-        split; simpl; auto.
-          match goal with
-          | |- (if ?e then _ else _ ) = _ => destruct e; auto
-          end.
-          simpl in e0. 
-          apply lookupFdefViaIDFromProducts__InProductsB in HeqR0.
-          congruence.
-
-          match goal with
-          | e: InProductsB (product_fdef ?f2) ?Ps2 = true,
-            HeqR0: None = lookupFdefViaIDFromProducts ?Ps1 (getFdefID ?f1),
-            J3: products_simulation ?Ps1 ?Ps2,
-            J: getFdefID ?f1 = getFdefID ?f2 |- _ =>
-            symmetry in HeqR0;
-            apply lookupFdefViaIDFromProducts__notin_getFdefsIDs in HeqR0;
-            assert (Hin:=e);  
-            apply InProductsB__in_getFdefsIDs in Hin;
-            apply products_simulation__eq_getFdefsIDs in J3;
-            simpl in Hin; rewrite J in HeqR0; congruence
-          end.
-
-      simpl in e.       
-      destruct_match.
-        apply lookupFdefViaIDFromProducts__InProductsB in HeqR0.
-        eapply products_fdef_simulation__InProductsB_forward in HeqR0; eauto.
-        congruence.
-
-        apply IHHsim in H0; auto.
-        destruct H0 as [m1 [J1 J2]].
-        exists m1.
-          split; auto. 
-          match goal with
-          | |- (if ?e then _ else _ ) = _ => destruct e; auto
-          end.
-          simpl in e0. 
-          assert (Hin:=e0).  
-          apply InProductsB__in_getFdefsIDs in Hin.
-          symmetry in HeqR0.
-          apply lookupFdefViaIDFromProducts__notin_getFdefsIDs in HeqR0.
-          simpl in Hin. rewrite J in HeqR0. congruence.
-Qed.
-
-Lemma genGlobalAndInitMem_spec_aux: forall td ps1 ps2 ,
-  products_simulation ps1 ps2 ->
-  forall gl fs M gl2 fs2 M2,
-  OpsemAux.genGlobalAndInitMem td ps2 gl fs M =
-    ret (gl2, fs2, M2) ->
-  exists gl1, exists fs1, exists M1,
-    OpsemAux.genGlobalAndInitMem td ps1 gl fs M =
-      ret (gl1, fs1, M1) /\ gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2.
-Proof.
-  induction 1; intros.
-    fill_ctxhole. eauto 7.
-
-    destruct x; subst; simpl in *.
-      match goal with
-      | g:gvar |- _ => destruct g
-      end; inv_mbind; try destruct_let; eauto.
-        destruct fdec5 as [[]].
-        inv_mbind. eauto.
-
-      destruct fdef5 as [[]].
-      destruct y; simpl in *; tinv H.
-      destruct fdef5 as [[]].
-      inv_mbind. 
-      apply FSim.(eq_fheader) in H.
-      inv H. symmetry_ctx. fill_ctxhole. eauto.
-Qed.
-
-Lemma genGlobalAndInitMem_spec: forall td ps1 ps2 gl2 fs2 M2,
-  OpsemAux.genGlobalAndInitMem td ps2 nil nil Mem.empty =
-    ret (gl2, fs2, M2) ->
-  products_simulation ps1 ps2 ->
-  exists gl1, exists fs1, exists M1,
-    OpsemAux.genGlobalAndInitMem td ps1 nil nil Mem.empty =
-      ret (gl1, fs1, M1) /\ gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2.
-Proof.
-  intros.
-  eapply genGlobalAndInitMem_spec_aux; eauto.
 Qed.
 
 Lemma lookupFdefViaPtr__simulation_None_l2r : forall Ps1 Ps2 fptr fs,
@@ -644,16 +520,162 @@ Proof.
   erewrite products_simulation__fdec_r2l; eauto.
 Qed.
 
+Lemma genGlobalAndInitMem_spec_aux: forall td ps1 ps2 ,
+  products_simulation ps1 ps2 ->
+  forall gl fs M gl2 fs2 M2,
+  OpsemAux.genGlobalAndInitMem td ps2 gl fs M =
+    ret (gl2, fs2, M2) ->
+  exists gl1, exists fs1, exists M1,
+    OpsemAux.genGlobalAndInitMem td ps1 gl fs M =
+      ret (gl1, fs1, M1) /\ gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2.
+Proof.
+  induction 1; intros.
+    fill_ctxhole. eauto 7.
+
+    destruct x; subst; simpl in *.
+      match goal with
+      | g:gvar |- _ => destruct g
+      end; inv_mbind; try destruct_let; eauto.
+        destruct fdec5 as [[]].
+        inv_mbind. eauto.
+
+      destruct fdef5 as [[]].
+      destruct y; simpl in *; tinv H.
+      destruct fdef5 as [[]].
+      inv_mbind. 
+      apply FSim.(eq_fheader) in H.
+      inv H. symmetry_ctx. fill_ctxhole. eauto.
+Qed.
+
+Lemma genGlobalAndInitMem_spec: forall td ps1 ps2 gl2 fs2 M2,
+  OpsemAux.genGlobalAndInitMem td ps2 nil nil Mem.empty =
+    ret (gl2, fs2, M2) ->
+  products_simulation ps1 ps2 ->
+  exists gl1, exists fs1, exists M1,
+    OpsemAux.genGlobalAndInitMem td ps1 nil nil Mem.empty =
+      ret (gl1, fs1, M1) /\ gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2.
+Proof.
+  intros.
+  eapply genGlobalAndInitMem_spec_aux; eauto.
+Qed.
+
+(********************************************************************)
+(* properties of system_simulation.                                 *)
+Lemma system_simulation__fdef_simulation_r2l : forall fid f2 S1 S2
+  (Hssim: system_simulation S1 S2)
+  (Hlkup: lookupFdefViaIDFromSystem S2 fid = ret f2),
+  exists f1, 
+    lookupFdefViaIDFromSystem S1 fid = ret f1 /\
+    FSim.(fsim) f1 f2.
+Proof.
+  induction 1; simpl; intros.
+    inv Hlkup.
+
+    match goal with
+    | H: match ?x with
+         | module_intro _ _ _ => 
+             match ?y with | module_intro _ _ _ => _ end
+         end |- _ => 
+        destruct x as [los1 nts1 Ps1]; destruct y as [los2 nts2 Ps2];
+        destruct H as [J1 [J2 J3]]; subst
+    end.
+    simpl in *.
+
+   destruct_match.
+     eapply products_simulation__fdef_simulation_r2l in HeqR; eauto.
+     destruct HeqR as [f1 [J1 J2]].
+     fill_ctxhole. eauto.
+
+     symmetry in HeqR.
+     eapply products_simulation__fdef_None_r2l in HeqR; eauto.
+     fill_ctxhole. eauto.
+Qed.
+
+Lemma system_simulation__getParentOfFdefFromSystem: forall S1 S2 f1 f2 m2
+  fid (Hsim: system_simulation S1 S2)
+  (Hfsim: FSim.(fsim) f1 f2)
+  (Hparent: getParentOfFdefFromSystem f2 S2 = Some m2)
+  (Hlkup: lookupFdefViaIDFromSystem S1 fid = ret f1),
+  exists m1, getParentOfFdefFromSystem f1 S1 = Some m1 /\
+             module_simulation m1 m2.
+Proof.
+  intros.
+  assert (J:=Hlkup).
+  apply lookupFdefViaIDFromSystem_ideq in J. subst.
+  induction Hsim; simpl in *; intros.
+    congruence.
+
+    match goal with
+    | H: match ?x with
+         | module_intro _ _ _ => 
+             match ?y with | module_intro _ _ _ => _ end
+         end |- _ => 
+        destruct x as [los1 nts1 Ps1]; destruct y as [los2 nts2 Ps2];
+        destruct H as [J1 [J2 J3]]; subst
+    end.
+    simpl in *.
+    assert (J:=Hfsim).
+    apply fdef_simulation__inv in J.
+    destruct_if.
+      destruct_match; simpl in e.       
+        exists (module_intro los2 nts2 Ps1).
+        split; simpl; auto.
+          match goal with
+          | |- (if ?e then _ else _ ) = _ => destruct e; auto
+          end.
+          simpl in e0. 
+          apply lookupFdefViaIDFromProducts__InProductsB in HeqR0.
+          congruence.
+
+          match goal with
+          | e: InProductsB (product_fdef ?f2) ?Ps2 = true,
+            HeqR0: None = lookupFdefViaIDFromProducts ?Ps1 (getFdefID ?f1),
+            J3: products_simulation ?Ps1 ?Ps2,
+            J: getFdefID ?f1 = getFdefID ?f2 |- _ =>
+            symmetry in HeqR0;
+            apply lookupFdefViaIDFromProducts__notin_getFdefsIDs in HeqR0;
+            assert (Hin:=e);  
+            apply InProductsB__in_getFdefsIDs in Hin;
+            apply products_simulation__eq_getFdefsIDs in J3;
+            simpl in Hin; rewrite J in HeqR0; congruence
+          end.
+
+      simpl in e.       
+      destruct_match.
+        apply lookupFdefViaIDFromProducts__InProductsB in HeqR0.
+        eapply products_fdef_simulation__InProductsB_forward in HeqR0; eauto.
+        congruence.
+
+        apply IHHsim in H0; auto.
+        destruct H0 as [m1 [J1 J2]].
+        exists m1.
+          split; auto. 
+          match goal with
+          | |- (if ?e then _ else _ ) = _ => destruct e; auto
+          end.
+          simpl in e0. 
+          assert (Hin:=e0).  
+          apply InProductsB__in_getFdefsIDs in Hin.
+          symmetry in HeqR0.
+          apply lookupFdefViaIDFromProducts__notin_getFdefsIDs in HeqR0.
+          simpl in Hin. rewrite J in HeqR0. congruence.
+Qed.
+
 End TopSim.
 
 End TopSim.
+
+(*****************************************************************************)
+(* Then, we prove the facts for removing definitions from functions.         *)
 
 Module RemoveSim.
 
 Section RemoveSim.
 
+(* Remove ID0 from F0 *)
 Variable (F0:fdef) (ID0:id).
 
+(* Relation between functions, phinode, commands, statements and blocks. *)
 Definition fdef_simulation f1 f2 : Prop :=
   if (fdef_dec F0 f1) then
     remove_fdef ID0 f1 = f2
@@ -674,6 +696,22 @@ Definition block_simulation f1 b1 b2 : Prop :=
     remove_block ID0 b1 = b2
   else b1 = b2.
 
+Definition phis_simulation (f1:fdef) ps1 ps2 : Prop :=
+  if (fdef_dec F0 f1) then remove_phinodes ID0 ps1 = ps2
+  else ps1 = ps2.
+
+(* The predicate that checks if the current executing commands is removable. *)
+Definition removable_State (St:@Opsem.State DGVs) : Prop :=
+match St with
+| Opsem.mkState
+    (Opsem.mkEC f b (c :: cs) tmn lc als::_) _ =>
+    if (fdef_dec F0 f) then
+      if (id_dec ID0 (getCmdLoc c)) then True else False
+    else False
+| _ => False
+end.
+
+(* Properties of function simulation. *)
 Lemma fdef_simulation__eq_fheader: forall f1 f2
   (H: fdef_simulation f1 f2),
   fheaderOfFdef f1 = fheaderOfFdef f2.
@@ -692,52 +730,6 @@ Proof.
   unfold fdef_simulation.
   intros.
   destruct_if; congruence.
-Qed.
-
-Lemma cmds_simulation_elim_cons_inv: forall c (cs1 : list cmd)
-  (cs2 : cmds) (Heq : ID0 = getCmdLoc c)
-  (Hcssim2 : cmds_simulation F0 (c :: cs1) cs2),
-  cmds_simulation F0 cs1 cs2.
-Proof.
-  intros.
-  unfold cmds_simulation in *.
-  destruct (fdef_dec F0 F0); try congruence.
-  simpl in *. rewrite Heq in Hcssim2.
-  destruct (id_dec (getCmdLoc c) (getCmdLoc c)); simpl in *; try congruence.
-Qed.
-
-Lemma cmds_simulation_nil_inv: forall f1 cs,
-  cmds_simulation f1 nil cs -> cs = nil.
-Proof.
-  unfold cmds_simulation. simpl.
-  intros. destruct (fdef_dec F0 f1); auto.
-Qed.
-
-Lemma cmds_simulation_nelim_cons_inv: forall F c cs2 cs',
-  cmds_simulation F (c :: cs2) cs' ->
-  F0 <> F \/ ID0 <> getCmdLoc c ->
-  exists cs2',
-    cs' = c :: cs2' /\ cmds_simulation F cs2 cs2'.
-Proof.
-  intros.
-  unfold cmds_simulation in *.
-  destruct (fdef_dec F0 F); subst; simpl; eauto.
-  destruct (id_dec (getCmdLoc c) ID0); subst; simpl; eauto.
-  destruct H0; congruence.
-Qed.
-
-Lemma cmds_simulation_nelim_cons_inv': forall F c cs2 cs',
-  cmds_simulation F (c :: cs2) cs' ->
-  (F0 = F -> getCmdLoc c <> ID0) ->
-  exists cs2',
-    cs' = c :: cs2' /\ cmds_simulation F cs2 cs2'.
-Proof.
-  intros.
-  unfold cmds_simulation in *.
-  destruct (fdef_dec F0 F); subst; simpl; eauto.
-  destruct (id_dec (getCmdLoc c) ID0); subst; simpl; eauto.
-  assert (F=F) as EQ. auto.
-  apply H0 in EQ. congruence.
 Qed.
 
 Lemma fdef_sim__stmts_sim : forall f1 f2 l0 sts1 sts2,
@@ -767,34 +759,6 @@ Proof.
   unfold stmts_simulation in H.
   unfold block_simulation, remove_block, trans_block.
   destruct (fdef_dec F0 f1); f_equal; auto.
-Qed.
-
-Definition phis_simulation (f1:fdef) ps1 ps2 : Prop :=
-  if (fdef_dec F0 f1) then remove_phinodes ID0 ps1 = ps2
-  else ps1 = ps2.
-
-Lemma stmts_simulation_inv : forall F ps1 cs1 tmn1 ps2 cs2
-  tmn2,
-  stmts_simulation F (stmts_intro ps1 cs1 tmn1)
-    (stmts_intro ps2 cs2 tmn2) ->
-  phis_simulation F ps1 ps2 /\
-  cmds_simulation F cs1 cs2 /\ tmn1 = tmn2.
-Proof.
-  intros.
-  unfold stmts_simulation, cmds_simulation, phis_simulation in *.
-  destruct (fdef_dec F0 F); inv H; auto.
-Qed.
-
-Lemma block_simulation_inv : forall F l1 ps1 cs1 tmn1 l2 ps2 cs2
-  tmn2,
-  block_simulation F (l1, stmts_intro ps1 cs1 tmn1)
-    (l2, stmts_intro ps2 cs2 tmn2) ->
-  l1 = l2 /\ phis_simulation F ps1 ps2 /\
-  cmds_simulation F cs1 cs2 /\ tmn1 = tmn2.
-Proof.
-  intros.
-  unfold block_simulation, cmds_simulation, phis_simulation in *.
-  destruct (fdef_dec F0 F); inv H; auto.
 Qed.
 
 Lemma fdef_simulation_inv: forall fh1 fh2 bs1 bs2,
@@ -847,6 +811,130 @@ Proof.
   uniq_result. auto.
 Qed.
 
+(* Properties of commands simulation. *)
+Lemma cmds_simulation_elim_cons_inv: forall c (cs1 : list cmd)
+  (cs2 : cmds) (Heq : ID0 = getCmdLoc c)
+  (Hcssim2 : cmds_simulation F0 (c :: cs1) cs2),
+  cmds_simulation F0 cs1 cs2.
+Proof.
+  intros.
+  unfold cmds_simulation in *.
+  destruct (fdef_dec F0 F0); try congruence.
+  simpl in *. rewrite Heq in Hcssim2.
+  destruct (id_dec (getCmdLoc c) (getCmdLoc c)); simpl in *; try congruence.
+Qed.
+
+Lemma cmds_simulation_nil_inv: forall f1 cs,
+  cmds_simulation f1 nil cs -> cs = nil.
+Proof.
+  unfold cmds_simulation. simpl.
+  intros. destruct (fdef_dec F0 f1); auto.
+Qed.
+
+Lemma cmds_simulation_nelim_cons_inv: forall F c cs2 cs',
+  cmds_simulation F (c :: cs2) cs' ->
+  F0 <> F \/ ID0 <> getCmdLoc c ->
+  exists cs2',
+    cs' = c :: cs2' /\ cmds_simulation F cs2 cs2'.
+Proof.
+  intros.
+  unfold cmds_simulation in *.
+  destruct (fdef_dec F0 F); subst; simpl; eauto.
+  destruct (id_dec (getCmdLoc c) ID0); subst; simpl; eauto.
+  destruct H0; congruence.
+Qed.
+
+Lemma cmds_simulation_nelim_cons_inv': forall F c cs2 cs',
+  cmds_simulation F (c :: cs2) cs' ->
+  (F0 = F -> getCmdLoc c <> ID0) ->
+  exists cs2',
+    cs' = c :: cs2' /\ cmds_simulation F cs2 cs2'.
+Proof.
+  intros.
+  unfold cmds_simulation in *.
+  destruct (fdef_dec F0 F); subst; simpl; eauto.
+  destruct (id_dec (getCmdLoc c) ID0); subst; simpl; eauto.
+  assert (F=F) as EQ. auto.
+  apply H0 in EQ. congruence.
+Qed.
+
+Lemma cmds_simulation_nil_inv' : forall
+  (f1 : fdef) (cs1 : list cmd) b1 tmn1 lc1 als1 ECS Mem1
+  (Hnrem : ~
+          removable_State
+            {|
+            Opsem.ECS := {|
+                         Opsem.CurFunction := f1;
+                         Opsem.CurBB := b1;
+                         Opsem.CurCmds := cs1;
+                         Opsem.Terminator := tmn1;
+                         Opsem.Locals := lc1;
+                         Opsem.Allocas := als1 |} :: ECS;
+            Opsem.Mem := Mem1 |}),
+  cmds_simulation f1 cs1 nil -> cs1 = nil.
+Proof.
+  simpl.
+  unfold cmds_simulation. intros.
+  destruct_if; auto.
+  destruct cs1; auto.
+  destruct_if; try tauto.
+  simpl in H1.
+  destruct (id_dec (getCmdLoc c) ID0); simpl in *; congruence.
+Qed.
+
+Lemma cmds_simulation_cons_inv' : forall 
+  (f1 : fdef) b1 lc1 cs tmn1 als1 c cs2 ECS Mem1
+  (Hnrem : ~
+          removable_State
+            {|
+            Opsem.ECS := {|
+                         Opsem.CurFunction := f1;
+                         Opsem.CurBB := b1;
+                         Opsem.CurCmds := cs;
+                         Opsem.Terminator := tmn1;
+                         Opsem.Locals := lc1;
+                         Opsem.Allocas := als1 |} :: ECS;
+            Opsem.Mem := Mem1 |}),
+  cmds_simulation f1 cs (c::cs2) -> 
+   exists cs1, 
+     cs = c::cs1 /\
+     cmds_simulation f1 cs1 cs2.
+Proof.
+  simpl.
+  unfold cmds_simulation. intros.
+  destruct_if; eauto.
+  destruct cs; inv H1.
+  destruct (id_dec ID0 (getCmdLoc c0)); try tauto.
+  destruct (id_dec (getCmdLoc c0) ID0); simpl in *; try congruence.
+  inv H0. eauto.
+Qed.
+
+(* Properties of statement simulation. *)
+Lemma stmts_simulation_inv : forall F ps1 cs1 tmn1 ps2 cs2
+  tmn2,
+  stmts_simulation F (stmts_intro ps1 cs1 tmn1)
+    (stmts_intro ps2 cs2 tmn2) ->
+  phis_simulation F ps1 ps2 /\
+  cmds_simulation F cs1 cs2 /\ tmn1 = tmn2.
+Proof.
+  intros.
+  unfold stmts_simulation, cmds_simulation, phis_simulation in *.
+  destruct (fdef_dec F0 F); inv H; auto.
+Qed.
+
+(* Properties of block simulation. *)
+Lemma block_simulation_inv : forall F l1 ps1 cs1 tmn1 l2 ps2 cs2
+  tmn2,
+  block_simulation F (l1, stmts_intro ps1 cs1 tmn1)
+    (l2, stmts_intro ps2 cs2 tmn2) ->
+  l1 = l2 /\ phis_simulation F ps1 ps2 /\
+  cmds_simulation F cs1 cs2 /\ tmn1 = tmn2.
+Proof.
+  intros.
+  unfold block_simulation, cmds_simulation, phis_simulation in *.
+  destruct (fdef_dec F0 F); inv H; auto.
+Qed.
+
 Lemma block_simulation__getValueViaBlockFromValuels: forall F B1 B2 l0,
   block_simulation F B1 B2 ->
   getValueViaBlockFromValuels l0 B1 = getValueViaBlockFromValuels l0 B2.
@@ -858,6 +946,7 @@ Proof.
     inv H. auto.
 Qed.
 
+(* Properties of phinode simulation. *)
 Lemma phis_simulation_inv: forall F ps1 ps2 l1 cs1 tmn1
   (HBinF: blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) F = true)
   (Hnotin: F0 = F -> ~ In ID0 (getPhiNodesIDs ps1)),
@@ -916,16 +1005,7 @@ Proof.
   apply H0 in EQ. congruence.
 Qed.
 
-Definition removable_State (St:@Opsem.State DGVs) : Prop :=
-match St with
-| Opsem.mkState
-    (Opsem.mkEC f b (c :: cs) tmn lc als::_) _ =>
-    if (fdef_dec F0 f) then
-      if (id_dec ID0 (getCmdLoc c)) then True else False
-    else False
-| _ => False
-end.
-
+(* Properties of removable_State. *)
 Lemma removable_State_dec : forall St,
   removable_State St \/ ~ removable_State St.
 Proof.
@@ -1020,57 +1100,6 @@ Proof.
   destruct_if. auto.
 Qed.
 
-Lemma cmds_simulation_nil_inv' : forall
-  (f1 : fdef) (cs1 : list cmd) b1 tmn1 lc1 als1 ECS Mem1
-  (Hnrem : ~
-          removable_State
-            {|
-            Opsem.ECS := {|
-                         Opsem.CurFunction := f1;
-                         Opsem.CurBB := b1;
-                         Opsem.CurCmds := cs1;
-                         Opsem.Terminator := tmn1;
-                         Opsem.Locals := lc1;
-                         Opsem.Allocas := als1 |} :: ECS;
-            Opsem.Mem := Mem1 |}),
-  cmds_simulation f1 cs1 nil -> cs1 = nil.
-Proof.
-  simpl.
-  unfold cmds_simulation. intros.
-  destruct_if; auto.
-  destruct cs1; auto.
-  destruct_if; try tauto.
-  simpl in H1.
-  destruct (id_dec (getCmdLoc c) ID0); simpl in *; congruence.
-Qed.
-
-Lemma cmds_simulation_cons_inv' : forall 
-  (f1 : fdef) b1 lc1 cs tmn1 als1 c cs2 ECS Mem1
-  (Hnrem : ~
-          removable_State
-            {|
-            Opsem.ECS := {|
-                         Opsem.CurFunction := f1;
-                         Opsem.CurBB := b1;
-                         Opsem.CurCmds := cs;
-                         Opsem.Terminator := tmn1;
-                         Opsem.Locals := lc1;
-                         Opsem.Allocas := als1 |} :: ECS;
-            Opsem.Mem := Mem1 |}),
-  cmds_simulation f1 cs (c::cs2) -> 
-   exists cs1, 
-     cs = c::cs1 /\
-     cmds_simulation f1 cs1 cs2.
-Proof.
-  simpl.
-  unfold cmds_simulation. intros.
-  destruct_if; eauto.
-  destruct cs; inv H1.
-  destruct (id_dec ID0 (getCmdLoc c0)); try tauto.
-  destruct (id_dec (getCmdLoc c0) ID0); simpl in *; try congruence.
-  inv H0. eauto.
-Qed.
-
 End RemoveSim.
 
 End RemoveSim.
@@ -1122,71 +1151,29 @@ Ltac s_genInitState__State_simulation_tac :=
     destruct H as [HMinS HinPs]
   end.
 
+(* Proving the top-level program simulation w.r.t small-steps. *)
 Section ProgramSim.
 
+(* function translation *)
 Variable ftrans: fdef -> fdef.
+(* Well-formedness of the original state *)
 Variable wf_prop1: OpsemAux.Config -> @Opsem.State DGVs -> Prop.
+(* Well-formedness of the state after a step *)
 Variable wf_prop2: OpsemAux.Config -> @Opsem.State DGVs -> Prop.
+(* program state relation *)
 Variable state_simulation: OpsemAux.Config -> @Opsem.State DGVs -> 
                            OpsemAux.Config -> @Opsem.State DGVs -> Prop.
+(* system relation *)
 Variable system_simulation: system -> system -> Prop.
 
+(* Well-formedness of program states must be preserved. *)
 Hypothesis wf_prop1_preservation_star: forall cfg St1 St2 tr
   (Hops: Opsem.sop_star cfg St1 St2 tr) (Hp: wf_prop1 cfg St1), wf_prop1 cfg St2.
-
 Hypothesis wf_prop2_preservation_star: forall cfg St1 St2 tr
   (Hops: Opsem.sop_star cfg St1 St2 tr) (Hp: wf_prop2 cfg St1), wf_prop2 cfg St2.
 
-Hypothesis sop_star__state_simulation: forall 
-  (cfg1 : OpsemAux.Config) (IS1 : Opsem.State)
-  (cfg2 : OpsemAux.Config) (IS2 : Opsem.State) (tr : trace) (FS2 : Opsem.State)
-  (Hp1: wf_prop1 cfg1 IS1) (Hp2: wf_prop2 cfg2 IS2)
-  (Hstsim: state_simulation cfg1 IS1 cfg2 IS2)
-  (Hop: Opsem.sop_star cfg2 IS2 FS2 tr) (Hwrong: ~ sop_goeswrong cfg1 IS1),
-  exists FS1 : Opsem.State,
-    Opsem.sop_star cfg1 IS1 FS1 tr /\
-    state_simulation cfg1 FS1 cfg2 FS2.
-
-Hypothesis s_isFinialState__state_simulation_r2l: forall 
-  (cfg1 : OpsemAux.Config) (FS1 : Opsem.State)
-  (cfg2 : OpsemAux.Config) (FS2 : Opsem.State) (r : GVsT DGVs)
-  (Hp1: wf_prop1 cfg1 FS1) (Hstsim: state_simulation cfg1 FS1 cfg2 FS2)
-  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r) 
-  (Hwrong: ~ sop_goeswrong cfg1 FS1),
-  exists FS1' : Opsem.State,
-    Opsem.sop_star cfg1 FS1 FS1' E0 /\
-    state_simulation cfg1 FS1' cfg2 FS2 /\
-    Opsem.s_isFinialState cfg1 FS1' = ret r.
-
-Hypothesis sop_div__state_simulation: forall 
-  (cfg1 : OpsemAux.Config) (IS1 : Opsem.State)
-  (cfg2 : OpsemAux.Config) (IS2 : Opsem.State) (tr : traceinf)
-  (Hp1: wf_prop1 cfg1 IS1) (Hp2: wf_prop2 cfg2 IS2)
-  (Hstsim: state_simulation cfg1 IS1 cfg2 IS2)
-  (Hop: Opsem.sop_diverges cfg2 IS2 tr),
-  ~ sop_goeswrong cfg1 IS1 -> Opsem.sop_diverges cfg1 IS1 tr.
-
-Hypothesis undefined_state__state_simulation_r2l: forall 
-  (cfg1 : OpsemAux.Config) (St1 : Opsem.State)
-  (cfg2 : OpsemAux.Config) (St2 : Opsem.State)
-  (Hp1: wf_prop1 cfg1 St1) (Hp2: wf_prop2 cfg2 St2)
-  (Hstsim: state_simulation cfg1 St1 cfg2 St2)
-  (Hundef: OpsemPP.undefined_state cfg2 St2)
-  (Hwrong: ~ sop_goeswrong cfg1 St1),
-  exists St1' : Opsem.State,
-    Opsem.sop_star cfg1 St1 St1' E0 /\
-    state_simulation cfg1 St1' cfg2 St2 /\
-    OpsemPP.undefined_state cfg1 St1'.
-
-Hypothesis s_isFinialState__state_simulation_None_r2l: forall 
-  (cfg1 : OpsemAux.Config) (FS1 : Opsem.State)
-  (cfg2 : OpsemAux.Config) (FS2 : Opsem.State)
-  (Hp1: wf_prop1 cfg1 FS1) (Hp2: wf_prop2 cfg2 FS2)
-  (Hundef: @OpsemPP.undefined_state DGVs cfg2 FS2)
-  (Hstsim: state_simulation cfg1 FS1 cfg2 FS2)
-  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = merror),
-  Opsem.s_isFinialState cfg1 FS1 = merror.
-
+(* Well-formedness of program states must imply the basic properties of
+   states and configuration. *)
 Hypothesis wf_prop1__wf_Config: forall cfg S
   (Hp: wf_prop1 cfg S), OpsemPP.wf_Config cfg.
 
@@ -1199,10 +1186,66 @@ Hypothesis wf_prop2__wf_Config: forall cfg S
 Hypothesis wf_prop2__wf_State: forall cfg S
   (Hp: wf_prop2 cfg S), OpsemPP.wf_State cfg S.
 
-Variable (S1: list module) (los:layouts) (nts:namedts) 
-  (Ps1 Ps2:products) (f0:fdef).
+(* state relation is back-simulation w.r.t small-steps and divergence.*)
+Hypothesis sop_star__state_simulation: forall 
+  (cfg1 : OpsemAux.Config) (IS1 : Opsem.State)
+  (cfg2 : OpsemAux.Config) (IS2 : Opsem.State) (tr : trace) (FS2 : Opsem.State)
+  (Hp1: wf_prop1 cfg1 IS1) (Hp2: wf_prop2 cfg2 IS2)
+  (Hstsim: state_simulation cfg1 IS1 cfg2 IS2)
+  (Hop: Opsem.sop_star cfg2 IS2 FS2 tr) (Hwrong: ~ sop_goeswrong cfg1 IS1),
+  exists FS1 : Opsem.State,
+    Opsem.sop_star cfg1 IS1 FS1 tr /\
+    state_simulation cfg1 FS1 cfg2 FS2.
+
+Hypothesis sop_div__state_simulation: forall 
+  (cfg1 : OpsemAux.Config) (IS1 : Opsem.State)
+  (cfg2 : OpsemAux.Config) (IS2 : Opsem.State) (tr : traceinf)
+  (Hp1: wf_prop1 cfg1 IS1) (Hp2: wf_prop2 cfg2 IS2)
+  (Hstsim: state_simulation cfg1 IS1 cfg2 IS2)
+  (Hop: Opsem.sop_diverges cfg2 IS2 tr),
+  ~ sop_goeswrong cfg1 IS1 -> Opsem.sop_diverges cfg1 IS1 tr.
+
+(* The final states are back-simulated. *)
+Hypothesis s_isFinialState__state_simulation_r2l: forall 
+  (cfg1 : OpsemAux.Config) (FS1 : Opsem.State)
+  (cfg2 : OpsemAux.Config) (FS2 : Opsem.State) (r : GVsT DGVs)
+  (Hp1: wf_prop1 cfg1 FS1) (Hstsim: state_simulation cfg1 FS1 cfg2 FS2)
+  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r) 
+  (Hwrong: ~ sop_goeswrong cfg1 FS1),
+  exists FS1' : Opsem.State,
+    Opsem.sop_star cfg1 FS1 FS1' E0 /\
+    state_simulation cfg1 FS1' cfg2 FS2 /\
+    Opsem.s_isFinialState cfg1 FS1' = ret r.
+
+Hypothesis s_isFinialState__state_simulation_None_r2l: forall 
+  (cfg1 : OpsemAux.Config) (FS1 : Opsem.State)
+  (cfg2 : OpsemAux.Config) (FS2 : Opsem.State)
+  (Hp1: wf_prop1 cfg1 FS1) (Hp2: wf_prop2 cfg2 FS2)
+  (Hundef: @OpsemPP.undefined_state DGVs cfg2 FS2)
+  (Hstsim: state_simulation cfg1 FS1 cfg2 FS2)
+  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = merror),
+  Opsem.s_isFinialState cfg1 FS1 = merror.
+
+(* The stuck states are back-simulated. *)
+Hypothesis undefined_state__state_simulation_r2l: forall 
+  (cfg1 : OpsemAux.Config) (St1 : Opsem.State)
+  (cfg2 : OpsemAux.Config) (St2 : Opsem.State)
+  (Hp1: wf_prop1 cfg1 St1) (Hp2: wf_prop2 cfg2 St2)
+  (Hstsim: state_simulation cfg1 St1 cfg2 St2)
+  (Hundef: OpsemPP.undefined_state cfg2 St2)
+  (Hwrong: ~ sop_goeswrong cfg1 St1),
+  exists St1' : Opsem.State,
+    Opsem.sop_star cfg1 St1 St1' E0 /\
+    state_simulation cfg1 St1' cfg2 St2 /\
+    OpsemPP.undefined_state cfg1 St1'.
+
+Variable (S1: list module)      (* The original program *)
+  (los:layouts) (nts:namedts)   (* Layouts and named types *)
+  (Ps1 Ps2:products)            (* The other unchanged products *)
+  (f0:fdef).                    (* The function to transform *)
 Hypothesis Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)].
 
+(* The initial states relate, and are well-formed. *)
 Hypothesis s_genInitState__state_simulation: forall S2
   (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef (ftrans f0) :: Ps2)])
   (main : id) (VarArgs : list (GVsT DGVs))
@@ -1215,10 +1258,12 @@ Hypothesis s_genInitState__state_simulation: forall S2
       state_simulation cfg1 IS1 cfg2 IS2 /\
       wf_prop1 cfg1 IS1 /\ wf_prop2 cfg2 IS2.
 
+(* The transformation preserves well-formedness of a program. *)
 Hypothesis ftrans_wfs:
   wf_system [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)] ->
   wf_system [module_intro los nts (Ps1 ++ product_fdef (ftrans f0) :: Ps2)].
 
+(* The transformation preserves system-level relation. *)
 Hypothesis ftrans__system_simulation:
   system_simulation
      [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)]
@@ -1228,6 +1273,7 @@ Hypothesis ftrans__system_simulation:
 Hint Resolve wf_prop1__wf_Config wf_prop2__wf_Config
              wf_prop1__wf_State wf_prop2__wf_State.
 
+(* The main result: the transformation refines programs. *)
 Lemma top_sim: forall 
   (main : id) (VarArgs : list (GVsT DGVs))
   (Hok: defined_program S1 main VarArgs)
