@@ -22,6 +22,7 @@ Require Import subst_sim.
 Require Import die_wfS.
 Require Import die_top.
 
+(* LAS's vev_State invariant is preserved. *)
 Lemma vev_State_preservation : forall pinfo lasinfo cfg IS maxb
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg))
   (Halias: Promotability.wf_State maxb pinfo cfg IS) (Hwfpi: WF_PhiInfo pinfo)
@@ -40,6 +41,7 @@ Proof.
     eapply alive_store.preservation in Hstep; eauto.
 Qed.
 
+(* LAS refines programs. *)
 Lemma las_sim': forall (los : layouts) (nts : namedts) (fh : fheader)
   (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
@@ -155,6 +157,7 @@ Proof.
   eapply las_sim'; eauto.
 Qed.
 
+(* LAS + deletion refines programs and preserves well-formedness. *)
 Lemma las_die_sim_wfS': forall (los : layouts) (nts : namedts) (fh : fheader)
   (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)

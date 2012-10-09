@@ -14,6 +14,8 @@ Require Import sas_msim.
 Require Import trans_tactic.
 Require Import top_sim.
 
+(***************************************************************************)
+(* Simulation relations. *) 
 Definition fdef_simulation (pinfo: PhiInfo) f1 f2 : Prop :=
   if (fdef_dec (PI_f pinfo) f1) then
     elim_dead_st_fdef (PI_id pinfo) f1 = f2
@@ -88,6 +90,13 @@ match ECs1, ECs2 with
 | _, _ => False
 end.
 
+(* Check ignorable locations.
+
+   If the current pc is after the promotable allocation, 
+     omb equals to the promotable location, 
+     which is called an ignorable location;
+   otherwise, omb is None.
+*)
 Definition no_alias_head_in_tail (pinfo:PhiInfo) omb
   (ec0:@Opsem.ExecutionContext DGVs) : Prop :=
 (Opsem.CurFunction ec0 = PI_f pinfo ->
@@ -97,11 +106,15 @@ match lookupAL _ (Opsem.Locals ec0) (PI_id pinfo) with
 end) /\
 (Opsem.CurFunction ec0 <> PI_f pinfo -> omb = None).
 
+(* Find all ignorable locations from stack *)
 Definition no_alias_head_tail (pinfo:PhiInfo) ombs
   (ecs':list Opsem.ExecutionContext) : Prop :=
 List.Forall2 (fun ec omb => 
               no_alias_head_in_tail pinfo omb ec) ecs' ombs.
 
+(* Memory simulation:
+   Data stored at ignorable locations do not need to match;
+   others need to match. *)
 Definition dse_mem_inj (pinfo:PhiInfo) (ecs1:list Opsem.ExecutionContext) 
   TD (m1 m2: mem) : Prop :=
 match getTypeStoreSize TD (PI_typ pinfo) with
@@ -131,6 +144,8 @@ match (St1, St2) with
     gl1 = gl2 /\ fs1 = fs2 /\ mem_simulation pinfo TD1 ECs1 M1 M2
 end.
 
+(***************************************************************************)
+(* States whose pc is removable. *)
 Definition removable_State (pinfo: PhiInfo) (St:@Opsem.State DGVs) : Prop :=
 match St with
 | Opsem.mkState
@@ -156,19 +171,8 @@ Proof.
   destruct (id_dec (PI_id pinfo) i1); auto.
 Qed.
 
-Lemma cmds_simulation_elim_cons_inv: forall (pinfo : PhiInfo) (i0 : id) (t : typ)
-  (v : value) (a : align) (cs1 : list cmd) (cs2 : cmds)
-  (Hcssim2 : cmds_simulation pinfo (PI_f pinfo)
-              (insn_store i0 t v (value_id (PI_id pinfo)) a :: cs1) cs2),
-  cmds_simulation pinfo (PI_f pinfo) cs1 cs2.
-Proof.
-  intros.
-  unfold cmds_simulation in *.
-  destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-  simpl in *.
-  destruct (id_dec (PI_id pinfo) (PI_id pinfo)); congruence.
-Qed.
-
+(***************************************************************************)
+(* Properties of no_alias_head_tail *)
 Lemma no_alias_head_tail_irrel :
   forall pinfo omb F B1 cs1 tmn1 lc als1 ECs B2 cs2 tmn2 als2,
   no_alias_head_tail pinfo omb
@@ -190,132 +194,6 @@ Lemma no_alias_head_tail_irrel :
 Proof.
   unfold no_alias_head_tail. simpl in *.
   intros. inv H. constructor; auto.
-Qed.
-
-Lemma cmds_simulation_nil_inv: forall pinfo f1 cs,
-  cmds_simulation pinfo f1 nil cs -> cs = nil.
-Proof.
-  unfold cmds_simulation. simpl.
-  intros. destruct (fdef_dec (PI_f pinfo) f1); auto.
-Qed.
-
-Lemma cmds_simulation_nelim_cons_inv: forall pinfo F c cs2 cs',
-  cmds_simulation pinfo F (c :: cs2) cs' ->
-  (PI_f pinfo = F -> store_in_cmd (PI_id pinfo) c = false) ->
-  exists cs2',
-    cs' = c :: cs2' /\ cmds_simulation pinfo F cs2 cs2'.
-Proof.
-  intros.
-  unfold cmds_simulation in *.
-  destruct (fdef_dec (PI_f pinfo) F); subst; simpl; eauto.
-  destruct_cmd c; simpl in H0; eauto.
-  destruct v0 as [i1|]; simpl in H0; eauto.
-  destruct (id_dec (PI_id pinfo) i1); subst; simpl; eauto.
-  assert (PI_f pinfo = PI_f pinfo) as EQ. auto.
-  apply H0 in EQ.
-  destruct (id_dec (PI_id pinfo) (PI_id pinfo)); simpl in *; congruence.
-Qed.
-
-Ltac destruct_ctx_return :=
-match goal with
-| Hwfcfg : OpsemPP.wf_Config
-            {|
-            OpsemAux.CurSystem := _;
-            OpsemAux.CurTargetData := ?TD;
-            OpsemAux.CurProducts := _;
-            OpsemAux.Globals := _;
-            OpsemAux.FunTable := _
-             |},
-  Hwfpp : OpsemPP.wf_State
-            {|
-            OpsemAux.CurSystem := _;
-            OpsemAux.CurTargetData := ?TD;
-            OpsemAux.CurProducts := _;
-            OpsemAux.Globals := _;
-            OpsemAux.FunTable := _
-             |} _,  Hnoalias : Promotability.wf_State _ _ _ _,
-  Hsim : State_simulation _ _ _ ?Cfg2 ?St2 ,
-  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
-  destruct TD as [los nts];
-  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]]; subst;
-  destruct Hwfpp as
-    [_ [
-     [Hreach1 [HBinF1 [HFinPs1 _]]]
-     [
-       [
-         [Hreach2 [HBinF2 [HFinPs2 _]]]
-         _
-       ]
-       HwfCall'
-     ]]
-    ]; subst;
-  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
-  destruct St2 as [ECs2 M2];
-  simpl in Hsim;
-  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst;
-  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
-  destruct Hstksim as [Hecsim Hstksim];
-  destruct ECs2 as [|[F3 B3 cs3 tmn3 lc3 als3] ECs2]; tinv Hstksim;
-  destruct Hstksim as [Hecsim' Hstksim];
-  unfold EC_simulation in Hecsim;
-  destruct Hecsim as
-      [Hfsim2 [Heq1 [Heq2 [Hbsim2
-        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
-  destruct Hecsim' as
-      [Hfsim2' [Htsim2' [Heq2' [Hbsim2'
-        [Heq3' [Heq4' [Hlcsim2' Hcssim2']]]]]]]; subst;
-  destruct Hnoalias as
-    [
-      [[Hinscope1' _] [[[Hinscope2' _] [HwfECs' _]] _]]
-      [[Hdisjals _] HwfM]
-    ]; simpl in Hdisjals;
-  fold Promotability.wf_ECStack in HwfECs';
-  apply cmds_simulation_nil_inv in Hcssim2; subst;
-  wfCall_inv;
-  apply cmds_simulation_nelim_cons_inv in Hcssim2'; auto;
-  destruct Hcssim2' as [cs3' [Heq Hcssim2']]; subst;
-  inv Hop2;
-  uniq_result
-end.
-
-Lemma fdef_sim__lookupAL_genLabel2Block_elim_dead_st_block : 
-  forall id0 l0 bs s s',
-  lookupAL _ bs l0 = Some s ->
-  lookupAL _ (List.map (elim_dead_st_block id0) bs) l0
-    = Some s' ->
-  elim_dead_st_block id0 (l0,s) = (l0,s').
-Proof.
-  intros.
-  eapply fdef_sim__lookupAL_block; eauto.
-Qed.
-
-(* generalized? *)
-Lemma fdef_sim__block_sim : forall pinfo f1 f2 s1 s2 l0,
-  fdef_simulation pinfo f1 f2 ->
-  lookupBlockViaLabelFromFdef f1 l0 = Some s1 ->
-  lookupBlockViaLabelFromFdef f2 l0 = Some s2 ->
-  block_simulation pinfo f1 (l0,s1) (l0,s2).
-Proof.
-  intros.
-  unfold fdef_simulation in H.
-  unfold block_simulation.
-  destruct (fdef_dec (PI_f pinfo) f1); subst.
-    destruct (PI_f pinfo). simpl in *.
-    eapply fdef_sim__lookupAL_genLabel2Block_elim_dead_st_block; eauto.
-
-    uniq_result. auto.
-Qed.
-
-Lemma block_simulation_inv : forall pinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
-  tmn2,
-  block_simulation pinfo F (l1, stmts_intro ps1 cs1 tmn1)
-    (l2, stmts_intro ps2 cs2 tmn2) ->
-  l1 = l2 /\ ps1 = ps2 /\
-  cmds_simulation pinfo F cs1 cs2 /\ tmn1 = tmn2.
-Proof.
-  intros.
-  unfold block_simulation, cmds_simulation in *.
-  destruct (fdef_dec (PI_f pinfo) F); inv H; auto.
 Qed.
 
 Lemma no_alias_head_in_tail_update :
@@ -354,6 +232,395 @@ Proof.
     eapply no_alias_head_in_tail_update; eauto.
 Qed.
 
+Lemma no_alias_head_in_tail_inv1: forall lc2 pinfo TD mb B1 cs1 tmn2 als2 y
+  (Hlkup: lookupAL (GVsT DGVs) lc2 (PI_id pinfo) =
+        ret ($ blk2GV TD mb # typ_pointer (PI_typ pinfo) $)) 
+  (H1 : no_alias_head_in_tail pinfo y
+         {|
+         Opsem.CurFunction := PI_f pinfo;
+         Opsem.CurBB := B1;
+         Opsem.CurCmds := cs1;
+         Opsem.Terminator := tmn2;
+         Opsem.Locals := lc2;
+         Opsem.Allocas := als2 |}),
+  y = ret mb.
+Proof.
+  intros.
+  destruct H1 as [H1 _]. simpl in H1.
+  rewrite Hlkup in H1.
+  rewrite simpl_blk2GV in H1. tauto.
+Qed.
+
+Lemma no_alias_head_tail__replace_head: forall EC' EC ECs1 ombs pinfo
+  (Hp : forall omb,
+        no_alias_head_in_tail pinfo omb EC' ->
+        no_alias_head_in_tail pinfo omb EC)
+  (H1: no_alias_head_tail pinfo ombs (EC' :: ECs1)),
+  no_alias_head_tail pinfo ombs (EC :: ECs1).
+Proof.
+  intros. inv H1. constructor; auto.
+Qed.
+
+Lemma no_alias_head_in_tail_ex: forall pinfo EC,
+  exists omb, no_alias_head_in_tail pinfo omb EC.
+Proof.
+  unfold no_alias_head_in_tail.
+  intros. 
+  destruct (fdef_dec (Opsem.CurFunction EC) (PI_f pinfo)).
+    destruct (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) 
+      as [[|[[]][]]|]; eauto.
+      exists (Some b). tauto.
+
+    destruct (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) 
+      as [[|[[]][]]|]; eauto.
+      exists None. tauto.
+Qed.
+
+Lemma no_alias_head_tail_ex: forall pinfo ECs,
+  exists ombs, no_alias_head_tail pinfo ombs ECs.
+Proof.
+  unfold no_alias_head_tail.
+  induction ECs; simpl; eauto.
+    destruct IHECs as [ombs IHECs].
+    destruct (@no_alias_head_in_tail_ex pinfo a) as [omb J].
+    exists (omb::ombs). constructor; auto.
+Qed.
+
+Lemma no_alias_head_in_tail_inv3: forall lc2 pinfo mb B1 cs1 tmn2 als2 F
+  (H1 : no_alias_head_in_tail pinfo (Some mb)
+         {|
+         Opsem.CurFunction := F;
+         Opsem.CurBB := B1;
+         Opsem.CurCmds := cs1;
+         Opsem.Terminator := tmn2;
+         Opsem.Locals := lc2;
+         Opsem.Allocas := als2 |}),
+  F = PI_f pinfo /\
+  exists ofs, exists mc, 
+    lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = ret ((Vptr mb ofs, mc)::nil).
+Proof.
+  intros.
+  destruct H1 as [H1 H2]. simpl in *.
+  destruct (fdef_dec F (PI_f pinfo)) as [J | J].
+    split; auto.
+      apply H1 in J.
+      destruct (lookupAL (GVsT DGVs) lc2 (PI_id pinfo)) 
+        as [[|[[]][]]|]; try solve [congruence | inv J; eauto].
+
+    apply H2 in J. congruence.
+Qed.
+
+Lemma no_alias_head_in_tail__wf_ECStack_head_in_tail__no_alias_with_blk: forall
+  (pinfo : PhiInfo) (lc2 : AssocList (GVsT DGVs))
+  (gv2 : GVsT DGVs) S los nts Ps (Mem : Mem.mem) F t v gl
+  (Hwfv: wf_value S (module_intro los nts Ps) F v t)
+  (maxb : Values.block) (Hget : getOperandValue (los,nts) v lc2 gl = ret gv2)
+  (EC : Opsem.ExecutionContext) (mb : mblock)
+  (H : no_alias_head_in_tail pinfo (ret mb) EC)
+  (Hwfg: MemProps.wf_globals maxb gl)
+  (Hnals1 : 
+    Promotability.wf_ECStack_head_in_tail maxb pinfo (los,nts) Mem lc2 EC),
+  MemProps.no_alias_with_blk gv2 mb.
+Proof.
+  intros.
+  unfold no_alias_head_in_tail in H.  
+  destruct H as [H1 H2]. 
+  destruct (fdef_dec (Opsem.CurFunction EC) (PI_f pinfo)) as [J | J].
+    assert (G:=J).
+    apply_clear H1 in J; auto.
+    remember (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) as R.
+    destruct R as [[|[[]][]]|]; tinv J.
+    inv J. symmetry in HeqR.
+    eapply Promotability.wf_ECStack_head_in_tail__no_alias_with_blk; eauto.
+    
+    apply_clear H2 in J. congruence.
+Qed.
+
+Lemma no_alias_head_tail__wf_ECStack_head_tail__no_alias_with_blk: 
+  forall pinfo lc2 gv2 los nts Mem maxb size Ps F t gl
+  (Hwfg: MemProps.wf_globals maxb gl) v S
+  (Hwfv: wf_value S (module_intro los nts Ps) F v t)
+  (Hget : getOperandValue (los,nts) v lc2 gl = ret gv2) EC ombs
+  (Hdse: no_alias_head_tail pinfo ombs EC)
+  (Hnals: Promotability.wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc2 EC),
+  List.Forall (fun re => 
+               let '(mb,_,_) := re in
+               MemProps.no_alias_with_blk gv2 mb) (ombs__ignores size ombs).
+Proof.
+  intros.
+  induction Hdse; simpl; intros; auto.
+    apply Promotability.wf_ECStack_head_tail_cons__inv in Hnals.
+    destruct Hnals as [Hnals1 Hals2].
+    apply_clear IHHdse in Hals2.
+    destruct y as [mb|]; auto.
+    constructor; auto.
+    eapply no_alias_head_in_tail__wf_ECStack_head_in_tail__no_alias_with_blk; 
+      eauto.
+Qed.
+
+Lemma no_alias_head_tail__notin_ignores_with_size': forall maxb pinfo  
+  los nts Mem lc2 EC gl
+  (Hnals: Promotability.wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc2 EC)
+  (Hwfg: MemProps.wf_globals maxb gl) S Ps t v F 
+  (Hwfv: wf_value S (module_intro los nts Ps) F v (typ_pointer t))
+  b' ofs' m'
+  (Hget: getOperandValue (los,nts) v lc2 gl = Some ((Vptr b' ofs', m')::nil)) ombs size'
+  (Hin: no_alias_head_tail pinfo ombs EC) size,
+  SASmsim.notin_ignores_with_size (ombs__ignores size' ombs) b'
+     (Int.signed 31 ofs') size.
+Proof.
+  intros.
+  eapply no_alias_head_tail__wf_ECStack_head_tail__no_alias_with_blk 
+    with (size:=size') in Hin; eauto.
+  eapply SASmsim.no_alias_with_blk__notin_ignores_with_size; eauto.
+Qed.   
+
+Lemma no_alias_head_in_tail_dec: forall pinfo EC mb
+  (Hnone: no_alias_head_in_tail pinfo None EC)
+  (Hsome: no_alias_head_in_tail pinfo (Some mb) EC),
+  False.
+Proof.
+  unfold no_alias_head_in_tail.
+  intros.
+  destruct (fdef_dec (Opsem.CurFunction EC) (PI_f pinfo)) as [J | J].
+    assert (J':=J).
+    apply Hnone in J. 
+    apply Hsome in J'. 
+    destruct (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) 
+      as [[|[[]][]]|]; inv J; inv J'.
+
+    assert (J':=J).
+    apply Hnone in J. 
+    apply Hsome in J'. 
+    destruct (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) 
+      as [[|[[]][]]|]; inv J; inv J'.
+Qed.
+
+Lemma unused_pid_no_alias_head_in_tail__wf_defs__no_alias_with_blk: 
+  forall pinfo F los nts maxb Mem lc2 EC gv2 als2
+  (Hinscope: if fdef_dec (PI_f pinfo) F
+             then Promotability.wf_defs maxb pinfo (los,nts) Mem lc2 als2
+             else True)
+  gl (Hwfg: MemProps.wf_globals maxb gl) v S t Ps
+  (Hwfv: wf_value S (module_intro los nts Ps) F v t)
+  (Hget : getOperandValue (los,nts) v lc2 gl = ret gv2) mb
+  (Hneq: used_in_value (PI_id pinfo) v = false)
+  (Heq1: Opsem.CurFunction EC = F) (Heq2: Opsem.Locals EC = lc2)
+  (Heq3: Opsem.Allocas EC = als2)
+  (Hdse: no_alias_head_in_tail pinfo (Some mb) EC),
+  MemProps.no_alias_with_blk gv2 mb.
+Proof.
+  intros.
+  destruct Hdse as [J1 J2]. subst.
+  destruct (fdef_dec (PI_f pinfo) (Opsem.CurFunction EC)) as [J | J].
+    symmetry in J. assert (G:=J).
+    apply_clear J1 in J.
+    remember (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) as R.
+    destruct R as [[|[[]][]]|]; inv J.
+    clear J2. symmetry in HeqR.
+    eapply Promotability.wf_defs__no_alias_with_blk; eauto.
+
+    assert (Opsem.CurFunction EC <> PI_f pinfo) as G. intro K. auto.
+    apply J2 in G. congruence.
+Qed.
+
+Lemma no_alias_head_in_tail_inv2: forall EC pinfo y
+  (Heq : Opsem.CurFunction EC <> PI_f pinfo)
+  (H1 : no_alias_head_in_tail pinfo y EC), y = None.
+Proof.
+  intros.
+  destruct H1 as [_ H1]. auto.
+Qed.
+
+Lemma no_alias_head_tail__notin_ignores_with_size: forall maxb pinfo
+  los nts Mem lc2 EC gl
+  (Hnals: Promotability.wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc2 EC)
+  (Hwfg: MemProps.wf_globals maxb gl) S Ps als2 tmn2 id0 t align0 v cs B F
+  (Hwfv: wf_value S (module_intro los nts Ps) F v (typ_pointer t))
+  (Hinscope: if fdef_dec (PI_f pinfo) F
+             then Promotability.wf_defs maxb pinfo (los,nts) Mem lc2 als2
+             else True) b' ofs' m'
+  (Hget: getOperandValue (los,nts) v lc2 gl = Some ((Vptr b' ofs', m')::nil)) ombs size'
+  (Hnld: load_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
+  (HBinF: blockInFdefB B F = true)
+  (Heq3 : exists l1 : l,
+           exists ps1 : phinodes,
+             exists cs11 : list cmd,
+               B =
+               (l1, stmts_intro ps1
+                 (cs11 ++ insn_load id0 t v align0 :: cs) tmn2))
+  (Hin: no_alias_head_tail pinfo ombs 
+        ({|
+         Opsem.CurFunction := F;
+         Opsem.CurBB := B;
+         Opsem.CurCmds := insn_load id0 t v align0 :: cs;
+         Opsem.Terminator := tmn2;
+         Opsem.Locals := lc2;
+         Opsem.Allocas := als2 |} :: EC)) size,
+  SASmsim.notin_ignores_with_size (ombs__ignores size' ombs) b'
+     (Int.signed 31 ofs') size.
+Proof.
+  intros.
+  inv Hin. simpl.
+  eapply no_alias_head_tail__notin_ignores_with_size' with (size:=size)(size':=size') 
+    in H3; eauto.
+  destruct y as [mb|]; auto.
+    unfold SASmsim.notin_ignores_with_size in *.
+    constructor; auto.
+    remember (used_in_value (PI_id pinfo) v) as R.
+    destruct R.
+      destruct (fdef_dec F (PI_f pinfo)); subst.
+        eapply load_notin_fdef__unused_in_value in Hnld; eauto.
+        congruence.
+
+        apply no_alias_head_in_tail_inv2 in H1; simpl; auto. congruence.
+      
+      eapply unused_pid_no_alias_head_in_tail__wf_defs__no_alias_with_blk in H1; 
+        eauto.
+      simpl in H1. auto.
+Qed.
+
+(***************************************************************************)
+(* Properties of cmds_simulation *)
+Lemma cmds_simulation_elim_cons_inv: forall (pinfo : PhiInfo) (i0 : id) (t : typ)
+  (v : value) (a : align) (cs1 : list cmd) (cs2 : cmds)
+  (Hcssim2 : cmds_simulation pinfo (PI_f pinfo)
+              (insn_store i0 t v (value_id (PI_id pinfo)) a :: cs1) cs2),
+  cmds_simulation pinfo (PI_f pinfo) cs1 cs2.
+Proof.
+  intros.
+  unfold cmds_simulation in *.
+  destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
+  simpl in *.
+  destruct (id_dec (PI_id pinfo) (PI_id pinfo)); congruence.
+Qed.
+
+Lemma cmds_simulation_nil_inv: forall pinfo f1 cs,
+  cmds_simulation pinfo f1 nil cs -> cs = nil.
+Proof.
+  unfold cmds_simulation. simpl.
+  intros. destruct (fdef_dec (PI_f pinfo) f1); auto.
+Qed.
+
+Lemma cmds_simulation_nelim_cons_inv: forall pinfo F c cs2 cs',
+  cmds_simulation pinfo F (c :: cs2) cs' ->
+  (PI_f pinfo = F -> store_in_cmd (PI_id pinfo) c = false) ->
+  exists cs2',
+    cs' = c :: cs2' /\ cmds_simulation pinfo F cs2 cs2'.
+Proof.
+  intros.
+  unfold cmds_simulation in *.
+  destruct (fdef_dec (PI_f pinfo) F); subst; simpl; eauto.
+  destruct_cmd c; simpl in H0; eauto.
+  destruct v0 as [i1|]; simpl in H0; eauto.
+  destruct (id_dec (PI_id pinfo) i1); subst; simpl; eauto.
+  assert (PI_f pinfo = PI_f pinfo) as EQ. auto.
+  apply H0 in EQ.
+  destruct (id_dec (PI_id pinfo) (PI_id pinfo)); simpl in *; congruence.
+Qed.
+
+(***************************************************************************)
+(* Properties of fdef simulation *)
+Lemma fdef_sim__lookupAL_genLabel2Block_elim_dead_st_block : 
+  forall id0 l0 bs s s',
+  lookupAL _ bs l0 = Some s ->
+  lookupAL _ (List.map (elim_dead_st_block id0) bs) l0
+    = Some s' ->
+  elim_dead_st_block id0 (l0,s) = (l0,s').
+Proof.
+  intros.
+  eapply fdef_sim__lookupAL_block; eauto.
+Qed.
+
+(* generalized? *)
+Lemma fdef_sim__block_sim : forall pinfo f1 f2 s1 s2 l0,
+  fdef_simulation pinfo f1 f2 ->
+  lookupBlockViaLabelFromFdef f1 l0 = Some s1 ->
+  lookupBlockViaLabelFromFdef f2 l0 = Some s2 ->
+  block_simulation pinfo f1 (l0,s1) (l0,s2).
+Proof.
+  intros.
+  unfold fdef_simulation in H.
+  unfold block_simulation.
+  destruct (fdef_dec (PI_f pinfo) f1); subst.
+    destruct (PI_f pinfo). simpl in *.
+    eapply fdef_sim__lookupAL_genLabel2Block_elim_dead_st_block; eauto.
+
+    uniq_result. auto.
+Qed.
+
+Lemma getEntryBlock__simulation: forall pinfo f1 f2 b2,
+  getEntryBlock f2 = Some b2 ->
+  fdef_simulation pinfo f1 f2 ->
+  exists b1, getEntryBlock f1 = Some b1 /\ 
+    block_simulation pinfo f1 b1 b2.
+Proof.
+  unfold fdef_simulation.
+  unfold block_simulation.
+  intros.
+  destruct (fdef_dec (PI_f pinfo) f1); inv H0; eauto.
+    remember (PI_f pinfo) as R1.
+    destruct R1 as [[? ? ? a ?] b]; simpl in *.
+    destruct b; simpl in *; inv H.
+    exists b. 
+    split; auto.
+Qed.
+
+Lemma fdef_simulation__entry_block_simulation: forall pinfo F1 F2 B1 B2,
+  fdef_simulation pinfo F1 F2 ->
+  getEntryBlock F1 = ret B1 ->
+  getEntryBlock F2 = ret B2 ->
+  block_simulation pinfo F1 B1 B2.
+Proof.
+  intros.
+  eapply getEntryBlock__simulation in H1; eauto.
+  destruct H1 as [b1 [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+(* generalized? *)
+Lemma fdef_simulation_inv: forall pinfo fh1 fh2 bs1 bs2,
+  fdef_simulation pinfo (fdef_intro fh1 bs1) (fdef_intro fh2 bs2) ->
+  fh1 = fh2 /\
+  List.Forall2
+    (fun b1 b2 =>
+      block_simulation pinfo (fdef_intro fh1 bs1) b1 b2) bs1 bs2.
+Proof.
+  intros.
+  unfold fdef_simulation in H.
+  destruct (fdef_dec (PI_f pinfo) (fdef_intro fh1 bs1)).
+    simpl in H. inv H.
+    split; auto.
+      unfold block_simulation.
+      rewrite e.
+      destruct (fdef_dec (fdef_intro fh2 bs1) (fdef_intro fh2 bs1));
+        try congruence.
+        clear.
+        induction bs1; simpl; constructor; auto.
+
+    inv H.
+    split; auto.
+      unfold block_simulation.
+      destruct (fdef_dec (PI_f pinfo) (fdef_intro fh2 bs2));
+        try congruence.
+        clear.
+        induction bs2; simpl; constructor; auto.
+Qed.
+
+(***************************************************************************)
+(* Properties of block simulation *)
+Lemma block_simulation_inv : forall pinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
+  tmn2,
+  block_simulation pinfo F (l1, stmts_intro ps1 cs1 tmn1)
+    (l2, stmts_intro ps2 cs2 tmn2) ->
+  l1 = l2 /\ ps1 = ps2 /\
+  cmds_simulation pinfo F cs1 cs2 /\ tmn1 = tmn2.
+Proof.
+  intros.
+  unfold block_simulation, cmds_simulation in *.
+  destruct (fdef_dec (PI_f pinfo) F); inv H; auto.
+Qed.
+
 Lemma switchToNewBasicBlock_sim : forall TD l1 l2 ps cs1 cs2 tmn1 tmn2 B1 B2
   gl lc lc1 lc2 F pinfo
   (H23 : @Opsem.switchToNewBasicBlock DGVs TD
@@ -375,6 +642,8 @@ Proof.
   rewrite H2 in H23. congruence.
 Qed.
 
+(***************************************************************************)
+(* Properties of mem simulation *)
 Lemma mem_simulation_update_locals :
   forall pinfo TD EC1 EC2 ECs M1 M2
   (EQ: Opsem.CurFunction EC1 = Opsem.CurFunction EC2)
@@ -394,72 +663,6 @@ Proof.
     apply Hmsim2. clear Hmsim2.
     eapply no_alias_head_tail_update in Hin; eauto.
       intros. apply Hp. congruence.
-Qed.
-
-Ltac destruct_ctx_other :=
-match goal with
-| Hwfcfg : OpsemPP.wf_Config
-            {|
-            OpsemAux.CurSystem := _;
-            OpsemAux.CurTargetData := ?TD;
-            OpsemAux.CurProducts := _;
-            OpsemAux.Globals := _;
-            OpsemAux.FunTable := _
-             |},
-  Hwfpp : OpsemPP.wf_State
-            {|
-            OpsemAux.CurSystem := _;
-            OpsemAux.CurTargetData := ?TD;
-            OpsemAux.CurProducts := _;
-            OpsemAux.Globals := _;
-            OpsemAux.FunTable := _
-             |} _,
-  Hnoalias : Promotability.wf_State _ _ _ _,
-  Hsim : State_simulation _ _ _ ?Cfg2 ?St2 ,
-  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
-  destruct TD as [los nts];
-  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]]; subst;
-  destruct Hwfpp as
-    [_ [
-     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 _]]]]
-     [ _ HwfCall'
-     ]]
-    ]; subst;
-  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
-  destruct St2 as [ECs2 M2];
-  simpl in Hsim;
-  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst;
-  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
-  destruct Hstksim as [Hecsim Hstksim];
-  unfold EC_simulation in Hecsim;
-  destruct Hecsim as
-      [Hfsim2 [Heq1 [Heq2 [Hbsim2
-        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
-  destruct Hnoalias as
-    [
-      [[Hinscope' _] [HwfECs' HwfHT]]
-      [[Hdisjals _] HwfM]
-    ]; simpl in Hdisjals;
-  fold Promotability.wf_ECStack in HwfECs'
-end.
-
-Lemma no_alias_head_in_tail_inv1: forall lc2 pinfo TD mb B1 cs1 tmn2 als2 y
-  (Hlkup: lookupAL (GVsT DGVs) lc2 (PI_id pinfo) =
-        ret ($ blk2GV TD mb # typ_pointer (PI_typ pinfo) $)) 
-  (H1 : no_alias_head_in_tail pinfo y
-         {|
-         Opsem.CurFunction := PI_f pinfo;
-         Opsem.CurBB := B1;
-         Opsem.CurCmds := cs1;
-         Opsem.Terminator := tmn2;
-         Opsem.Locals := lc2;
-         Opsem.Allocas := als2 |}),
-  y = ret mb.
-Proof.
-  intros.
-  destruct H1 as [H1 _]. simpl in H1.
-  rewrite Hlkup in H1.
-  rewrite simpl_blk2GV in H1. tauto.
 Qed.
 
 Lemma mstore_palloca_mem_simulation: forall los nts M1 mp2 gv1 a M1' pinfo lc2 
@@ -536,70 +739,6 @@ Proof.
     eapply SASmsim.mstore_inside_inj_left'; eauto.
 Qed.
 
-Ltac repeat_solve :=
-  repeat (match goal with
-          | |- mem_simulation _ _ _ _ _ => idtac
-          | |- _ => split; eauto 2 using cmds_at_block_tail_next
-          end).
-
-Lemma getEntryBlock__simulation: forall pinfo f1 f2 b2,
-  getEntryBlock f2 = Some b2 ->
-  fdef_simulation pinfo f1 f2 ->
-  exists b1, getEntryBlock f1 = Some b1 /\ 
-    block_simulation pinfo f1 b1 b2.
-Proof.
-  unfold fdef_simulation.
-  unfold block_simulation.
-  intros.
-  destruct (fdef_dec (PI_f pinfo) f1); inv H0; eauto.
-    remember (PI_f pinfo) as R1.
-    destruct R1 as [[? ? ? a ?] b]; simpl in *.
-    destruct b; simpl in *; inv H.
-    exists b. 
-    split; auto.
-Qed.
-
-Lemma fdef_simulation__entry_block_simulation: forall pinfo F1 F2 B1 B2,
-  fdef_simulation pinfo F1 F2 ->
-  getEntryBlock F1 = ret B1 ->
-  getEntryBlock F2 = ret B2 ->
-  block_simulation pinfo F1 B1 B2.
-Proof.
-  intros.
-  eapply getEntryBlock__simulation in H1; eauto.
-  destruct H1 as [b1 [J1 J2]].
-  uniq_result. auto.
-Qed.
-
-(* generalized? *)
-Lemma fdef_simulation_inv: forall pinfo fh1 fh2 bs1 bs2,
-  fdef_simulation pinfo (fdef_intro fh1 bs1) (fdef_intro fh2 bs2) ->
-  fh1 = fh2 /\
-  List.Forall2
-    (fun b1 b2 =>
-      block_simulation pinfo (fdef_intro fh1 bs1) b1 b2) bs1 bs2.
-Proof.
-  intros.
-  unfold fdef_simulation in H.
-  destruct (fdef_dec (PI_f pinfo) (fdef_intro fh1 bs1)).
-    simpl in H. inv H.
-    split; auto.
-      unfold block_simulation.
-      rewrite e.
-      destruct (fdef_dec (fdef_intro fh2 bs1) (fdef_intro fh2 bs1));
-        try congruence.
-        clear.
-        induction bs1; simpl; constructor; auto.
-
-    inv H.
-    split; auto.
-      unfold block_simulation.
-      destruct (fdef_dec (PI_f pinfo) (fdef_intro fh2 bs2));
-        try congruence.
-        clear.
-        induction bs2; simpl; constructor; auto.
-Qed.
-
 Axiom callExternalFunction__mem_simulation_l2r: forall pinfo TD St1 M1 M2 fid0 gvss0
   oresult1 M1' dck tr1 gl tret targs,
   mem_simulation pinfo TD St1 M1 M2 ->
@@ -624,6 +763,12 @@ Proof.
   destruct H as [M2'' [oresult2' [tr2' [J1 [J2 [J3 J4]]]]]]; subst.
   uniq_result. auto.
 Qed.
+
+Ltac repeat_solve :=
+  repeat (match goal with
+          | |- mem_simulation _ _ _ _ _ => idtac
+          | |- _ => split; eauto 2 using cmds_at_block_tail_next
+          end).
 
 Ltac dse_is_sim_mem_update :=
 match goal with
@@ -654,16 +799,6 @@ match goal with
   inv Hop2; uniq_result;
   dse_is_sim_mem_update
 end.
-
-Lemma no_alias_head_tail__replace_head: forall EC' EC ECs1 ombs pinfo
-  (Hp : forall omb,
-        no_alias_head_in_tail pinfo omb EC' ->
-        no_alias_head_in_tail pinfo omb EC)
-  (H1: no_alias_head_tail pinfo ombs (EC' :: ECs1)),
-  no_alias_head_tail pinfo ombs (EC :: ECs1).
-Proof.
-  intros. inv H1. constructor; auto.
-Qed.
 
 Lemma mem_simulation__replace_head: forall TD ECs1 pinfo EC EC'
   (Hp : forall omb : monad mblock,
@@ -829,31 +964,6 @@ Proof.
           rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
 
-Lemma no_alias_head_in_tail_ex: forall pinfo EC,
-  exists omb, no_alias_head_in_tail pinfo omb EC.
-Proof.
-  unfold no_alias_head_in_tail.
-  intros. 
-  destruct (fdef_dec (Opsem.CurFunction EC) (PI_f pinfo)).
-    destruct (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) 
-      as [[|[[]][]]|]; eauto.
-      exists (Some b). tauto.
-
-    destruct (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) 
-      as [[|[[]][]]|]; eauto.
-      exists None. tauto.
-Qed.
-
-Lemma no_alias_head_tail_ex: forall pinfo ECs,
-  exists ombs, no_alias_head_tail pinfo ombs ECs.
-Proof.
-  unfold no_alias_head_tail.
-  induction ECs; simpl; eauto.
-    destruct IHECs as [ombs IHECs].
-    destruct (@no_alias_head_in_tail_ex pinfo a) as [omb J].
-    exists (omb::ombs). constructor; auto.
-Qed.
-
 Lemma mem_simulation__free_l2r' : forall TD Mem1 Mem2 Mem1' ECs pinfo ptr
   (Hmsim : mem_simulation pinfo TD ECs Mem1 Mem2)
   (Hmlc: free TD Mem1 ptr = ret Mem1'),
@@ -998,30 +1108,6 @@ Proof.
       constructor; auto.
 Qed.
 
-Lemma no_alias_head_in_tail_inv3: forall lc2 pinfo mb B1 cs1 tmn2 als2 F
-  (H1 : no_alias_head_in_tail pinfo (Some mb)
-         {|
-         Opsem.CurFunction := F;
-         Opsem.CurBB := B1;
-         Opsem.CurCmds := cs1;
-         Opsem.Terminator := tmn2;
-         Opsem.Locals := lc2;
-         Opsem.Allocas := als2 |}),
-  F = PI_f pinfo /\
-  exists ofs, exists mc, 
-    lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = ret ((Vptr mb ofs, mc)::nil).
-Proof.
-  intros.
-  destruct H1 as [H1 H2]. simpl in *.
-  destruct (fdef_dec F (PI_f pinfo)) as [J | J].
-    split; auto.
-      apply H1 in J.
-      destruct (lookupAL (GVsT DGVs) lc2 (PI_id pinfo)) 
-        as [[|[[]][]]|]; try solve [congruence | inv J; eauto].
-
-    apply H2 in J. congruence.
-Qed.
-
 Lemma mem_simulation__return: forall (pinfo : PhiInfo)
   (lc2 : Opsem.GVsMap) (als2 : list mblock) (tmn3 : terminator) t0 v0 
   (lc3 : Opsem.GVsMap) (als3 : list mblock) (M2 : mem) (los : layouts) 
@@ -1134,210 +1220,6 @@ Proof.
       unfold Size.to_Z in *.
       omega.
 Qed. 
-
-Lemma no_alias_head_in_tail__wf_ECStack_head_in_tail__no_alias_with_blk: forall
-  (pinfo : PhiInfo) (lc2 : AssocList (GVsT DGVs))
-  (gv2 : GVsT DGVs) S los nts Ps (Mem : Mem.mem) F t v gl
-  (Hwfv: wf_value S (module_intro los nts Ps) F v t)
-  (maxb : Values.block) (Hget : getOperandValue (los,nts) v lc2 gl = ret gv2)
-  (EC : Opsem.ExecutionContext) (mb : mblock)
-  (H : no_alias_head_in_tail pinfo (ret mb) EC)
-  (Hwfg: MemProps.wf_globals maxb gl)
-  (Hnals1 : 
-    Promotability.wf_ECStack_head_in_tail maxb pinfo (los,nts) Mem lc2 EC),
-  MemProps.no_alias_with_blk gv2 mb.
-Proof.
-  intros.
-  unfold no_alias_head_in_tail in H.  
-  destruct H as [H1 H2]. 
-  destruct (fdef_dec (Opsem.CurFunction EC) (PI_f pinfo)) as [J | J].
-    assert (G:=J).
-    apply_clear H1 in J; auto.
-    remember (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) as R.
-    destruct R as [[|[[]][]]|]; tinv J.
-    inv J. symmetry in HeqR.
-    eapply Promotability.wf_ECStack_head_in_tail__no_alias_with_blk; eauto.
-    
-    apply_clear H2 in J. congruence.
-Qed.
-
-Lemma no_alias_head_tail__wf_ECStack_head_tail__no_alias_with_blk: 
-  forall pinfo lc2 gv2 los nts Mem maxb size Ps F t gl
-  (Hwfg: MemProps.wf_globals maxb gl) v S
-  (Hwfv: wf_value S (module_intro los nts Ps) F v t)
-  (Hget : getOperandValue (los,nts) v lc2 gl = ret gv2) EC ombs
-  (Hdse: no_alias_head_tail pinfo ombs EC)
-  (Hnals: Promotability.wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc2 EC),
-  List.Forall (fun re => 
-               let '(mb,_,_) := re in
-               MemProps.no_alias_with_blk gv2 mb) (ombs__ignores size ombs).
-Proof.
-  intros.
-  induction Hdse; simpl; intros; auto.
-    apply Promotability.wf_ECStack_head_tail_cons__inv in Hnals.
-    destruct Hnals as [Hnals1 Hals2].
-    apply_clear IHHdse in Hals2.
-    destruct y as [mb|]; auto.
-    constructor; auto.
-    eapply no_alias_head_in_tail__wf_ECStack_head_in_tail__no_alias_with_blk; 
-      eauto.
-Qed.
-
-Lemma no_alias_head_tail__notin_ignores_with_size': forall maxb pinfo  
-  los nts Mem lc2 EC gl
-  (Hnals: Promotability.wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc2 EC)
-  (Hwfg: MemProps.wf_globals maxb gl) S Ps t v F 
-  (Hwfv: wf_value S (module_intro los nts Ps) F v (typ_pointer t))
-  b' ofs' m'
-  (Hget: getOperandValue (los,nts) v lc2 gl = Some ((Vptr b' ofs', m')::nil)) ombs size'
-  (Hin: no_alias_head_tail pinfo ombs EC) size,
-  SASmsim.notin_ignores_with_size (ombs__ignores size' ombs) b'
-     (Int.signed 31 ofs') size.
-Proof.
-  intros.
-  eapply no_alias_head_tail__wf_ECStack_head_tail__no_alias_with_blk 
-    with (size:=size') in Hin; eauto.
-  eapply SASmsim.no_alias_with_blk__notin_ignores_with_size; eauto.
-Qed.   
-
-Lemma no_alias_head_in_tail_dec: forall pinfo EC mb
-  (Hnone: no_alias_head_in_tail pinfo None EC)
-  (Hsome: no_alias_head_in_tail pinfo (Some mb) EC),
-  False.
-Proof.
-  unfold no_alias_head_in_tail.
-  intros.
-  destruct (fdef_dec (Opsem.CurFunction EC) (PI_f pinfo)) as [J | J].
-    assert (J':=J).
-    apply Hnone in J. 
-    apply Hsome in J'. 
-    destruct (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) 
-      as [[|[[]][]]|]; inv J; inv J'.
-
-    assert (J':=J).
-    apply Hnone in J. 
-    apply Hsome in J'. 
-    destruct (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) 
-      as [[|[[]][]]|]; inv J; inv J'.
-Qed.
-
-Lemma unused_pid_no_alias_head_in_tail__wf_defs__no_alias_with_blk: 
-  forall pinfo F los nts maxb Mem lc2 EC gv2 als2
-  (Hinscope: if fdef_dec (PI_f pinfo) F
-             then Promotability.wf_defs maxb pinfo (los,nts) Mem lc2 als2
-             else True)
-  gl (Hwfg: MemProps.wf_globals maxb gl) v S t Ps
-  (Hwfv: wf_value S (module_intro los nts Ps) F v t)
-  (Hget : getOperandValue (los,nts) v lc2 gl = ret gv2) mb
-  (Hneq: used_in_value (PI_id pinfo) v = false)
-  (Heq1: Opsem.CurFunction EC = F) (Heq2: Opsem.Locals EC = lc2)
-  (Heq3: Opsem.Allocas EC = als2)
-  (Hdse: no_alias_head_in_tail pinfo (Some mb) EC),
-  MemProps.no_alias_with_blk gv2 mb.
-Proof.
-  intros.
-  destruct Hdse as [J1 J2]. subst.
-  destruct (fdef_dec (PI_f pinfo) (Opsem.CurFunction EC)) as [J | J].
-    symmetry in J. assert (G:=J).
-    apply_clear J1 in J.
-    remember (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) as R.
-    destruct R as [[|[[]][]]|]; inv J.
-    clear J2. symmetry in HeqR.
-    eapply Promotability.wf_defs__no_alias_with_blk; eauto.
-
-    assert (Opsem.CurFunction EC <> PI_f pinfo) as G. intro K. auto.
-    apply J2 in G. congruence.
-Qed.
-
-Lemma no_alias_head_in_tail_inv2: forall EC pinfo y
-  (Heq : Opsem.CurFunction EC <> PI_f pinfo)
-  (H1 : no_alias_head_in_tail pinfo y EC), y = None.
-Proof.
-  intros.
-  destruct H1 as [_ H1]. auto.
-Qed.
-
-Lemma load_notin_fdef__unused_in_value: forall F v t id0 align0 cs B tmn2 vid0
-  (Hnld: load_in_fdef vid0 F = false) (HBinF: blockInFdefB B F = true)
-  (Heq3 : exists l1 : l,
-           exists ps1 : phinodes,
-             exists cs11 : list cmd,
-               B =
-               (l1, stmts_intro ps1
-                 (cs11 ++ insn_load id0 t v align0 :: cs) tmn2)),
-  used_in_value vid0 v = false.
-Proof.
-  destruct F as [fh bs]. simpl. intros.
-  remember false as R. rewrite HeqR in Hnld at 2. rewrite HeqR. clear HeqR.
-  generalize dependent R. 
-  induction bs; simpl in *; intros.
-    inv HBinF.
-
-    apply orb_true_iff in HBinF.
-    destruct HBinF as [HBinF | HBinF]; eauto 2.
-      apply blockEqB_inv in HBinF.
-      subst.
-
-      clear IHbs.
-      apply fold_left_eq in Hnld.
-        apply orb_false_iff in Hnld.
-        destruct Hnld.
-        destruct Heq3 as [l1 [ps1 [cs11 Heq3]]]; subst.
-        simpl in H0.
-        apply load_notin_cmds__unused_in_value in H0; auto.
-
-        intros c b J.
-        apply orb_false_iff in J.
-        destruct J; auto.
-Qed.
-
-Lemma no_alias_head_tail__notin_ignores_with_size: forall maxb pinfo
-  los nts Mem lc2 EC gl
-  (Hnals: Promotability.wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc2 EC)
-  (Hwfg: MemProps.wf_globals maxb gl) S Ps als2 tmn2 id0 t align0 v cs B F
-  (Hwfv: wf_value S (module_intro los nts Ps) F v (typ_pointer t))
-  (Hinscope: if fdef_dec (PI_f pinfo) F
-             then Promotability.wf_defs maxb pinfo (los,nts) Mem lc2 als2
-             else True) b' ofs' m'
-  (Hget: getOperandValue (los,nts) v lc2 gl = Some ((Vptr b' ofs', m')::nil)) ombs size'
-  (Hnld: load_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
-  (HBinF: blockInFdefB B F = true)
-  (Heq3 : exists l1 : l,
-           exists ps1 : phinodes,
-             exists cs11 : list cmd,
-               B =
-               (l1, stmts_intro ps1
-                 (cs11 ++ insn_load id0 t v align0 :: cs) tmn2))
-  (Hin: no_alias_head_tail pinfo ombs 
-        ({|
-         Opsem.CurFunction := F;
-         Opsem.CurBB := B;
-         Opsem.CurCmds := insn_load id0 t v align0 :: cs;
-         Opsem.Terminator := tmn2;
-         Opsem.Locals := lc2;
-         Opsem.Allocas := als2 |} :: EC)) size,
-  SASmsim.notin_ignores_with_size (ombs__ignores size' ombs) b'
-     (Int.signed 31 ofs') size.
-Proof.
-  intros.
-  inv Hin. simpl.
-  eapply no_alias_head_tail__notin_ignores_with_size' with (size:=size)(size':=size') 
-    in H3; eauto.
-  destruct y as [mb|]; auto.
-    unfold SASmsim.notin_ignores_with_size in *.
-    constructor; auto.
-    remember (used_in_value (PI_id pinfo) v) as R.
-    destruct R.
-      destruct (fdef_dec F (PI_f pinfo)); subst.
-        eapply load_notin_fdef__unused_in_value in Hnld; eauto.
-        congruence.
-
-        apply no_alias_head_in_tail_inv2 in H1; simpl; auto. congruence.
-      
-      eapply unused_pid_no_alias_head_in_tail__wf_defs__no_alias_with_blk in H1; 
-        eauto.
-      simpl in H1. auto.
-Qed.
 
 Lemma mem_simulation__mload: forall (maxb : Z) (pinfo : PhiInfo) 
   (gl2 : GVMap) (fs2 : GVMap) (tmn2 : terminator)
@@ -1473,6 +1355,54 @@ Proof.
     eapply SASmsim.mstore_aux_inject_id_mapped_inj2; eauto.
 Qed.
 
+(* The main result *)
+Ltac destruct_ctx_other :=
+match goal with
+| Hwfcfg : OpsemPP.wf_Config
+            {|
+            OpsemAux.CurSystem := _;
+            OpsemAux.CurTargetData := ?TD;
+            OpsemAux.CurProducts := _;
+            OpsemAux.Globals := _;
+            OpsemAux.FunTable := _
+             |},
+  Hwfpp : OpsemPP.wf_State
+            {|
+            OpsemAux.CurSystem := _;
+            OpsemAux.CurTargetData := ?TD;
+            OpsemAux.CurProducts := _;
+            OpsemAux.Globals := _;
+            OpsemAux.FunTable := _
+             |} _,
+  Hnoalias : Promotability.wf_State _ _ _ _,
+  Hsim : State_simulation _ _ _ ?Cfg2 ?St2 ,
+  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
+  destruct TD as [los nts];
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]]; subst;
+  destruct Hwfpp as
+    [_ [
+     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 _]]]]
+     [ _ HwfCall'
+     ]]
+    ]; subst;
+  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
+  destruct St2 as [ECs2 M2];
+  simpl in Hsim;
+  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst;
+  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
+  destruct Hstksim as [Hecsim Hstksim];
+  unfold EC_simulation in Hecsim;
+  destruct Hecsim as
+      [Hfsim2 [Heq1 [Heq2 [Hbsim2
+        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
+  destruct Hnoalias as
+    [
+      [[Hinscope' _] [HwfECs' HwfHT]]
+      [[Hdisjals _] HwfM]
+    ]; simpl in Hdisjals;
+  fold Promotability.wf_ECStack in HwfECs'
+end.
+
 Ltac dse_is_sim_malloc :=
   destruct_ctx_other;
   match goal with 
@@ -1498,6 +1428,68 @@ Ltac dse_is_sim_malloc :=
   subst;
   repeat_solve;
     eapply mem_simulation__malloc; eauto using wf_system__uniqFdef; simpl; auto.
+
+Ltac destruct_ctx_return :=
+match goal with
+| Hwfcfg : OpsemPP.wf_Config
+            {|
+            OpsemAux.CurSystem := _;
+            OpsemAux.CurTargetData := ?TD;
+            OpsemAux.CurProducts := _;
+            OpsemAux.Globals := _;
+            OpsemAux.FunTable := _
+             |},
+  Hwfpp : OpsemPP.wf_State
+            {|
+            OpsemAux.CurSystem := _;
+            OpsemAux.CurTargetData := ?TD;
+            OpsemAux.CurProducts := _;
+            OpsemAux.Globals := _;
+            OpsemAux.FunTable := _
+             |} _,  Hnoalias : Promotability.wf_State _ _ _ _,
+  Hsim : State_simulation _ _ _ ?Cfg2 ?St2 ,
+  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
+  destruct TD as [los nts];
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]]; subst;
+  destruct Hwfpp as
+    [_ [
+     [Hreach1 [HBinF1 [HFinPs1 _]]]
+     [
+       [
+         [Hreach2 [HBinF2 [HFinPs2 _]]]
+         _
+       ]
+       HwfCall'
+     ]]
+    ]; subst;
+  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
+  destruct St2 as [ECs2 M2];
+  simpl in Hsim;
+  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst;
+  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
+  destruct Hstksim as [Hecsim Hstksim];
+  destruct ECs2 as [|[F3 B3 cs3 tmn3 lc3 als3] ECs2]; tinv Hstksim;
+  destruct Hstksim as [Hecsim' Hstksim];
+  unfold EC_simulation in Hecsim;
+  destruct Hecsim as
+      [Hfsim2 [Heq1 [Heq2 [Hbsim2
+        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
+  destruct Hecsim' as
+      [Hfsim2' [Htsim2' [Heq2' [Hbsim2'
+        [Heq3' [Heq4' [Hlcsim2' Hcssim2']]]]]]]; subst;
+  destruct Hnoalias as
+    [
+      [[Hinscope1' _] [[[Hinscope2' _] [HwfECs' _]] _]]
+      [[Hdisjals _] HwfM]
+    ]; simpl in Hdisjals;
+  fold Promotability.wf_ECStack in HwfECs';
+  apply cmds_simulation_nil_inv in Hcssim2; subst;
+  wfCall_inv;
+  apply cmds_simulation_nelim_cons_inv in Hcssim2'; auto;
+  destruct Hcssim2' as [cs3' [Heq Hcssim2']]; subst;
+  inv Hop2;
+  uniq_result
+end.
 
 Lemma dse_is_sim : forall maxb pinfo Cfg1 St1 Cfg2 St2
   (Hwfpi: WF_PhiInfo pinfo)

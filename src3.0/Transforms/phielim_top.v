@@ -12,28 +12,7 @@ Require Import subst_sim.
 Require Import phielim_spec.
 Require Import phisubst_inv.
 
-Lemma eliminate_phi_true_simpl_spec: forall p f f'
-  (Helim: (f', true) = eliminate_phi f p),
-  f' = remove_fdef (getPhiNodeID p) f \/
-  exists v, 
-    f' = remove_fdef (getPhiNodeID p) (subst_fdef (getPhiNodeID p) v f).
-Proof.
-  destruct p as [pid pty pvls].
-  unfold eliminate_phi.
-  intros. 
-  remember (vmem2reg.remove_redundancy nil 
-             (value_id pid :: List.map fst pvls)) as vs.
-  destruct vs as [|v1 vs']; try solve [repeat destruct_if; auto].
-  destruct v1 as [vid1 | vc1].
-    destruct vs' as [|v2]; inv Helim; auto.
-      destruct vs' as [|]; try solve [repeat destruct_if; auto].
-        right. destruct_if; eauto.
-    destruct vs' as [|? vs']; try solve [repeat destruct_if; auto].
-      inv Helim. auto.
-      destruct vs' as [|? vs']; try solve [repeat destruct_if; auto].
-        inv Helim. eauto.
-Qed.
-
+(* phinode elimination preserves CFGs. *)
 Lemma eliminate_phi_reachablity_successors: forall (f1 f2 : fdef) p
   (Helim: (f2, true) = eliminate_phi f1 p),
   reachablity_analysis f1 = reachablity_analysis f2 /\
@@ -63,6 +42,7 @@ Proof.
       apply IHps in H1; auto. 
 Qed.
  
+(* phinode elimination preserves well-formedness. *)
 Lemma subst_phi_init: forall (los : layouts) (nts : namedts) (fh : fheader)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product)
@@ -114,6 +94,7 @@ Proof.
      eapply assigned_phi__wf_value; eauto 1.
 Qed. 
 
+(* phinode elimination refines programs. *)
 Lemma subst_phi_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
@@ -165,6 +146,7 @@ Proof.
     unfold ctx_inv. auto.
 Qed.
 
+(* phinode elimination is correct. *)
 Lemma eliminate_phis_sim_wfS: forall los nts Ps1 Ps2 rd,
  forall (fh : fheader) (efs : list id) (f1 : fdef) 
    (efs0 : list id) (main0 : id) (VarArgs0 : list (GVsT DGVs))

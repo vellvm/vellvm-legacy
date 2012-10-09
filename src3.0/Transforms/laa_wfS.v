@@ -11,6 +11,9 @@ Require Import subst.
 Require Import laa.
 Require Import die_wfS.
 
+(* This file proves that LAA preserves well-formedness. *)
+
+(* First, vmem2reg pass indeed finds a LAa pair. *)
 Lemma find_st_ld__laainfo: forall l0 ps0 cs0 tmn0 v cs (pinfo:PhiInfo) dones
   (Hst : ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
@@ -88,6 +91,7 @@ Proof.
   eapply find_st_ld__laainfo in HBinF; eauto.
 Qed.
 
+(* After LAA, the substituted definition is removable. *)
 Lemma laa_diinfo': forall (fh : fheader) (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (v : value) (cs : cmds) (i1 : id) 
@@ -134,6 +138,7 @@ Proof.
   eapply laa_diinfo'; eauto.
 Qed.
 
+(* LAA preserves promotability (WF_PhiInfo). *)
 Lemma laa_wfPI': forall (fh : fheader) (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo)
@@ -168,6 +173,7 @@ Proof.
   eapply laa_wfPI'; eauto.
 Qed.
 
+(* LAA preserves well-formedness. *)
 Lemma laa_wfS': forall (los : layouts) (nts : namedts) (fh : fheader) 
   (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
@@ -253,6 +259,7 @@ Proof.
   eapply laa_wfS'; eauto.
 Qed.
 
+(* LAA + deletion preserves promotability. *)
 Lemma laa_die_wfPI': forall (los : layouts) (nts : namedts) (fh : fheader)
   (pinfo : PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)

@@ -1,6 +1,14 @@
 Require Import Coqlib.
 Require Import Metatheory.
 
+Ltac inv_mbind_app :=
+  match goal with
+  | H: match ?e with
+       | Some _ => _
+       | None => _
+       end = _ |- _ => remember e as R; destruct R
+  end.
+
 Ltac tinv H := try solve [inv H].
 
 Ltac uniq_result :=
@@ -24,6 +32,8 @@ repeat match goal with
 | H : ?f _ _ _ _ _ = ?f _ _ _ _ _ |- _ => inv H
 | H : False |- _ => inv H
 | H : (_, _) = (_, _) |- _ => inv H
+| J1 : ?f = Some _, J2 : None = ?f |- _ => 
+    rewrite J1 in J2; congruence
 end.
 
 Ltac destruct_if :=

@@ -5,8 +5,15 @@ Require Import top_wfS.
 Require Import palloca_props.
 Require Import trans_tactic.
 
+(* This file defines removing instructions that satisfy conditions from 
+   functions. DIE, SAS, DAE and DSE are its instances. *)
+
 Section Filter.
 
+(*******************************************************)
+(* Define the filer function *)
+
+(* If (check i) is true, then remove i *)
 Variable check: insn -> bool.
 
 Definition filter_phinodes (ps:phinodes): phinodes :=
@@ -25,9 +32,12 @@ Definition filter_fdef (f:fdef) : fdef :=
 let '(fdef_intro fh bs) := f in
 fdef_intro fh (List.map filter_block bs).
 
+(*******************************************************)
 Definition insnInFdef (instr:insn) (f:fdef) : Prop :=
 exists b, insnInFdefBlockB instr f b = true.
 
+(*******************************************************)
+(* Check if a component uses a removable definition.  *)
 Definition id_isnt_removed f (id0:id): Prop :=
 forall instr, 
   insnInFdef instr f ->
@@ -79,6 +89,8 @@ forall instr,
   check instr = false -> 
   used_in_fdef (getInsnLoc instr) f = false.
 
+(*******************************************************)
+(* Properties of xxx_use_removed.  *)
 Lemma id_isnt_removed__check: forall f instr
   (Hlk: insnInFdef instr f)
   (Hisnt: id_isnt_removed f (getInsnLoc instr)), check instr = true.
@@ -255,6 +267,8 @@ Qed.
 
 Hint Resolve sl_nil sublist_refl.
 
+(*******************************************************)
+(* Properties of filter_block.  *)
 Lemma filter_block__blockLocs__sublist :
   forall (bs : blocks),
     sublist (getBlocksLocs (List.map filter_block bs))
@@ -333,6 +347,8 @@ Proof.
   destruct f; auto.
 Qed.
 
+(*******************************************************)
+(* filter_fdef can be used by top_wfS.  *)
 Definition Filter := mkPass 
 (filter_block)
 (filter_fdef)
@@ -343,6 +359,8 @@ Definition Filter := mkPass
 
 End Filter.
 
+(*******************************************************)
+(* removing a definition is an instance of filter. *)
 Section RemoveIsAFilter.
 
 Variable (id':id).
@@ -399,6 +417,8 @@ Qed.
 
 End RemoveIsAFilter.
 
+(*******************************************************)
+(* removing dead stores is an instance of filter. *)
 Definition isnt_store (instr:insn) : bool :=
 match instr with
 | insn_cmd (insn_store sid _ _ _ _) => false
@@ -491,6 +511,9 @@ Proof.
 Qed.
 
 End ElimDeadStIsAFilter.
+
+(*******************************************************)
+(* filter preserves well-formedness. *)
 
 Ltac fold_filter_tac :=
 repeat match goal with
@@ -1432,6 +1455,9 @@ Proof.
     eapply filter_wf_fdef in HwfF; eauto.
     eapply filter_fdef__uniqFdef; eauto.
 Qed.
+
+(*******************************************************)
+(* filter preserves promotability. *)
 
 Lemma filter_alloca_in_entry: forall pid pty pnum pal check f
   (Huniq: uniqFdef f) b

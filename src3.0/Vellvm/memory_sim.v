@@ -44,6 +44,7 @@ Inductive val_list_inject (mi: meminj): list val -> list val-> Prop:=
 
 Hint Resolve val_nil_inject val_cons_inject.
 
+(* Properties of val_inject *)
 Lemma val_load_result_inject:
   forall f chunk v1 v2,
   val_inject f v1 v2 ->
@@ -53,6 +54,20 @@ Proof.
     destruct (eq_nat_dec n 31); try econstructor; eauto.
     destruct (eq_nat_dec n 31); try econstructor; eauto.
 Qed.
+
+Lemma val_load_result_inject_2: forall (f : block -> option (block * Z))
+  (v : val) (m : memory_chunk) (Hchk : Val.has_chunk v m)
+  (Hinj : val_inject f (Val.load_result m v) (Val.load_result m v)),
+  val_inject f v v.
+Proof.
+  intros.
+  destruct m, v; try inv Hchk; auto.
+Qed.
+
+Lemma val_inject__has_chunkb: forall mi v1 v2 m
+  (H : val_inject mi v1 v2),
+  Val.has_chunkb v1 m = Val.has_chunkb v2 m.
+Proof. intros. inv H; auto. Qed.
 
 (** Monotone evolution of a memory injection. *)
 
@@ -102,12 +117,28 @@ Inductive memval_inject (f: meminj): memval -> memval -> Prop :=
       forall i n, memval_inject f (IPointer i n) (IPointer i n)
   | memval_inject_undef: memval_inject f Undef Undef.
 
+(* Properties of memval_inject. *)
 Lemma memval_inject_incr: forall f f' v1 v2, 
   memval_inject f v1 v2 -> inject_incr f f' -> memval_inject f' v1 v2.
 Proof.
   intros. inv H; econstructor. rewrite (H0 _ _ _ H1). reflexivity. auto.
 Qed.
 
+Lemma inj_bytes_inject:
+  forall f wz bl, 
+    list_forall2 (memval_inject f) (inj_bytes wz bl) (inj_bytes wz bl).
+Proof.
+  induction bl; constructor; auto. constructor.
+Qed.
+
+Lemma repeat_Undef_inject_self:
+  forall f n,
+  list_forall2 (memval_inject f) (list_repeat n Undef) (list_repeat n Undef).
+Proof.
+  induction n; simpl; constructor; auto. constructor.
+Qed.  
+
+(* Properties of proj_bytes. *)
 Lemma proj_bytes_inject_some:
   forall f vl vl',
   list_forall2 (memval_inject f) vl vl' ->
@@ -143,6 +174,46 @@ Proof.
     inv H. rewrite (IHlist_forall2 n0); auto.
 Qed.
 
+Lemma proj_bytes_not_inject:
+  forall f vl vl',
+  list_forall2 (memval_inject f) vl vl' ->
+  forall n,
+  proj_bytes n vl = None -> proj_bytes n vl' <> None -> In Undef vl.
+Proof.
+  induction 1; simpl; intros.
+    congruence.
+    inv H; try congruence; auto.
+    destruct (eq_nat_dec wz n); subst; auto.
+      remember (proj_bytes n al) as R.
+      remember (proj_bytes n bl) as R'.
+      destruct R; destruct R';
+        try solve [inversion H1 | inversion H2 | contradict H2; auto].
+        right. eapply IHlist_forall2; eauto.
+          rewrite <- HeqR'. intro. inversion H.          
+      contradict H2; auto.
+Qed.
+
+(* Properties of proj_pointer *)
+Definition meminj_no_overlap (f: meminj) : Prop :=
+  forall b1 b1' delta1 b2 b2' delta2,
+  b1 <> b2 ->
+  f b1 = Some (b1', delta1) ->
+  f b2 = Some (b2', delta2) ->
+  b1' <> b2'.
+
+Lemma meminj_no_overlap_spec : forall f b1 b d1 b2 d2,
+  meminj_no_overlap f -> f b1 = Some (b, d1) -> f b2 = Some (b, d2) ->
+  b1 = b2 /\ d1 = d2.
+Proof.
+  intros.
+  destruct (zeq b1 b2); subst.
+    rewrite H1 in H0.
+    inv H0. split; auto.
+
+    elimtype False. unfold meminj_no_overlap in H.
+    eapply H in n; eauto.
+Qed.
+
 Lemma check_pointer_inject_true:
   forall f vl vl',
   list_forall2 (memval_inject f) vl vl' ->
@@ -162,13 +233,6 @@ Proof.
   unfold proj_sumbool. rewrite dec_eq_true. rewrite dec_eq_true.
   rewrite <- beq_nat_refl. simpl. eauto.
 Qed.
-
-Definition meminj_no_overlap (f: meminj) : Prop :=
-  forall b1 b1' delta1 b2 b2' delta2,
-  b1 <> b2 ->
-  f b1 = Some (b1', delta1) ->
-  f b2 = Some (b2', delta2) ->
-  b1' <> b2'.
 
 Definition meminj_zero_delta (f: meminj) : Prop :=
   forall b b' delta, f b = Some(b', delta) -> delta = 0.
@@ -276,25 +340,6 @@ Proof.
   intro. rewrite H4. econstructor; eauto. 
 Qed.
 
-Lemma proj_bytes_not_inject:
-  forall f vl vl',
-  list_forall2 (memval_inject f) vl vl' ->
-  forall n,
-  proj_bytes n vl = None -> proj_bytes n vl' <> None -> In Undef vl.
-Proof.
-  induction 1; simpl; intros.
-    congruence.
-    inv H; try congruence; auto.
-    destruct (eq_nat_dec wz n); subst; auto.
-      remember (proj_bytes n al) as R.
-      remember (proj_bytes n bl) as R'.
-      destruct R; destruct R';
-        try solve [inversion H1 | inversion H2 | contradict H2; auto].
-        right. eapply IHlist_forall2; eauto.
-          rewrite <- HeqR'. intro. inversion H.          
-      contradict H2; auto.
-Qed.
-
 Lemma proj_pointer_undef:
   forall vl, In Undef vl -> proj_pointer vl = Vundef.
 Proof.
@@ -309,6 +354,27 @@ Proof.
   intros; unfold proj_ipointer.
   destruct vl; auto. destruct m; auto. 
   rewrite check_ipointer_undef. auto. auto.
+Qed.
+
+(* Properties of encode/decode val *)
+Theorem encode_val_inject:
+  forall f v1 v2 chunk,
+  val_inject f v1 v2 ->
+  list_forall2 (memval_inject f) (encode_val chunk v1) (encode_val chunk v2).
+Proof.
+  intros. inv H; simpl.
+    apply inj_bytes_inject.
+    apply inj_bytes_inject.
+
+    destruct chunk; try apply repeat_Undef_inject_self.
+    destruct (eq_nat_dec n 31); subst; try apply repeat_Undef_inject_self.
+      simpl; repeat econstructor; auto.
+
+    destruct chunk; try apply repeat_Undef_inject_self.
+    destruct (eq_nat_dec n 31); subst; try apply repeat_Undef_inject_self.
+      unfold inj_ipointer; simpl; repeat econstructor; auto.
+
+    destruct chunk; try apply repeat_Undef_inject_self.
 Qed.
 
 Theorem decode_val_inject:
@@ -427,40 +493,6 @@ Proof.
   rewrite update_o. auto. omega.
 Qed.
 
-Lemma inj_bytes_inject:
-  forall f wz bl, 
-    list_forall2 (memval_inject f) (inj_bytes wz bl) (inj_bytes wz bl).
-Proof.
-  induction bl; constructor; auto. constructor.
-Qed.
-
-Lemma repeat_Undef_inject_self:
-  forall f n,
-  list_forall2 (memval_inject f) (list_repeat n Undef) (list_repeat n Undef).
-Proof.
-  induction n; simpl; constructor; auto. constructor.
-Qed.  
-
-Theorem encode_val_inject:
-  forall f v1 v2 chunk,
-  val_inject f v1 v2 ->
-  list_forall2 (memval_inject f) (encode_val chunk v1) (encode_val chunk v2).
-Proof.
-  intros. inv H; simpl.
-    apply inj_bytes_inject.
-    apply inj_bytes_inject.
-
-    destruct chunk; try apply repeat_Undef_inject_self.
-    destruct (eq_nat_dec n 31); subst; try apply repeat_Undef_inject_self.
-      simpl; repeat econstructor; auto.
-
-    destruct chunk; try apply repeat_Undef_inject_self.
-    destruct (eq_nat_dec n 31); subst; try apply repeat_Undef_inject_self.
-      unfold inj_ipointer; simpl; repeat econstructor; auto.
-
-    destruct chunk; try apply repeat_Undef_inject_self.
-Qed.
-
 Lemma store_mapped_inj:
   forall f chunk m1 b1 ofs v1 n1 m2 b2 delta v2,
   mem_inj f m1 m2 ->
@@ -571,6 +603,8 @@ Proof.
   rewrite NEXT. apply sym_not_equal. eauto with mem. 
 Qed.
 
+(** Preservation of frees *)
+
 Lemma free_right_inj:
   forall f m1 m2 b lo hi m2',
   mem_inj f m1 m2 ->
@@ -595,19 +629,6 @@ Proof.
   destruct H4. destruct H4. subst b2.
   specialize (H1 _ _ _ _ H2 H3). elimtype False; auto.
   rewrite (clearN_out _ _ _ _ _ _ H4); auto.
-Qed.
-
-Lemma meminj_no_overlap_spec : forall f b1 b d1 b2 d2,
-  meminj_no_overlap f -> f b1 = Some (b, d1) -> f b2 = Some (b, d2) ->
-  b1 = b2 /\ d1 = d2.
-Proof.
-  intros.
-  destruct (zeq b1 b2); subst.
-    rewrite H1 in H0.
-    inv H0. split; auto.
-
-    elimtype False. unfold meminj_no_overlap in H.
-    eapply H in n; eauto.
 Qed.
 
 Lemma free_inj:
@@ -694,20 +715,6 @@ Proof.
     apply mi_memval; auto.
     eapply Mem.perm_free_3; eauto.
 Qed.
-
-Lemma val_load_result_inject_2: forall (f : block -> option (block * Z))
-  (v : val) (m : memory_chunk) (Hchk : Val.has_chunk v m)
-  (Hinj : val_inject f (Val.load_result m v) (Val.load_result m v)),
-  val_inject f v v.
-Proof.
-  intros.
-  destruct m, v; try inv Hchk; auto.
-Qed.
-
-Lemma val_inject__has_chunkb: forall mi v1 v2 m
-  (H : val_inject mi v1 v2),
-  Val.has_chunkb v1 m = Val.has_chunkb v2 m.
-Proof. intros. inv H; auto. Qed.
 
 End MoreMem.
 

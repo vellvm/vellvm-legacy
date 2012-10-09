@@ -18,6 +18,8 @@ Require Import dae_defs.
 Require Import dae.
 Require Import dae_wfS.
 
+(* This file proves that DAE refines programs by top_sim. *)
+
 Lemma s_genInitState__dae_State_simulation': forall pinfo S1 S2 main VarArgs cfg2
   IS2 (Hssym: system_simulation pinfo S1 S2) (HwfS: wf_system S1) 
   (Hwfpi: WF_PhiInfo pinfo)
@@ -904,6 +906,7 @@ Proof.
     (@OpsemPP.preservation_plus DGVs), sop_goeswrong__plus.
 Qed.
 
+(* The main result *)
 Lemma dae_sim: forall id0 f pinfo los nts Ps1 Ps2 main VarArgs
   (Hwfpi: WF_PhiInfo pinfo)
   (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])

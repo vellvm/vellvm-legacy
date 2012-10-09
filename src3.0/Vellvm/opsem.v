@@ -18,7 +18,9 @@ Require Import events.
 Require Import external_intrinsics.
 Require Import genericvalues_inject.
 
-(************** GVs Interface ******************)
+(*************************************************************)
+(* 
+*)
 
 Import LLVMsyntax.
 Import LLVMtd.

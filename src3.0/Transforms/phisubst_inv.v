@@ -7,6 +7,8 @@ Require Import primitives.
 Require Import subst_inv.
 Require Import phielim_spec.
 
+(***************************************************************************)
+(* Prove that phinode elimination implies vev_State used by subst_inv.  *)
 Record PEInfo := mkPEInfo {
   PEI_f : fdef;
   PEI_b : block;
@@ -72,6 +74,7 @@ Proof.
       eapply PEInfo_p__isnt__cmd; eauto using in_middle, wf_system__uniqFdef.
 Qed.
 
+(* The main result *)
 Lemma PEInfo__vev: forall pi cfg S
   (Hwfcfg: OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S),
   vev_State (value_id (getPhiNodeID (PEI_p pi))) (PEI_v pi)

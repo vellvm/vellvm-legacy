@@ -16,6 +16,8 @@ Require Import trans_tactic.
 Require Import die.
 Require Import die_wfS.
 
+(* This file proves that DIE refines programs by top_sim. *)
+
 Lemma s_genInitState__die_State_simulation':
   forall diinfo S1 S2 main VarArgs cfg2 IS2,
   system_simulation diinfo S1 S2 ->
@@ -772,6 +774,7 @@ Qed.
 
 Require Import Program.Tactics.
 
+(* The main result *)
 Lemma die_sim: forall id0 f dinfo los nts Ps1 Ps2 main VarArgs
   (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Hok: defined_program [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]

@@ -10,6 +10,9 @@ Require Import vmem2reg.
 Require Import sas.
 Require Import filter.
 
+(* This file proves that SAS preserves well-formedness. *)
+
+(* First, vmem2reg pass indeed finds an SAS pair. *)
 Lemma find_st_ld__sasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones) v0
   (i1 : id) (Hld : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
@@ -91,6 +94,7 @@ Proof.
   eapply find_st_ld__sasinfo in HBinF; eauto.
 Qed.
 
+(* SAS preserves well-formedness. *)
 Lemma PI_f_doesnt_use_SAS_sid1: forall S M pinfo sasinfo
   (HwfF: wf_fdef S M (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo)),
   used_in_fdef (SAS_sid1 pinfo sasinfo) (PI_f pinfo) = false.
@@ -140,6 +144,7 @@ Proof.
     eapply PI_f_doesnt_use_SAS_sid1; eauto.
 Qed.
 
+(* SAS preserves promotability (WF_PhiInfo). *)
 Lemma sas_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo : PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)

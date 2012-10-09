@@ -1,8 +1,12 @@
 Require Import vellvm.
 
+(* This file defines combinators of passes and proves their properties. *) 
+
+(* Run the pass trans1, and then run the pass trans2. *)
 Definition seq_trans (trans1 trans2: fdef -> fdef): fdef -> fdef :=
 fun f => trans2 (trans1 f).
 
+(* If cond holds, then run trans1, else run trans2. *)
 Definition cond_trans (cond: fdef -> bool) (trans1 trans2: fdef -> fdef)
   : fdef -> fdef :=
 fun f => if cond f then trans1 f else trans2 f.

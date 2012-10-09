@@ -801,7 +801,7 @@ Proof.
             apply NoDup_split in Huniq.
             destruct Huniq as [Huniq _].
             rewrite getCmdsLocs_app in Huniq.
-            apply infrastructure_props.NoDup_disjoint with (i0:=sid0) in Huniq;
+            apply NoDup_disjoint with (i0:=sid0) in Huniq;
               simpl; auto.
             destruct cs21; auto.
             inv H8.

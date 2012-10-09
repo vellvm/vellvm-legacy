@@ -11,6 +11,9 @@ Require Import vmem2reg.
 Require Import top_sim.
 Require Import filter.
 
+(* This file proves that DSE preserves well-formedness. *)
+
+(* DSE preserves well-formedness. *)
 Lemma dse_wfS: forall (pinfo:PhiInfo) f pid Ps1 Ps2 los nts
   (Heq1: PI_id pinfo = pid) (Heq2: PI_f pinfo = f)
   (Hwfpi: WF_PhiInfo pinfo)
@@ -27,6 +30,7 @@ Proof.
     eapply fdef_doesnt_use_dead_store; eauto.
 Qed.
 
+(* DSE preserves promotability (WF_PhiInfo). *)
 Lemma dse_wfPI: forall (pinfo:PhiInfo) f pid Ps1 Ps2 los nts
   (Heq1: PI_id pinfo = pid) (Heq2: PI_f pinfo = f)
   (Hwfpi: WF_PhiInfo pinfo)
@@ -40,6 +44,7 @@ Proof.
     destruct c; tinv Hdead; simpl; auto.
 Qed.
 
+(* DSE preserves CFGs. *)
 Lemma elim_dead_st_fdef_successors : forall f id',
   successors f = successors (elim_dead_st_fdef id' f).
 Proof.

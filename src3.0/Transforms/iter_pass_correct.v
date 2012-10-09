@@ -4,8 +4,10 @@ Require Import iter_pass.
 Require Import program_sim.
 Require Import palloca_props.
 
-(**********************************************************)
+(* This file proves the facts of iter_pass. *)
 
+(*************************************************************)
+(* First, transformations preserve PhiInfo except functions. *)
 Definition keep_pinfo (f:fdef) (pinfo1 pinfo2: PhiInfo) :=
 PI_f pinfo2 = f /\
 PI_rd pinfo1 = PI_rd pinfo2 /\
@@ -15,6 +17,7 @@ PI_align pinfo1 = PI_align pinfo2.
 
 Hint Unfold keep_pinfo.
 
+(* Tactics and properties of keep_pinfo *)
 Ltac instantiate_pinfo :=
 match goal with
 | pinfo := {|
@@ -136,6 +139,7 @@ repeat match goal with
 | H1:forall _:_, _ -> _ |- _ => progress (eapply H1; eauto)
 end.
 
+(* IterPass preserves CFG. *)
 Section IterationPassCFG.
 
 Variable (pass:IterPass).
@@ -223,6 +227,7 @@ Qed.
 
 End IterationPassCFG.
 
+(* IterPass preserves promotability and well-formedness. *)
 Section IterationPassSimWFP. 
 
 Variable (pass:IterPass).
@@ -413,6 +418,7 @@ Qed.
 
 End IterationPassSimWFP.
 
+(* IterPass is correct. *)
 Section IterationPassSimWF. 
 
 Variable (pass:IterPass).

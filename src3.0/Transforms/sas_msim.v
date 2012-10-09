@@ -26,12 +26,15 @@ Module SASmsim.
 
 Export Mem.
 
+(* Check if b.ofs is ignorable. *)
 Definition notin_ignores (ignores:list (Values.block*Z*Z)) (b1:Values.block) 
   (ofs:Z) : Prop :=
 List.Forall (fun ignore =>
              let '(b,lo,hi) := ignore in
              b1 <> b \/ (b1 = b /\ (ofs < lo \/ ofs >= hi))) ignores.
 
+(* Do not check ignorable locations. 
+   Other locations contain the same data. *)
 Record mem_inj (f: meminj) (ignores:list (Values.block*Z*Z)) (m1 m2: mem) 
   : Prop :=
   mk_mem_inj {
@@ -49,31 +52,135 @@ Record mem_inj (f: meminj) (ignores:list (Values.block*Z*Z)) (m1 m2: mem)
         (m2.(mem_contents) b2 (ofs + delta))
   }.
 
-(** Preservation of permissions *)
-
-Lemma perm_inj:
-  forall igns f m1 m2 b1 ofs p b2 delta,
-  mem_inj f igns m1 m2 ->
-  perm m1 b1 ofs p ->
-  f b1 = Some(b2, delta) ->
-  perm m2 b2 (ofs + delta) p.
-Proof.
-  intros. 
-  assert (valid_access m1 (Mint 7) b1 ofs p).
-    split. red; intros. simpl in H2. rewrite bytesize_chunk_7_eq_1 in H2. replace ofs0 with ofs by omega. auto.
-    simpl. apply Zone_divide.
-  exploit mi_access; eauto. intros [A B].
-  apply A. simpl; rewrite bytesize_chunk_7_eq_1; omega. 
-Qed.
-
-(** Preservation of loads. *)
-
+(* Two other strenthened overlap checking for proofs. *)
 Definition notin_ignores_with_size (ignores:list (Values.block*Z*Z)) 
   (b1:Values.block) (ofs:Z) (size:Z) : Prop :=
 List.Forall (fun ignore =>
              let '(b,lo,hi) := ignore in
              b1 <> b \/ (b1 = b /\ (ofs + size <= lo \/ ofs >= hi))) ignores.
 
+Definition in_ignores_with_size (ignores:list (Values.block*Z*Z)) 
+  (b1:Values.block) (ofs:Z) (size:Z) : Prop :=
+exists b, exists lo, exists hi,
+  In (b,lo,hi) ignores /\ b1 = b /\ ofs + size <= hi /\ ofs >= lo.
+
+(* Properties of notin_ignores *)
+Lemma notin_ignores_strengthen: forall b ofs igns2 igns1,
+  notin_ignores (igns1++igns2) b ofs ->
+  notin_ignores igns2 b ofs.
+Proof.
+  induction igns1 as [|[[]]]; simpl; intros; auto.
+    inv H. auto.
+Qed.
+
+Lemma notin_ignores_with_smaller_size: forall b ofs size1 size2 
+  (Hge: size1>=size2) igns,
+  notin_ignores_with_size igns b ofs size1 ->
+  notin_ignores_with_size igns b ofs size2.
+Proof.
+  unfold notin_ignores_with_size.
+  intros.
+  induction H; simpl; auto.
+    destruct x as [[b0 lo0] hi0].
+    constructor; auto.
+      destruct H as [H | [J1 [J2 | J3]]]; subst; auto.
+        right. split; auto. omega.
+Qed.
+
+Lemma no_alias_with_blk__notin_ignores_with_size: forall b' ofs' m' size mbs
+  (Hnalias: 
+    Forall (fun re : Values.block * Z * Z =>
+            let '(mb, _, _) := re in
+            memory_props.MemProps.no_alias_with_blk 
+              ((Vptr b' ofs', m') :: nil) mb) mbs),
+  notin_ignores_with_size mbs b' (Int.signed 31 ofs') size.
+Proof.
+  unfold notin_ignores_with_size.
+  induction 1; simpl; auto.
+    destruct x as [[]]. simpl in H.
+    constructor; auto.
+Qed.
+
+Lemma notin_ignores__add_empty: forall b hi b1 ofs igns
+  (Hnotin : notin_ignores igns b1 ofs),
+  notin_ignores ((b, hi, hi) :: igns) b1 ofs.
+Proof.
+  unfold notin_ignores.
+  intros.
+  constructor; auto. 
+    destruct (zeq b1 b); subst; auto.
+    right.
+    split; auto.
+      omega.
+Qed.
+
+(* Properties of mem_inj *)
+Lemma mem_inj_ignores_weaken: forall mi igns' M1 M2 
+  (Hin : mem_inj mi igns' M1 M2) igns,
+  mem_inj mi (igns ++ igns') M1 M2.
+Proof.
+  induction igns; auto.
+    inv IHigns.  
+    constructor; auto.
+      intros.
+      simpl_env in H1.
+      apply mi_memval0; eauto using notin_ignores_strengthen.
+Qed.
+
+Lemma mem_inj__remove_empty_igns: forall f b hi igns n1 n2
+  (Hmsim : mem_inj f ((b, hi, hi) :: igns) n1 n2),
+  mem_inj f igns n1 n2.
+Proof.
+  intros.
+  inv Hmsim.
+  constructor; auto.
+    intros.
+    apply mi_memval0; auto using notin_ignores__add_empty.
+Qed.
+
+Lemma mem_inj__remove_unperm_igns: forall f b lo hi igns n1 n2
+  (Hmsim : mem_inj f ((b, lo, hi) :: igns) n1 n2)
+  (Hunperm: forall ofs p, lo <= ofs < hi -> ~Mem.perm n1 b ofs p),
+  mem_inj f igns n1 n2.
+Proof.
+  intros.
+  inv Hmsim.
+  constructor; auto.
+    intros.
+    apply mi_memval0; auto. clear mi_memval0.
+      unfold notin_ignores in *.
+      constructor; auto.
+        destruct (Z_eq_dec b1 b); subst; auto.
+          right.
+          split; auto.
+            destruct (Z_lt_dec ofs lo); subst; auto.
+            destruct (Z_ge_dec ofs hi); subst; auto.
+              contradict H0.
+              apply Hunperm. omega.
+Qed.
+
+Lemma from_MoreMem_inj: forall m1 m2 mi ogns
+  (Hmsim: MoreMem.mem_inj mi m1 m2),
+  mem_inj mi ogns m1 m2.
+Proof.
+  intros.
+  inv Hmsim.
+  constructor; auto.
+Qed.
+
+Lemma inject_id_no_overlap: MoreMem.meminj_no_overlap inject_id.
+Proof.
+  unfold MoreMem.meminj_no_overlap, inject_id.
+  intros. uniq_result. auto.
+Qed.
+
+Lemma inject_id_zero_delta: MoreMem.meminj_zero_delta inject_id.
+Proof.
+  unfold MoreMem.meminj_zero_delta, inject_id.
+  intros. uniq_result. auto.
+Qed.
+
+(* Properties of notin_ignores_with_size *)
 Lemma notin_ignores_with_size__notin_ignores: forall b ofs size (Hge: size > 0) 
   igns, 
   notin_ignores_with_size igns b ofs size ->
@@ -110,6 +217,69 @@ Proof.
     omega.
     replace (1+size) with (Zsucc size) by omega. auto.
 Qed.
+
+(* Properties of in_ignores_with_size *)
+Lemma in_ignores_with_smaller_size: forall b ofs size1 size2 
+  (Hge: size1>=size2) igns,
+  in_ignores_with_size igns b ofs size1 ->
+  in_ignores_with_size igns b ofs size2.
+Proof.
+  unfold in_ignores_with_size.
+  intros.
+  destruct H as [b0 [lo0 [hi0 [H [J1 [J2 J3]]]]]]; subst.
+  exists b0. exists lo0. exists hi0.
+  split; auto. split; auto. split; omega.
+Qed.
+
+Lemma in_ignores_with_size_delta: forall b ofs delta size igns
+  (J:delta>=0),
+  in_ignores_with_size igns b ofs (delta+size) ->
+  in_ignores_with_size igns b (ofs+delta) size.
+Proof.
+  unfold in_ignores_with_size.
+  intros.
+  destruct H as [b0 [lo0 [hi0 [H [J1 [J2 J3]]]]]]; subst.
+  exists b0. exists lo0. exists hi0.
+  split; auto. split; auto. split; omega.
+Qed.
+
+Lemma in_ignores_with_size__notin_ignores__inv: forall b ofs1 ofs2 size igns
+  (Hnzero: size>=0),
+  in_ignores_with_size igns b ofs1 size ->
+  notin_ignores igns b ofs2 ->
+  ofs2 < ofs1 \/ ofs2 >= ofs1 + size.
+Proof.
+  unfold in_ignores_with_size, notin_ignores.
+  intros.
+  destruct H as [b0 [lo0 [hi0 [H [J1 [J2 J3]]]]]]; subst.
+  induction igns as [|[[]]]; simpl; intros.
+    inv H.
+
+    inv H0.
+    simpl in H.
+    destruct H as [H | H]; eauto.
+    inv H.
+    destruct H3 as [H3 | [H3 [H5 | H5]]]; subst; try congruence; omega.
+Qed.
+
+(** Preservation of permissions *)
+
+Lemma perm_inj:
+  forall igns f m1 m2 b1 ofs p b2 delta,
+  mem_inj f igns m1 m2 ->
+  perm m1 b1 ofs p ->
+  f b1 = Some(b2, delta) ->
+  perm m2 b2 (ofs + delta) p.
+Proof.
+  intros. 
+  assert (valid_access m1 (Mint 7) b1 ofs p).
+    split. red; intros. simpl in H2. rewrite bytesize_chunk_7_eq_1 in H2. replace ofs0 with ofs by omega. auto.
+    simpl. apply Zone_divide.
+  exploit mi_access; eauto. intros [A B].
+  apply A. simpl; rewrite bytesize_chunk_7_eq_1; omega. 
+Qed.
+
+(** Preservation of loads. *)
 
 Lemma getN_inj:
   forall igns f m1 m2 b1 b2 delta,
@@ -349,30 +519,6 @@ Proof.
   eauto with mem.
 Qed.
 
-Definition in_ignores_with_size (ignores:list (Values.block*Z*Z)) 
-  (b1:Values.block) (ofs:Z) (size:Z) : Prop :=
-exists b, exists lo, exists hi,
-  In (b,lo,hi) ignores /\ b1 = b /\ ofs + size <= hi /\ ofs >= lo.
-
-Lemma in_ignores_with_size__notin_ignores__inv: forall b ofs1 ofs2 size igns
-  (Hnzero: size>=0),
-  in_ignores_with_size igns b ofs1 size ->
-  notin_ignores igns b ofs2 ->
-  ofs2 < ofs1 \/ ofs2 >= ofs1 + size.
-Proof.
-  unfold in_ignores_with_size, notin_ignores.
-  intros.
-  destruct H as [b0 [lo0 [hi0 [H [J1 [J2 J3]]]]]]; subst.
-  induction igns as [|[[]]]; simpl; intros.
-    inv H.
-
-    inv H0.
-    simpl in H.
-    destruct H as [H | H]; eauto.
-    inv H.
-    destruct H3 as [H3 | [H3 [H5 | H5]]]; subst; try congruence; omega.
-Qed.
-
 Lemma store_inside_inj_left:
   forall igns f m1 m2 chunk b ofs v m1',
   mem_inj f igns m1 m2 ->
@@ -587,6 +733,44 @@ Proof.
     eauto.
 Qed.
 
+Lemma alloc_inject_id_inj:
+  forall igns m1 m2 lo hi b1 b2 m1' m2'
+  (Heq: nextblock m1 = nextblock m2)
+  (Hinj: mem_inj inject_id igns m1 m2)
+  (Hal1: alloc m1 lo hi = (m1', b1))
+  (Hal2: alloc m2 lo hi = (m2', b2)),
+  mem_inj inject_id igns m1' m2'.
+Proof.
+  intros. 
+  injection Hal1. intros NEXT1 MEM1; subst.
+  injection Hal2. intros NEXT2 MEM2; subst.
+  inversion Hinj. constructor.
+(* access *)
+  intros. unfold inject_id in H. inv H.
+  replace (ofs+0) with ofs by omega.
+  eapply valid_access_alloc_inv in H0; eauto.
+  destruct (eq_block b2 (nextblock m1)); subst.
+    apply valid_access_alloc_same with (chunk:=chunk)(ofs:=ofs) in Hal2; 
+      try solve [auto | omega | tauto].
+    rewrite Heq.
+    eapply valid_access_implies; try solve [eauto | constructor].
+
+    eapply valid_access_alloc_other in Hal2; eauto.
+    apply mi_access0 with (b2:=b2)(delta:=0) in H0; auto.
+    replace (ofs+0) with ofs in H0 by omega. auto.
+(* mem_contents *)
+  simpl.
+  intros. unfold inject_id in H. inv H.
+  eapply perm_alloc_inv in H0; eauto.
+  destruct (zeq b2 (nextblock m1)); subst.
+    rewrite <- Heq.
+    repeat rewrite update_s. constructor.
+
+    apply mi_memval0 with (b2:=b2)(delta:=0) in H0; auto.
+    repeat (rewrite update_o; try solve [auto | congruence]).
+Qed.
+
+(** Preservation of free *)
 Lemma free_right_inj:
   forall igns f m1 m2 b lo hi m2',
   mem_inj f igns m1 m2 ->
@@ -728,62 +912,7 @@ Proof.
     eapply Mem.perm_free_3; eauto.
 Qed.
 
-Lemma inject_id_no_overlap: MoreMem.meminj_no_overlap inject_id.
-Proof.
-  unfold MoreMem.meminj_no_overlap, inject_id.
-  intros. uniq_result. auto.
-Qed.
-
-Lemma inject_id_zero_delta: MoreMem.meminj_zero_delta inject_id.
-Proof.
-  unfold MoreMem.meminj_zero_delta, inject_id.
-  intros. uniq_result. auto.
-Qed.
-
-Lemma notin_ignores_strengthen: forall b ofs igns2 igns1,
-  notin_ignores (igns1++igns2) b ofs ->
-  notin_ignores igns2 b ofs.
-Proof.
-  induction igns1 as [|[[]]]; simpl; intros; auto.
-    inv H. auto.
-Qed.
-
-Lemma mem_inj_ignores_weaken: forall mi igns' M1 M2 
-  (Hin : mem_inj mi igns' M1 M2) igns,
-  mem_inj mi (igns ++ igns') M1 M2.
-Proof.
-  induction igns; auto.
-    inv IHigns.  
-    constructor; auto.
-      intros.
-      simpl_env in H1.
-      apply mi_memval0; eauto using notin_ignores_strengthen.
-Qed.
-
-Lemma in_ignores_with_smaller_size: forall b ofs size1 size2 
-  (Hge: size1>=size2) igns,
-  in_ignores_with_size igns b ofs size1 ->
-  in_ignores_with_size igns b ofs size2.
-Proof.
-  unfold in_ignores_with_size.
-  intros.
-  destruct H as [b0 [lo0 [hi0 [H [J1 [J2 J3]]]]]]; subst.
-  exists b0. exists lo0. exists hi0.
-  split; auto. split; auto. split; omega.
-Qed.
-
-Lemma in_ignores_with_size_delta: forall b ofs delta size igns
-  (J:delta>=0),
-  in_ignores_with_size igns b ofs (delta+size) ->
-  in_ignores_with_size igns b (ofs+delta) size.
-Proof.
-  unfold in_ignores_with_size.
-  intros.
-  destruct H as [b0 [lo0 [hi0 [H [J1 [J2 J3]]]]]]; subst.
-  exists b0. exists lo0. exists hi0.
-  split; auto. split; auto. split; omega.
-Qed.
-
+(* Properties of mstore *)
 Lemma mstore_aux_inside_inj_left: forall (TD : TargetData) (M2 : mem) 
   (b : Values.block) igns (gv1 : GenericValue) (M1 : mem) (M1' : mem) ofs
   (J2 : mstore_aux M1 gv1 b ofs = Some M1')
@@ -861,57 +990,125 @@ Proof.
     split; auto. split; auto. unfold Size.to_Z. split; omega.
 Qed.
 
-Lemma alloc_inject_id_inj:
-  forall igns m1 m2 lo hi b1 b2 m1' m2'
-  (Heq: nextblock m1 = nextblock m2)
-  (Hinj: mem_inj inject_id igns m1 m2)
-  (Hal1: alloc m1 lo hi = (m1', b1))
-  (Hal2: alloc m2 lo hi = (m2', b2)),
-  mem_inj inject_id igns m1' m2'.
+Lemma mstore_aux_mapped_inj: forall igns f b1 b2 delta
+  (Hp: MoreMem.meminj_no_overlap f)
+  (Hf: f b1 = Some (b2, delta)) gvs1 gvs2 m1 n1 m2 ofs
+  (Hmsim: mem_inj f igns m1 m2) (Hst1: mstore_aux m1 gvs1 b1 ofs = Some n1)
+  (Hinj: gv_inject f gvs1 gvs2),
+  exists n2,
+    mstore_aux m2 gvs2 b2 (ofs + delta) = Some n2 /\ mem_inj f igns n1 n2.
 Proof.
-  intros. 
-  injection Hal1. intros NEXT1 MEM1; subst.
-  injection Hal2. intros NEXT2 MEM2; subst.
-  inversion Hinj. constructor.
-(* access *)
-  intros. unfold inject_id in H. inv H.
-  replace (ofs+0) with ofs by omega.
-  eapply valid_access_alloc_inv in H0; eauto.
-  destruct (eq_block b2 (nextblock m1)); subst.
-    apply valid_access_alloc_same with (chunk:=chunk)(ofs:=ofs) in Hal2; 
-      try solve [auto | omega | tauto].
-    rewrite Heq.
-    eapply valid_access_implies; try solve [eauto | constructor].
+  induction gvs1 as [|[]]; simpl; intros.
+    inv Hst1. inv Hinj. simpl. eauto.
 
-    eapply valid_access_alloc_other in Hal2; eauto.
-    apply mi_access0 with (b2:=b2)(delta:=0) in H0; auto.
-    replace (ofs+0) with ofs in H0 by omega. auto.
-(* mem_contents *)
-  simpl.
-  intros. unfold inject_id in H. inv H.
-  eapply perm_alloc_inv in H0; eauto.
-  destruct (zeq b2 (nextblock m1)); subst.
-    rewrite <- Heq.
-    repeat rewrite update_s. constructor.
-
-    apply mi_memval0 with (b2:=b2)(delta:=0) in H0; auto.
-    repeat (rewrite update_o; try solve [auto | congruence]).
+    inv Hinj. inv_mbind. simpl. 
+    eapply store_mapped_inj in Hmsim; eauto.
+    destruct Hmsim as [n2 [Hst2 Hmsim]].
+    replace (ofs + delta + size_chunk m) with
+            (ofs + size_chunk m + delta) by omega.
+    eapply IHgvs1 in Hmsim; eauto.
+    destruct Hmsim as [n3 [Hsts2 Hmsim]].
+    fill_ctxhole. eauto.
 Qed.
 
-Lemma notin_ignores_with_smaller_size: forall b ofs size1 size2 
-  (Hge: size1>=size2) igns,
-  notin_ignores_with_size igns b ofs size1 ->
-  notin_ignores_with_size igns b ofs size2.
+Lemma mstore_aux_mapped_inj2: forall igns f b1 b2 delta
+  (Hp: MoreMem.meminj_no_overlap f)
+  (Hf: f b1 = Some (b2, delta)) gvs1 gvs2 m1 n1 m2 n2 ofs
+  (Hmsim: mem_inj f igns m1 m2) (Hst1: mstore_aux m1 gvs1 b1 ofs = Some n1)
+  (Hinj: gv_inject f gvs1 gvs2)
+  (Hst2: mstore_aux m2 gvs2 b2 (ofs + delta) = Some n2),
+  mem_inj f igns n1 n2.
 Proof.
-  unfold notin_ignores_with_size.
   intros.
-  induction H; simpl; auto.
-    destruct x as [[b0 lo0] hi0].
-    constructor; auto.
-      destruct H as [H | [J1 [J2 | J3]]]; subst; auto.
-        right. split; auto. omega.
+  eapply mstore_aux_mapped_inj in Hmsim; eauto.
+  destruct Hmsim as [n2' [J1 J2]].
+  uniq_result. auto.
 Qed.
 
+Lemma mstore_aux_inject_id_mapped_inj: forall igns b gvs m1 n1 m2 ofs
+  (Hmsim: mem_inj inject_id igns m1 m2) 
+  (Hst1: mstore_aux m1 gvs b ofs = Some n1),
+  exists n2, mstore_aux m2 gvs b ofs = Some n2 /\ mem_inj inject_id igns n1 n2.
+Proof.
+  intros.
+  replace ofs with (ofs+0) by omega.
+  eapply mstore_aux_mapped_inj in Hmsim; 
+    eauto using inject_id_no_overlap, inject_id_zero_delta.
+    unfold inject_id. auto.
+    apply gv_inject_id__refl; auto.
+Qed.
+
+Lemma mstore_aux_inject_id_mapped_inj2: forall igns b gvs m1 n1 m2 n2 ofs
+  (Hmsim: mem_inj inject_id igns m1 m2) 
+  (Hst1: mstore_aux m1 gvs b ofs = Some n1)
+  (Hst2: mstore_aux m2 gvs b ofs = Some n2),
+  mem_inj inject_id igns n1 n2.
+Proof.
+  intros.
+  replace ofs with (ofs+0) in Hst2 by omega.
+  eapply mstore_aux_mapped_inj2 in Hmsim; 
+    eauto using inject_id_no_overlap, inject_id_zero_delta.
+    unfold inject_id. auto.
+    apply gv_inject_id__refl; auto.
+Qed.
+
+Lemma mstore_aux_store_inside_inj2': forall igns f b1 b2 delta
+  (Hp: MoreMem.meminj_no_overlap f)
+  (Hf: f b1 = Some (b2, delta)) hi gvs1 gvs2 m1 n1 m2 n2 ofs
+  (Hmsim: mem_inj f ((b1,ofs,hi)::igns) m1 m2) (Hst1: mstore_aux m1 gvs1 b1 ofs = Some n1)
+  (Hinj: gv_inject f gvs1 gvs2)
+  (Hst2: mstore_aux m2 gvs2 b2 (ofs + delta) = Some n2),
+  mem_inj f ((b1,ofs+Z_of_nat (sizeGenericValue gvs1),hi)::igns) n1 n2.
+Proof.
+  induction gvs1 as [|[]]; simpl; intros.
+    inv Hst1. inv Hinj. inv Hst2. 
+    replace (ofs+0) with ofs by omega.
+    auto.
+
+    inv Hinj. simpl in Hst2.
+    inv_mbind.
+    assert (mem_inj f ((b1,ofs+size_chunk m,hi)::igns) m3 m0) as Hinj'.
+      eapply store_inside_inj2 in Hmsim; eauto.
+    replace (ofs + delta + size_chunk m) with
+            (ofs + size_chunk m + delta) in H0 by omega.
+    rewrite inj_plus.
+    rewrite <- size_chunk_conv.
+    replace (ofs + (size_chunk m + Z_of_nat (sizeGenericValue gvs1))) with
+            (ofs + size_chunk m + Z_of_nat (sizeGenericValue gvs1)) by omega.
+    eapply IHgvs1; eauto.
+Qed.
+
+Lemma mstore_aux_inside_inj2: forall igns f b1 b2 delta
+  (Hp: MoreMem.meminj_no_overlap f)
+  (Hf: f b1 = Some (b2, delta)) gvs1 gvs2 m1 n1 m2 n2 ofs
+  (Hmsim: mem_inj f ((b1,ofs,ofs+Z_of_nat (sizeGenericValue gvs1))::igns) m1 m2) 
+  (Hst1: mstore_aux m1 gvs1 b1 ofs = Some n1)
+  (Hinj: gv_inject f gvs1 gvs2)
+  (Hst2: mstore_aux m2 gvs2 b2 (ofs + delta) = Some n2),
+  mem_inj f igns n1 n2.
+Proof.
+  intros.
+  eapply mstore_aux_store_inside_inj2' in Hmsim; eauto.
+  eapply mem_inj__remove_empty_igns; eauto.
+Qed.
+
+Lemma mstore_aux_inject_id_inside_inj2: forall igns b
+  gvs m1 n1 m2 n2 ofs
+  (Hmsim: mem_inj inject_id 
+            ((b,ofs,ofs+Z_of_nat (sizeGenericValue gvs))::igns) m1 m2) 
+  (Hst1: mstore_aux m1 gvs b ofs = Some n1)
+  (Hst2: mstore_aux m2 gvs b ofs = Some n2),
+  mem_inj inject_id igns n1 n2.
+Proof.
+  intros.
+  replace ofs with (ofs+0) in Hst2 by omega.
+  eapply mstore_aux_inside_inj2 in Hmsim; 
+    eauto using inject_id_no_overlap, inject_id_zero_delta.
+    unfold inject_id. auto.
+    apply gv_inject_id__refl; auto.
+Qed.
+
+(* Properties of mload *)
 Lemma mload_aux_inj_ex:
   forall igns f b2 b1 mcs ofs delta gv1 m1 m2,
   mem_inj f igns m1 m2 ->
@@ -1015,194 +1212,9 @@ Proof.
     unfold inject_id. auto.
 Qed.
 
-Lemma no_alias_with_blk__notin_ignores_with_size: forall b' ofs' m' size mbs
-  (Hnalias: 
-    Forall (fun re : Values.block * Z * Z =>
-            let '(mb, _, _) := re in
-            memory_props.MemProps.no_alias_with_blk 
-              ((Vptr b' ofs', m') :: nil) mb) mbs),
-  notin_ignores_with_size mbs b' (Int.signed 31 ofs') size.
-Proof.
-  unfold notin_ignores_with_size.
-  induction 1; simpl; auto.
-    destruct x as [[]]. simpl in H.
-    constructor; auto.
-Qed.
-
-Lemma mstore_aux_mapped_inj: forall igns f b1 b2 delta
-  (Hp: MoreMem.meminj_no_overlap f)
-  (Hf: f b1 = Some (b2, delta)) gvs1 gvs2 m1 n1 m2 ofs
-  (Hmsim: mem_inj f igns m1 m2) (Hst1: mstore_aux m1 gvs1 b1 ofs = Some n1)
-  (Hinj: gv_inject f gvs1 gvs2),
-  exists n2,
-    mstore_aux m2 gvs2 b2 (ofs + delta) = Some n2 /\ mem_inj f igns n1 n2.
-Proof.
-  induction gvs1 as [|[]]; simpl; intros.
-    inv Hst1. inv Hinj. simpl. eauto.
-
-    inv Hinj. inv_mbind. simpl. 
-    eapply store_mapped_inj in Hmsim; eauto.
-    destruct Hmsim as [n2 [Hst2 Hmsim]].
-    replace (ofs + delta + size_chunk m) with
-            (ofs + size_chunk m + delta) by omega.
-    eapply IHgvs1 in Hmsim; eauto.
-    destruct Hmsim as [n3 [Hsts2 Hmsim]].
-    fill_ctxhole. eauto.
-Qed.
-
-Lemma mstore_aux_mapped_inj2: forall igns f b1 b2 delta
-  (Hp: MoreMem.meminj_no_overlap f)
-  (Hf: f b1 = Some (b2, delta)) gvs1 gvs2 m1 n1 m2 n2 ofs
-  (Hmsim: mem_inj f igns m1 m2) (Hst1: mstore_aux m1 gvs1 b1 ofs = Some n1)
-  (Hinj: gv_inject f gvs1 gvs2)
-  (Hst2: mstore_aux m2 gvs2 b2 (ofs + delta) = Some n2),
-  mem_inj f igns n1 n2.
-Proof.
-  intros.
-  eapply mstore_aux_mapped_inj in Hmsim; eauto.
-  destruct Hmsim as [n2' [J1 J2]].
-  uniq_result. auto.
-Qed.
-
-Lemma mstore_aux_inject_id_mapped_inj: forall igns b gvs m1 n1 m2 ofs
-  (Hmsim: mem_inj inject_id igns m1 m2) 
-  (Hst1: mstore_aux m1 gvs b ofs = Some n1),
-  exists n2, mstore_aux m2 gvs b ofs = Some n2 /\ mem_inj inject_id igns n1 n2.
-Proof.
-  intros.
-  replace ofs with (ofs+0) by omega.
-  eapply mstore_aux_mapped_inj in Hmsim; 
-    eauto using inject_id_no_overlap, inject_id_zero_delta.
-    unfold inject_id. auto.
-    apply gv_inject_id__refl; auto.
-Qed.
-
-Lemma mstore_aux_inject_id_mapped_inj2: forall igns b gvs m1 n1 m2 n2 ofs
-  (Hmsim: mem_inj inject_id igns m1 m2) 
-  (Hst1: mstore_aux m1 gvs b ofs = Some n1)
-  (Hst2: mstore_aux m2 gvs b ofs = Some n2),
-  mem_inj inject_id igns n1 n2.
-Proof.
-  intros.
-  replace ofs with (ofs+0) in Hst2 by omega.
-  eapply mstore_aux_mapped_inj2 in Hmsim; 
-    eauto using inject_id_no_overlap, inject_id_zero_delta.
-    unfold inject_id. auto.
-    apply gv_inject_id__refl; auto.
-Qed.
-
-Lemma mstore_aux_store_inside_inj2': forall igns f b1 b2 delta
-  (Hp: MoreMem.meminj_no_overlap f)
-  (Hf: f b1 = Some (b2, delta)) hi gvs1 gvs2 m1 n1 m2 n2 ofs
-  (Hmsim: mem_inj f ((b1,ofs,hi)::igns) m1 m2) (Hst1: mstore_aux m1 gvs1 b1 ofs = Some n1)
-  (Hinj: gv_inject f gvs1 gvs2)
-  (Hst2: mstore_aux m2 gvs2 b2 (ofs + delta) = Some n2),
-  mem_inj f ((b1,ofs+Z_of_nat (sizeGenericValue gvs1),hi)::igns) n1 n2.
-Proof.
-  induction gvs1 as [|[]]; simpl; intros.
-    inv Hst1. inv Hinj. inv Hst2. 
-    replace (ofs+0) with ofs by omega.
-    auto.
-
-    inv Hinj. simpl in Hst2.
-    inv_mbind.
-    assert (mem_inj f ((b1,ofs+size_chunk m,hi)::igns) m3 m0) as Hinj'.
-      eapply store_inside_inj2 in Hmsim; eauto.
-    replace (ofs + delta + size_chunk m) with
-            (ofs + size_chunk m + delta) in H0 by omega.
-    rewrite inj_plus.
-    rewrite <- size_chunk_conv.
-    replace (ofs + (size_chunk m + Z_of_nat (sizeGenericValue gvs1))) with
-            (ofs + size_chunk m + Z_of_nat (sizeGenericValue gvs1)) by omega.
-    eapply IHgvs1; eauto.
-Qed.
-
-Lemma notin_ignores__add_empty: forall b hi b1 ofs igns
-  (Hnotin : notin_ignores igns b1 ofs),
-  notin_ignores ((b, hi, hi) :: igns) b1 ofs.
-Proof.
-  unfold notin_ignores.
-  intros.
-  constructor; auto. 
-    destruct (zeq b1 b); subst; auto.
-    right.
-    split; auto.
-      omega.
-Qed.
-
-Lemma mem_inj__remove_empty_igns: forall f b hi igns n1 n2
-  (Hmsim : mem_inj f ((b, hi, hi) :: igns) n1 n2),
-  mem_inj f igns n1 n2.
-Proof.
-  intros.
-  inv Hmsim.
-  constructor; auto.
-    intros.
-    apply mi_memval0; auto using notin_ignores__add_empty.
-Qed.
-
-Lemma mem_inj__remove_unperm_igns: forall f b lo hi igns n1 n2
-  (Hmsim : mem_inj f ((b, lo, hi) :: igns) n1 n2)
-  (Hunperm: forall ofs p, lo <= ofs < hi -> ~Mem.perm n1 b ofs p),
-  mem_inj f igns n1 n2.
-Proof.
-  intros.
-  inv Hmsim.
-  constructor; auto.
-    intros.
-    apply mi_memval0; auto. clear mi_memval0.
-      unfold notin_ignores in *.
-      constructor; auto.
-        destruct (Z_eq_dec b1 b); subst; auto.
-          right.
-          split; auto.
-            destruct (Z_lt_dec ofs lo); subst; auto.
-            destruct (Z_ge_dec ofs hi); subst; auto.
-              contradict H0.
-              apply Hunperm. omega.
-Qed.
-
-Lemma mstore_aux_inside_inj2: forall igns f b1 b2 delta
-  (Hp: MoreMem.meminj_no_overlap f)
-  (Hf: f b1 = Some (b2, delta)) gvs1 gvs2 m1 n1 m2 n2 ofs
-  (Hmsim: mem_inj f ((b1,ofs,ofs+Z_of_nat (sizeGenericValue gvs1))::igns) m1 m2) 
-  (Hst1: mstore_aux m1 gvs1 b1 ofs = Some n1)
-  (Hinj: gv_inject f gvs1 gvs2)
-  (Hst2: mstore_aux m2 gvs2 b2 (ofs + delta) = Some n2),
-  mem_inj f igns n1 n2.
-Proof.
-  intros.
-  eapply mstore_aux_store_inside_inj2' in Hmsim; eauto.
-  eapply mem_inj__remove_empty_igns; eauto.
-Qed.
-
-Lemma mstore_aux_inject_id_inside_inj2: forall igns b
-  gvs m1 n1 m2 n2 ofs
-  (Hmsim: mem_inj inject_id 
-            ((b,ofs,ofs+Z_of_nat (sizeGenericValue gvs))::igns) m1 m2) 
-  (Hst1: mstore_aux m1 gvs b ofs = Some n1)
-  (Hst2: mstore_aux m2 gvs b ofs = Some n2),
-  mem_inj inject_id igns n1 n2.
-Proof.
-  intros.
-  replace ofs with (ofs+0) in Hst2 by omega.
-  eapply mstore_aux_inside_inj2 in Hmsim; 
-    eauto using inject_id_no_overlap, inject_id_zero_delta.
-    unfold inject_id. auto.
-    apply gv_inject_id__refl; auto.
-Qed.
-
-Lemma from_MoreMem_inj: forall m1 m2 mi ogns
-  (Hmsim: MoreMem.mem_inj mi m1 m2),
-  mem_inj mi ogns m1 m2.
-Proof.
-  intros.
-  inv Hmsim.
-  constructor; auto.
-Qed.
-
 End SASmsim.
 
+(* Generating ignorable lists. *)
 Fixpoint ombs__ignores (tsz:Z) (ombs: list (option Values.block))
   : list (Values.block*Z*Z) :=
 match ombs with
@@ -1210,34 +1222,3 @@ match ombs with
 | Some mb::ombs' => (mb, 0, tsz)::ombs__ignores tsz ombs'
 | None::ombs' => ombs__ignores tsz ombs'
 end.
-
-(* go to vellvm? *)
-Lemma wf__getTypeStoreSize_eq_sizeGenericValue: forall (gl2 : GVMap)
-  (lc2 : Opsem.GVsMap) (S : system) (los : layouts) (nts : namedts)
-  (Ps : list product) (v1 : value) (gv1 : GenericValue)
-  (Hwfg : LLVMgv.wf_global (los, nts) S gl2) (n : nat) t
-  (HeqR : ret n = getTypeStoreSize (los, nts) t) F
-  (H24 : @Opsem.getOperandValue DGVs (los, nts) v1 lc2 gl2 = ret gv1)
-  (Hwflc1 : OpsemPP.wf_lc (los, nts) F lc2)
-  (Hwfv : wf_value S (module_intro los nts Ps) F v1 t),
-  n = sizeGenericValue gv1.
-Proof.
-  intros.
-  eapply OpsemPP.getOperandValue__wf_gvs in Hwflc1; eauto.
-  inv Hwflc1.
-  assert (gv1 @ gv1) as Hinst. auto.
-  apply H2 in Hinst.
-  unfold gv_chunks_match_typ in Hinst.
-  clear - Hinst HeqR Hwfv. inv_mbind.
-  apply wf_value__wf_typ in Hwfv. destruct Hwfv as [J1 J2].
-  symmetry in HeqR0.
-  eapply flatten_typ__getTypeSizeInBits in HeqR0; eauto.
-  destruct HeqR0 as [sz [al [A B]]].          
-  unfold getTypeAllocSize, getTypeStoreSize, getABITypeAlignment,
-         getTypeSizeInBits, getAlignment, 
-         getTypeSizeInBits_and_Alignment in HeqR.
-  rewrite A in HeqR.
-  inv HeqR. rewrite B.
-  eapply vm_matches_typ__sizeMC_eq_sizeGenericValue; eauto.
-Qed.
-

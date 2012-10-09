@@ -26,7 +26,8 @@ Require Import opsem_props.
 Require Import syntax.
 Require Import util.
 
-(************** Opsem PP *********************************************** ***)
+(****************************************************************)
+(* This file proves the safety result of Vellvm's semantics.    *)
 
 Module OpsemPP. Section OpsemPP.
 
@@ -36,6 +37,7 @@ Export Opsem.
 Export OpsemProps.
 Import AtomSet.
 
+(* Notations *)
 Notation GVs := GVsSig.(GVsT).
 Notation "gv @ gvs" :=
   (GVsSig.(instantiate_gvs) gv gvs) (at level 43, right associativity).
@@ -43,6 +45,10 @@ Notation "$ gv # t $" := (GVsSig.(gv2gvs) gv t) (at level 41).
 Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss)
   (at level 43, right associativity).
 
+(* A set of runtime values with type t is well-formed if 
+   1) all values in the set are of size t;
+   2) the set is not empty;
+   3) all values match type t. *)
 Inductive wf_GVs : TargetData -> GVs -> typ -> Prop :=
 | wf_GVs_intro : forall TD gvs t sz,
     getTypeSizeInBits TD t = Some sz ->
@@ -54,6 +60,11 @@ Inductive wf_GVs : TargetData -> GVs -> typ -> Prop :=
 
 Hint Constructors wf_GVs.
 
+(* A set of definitions that strictly dominates the program counter is
+   well-formed if:
+   1) the definition is defined in a reachable block;
+   2) the definition has a runtime value;
+   3) the definition's runtime value is well-formed. *)
 Inductive wf_defs TD (f:fdef) (lc:GVsMap) : list atom -> Prop :=
 | wf_defs_nil : wf_defs TD f lc nil
 | wf_defs_cons : forall id1 t1 gvs1 defs',
@@ -64,87 +75,87 @@ Inductive wf_defs TD (f:fdef) (lc:GVsMap) : list atom -> Prop :=
     wf_defs TD f lc defs' ->
     wf_defs TD f lc (id1::defs').
 
-Lemma wf_defs_elim : forall TD ids1 F lc,
-  wf_defs TD F lc ids1 ->
-  forall id1, List.In id1 ids1 ->
-  id_in_reachable_block F id1 /\
-  exists t1, exists gvs1,
-    lookupTypViaIDFromFdef F id1 = Some t1 /\
-    lookupAL _ lc id1 = Some gvs1 /\
-    wf_GVs TD gvs1 t1.
-Proof.
-  induction ids1; intros; simpl in H0; inv H0.
-    inv H. split; auto. eauto.
-    inv H. eauto.
-Qed.
-
-Lemma wf_defs_intro : forall TD ids1 F lc,
-  (forall id1, List.In id1 ids1 ->
-   id_in_reachable_block F id1 /\
-   exists t1, exists gvs1,
-     lookupTypViaIDFromFdef F id1 = Some t1 /\
-     lookupAL _ lc id1 = Some gvs1 /\
-     wf_GVs TD gvs1 t1) ->
-  wf_defs TD F lc ids1.
-Proof.
-  induction ids1; intros.
-    apply wf_defs_nil.
-
-    destruct (@H a) as [J4 [t1 [gvs1 [J1 [J2 J3]]]]]; simpl; auto.
-    eapply wf_defs_cons; eauto.
-      apply IHids1.
-      intros id1 J.
-      apply H. simpl. auto.
-Qed.
-
-Lemma wf_defs_eq : forall TD ids2 ids1 F' lc',
-  set_eq ids1 ids2 ->
-  wf_defs TD F' lc' ids1 ->
-  wf_defs TD F' lc' ids2.
-Proof.
-  intros.
-  apply wf_defs_intro.
-  intros id1 Hin.
-  destruct H as [J1 J2].
-  eapply wf_defs_elim in H0; eauto.
-Qed.
-
-Lemma wf_defs_updateAddAL : forall TD g F' lc' ids1 ids2 i1 t1
-  (Hreach: id_in_reachable_block F' i1),
-  wf_defs TD F' lc' ids1 ->
-  set_eq (i1::ids1) ids2 ->
-  lookupTypViaIDFromFdef F' i1 = ret t1 ->
-  wf_GVs TD g t1 ->
-  wf_defs TD F' (updateAddAL _ lc' i1 g) ids2.
-Proof.
-  intros TD g F' lc' ids1 ids2 i1 t1 Hreach HwfDefs Heq Hlkup Hwfgvs.
-  apply wf_defs_intro.
-  intros id1 Hin.
-  destruct Heq as [Hinc1 Hinc2].
-  apply Hinc2 in Hin.
-  simpl in Hin.
-  destruct (eq_dec i1 id1); subst.
-    split; auto.
-    exists t1. exists g.
-    split; auto.
-    split; auto.
-      apply lookupAL_updateAddAL_eq; auto.
-
-    destruct Hin as [Eq | Hin]; subst; try solve [contradict n; auto].
-    eapply wf_defs_elim in HwfDefs; eauto.
-    destruct HwfDefs as [J4 [t2 [gv2 [J1 [J2 J3]]]]].
-    split; auto.
-    exists t2. exists gv2.
-    split; auto.
-    split; auto.
-      rewrite <- lookupAL_updateAddAL_neq; auto.
-Qed.
-
+(* All values in locals are well-formed. *)
 Definition wf_lc TD (f:fdef) (lc:GVsMap) : Prop := forall i0 gvs0 t0,
   lookupTypViaIDFromFdef f i0 = Some t0 ->
   lookupAL _ lc i0 = Some gvs0 ->
   wf_GVs TD gvs0 t0.
 
+(* A frame ec is well-formed if
+   1) the current block is reachable
+   2) the block is in the current function
+   3) the function is in the current module
+   4) locals are well-formed
+   5) the set of strictly-dominating definitions is well-formed
+   6) the commands to execute are at the tail of the block
+*)
+Definition wf_ExecutionContext TD (ps:list product) (ec:ExecutionContext) : Prop
+  :=
+let '(mkEC f b cs tmn lc als) := ec in
+isReachableFromEntry f b /\
+blockInFdefB b f = true /\
+InProductsB (product_fdef f) ps = true /\
+wf_lc TD f lc /\
+match cs with
+| nil =>
+    match inscope_of_tmn f b tmn with
+    | Some ids => wf_defs TD f lc ids
+    | None => False
+    end
+| c::_ =>
+    match inscope_of_cmd f b c with
+    | Some ids => wf_defs TD f lc ids
+    | None => False
+    end
+end /\
+exists l1, exists ps, exists cs',
+b = (l1, stmts_intro ps (cs'++cs) tmn).
+
+(* If the current ec's current block ends with return, the next ec's
+   current command must be a call. *)
+Definition wf_call (ec:@ExecutionContext GVsSig) (ecs:@ECStack GVsSig) : Prop :=
+let '(mkEC f _ _ _ _ _) := ec in
+forall b, blockInFdefB b f ->
+let '(_, stmts_intro _ _ tmn) := b in
+match tmn with
+| insn_return _ _ _ | insn_return_void _ =>
+    match ecs with
+    | nil => True
+    | mkEC f' b' (insn_call _ _ _ _ _ _ _ ::_) tmn' lc' als'::ecs'
+        => True
+    | _ => False
+    end
+| _ => True
+end.
+
+Fixpoint wf_ECStack TD (ps:list product) (ecs:ECStack) : Prop :=
+match ecs with
+| nil => True
+| ec::ecs' =>
+    wf_ExecutionContext TD ps ec /\ wf_ECStack TD ps ecs' /\ wf_call ec ecs'
+end.
+
+(* Stack is never empty, and must be well-formed. *)
+Definition wf_State (cfg:Config) (S:State) : Prop :=
+let '(mkCfg _ (los, nts) ps _ _ ) := cfg in
+let '(mkState ecs _) := S in
+ecs <> nil /\
+wf_ECStack (los,nts) ps ecs.
+
+(* A configuration is well-formed if
+   1) named types are well-formed
+   2) globals are well-formed
+   3) the system is well-formed
+   4) the current module is in the system
+*)
+Definition wf_Config (cfg:Config) : Prop :=
+let '(mkCfg s (los, nts) ps gl _ ) := cfg in
+wf_namedts s (los,nts) /\
+wf_global (los,nts) s gl /\
+wf_system s /\
+moduleInSystemB (module_intro los nts ps) s = true.
+
+(* Properties of inhabited *)
 Lemma const2GV__inhabited : forall TD gl c gvs,
   const2GV TD gl c = Some gvs -> GVsSig.(inhabited) gvs.
 Proof.
@@ -154,6 +165,50 @@ Proof.
     eauto using GVsSig.(cgv2gvs__inhabited).
 Qed.
 
+Lemma getOperandValue__inhabited : forall los nts s ps f v t lc gl gvs,
+  wf_lc (los, nts) f lc ->
+  wf_value s (module_intro los nts ps) f v t ->
+  getOperandValue (los, nts) v lc gl = Some gvs ->
+  GVsSig.(inhabited) gvs.
+Proof.
+  intros los nts s ps f v t lc gl gvs Hwflc Hwfv Hget.
+  inv Hwfv; simpl in Hget; eauto using const2GV__inhabited.
+    unfold wf_lc in Hwflc.
+    match goal with
+    | H7: lookupTypViaIDFromFdef _ _ = _ |- _ =>
+      eapply Hwflc in H7; eauto;
+      inv H7; auto
+    end.
+Qed.
+
+Lemma values2GVs__inhabited : forall S los nts f lc (Hwflc: wf_lc (los,nts) f lc)
+  gl Ps idxs vidxs,
+  wf_value_list
+    (List.map
+      (fun (p : sz * value) =>
+        let '(sz_, value_) := p in
+          (S, module_intro los nts Ps, f, value_,
+            typ_int Size.ThirtyTwo)) idxs) ->
+  values2GVs (los,nts) idxs lc gl = Some vidxs ->
+  exists vidxs0, vidxs0 @@ vidxs.
+Proof.
+  induction idxs as [|[s v] idxs]; simpl; intros vidxs Hwfvs Hv2gvs.
+    inv Hv2gvs. exists nil. simpl. auto.
+
+    remember (getOperandValue (los,nts) v lc gl) as R.
+    destruct R; tinv Hv2gvs.
+    remember (values2GVs (los,nts) idxs lc gl) as R1.
+    destruct R1; inv Hv2gvs.
+    symmetry in HeqR1. symmetry in HeqR.
+    rewrite wf_value_list_cons_iff in Hwfvs. destruct Hwfvs.
+    destruct (@IHidxs l0) as [vidxs0 J]; auto.
+    eapply getOperandValue__inhabited in HeqR; eauto.
+    apply GVsSig.(inhabited_inv) in HeqR.
+    destruct HeqR as [gv HeqR].
+    exists (gv::vidxs0). simpl. simpl; auto.
+Qed.
+
+(* Properties of type size *)
 Lemma const2GV__getTypeSizeInBits : forall S TD c t gl gvs gv
   (hwfc: wf_const S TD c t)
   (Hc2g: const2GV TD gl c = Some gvs),
@@ -178,6 +233,7 @@ Proof.
     eapply GVsSig.(cgv2gvs__getTypeSizeInBits); eauto using wf_const__wf_typ.
 Qed.
 
+(* Properties of matching chunks *)
 Lemma const2GV__matches_chunks : forall S TD c t gl gvs gv
   (hwfc: wf_const S TD c t)
   (Hc2g: const2GV TD gl c = Some gvs),
@@ -196,22 +252,7 @@ Proof.
   eapply GVsSig.(cgv2gvs__matches_chunks); eauto using wf_const__wf_typ.
 Qed.
 
-Lemma getOperandValue__inhabited : forall los nts s ps f v t lc gl gvs,
-  wf_lc (los, nts) f lc ->
-  wf_value s (module_intro los nts ps) f v t ->
-  getOperandValue (los, nts) v lc gl = Some gvs ->
-  GVsSig.(inhabited) gvs.
-Proof.
-  intros los nts s ps f v t lc gl gvs Hwflc Hwfv Hget.
-  inv Hwfv; simpl in Hget; eauto using const2GV__inhabited.
-    unfold wf_lc in Hwflc.
-    match goal with
-    | H7: lookupTypViaIDFromFdef _ _ = _ |- _ =>
-      eapply Hwflc in H7; eauto;
-      inv H7; auto
-    end.
-Qed.
-
+(* Properties of wf_gvs *)
 Lemma getOperandValue__wf_gvs : forall (los:layouts) (nts:namedts) s ps f v t lc
   gl gvs,
   wf_global (los,nts) s gl ->
@@ -436,41 +477,138 @@ Proof.
       rewrite <- lookupAL_updateAddAL_neq; eauto.
 Qed.
 
-Lemma updateValuesForNewBlock_spec3 : forall TD f lc,
-  wf_lc TD f lc ->
-  forall rs,
-  (forall id0 gv t0,
-     In (id0,gv) rs -> lookupTypViaIDFromFdef f id0 = Some t0 ->
-     wf_GVs TD gv t0) ->
-  wf_lc TD f (updateValuesForNewBlock rs lc).
-Proof.
-  induction rs; intros; simpl in *; auto.
-    destruct a.
-    intros x gvx tx Htyp Hlk.
-    destruct (i0==x); subst.
-      rewrite lookupAL_updateAddAL_eq in Hlk. inv Hlk. eauto.
+Fixpoint wf_params TD (gvs:list GVs) (lp:params) : Prop :=
+match (gvs, lp) with
+| (nil, nil) => True
+| (gv::gvs', ((t, _), _)::lp') => wf_GVs TD gv t /\ wf_params TD gvs' lp'
+| _ => False
+end.
 
-      rewrite <- lookupAL_updateAddAL_neq in Hlk; auto.
-      eapply IHrs in Hlk; eauto.
+Lemma params2GVs_wf_gvs : forall los nts S
+  Ps F gl lc (Hwfc : wf_lc (los,nts) F lc)
+  (Hwfg : wf_global (los, nts) S gl) tvs lp gvs,
+  wf_value_list
+    (List.map
+      (fun p : typ * attributes * value =>
+        let '(typ_', attr, value_'') := p in
+          (S, (module_intro los nts Ps), F, value_'', typ_'))
+                tvs) ->
+  lp = List.map
+        (fun p : typ * attributes * value =>
+          let '(typ_', attr, value_'') := p in (typ_', attr, value_''))
+        tvs ->
+  params2GVs (los,nts) lp lc gl = Some gvs -> wf_params (los,nts) gvs lp.
+Proof.
+  induction tvs as [|[[t a] v] tvs]; intros lp gvs Hwfvs Heq Hp2gv;
+  subst; simpl in *.
+
+    inv Hp2gv. simpl. auto.
+
+    remember (getOperandValue (los,nts) v lc gl) as R0.
+    destruct R0; try solve [inv Hp2gv].
+    match goal with
+      | [ H : context[?t] |- _ ] =>
+        match t with
+          | params2GVs _ _ _ _ =>
+            remember t as R
+        end
+    end.
+    destruct R; inv Hp2gv.
+    simpl. split.
+      eapply getOperandValue__wf_gvs; eauto.
+      eapply (Hwfvs (_, _, _, _, _)). left. eauto.
+
+      eapply IHtvs; eauto.
+      intros p Hp. apply Hwfvs. right. trivial.
 Qed.
 
-Lemma wf_lc_br_aux : forall s los nts Ps f sts3 b2 gl lc lc' l3
-  (Hwfg: wf_global (los, nts) s gl) (Huniq: uniqFdef f)
-  (Hswitch : switchToNewBasicBlock (los, nts) (l3, sts3) b2 gl lc = ret lc')
-  (Hlkup : Some sts3 = lookupBlockViaLabelFromFdef f l3)
-  (Hwfg : wf_global (los, nts) s gl)
-  (HwfF : wf_fdef s (module_intro los nts Ps) f)
-  (Hwflc : wf_lc (los, nts) f lc),
-  wf_lc (los, nts) f lc'.
+Lemma wf_params_spec : forall TD gvs lp,
+  wf_params TD gvs lp -> forall gv, In gv gvs -> GVsSig.(inhabited) gv.
+Proof.
+  induction gvs; simpl; intros.
+    inv H0.
+
+    destruct lp as [|[[]]]; tinv H.
+    destruct H as [J1 J2].
+    destruct H0 as [H0 | H0]; subst; eauto.
+      inv J1; auto.
+Qed.
+
+(* Properties of wf_defs *)
+Lemma wf_defs_elim : forall TD ids1 F lc,
+  wf_defs TD F lc ids1 ->
+  forall id1, List.In id1 ids1 ->
+  id_in_reachable_block F id1 /\
+  exists t1, exists gvs1,
+    lookupTypViaIDFromFdef F id1 = Some t1 /\
+    lookupAL _ lc id1 = Some gvs1 /\
+    wf_GVs TD gvs1 t1.
+Proof.
+  induction ids1; intros; simpl in H0; inv H0.
+    inv H. split; auto. eauto.
+    inv H. eauto.
+Qed.
+
+Lemma wf_defs_intro : forall TD ids1 F lc,
+  (forall id1, List.In id1 ids1 ->
+   id_in_reachable_block F id1 /\
+   exists t1, exists gvs1,
+     lookupTypViaIDFromFdef F id1 = Some t1 /\
+     lookupAL _ lc id1 = Some gvs1 /\
+     wf_GVs TD gvs1 t1) ->
+  wf_defs TD F lc ids1.
+Proof.
+  induction ids1; intros.
+    apply wf_defs_nil.
+
+    destruct (@H a) as [J4 [t1 [gvs1 [J1 [J2 J3]]]]]; simpl; auto.
+    eapply wf_defs_cons; eauto.
+      apply IHids1.
+      intros id1 J.
+      apply H. simpl. auto.
+Qed.
+
+Lemma wf_defs_eq : forall TD ids2 ids1 F' lc',
+  set_eq ids1 ids2 ->
+  wf_defs TD F' lc' ids1 ->
+  wf_defs TD F' lc' ids2.
 Proof.
   intros.
-  unfold switchToNewBasicBlock in Hswitch. 
-  remember (getIncomingValuesForBlockFromPHINodes (los, nts)
-              (getPHINodesFromBlock (l3, sts3)) b2 gl lc) as R1.
-  destruct R1; inv Hswitch.
-  apply updateValuesForNewBlock_spec3; auto.
-    destruct sts3.
-    eapply getIncomingValuesForBlockFromPHINodes_spec2; simpl; eauto.
+  apply wf_defs_intro.
+  intros id1 Hin.
+  destruct H as [J1 J2].
+  eapply wf_defs_elim in H0; eauto.
+Qed.
+
+Lemma wf_defs_updateAddAL : forall TD g F' lc' ids1 ids2 i1 t1
+  (Hreach: id_in_reachable_block F' i1),
+  wf_defs TD F' lc' ids1 ->
+  set_eq (i1::ids1) ids2 ->
+  lookupTypViaIDFromFdef F' i1 = ret t1 ->
+  wf_GVs TD g t1 ->
+  wf_defs TD F' (updateAddAL _ lc' i1 g) ids2.
+Proof.
+  intros TD g F' lc' ids1 ids2 i1 t1 Hreach HwfDefs Heq Hlkup Hwfgvs.
+  apply wf_defs_intro.
+  intros id1 Hin.
+  destruct Heq as [Hinc1 Hinc2].
+  apply Hinc2 in Hin.
+  simpl in Hin.
+  destruct (eq_dec i1 id1); subst.
+    split; auto.
+    exists t1. exists g.
+    split; auto.
+    split; auto.
+      apply lookupAL_updateAddAL_eq; auto.
+
+    destruct Hin as [Eq | Hin]; subst; try solve [contradict n; auto].
+    eapply wf_defs_elim in HwfDefs; eauto.
+    destruct HwfDefs as [J4 [t2 [gv2 [J1 [J2 J3]]]]].
+    split; auto.
+    exists t2. exists gv2.
+    split; auto.
+    split; auto.
+      rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
 
 Lemma wf_defs_br_aux : forall lc l' ps' cs' lc' F tmn' gl los nts Ps s
@@ -651,49 +789,42 @@ Proof.
   destruct R; eapply inscope_of_tmn_br_aux; eauto; simpl; auto.
 Qed.
 
-Fixpoint wf_params TD (gvs:list GVs) (lp:params) : Prop :=
-match (gvs, lp) with
-| (nil, nil) => True
-| (gv::gvs', ((t, _), _)::lp') => wf_GVs TD gv t /\ wf_params TD gvs' lp'
-| _ => False
-end.
-
-Lemma params2GVs_wf_gvs : forall los nts S
-  Ps F gl lc (Hwfc : wf_lc (los,nts) F lc)
-  (Hwfg : wf_global (los, nts) S gl) tvs lp gvs,
-  wf_value_list
-    (List.map
-      (fun p : typ * attributes * value =>
-        let '(typ_', attr, value_'') := p in
-          (S, (module_intro los nts Ps), F, value_'', typ_'))
-                tvs) ->
-  lp = List.map
-        (fun p : typ * attributes * value =>
-          let '(typ_', attr, value_'') := p in (typ_', attr, value_''))
-        tvs ->
-  params2GVs (los,nts) lp lc gl = Some gvs -> wf_params (los,nts) gvs lp.
+(* Properties of wf_lc *)
+Lemma updateValuesForNewBlock_spec3 : forall TD f lc,
+  wf_lc TD f lc ->
+  forall rs,
+  (forall id0 gv t0,
+     In (id0,gv) rs -> lookupTypViaIDFromFdef f id0 = Some t0 ->
+     wf_GVs TD gv t0) ->
+  wf_lc TD f (updateValuesForNewBlock rs lc).
 Proof.
-  induction tvs as [|[[t a] v] tvs]; intros lp gvs Hwfvs Heq Hp2gv;
-  subst; simpl in *.
+  induction rs; intros; simpl in *; auto.
+    destruct a.
+    intros x gvx tx Htyp Hlk.
+    destruct (i0==x); subst.
+      rewrite lookupAL_updateAddAL_eq in Hlk. inv Hlk. eauto.
 
-    inv Hp2gv. simpl. auto.
+      rewrite <- lookupAL_updateAddAL_neq in Hlk; auto.
+      eapply IHrs in Hlk; eauto.
+Qed.
 
-    remember (getOperandValue (los,nts) v lc gl) as R0.
-    destruct R0; try solve [inv Hp2gv].
-    match goal with
-      | [ H : context[?t] |- _ ] =>
-        match t with
-          | params2GVs _ _ _ _ =>
-            remember t as R
-        end
-    end.
-    destruct R; inv Hp2gv.
-    simpl. split.
-      eapply getOperandValue__wf_gvs; eauto.
-      eapply (Hwfvs (_, _, _, _, _)). left. eauto.
-
-      eapply IHtvs; eauto.
-      intros p Hp. apply Hwfvs. right. trivial.
+Lemma wf_lc_br_aux : forall s los nts Ps f sts3 b2 gl lc lc' l3
+  (Hwfg: wf_global (los, nts) s gl) (Huniq: uniqFdef f)
+  (Hswitch : switchToNewBasicBlock (los, nts) (l3, sts3) b2 gl lc = ret lc')
+  (Hlkup : Some sts3 = lookupBlockViaLabelFromFdef f l3)
+  (Hwfg : wf_global (los, nts) s gl)
+  (HwfF : wf_fdef s (module_intro los nts Ps) f)
+  (Hwflc : wf_lc (los, nts) f lc),
+  wf_lc (los, nts) f lc'.
+Proof.
+  intros.
+  unfold switchToNewBasicBlock in Hswitch. 
+  remember (getIncomingValuesForBlockFromPHINodes (los, nts)
+              (getPHINodesFromBlock (l3, sts3)) b2 gl lc) as R1.
+  destruct R1; inv Hswitch.
+  apply updateValuesForNewBlock_spec3; auto.
+    destruct sts3.
+    eapply getIncomingValuesForBlockFromPHINodes_spec2; simpl; eauto.
 Qed.
 
 Lemma wf_lc_updateAddAL : forall TD f lc gv i0 t,
@@ -1066,45 +1197,6 @@ Proof.
       intros. eapply mfcmp_matches_chunks; eauto.
 Qed.
 
-Lemma wf_params_spec : forall TD gvs lp,
-  wf_params TD gvs lp -> forall gv, In gv gvs -> GVsSig.(inhabited) gv.
-Proof.
-  induction gvs; simpl; intros.
-    inv H0.
-
-    destruct lp as [|[[]]]; tinv H.
-    destruct H as [J1 J2].
-    destruct H0 as [H0 | H0]; subst; eauto.
-      inv J1; auto.
-Qed.
-
-Lemma values2GVs__inhabited : forall S los nts f lc (Hwflc: wf_lc (los,nts) f lc)
-  gl Ps idxs vidxs,
-  wf_value_list
-    (List.map
-      (fun (p : sz * value) =>
-        let '(sz_, value_) := p in
-          (S, module_intro los nts Ps, f, value_,
-            typ_int Size.ThirtyTwo)) idxs) ->
-  values2GVs (los,nts) idxs lc gl = Some vidxs ->
-  exists vidxs0, vidxs0 @@ vidxs.
-Proof.
-  induction idxs as [|[s v] idxs]; simpl; intros vidxs Hwfvs Hv2gvs.
-    inv Hv2gvs. exists nil. simpl. auto.
-
-    remember (getOperandValue (los,nts) v lc gl) as R.
-    destruct R; tinv Hv2gvs.
-    remember (values2GVs (los,nts) idxs lc gl) as R1.
-    destruct R1; inv Hv2gvs.
-    symmetry in HeqR1. symmetry in HeqR.
-    rewrite wf_value_list_cons_iff in Hwfvs. destruct Hwfvs.
-    destruct (@IHidxs l0) as [vidxs0 J]; auto.
-    eapply getOperandValue__inhabited in HeqR; eauto.
-    apply GVsSig.(inhabited_inv) in HeqR.
-    destruct HeqR as [gv HeqR].
-    exists (gv::vidxs0). simpl. simpl; auto.
-Qed.
-
 Lemma GEP__wf_gvs : forall S TD t mp vidxs inbounds0 mp' vidxs0 t' gl lc idxs,
   @values2GVs GVsSig TD idxs lc gl = Some vidxs ->
   wf_GVs TD mp (typ_pointer t) -> vidxs0 @@ vidxs ->
@@ -1442,6 +1534,28 @@ Proof.
       intros. inv Hwfg. apply H3 in H. eapply mget'_matches_chunks; eauto.
 Qed.
 
+(* Properties of wf_State *)
+Lemma wf_State__inv : forall S los nts Ps F B c cs tmn lc als EC gl fs Mem0
+  (HwfCfg: wf_Config (mkCfg S (los,nts) Ps gl fs)),
+  wf_State (mkCfg S (los,nts) Ps gl fs)
+    (mkState ((mkEC F B (c::cs) tmn lc als)::EC) Mem0) ->
+  wf_namedts S (los, nts) /\
+  wf_global (los, nts) S gl /\
+  wf_lc (los,nts) F lc /\
+  wf_insn S (module_intro los nts Ps) F B (insn_cmd c).
+Proof.
+  intros.
+  destruct HwfCfg as [Hwftd [Hwfg [HwfSystem HmInS]]]; subst.
+  destruct H as
+    [Hnonempty [
+     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
+     [HwfEC HwfCall]]]; subst.
+  split; auto.
+  split; auto.
+  split; auto.
+    eapply wf_system__wf_cmd; eauto using in_middle.
+Qed.
+
 (*********************************************)
 (** * Preservation *)
 
@@ -1488,84 +1602,6 @@ Proof.
 
     destruct Hin as [b1 [l1 [Hin _]]].
     apply ListSet.set_diff_elim1 in Hin. inv Hin.
-Qed.
-
-Definition wf_ExecutionContext TD (ps:list product) (ec:ExecutionContext) : Prop
-  :=
-let '(mkEC f b cs tmn lc als) := ec in
-isReachableFromEntry f b /\
-blockInFdefB b f = true /\
-InProductsB (product_fdef f) ps = true /\
-wf_lc TD f lc /\
-match cs with
-| nil =>
-    match inscope_of_tmn f b tmn with
-    | Some ids => wf_defs TD f lc ids
-    | None => False
-    end
-| c::_ =>
-    match inscope_of_cmd f b c with
-    | Some ids => wf_defs TD f lc ids
-    | None => False
-    end
-end /\
-exists l1, exists ps, exists cs',
-b = (l1, stmts_intro ps (cs'++cs) tmn).
-
-Definition wf_call (ec:@ExecutionContext GVsSig) (ecs:@ECStack GVsSig) : Prop :=
-let '(mkEC f _ _ _ _ _) := ec in
-forall b, blockInFdefB b f ->
-let '(_, stmts_intro _ _ tmn) := b in
-match tmn with
-| insn_return _ _ _ | insn_return_void _ =>
-    match ecs with
-    | nil => True
-    | mkEC f' b' (insn_call _ _ _ _ _ _ _ ::_) tmn' lc' als'::ecs'
-        => True
-    | _ => False
-    end
-| _ => True
-end.
-
-Fixpoint wf_ECStack TD (ps:list product) (ecs:ECStack) : Prop :=
-match ecs with
-| nil => True
-| ec::ecs' =>
-    wf_ExecutionContext TD ps ec /\ wf_ECStack TD ps ecs' /\ wf_call ec ecs'
-end.
-
-Definition wf_Config (cfg:Config) : Prop :=
-let '(mkCfg s (los, nts) ps gl _ ) := cfg in
-wf_namedts s (los,nts) /\
-wf_global (los,nts) s gl /\
-wf_system s /\
-moduleInSystemB (module_intro los nts ps) s = true.
-
-Definition wf_State (cfg:Config) (S:State) : Prop :=
-let '(mkCfg _ (los, nts) ps _ _ ) := cfg in
-let '(mkState ecs _) := S in
-ecs <> nil /\
-wf_ECStack (los,nts) ps ecs.
-
-Lemma wf_State__inv : forall S los nts Ps F B c cs tmn lc als EC gl fs Mem0
-  (HwfCfg: wf_Config (mkCfg S (los,nts) Ps gl fs)),
-  wf_State (mkCfg S (los,nts) Ps gl fs)
-    (mkState ((mkEC F B (c::cs) tmn lc als)::EC) Mem0) ->
-  wf_namedts S (los, nts) /\
-  wf_global (los, nts) S gl /\
-  wf_lc (los,nts) F lc /\
-  wf_insn S (module_intro los nts Ps) F B (insn_cmd c).
-Proof.
-  intros.
-  destruct HwfCfg as [Hwftd [Hwfg [HwfSystem HmInS]]]; subst.
-  destruct H as
-    [Hnonempty [
-     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
-     [HwfEC HwfCall]]]; subst.
-  split; auto.
-  split; auto.
-  split; auto.
-    eapply wf_system__wf_cmd; eauto using in_middle.
 Qed.
 
 Lemma preservation_cmd_updated_case : forall
@@ -2395,6 +2431,26 @@ Case "sExCall".
         H24: wf_insn_base _ _ _ |- _ => inv H11; inv H24
       end.
       eapply fit_gv_gv2gvs__wf_gvs_aux; eauto.
+Qed.
+
+Lemma preservation_star: forall cfg IS IS' tr (Hwfcfg: wf_Config cfg),
+  wf_State cfg IS ->
+  sop_star cfg IS IS' tr ->
+  wf_State cfg IS'.
+Proof.
+  intros.
+  induction H0; auto.
+    apply preservation in H0; auto.
+Qed.
+
+Lemma preservation_plus: forall cfg IS IS' tr (Hwfcfg: wf_Config cfg),
+  wf_State cfg IS ->
+  sop_plus cfg IS IS' tr ->
+  wf_State cfg IS'.
+Proof.
+  intros.
+  apply sop_plus__implies__sop_star in H0.
+  eapply preservation_star; eauto.
 Qed.
 
 (*********************************************)
@@ -3872,25 +3928,5 @@ Proof.
      exists fptr. rewrite <- HeqHlk. rewrite <- HeqHelk. split; auto.
 Qed.
 
-Lemma preservation_star: forall cfg IS IS' tr (Hwfcfg: wf_Config cfg),
-  wf_State cfg IS ->
-  sop_star cfg IS IS' tr ->
-  wf_State cfg IS'.
-Proof.
-  intros.
-  induction H0; auto.
-    apply preservation in H0; auto.
-Qed.
-
-Lemma preservation_plus: forall cfg IS IS' tr (Hwfcfg: wf_Config cfg),
-  wf_State cfg IS ->
-  sop_plus cfg IS IS' tr ->
-  wf_State cfg IS'.
-Proof.
-  intros.
-  apply sop_plus__implies__sop_star in H0.
-  eapply preservation_star; eauto.
-Qed.
-
-
 End OpsemPP. End OpsemPP.
+

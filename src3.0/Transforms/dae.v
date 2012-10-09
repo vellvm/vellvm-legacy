@@ -15,6 +15,315 @@ Require Import trans_tactic.
 Require Import top_sim.
 Require Import dae_defs.
 
+(***********************************************************)
+(* Properties of gv_inject *)
+Lemma simulation__BOP : forall maxb mi lc lc2 los nts gl F bop0 sz0
+    v1 v2 gv3 gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
+  (Hprop2: value_doesnt_use_pid pinfo F v2) S ps
+  (Hv1: wf_value S (module_intro los nts ps) F v1 (typ_int sz0))
+  (Hv2: wf_value S (module_intro los nts ps) F v2 (typ_int sz0)),
+  wf_globals maxb gl ->
+  wf_sb_mi maxb mi Mem Mem2 ->
+  reg_simulation pinfo mi F lc lc2 ->
+  BOP (los,nts) lc gl bop0 sz0 v1 v2 = ret gv3 ->
+  BOP (los,nts) lc2 gl bop0 sz0 v1 v2 = ret gv3' ->
+  gv_inject mi gv3 gv3'.
+Proof.
+  intros maxb mi lc lc2 los nts gl F bop0 sz0 v1 v2 gv3 gv3' pinfo Me Mem2 
+    Hprop1 Hprop2 S ps Hv1 Hv2 Hwfg H0 H1 H2 H3.
+  unfold BOP in *.
+  inv_mbind'. symmetry_ctx.
+  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR1; eauto.
+  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR2; eauto.
+  eapply simulation__mbop in H2; eauto.
+  destruct H2 as [gv4 [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+Lemma simulation__FBOP : forall maxb mi lc lc2 los nts gl F fop0 fp
+    v1 v2 gv3 gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
+    (Hprop2: value_doesnt_use_pid pinfo F v2) S ps
+    (Hv1: wf_value S (module_intro los nts ps) F v1 (typ_floatpoint fp))
+    (Hv2: wf_value S (module_intro los nts ps) F v2 (typ_floatpoint fp)),
+  wf_globals maxb gl ->
+  wf_sb_mi maxb mi Mem Mem2 ->
+  reg_simulation pinfo mi F lc lc2 ->
+  FBOP (los,nts) lc gl fop0 fp v1 v2 = ret gv3 ->
+  FBOP (los,nts) lc2 gl fop0 fp v1 v2 = ret gv3' ->
+  gv_inject mi gv3 gv3'.
+Proof.
+  intros maxb mi lc lc2 los nts gl F fop0 fp v1 v2 gv3 gv3' pinfo Me Mem2 Hprop1
+    Hprop2 S ps Hv1 Hv2 Hwfg H0 H1 H2 H3.
+  unfold FBOP in *.
+  inv_mbind'. symmetry_ctx.
+  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR1; eauto.
+  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR2; eauto.
+  eapply simulation__mfbop in H2; eauto.
+  destruct H2 as [gv4 [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+Lemma simulation__ExtractValue : forall mi gv1 gv1' los nts t1 l0 gv gv' gl2 lc
+  lc2 v F pinfo Mem Mem2 maxb (Hprop: value_doesnt_use_pid pinfo F v) S ps
+  (Hv1: wf_value S (module_intro los nts ps) F v t1),
+  wf_globals maxb gl2 ->
+  wf_sb_mi maxb mi Mem Mem2 ->
+  reg_simulation pinfo mi F lc lc2 ->
+  getOperandValue (los,nts) v lc gl2 = Some gv1 ->
+  getOperandValue (los,nts) v lc2 gl2 = Some gv1' ->
+  extractGenericValue (los,nts) t1 gv1 l0 = Some gv ->
+  extractGenericValue (los,nts) t1 gv1' l0 = Some gv' ->
+  gv_inject mi gv gv'.
+Proof.
+  intros.
+  eapply simulation__getOperandValue with (lc2:=lc2) in H2; eauto.
+  eapply simulation__extractGenericValue in H4; eauto.
+  destruct H4 as [gv'' [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+Lemma simulation__InsertValue : forall mi gv1 gv1' los nts t1 l0 gv2 gv2' gl2 lc
+  lc2 v1 v2 F pinfo Mem Mem2 maxb gv3 gv3' t2 ps S
+  (Hprop1: value_doesnt_use_pid pinfo F v1)
+  (Hprop2: value_doesnt_use_pid pinfo F v2)
+  (Hv1: wf_value S (module_intro los nts ps) F v1 t1)
+  (Hv2: wf_value S (module_intro los nts ps) F v2 t2),
+  wf_globals maxb gl2 ->
+  wf_sb_mi maxb mi Mem Mem2 ->
+  reg_simulation pinfo mi F lc lc2 ->
+  getOperandValue (los,nts) v1 lc gl2 = Some gv1 ->
+  getOperandValue (los,nts) v1 lc2 gl2 = Some gv1' ->
+  getOperandValue (los,nts) v2 lc gl2 = Some gv2 ->
+  getOperandValue (los,nts) v2 lc2 gl2 = Some gv2' ->
+  insertGenericValue (los,nts) t1 gv1 l0 t2 gv2 = ret gv3 ->
+  insertGenericValue (los,nts) t1 gv1' l0 t2 gv2' = ret gv3' ->
+  gv_inject mi gv3 gv3'.
+Proof.
+  intros.
+  eapply simulation__getOperandValue with (lc2:=lc2) in H2; eauto.
+  eapply simulation__getOperandValue with (lc2:=lc2) in H4; eauto.
+  eapply simulation__insertGenericValue in H6; eauto.
+  destruct H6 as [gv'' [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+Lemma simulation__values2GVs : forall maxb mi lc lc2 los nts Mem Mem2 gl F idxs 
+  gvs gvs' pinfo (Hprop: list_value_doesnt_use_pid pinfo F idxs) S ps
+  (Ht: wf_value_list 
+    (List.map
+      (fun p : sz * value =>
+        let '(sz_, value_) := p in
+         (S,(module_intro los nts ps),F,value_,typ_int Size.ThirtyTwo)) idxs)),
+  wf_globals maxb gl ->
+  wf_sb_mi maxb mi Mem Mem2 ->
+  reg_simulation pinfo mi F lc lc2 ->
+  values2GVs (los,nts) idxs lc gl = ret gvs ->
+  values2GVs (los,nts) idxs lc2 gl = ret gvs' ->
+  gvs_inject mi gvs gvs'.
+Proof.
+  induction idxs; simpl; intros.
+    inv H2. inv H3. simpl. auto.
+
+    simpl_prod.
+    rewrite wf_value_list_cons_iff in Ht. destruct Ht.
+    inv_mbind'. symmetry_ctx.
+    assert (list_value_doesnt_use_pid pinfo F idxs /\
+            value_doesnt_use_pid pinfo F v) as J.
+      unfold list_value_doesnt_use_pid in *.
+      unfold value_doesnt_use_pid in *.
+      simpl in Hprop.
+      destruct Hprop as [Hprop | Hprop]; auto.
+      apply orb_false_iff in Hprop.
+      destruct Hprop; auto.
+    destruct J as [J1 J2].
+    eapply simulation__getOperandValue with (lc2:=lc2) in HeqR1; eauto.
+    simpl. split; eauto.
+Qed.
+
+Lemma simulation__GEP : forall maxb mi los nts Mem Mem2 inbounds0 vidxs1 vidxs2 
+    gv1 gv1' gv2 gv2' t gl2 lc lc2 idxs v F pinfo t' S ps
+  (Hprop1: value_doesnt_use_pid pinfo F v)
+  (Hprop2: list_value_doesnt_use_pid pinfo F idxs)
+  (Hv1: wf_value S (module_intro los nts ps) F v (typ_pointer t))
+  (Ht: wf_value_list 
+    (List.map
+      (fun p : sz * value =>
+        let '(sz_, value_) := p in
+          (S,(module_intro los nts ps),F,value_,typ_int Size.ThirtyTwo)) idxs)),
+  wf_globals maxb gl2 ->
+  wf_sb_mi maxb mi Mem Mem2 ->
+  reg_simulation pinfo mi F lc lc2 ->
+  getOperandValue (los,nts) v lc gl2 = Some gv1 ->
+  getOperandValue (los,nts) v lc2 gl2 = Some gv1' ->
+  values2GVs (los,nts) idxs lc gl2 = Some vidxs1 ->
+  values2GVs (los,nts) idxs lc2 gl2 = Some vidxs2 ->
+  GEP (los,nts) t gv1 vidxs1 inbounds0 t' = ret gv2 ->
+  GEP (los,nts) t gv1' vidxs2 inbounds0 t' = ret gv2' ->
+  gv_inject mi gv2 gv2'.
+Proof.
+  intros.
+  eapply simulation__getOperandValue with (lc2:=lc2) in H2; eauto.
+  eapply simulation__values2GVs with (lc2:=lc2) in H4; eauto.
+  eapply genericvalues_inject.simulation__GEP in H6; eauto.
+  destruct H6 as [gv'' [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+Lemma simulation__TRUNC : forall maxb mi lc lc2 los nts gl F op t1 t2
+    v1 gv3 gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
+  S ps (Hv1: wf_value S (module_intro los nts ps) F v1 t1),
+  wf_globals maxb gl ->
+  wf_sb_mi maxb mi Mem Mem2 ->
+  reg_simulation pinfo mi F lc lc2 ->
+  TRUNC (los,nts) lc gl op t1 v1 t2 = ret gv3 ->
+  TRUNC (los,nts) lc2 gl op t1 v1 t2 = ret gv3' ->
+  gv_inject mi gv3 gv3'.
+Proof.
+  intros maxb mi lc lc2 los nts gl F op t1 t2 v1 gv3 gv3' pinfo Mem Mem2 Hwfg 
+    Hprop1 S ps Hv1 H0 H1 H2 H3.
+  unfold TRUNC in *.
+  inv_mbind'. symmetry_ctx.
+  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR; eauto.
+  eapply simulation__mtrunc in H3; eauto.
+  destruct H3 as [gv4 [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+Lemma simulation__EXT : forall maxb mi lc lc2 los nts gl F op t1 t2
+    v1 gv3 gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
+  S ps (Hv1: wf_value S (module_intro los nts ps) F v1 t1),
+  wf_globals maxb gl ->
+  wf_sb_mi maxb mi Mem Mem2 ->
+  reg_simulation pinfo mi F lc lc2 ->
+  EXT (los,nts) lc gl op t1 v1 t2 = ret gv3 ->
+  EXT (los,nts) lc2 gl op t1 v1 t2 = ret gv3' ->
+  gv_inject mi gv3 gv3'.
+Proof.
+  intros maxb mi lc lc2 los nts gl F op t1 t2 v1 gv3 gv3' pinfo Mem Mem2 Hprop1 
+    S ps Hv1 Hwfg H0 H1 H2 H3.
+  unfold EXT in *.
+  inv_mbind'. symmetry_ctx.
+  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR; eauto.
+  eapply simulation__mext in H3; eauto.
+  destruct H3 as [gv4 [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+Lemma simulation__CAST : forall maxb mi lc lc2 los nts gl F op t1 t2
+    v1 gv3 gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
+  S ps (Hv1: wf_value S (module_intro los nts ps) F v1 t1),
+  wf_globals maxb gl ->
+  wf_sb_mi maxb mi Mem Mem2 ->
+  reg_simulation pinfo mi F lc lc2 ->
+  CAST (los,nts) lc gl op t1 v1 t2 = ret gv3 ->
+  CAST (los,nts) lc2 gl op t1 v1 t2 = ret gv3' ->
+  gv_inject mi gv3 gv3'.
+Proof.
+  intros maxb mi lc lc2 los nts gl F op t1 t2 v1 gv3 gv3' pinfo Mem Mem2 Hprop1 
+    S ps Hv1 Hwfg H0 H1 H2 H3.
+  unfold CAST in *.
+  inv_mbind'. symmetry_ctx.
+  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR; eauto.
+  eapply simulation__mcast in H3; eauto.
+  destruct H3 as [gv4 [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+Lemma simulation__ICMP : forall maxb mi lc lc2 los nts gl F cond0 t1 v1 v2 gv3 
+  gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
+  (Hprop2: value_doesnt_use_pid pinfo F v2)
+  S ps (Hv1: wf_value S (module_intro los nts ps) F v1 t1)
+  (Hv2: wf_value S (module_intro los nts ps) F v2 t1),
+  wf_globals maxb gl ->
+  wf_sb_mi maxb mi Mem Mem2 ->
+  reg_simulation pinfo mi F lc lc2 ->
+  ICMP (los,nts) lc gl cond0 t1 v1 v2 = ret gv3 ->
+  ICMP (los,nts) lc2 gl cond0 t1 v1 v2 = ret gv3' ->
+  gv_inject mi gv3 gv3'.
+Proof.
+  intros maxb mi lc lc2 los nts gl F cond0 t1 v1 v2 gv3 gv3' pinfo Me Mem2 
+    Hprop1 Hprop2 S ps Hv1 Hv2 Hwfg H0 H1 H2 H3.
+  unfold ICMP in *.
+  inv_mbind'. symmetry_ctx.
+  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR1; eauto.
+  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR2; eauto.
+  eapply simulation__micmp in H2; eauto.
+  destruct H2 as [gv4 [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+Lemma simulation__FCMP : forall maxb mi lc lc2 los nts gl F fcond0 fp v1 v2 gv3 
+  gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
+  (Hprop2: value_doesnt_use_pid pinfo F v2)
+  S ps (Hv1: wf_value S (module_intro los nts ps) F v1 (typ_floatpoint fp))
+  (Hv2: wf_value S (module_intro los nts ps) F v2 (typ_floatpoint fp)),
+  wf_globals maxb gl ->
+  wf_sb_mi maxb mi Mem Mem2 ->
+  reg_simulation pinfo mi F lc lc2 ->
+  FCMP (los,nts) lc gl fcond0 fp v1 v2 = ret gv3 ->
+  FCMP (los,nts) lc2 gl fcond0 fp v1 v2 = ret gv3' ->
+  gv_inject mi gv3 gv3'.
+Proof.
+  intros maxb mi lc lc2 los nts gl F cond0 t1 v1 v2 gv3 gv3' pinfo Me Mem2 Hprop1
+    Hprop2 S ps Hv1 Hv2 Hwfg H0 H1 H2 H3.
+  unfold FCMP in *.
+  inv_mbind'. symmetry_ctx.
+  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR1; eauto.
+  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR2; eauto.
+  eapply simulation__mfcmp in H2; eauto.
+  destruct H2 as [gv4 [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+(***********************************************************)
+(* Properties of als_simulation *)
+Lemma als_simulation__malloc: forall pinfo F lc mi id0 mi' Mem1 Mem1' mb TD
+  t tsz0 gn align0 maxb als1 als2
+  (Hprom: if fdef_dec (PI_f pinfo) F
+          then Promotability.wf_defs maxb pinfo TD Mem1 lc als1
+          else True)
+  (Hml: malloc TD Mem1 tsz0 gn align0 = ret (Mem1', mb))
+  (Hprop1 : inject_incr mi mi')
+  (Hprop2 : forall b : mblock, b <> mb -> mi b = mi' b),
+  PI_f pinfo <> F \/ PI_id pinfo <> id0 ->
+  als_simulation pinfo mi F lc als1 als2 ->
+  als_simulation pinfo mi' F
+    (updateAddAL (GVsT DGVs) lc id0 ($ blk2GV TD mb # typ_pointer t $))
+    als1 als2.
+Proof.
+  intros.
+  apply als_simulation_update_lc; auto.
+  eapply inject_incr__preserves__als_simulation; eauto.
+  eapply malloc__is_alloca_in_EC; eauto.
+Qed.
+
+Lemma als_simulation__alloca: forall pinfo F als1 als2 lc mi id0 mi' mb1 mb2 TD
+  t tsz0 gn align0 maxb Mem1 Mem1'
+  (Hprom: if fdef_dec (PI_f pinfo) F
+          then Promotability.wf_defs maxb pinfo TD Mem1 lc als1
+          else True)
+  (Hml: malloc TD Mem1 tsz0 gn align0 = ret (Mem1', mb1))
+  (Hprop1 : inject_incr mi mi') (Hprop3 : mi' mb1 = ret (mb2, 0))
+  (Hprop2 : forall b : mblock, b <> mb1 -> mi b = mi' b),
+  PI_f pinfo <> F \/ PI_id pinfo <> id0 ->
+  als_simulation pinfo mi F lc als1 als2 ->
+  als_simulation pinfo mi' F
+    (updateAddAL (GVsT DGVs) lc id0 ($ blk2GV TD mb1 # typ_pointer t $))
+    (mb1::als1) (mb2::als2).
+Proof.
+  intros.
+  apply als_simulation_update_lc; auto.
+  apply inject_incr__preserves__als_simulation with (mi':=mi') in H0; auto.
+    simpl.
+    assert (Hml':=Hml).
+    apply MemProps.malloc_result in Hml'. subst.
+    erewrite Promotability_wf_EC__isnt_alloca_in_EC; eauto.
+
+    eapply malloc__is_alloca_in_EC; eauto.
+Qed.
+
+(***********************************************************)
+(* Properties of mem_simulation *)
 Lemma mem_simulation__palloca : forall mi TD Mem1 Mem2 tsz gn Mem1' mb
   ECs1 pinfo maxb lc1
   (Hmsim : mem_simulation pinfo maxb mi
@@ -338,338 +647,6 @@ Proof.
   eapply mem_simulation__update_non_palloca; eauto.
 Qed.
 
-
-Lemma dae_is_sim_removable_state: forall (maxb : Values.block) (pinfo : PhiInfo)
-  (mi : MoreMem.meminj) (Cfg1 : OpsemAux.Config) (St1 : Opsem.State)
-  (Cfg2 : OpsemAux.Config) (St2 : Opsem.State) (Hwfpi : WF_PhiInfo pinfo)
-  (Hwfgl : wf_globals maxb (OpsemAux.Globals Cfg1)) (Hinbd : 0 <= maxb)
-  (Hnuse : used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
-  (Hwfcfg : OpsemPP.wf_Config Cfg1) (Hwfpp : OpsemPP.wf_State Cfg1 St1)
-  (Hnoalias : Promotability.wf_State maxb pinfo Cfg1 St1)
-  (Hsim : State_simulation pinfo maxb mi Cfg1 St1 Cfg2 St2)
-  (Hrem : removable_State pinfo St1) (St1' : Opsem.State) (tr1 : trace)
-  (Hpalloca : palloca_props.wf_State pinfo St1)
-  (Hop1 : Opsem.sInsn Cfg1 St1 St1' tr1),
-  exists mi' : MoreMem.meminj,
-    State_simulation pinfo maxb mi' Cfg1 St1' Cfg2 St2 /\
-    tr1 = E0 /\ inject_incr mi mi'.
-Proof.
-  intros.
-  destruct Cfg1 as [S1 [los nts] Ps1 gl1 fs1].
-  destruct St1 as [ECs1 M1].
-  destruct ECs1 as [|[F1 B1 [|c1 cs1] tmn1 lc1 als1] ECs1]; tinv Hrem.
-  simpl in Hrem.
-  destruct (fdef_dec (PI_f pinfo) F1); subst; tinv Hrem.
-  destruct (id_dec (PI_id pinfo) (getCmdLoc c1)); subst; tinv Hrem.
-
-  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]]; subst.
-  destruct Hwfpp as
-    [_ [
-     [Hreach1 [HBinF1 [HFinPs1 _]]]
-     [HwfECs Hwfcall]]
-    ]; subst.
-  fold (@OpsemPP.wf_ECStack DGVs) in HwfECs.
-
-  destruct Hnoalias as
-    [
-      [[Hinscope' _] [HwfECs' HwfHT]]
-      [[Hdisjals Halsbd] HwfM]
-    ]; simpl in Hdisjals.
-  fold Promotability.wf_ECStack in HwfECs'.
-
-  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2].
-  destruct St2 as [ECs2 M2].
-
-  simpl in Hsim.
-  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst.
-  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim.
-  destruct Hstksim as [Hecsim Hstksim].
-  unfold EC_simulation in Hecsim.
-  destruct Hecsim as
-      [Hfsim2 [Heq1 [Halsim2 [Hbsim2
-        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst.
-
-  assert (c1 = 
-    insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) (PI_align pinfo)) 
-    as EQ.
-    destruct Heq3 as [? [? [? Heq3]]]; subst.
-    eapply WF_PhiInfo_spec1'; eauto 2 using wf_system__uniqFdef.
-  subst.
-
-  inv Hop1.
-
-  uniq_result.
-  eapply mem_simulation__palloca in Hmsim; eauto.
-  destruct Hmsim as [mi' [Hmsim [Hinc [Hmi1 Hmi2]]]].
-  exists mi'.
-  repeat_solve.
-    eapply als_simulation_update_palloca; eauto.
-      eapply WF_PhiInfo_spec15 in Hpalloca; eauto using wf_system__uniqFdef.
-    eapply reg_simulation_update_palloca; eauto.
-    eapply RemoveSim.cmds_simulation_elim_cons_inv; eauto.
-    eapply inject_incr__preserves__ECs_simulation; eauto.
-      eapply malloc__isnt_alloca_in_ECs; eauto.
-    eapply OpsemAux.inject_incr__preserves__ftable_simulation; eauto.
-Qed.
-
-Lemma simulation__BOP : forall maxb mi lc lc2 los nts gl F bop0 sz0
-    v1 v2 gv3 gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
-  (Hprop2: value_doesnt_use_pid pinfo F v2) S ps
-  (Hv1: wf_value S (module_intro los nts ps) F v1 (typ_int sz0))
-  (Hv2: wf_value S (module_intro los nts ps) F v2 (typ_int sz0)),
-  wf_globals maxb gl ->
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation pinfo mi F lc lc2 ->
-  BOP (los,nts) lc gl bop0 sz0 v1 v2 = ret gv3 ->
-  BOP (los,nts) lc2 gl bop0 sz0 v1 v2 = ret gv3' ->
-  gv_inject mi gv3 gv3'.
-Proof.
-  intros maxb mi lc lc2 los nts gl F bop0 sz0 v1 v2 gv3 gv3' pinfo Me Mem2 
-    Hprop1 Hprop2 S ps Hv1 Hv2 Hwfg H0 H1 H2 H3.
-  unfold BOP in *.
-  inv_mbind'. symmetry_ctx.
-  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR1; eauto.
-  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR2; eauto.
-  eapply simulation__mbop in H2; eauto.
-  destruct H2 as [gv4 [J1 J2]].
-  uniq_result. auto.
-Qed.
-
-Lemma simulation__FBOP : forall maxb mi lc lc2 los nts gl F fop0 fp
-    v1 v2 gv3 gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
-    (Hprop2: value_doesnt_use_pid pinfo F v2) S ps
-    (Hv1: wf_value S (module_intro los nts ps) F v1 (typ_floatpoint fp))
-    (Hv2: wf_value S (module_intro los nts ps) F v2 (typ_floatpoint fp)),
-  wf_globals maxb gl ->
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation pinfo mi F lc lc2 ->
-  FBOP (los,nts) lc gl fop0 fp v1 v2 = ret gv3 ->
-  FBOP (los,nts) lc2 gl fop0 fp v1 v2 = ret gv3' ->
-  gv_inject mi gv3 gv3'.
-Proof.
-  intros maxb mi lc lc2 los nts gl F fop0 fp v1 v2 gv3 gv3' pinfo Me Mem2 Hprop1
-    Hprop2 S ps Hv1 Hv2 Hwfg H0 H1 H2 H3.
-  unfold FBOP in *.
-  inv_mbind'. symmetry_ctx.
-  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR1; eauto.
-  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR2; eauto.
-  eapply simulation__mfbop in H2; eauto.
-  destruct H2 as [gv4 [J1 J2]].
-  uniq_result. auto.
-Qed.
-
-Lemma simulation__ExtractValue : forall mi gv1 gv1' los nts t1 l0 gv gv' gl2 lc
-  lc2 v F pinfo Mem Mem2 maxb (Hprop: value_doesnt_use_pid pinfo F v) S ps
-  (Hv1: wf_value S (module_intro los nts ps) F v t1),
-  wf_globals maxb gl2 ->
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation pinfo mi F lc lc2 ->
-  getOperandValue (los,nts) v lc gl2 = Some gv1 ->
-  getOperandValue (los,nts) v lc2 gl2 = Some gv1' ->
-  extractGenericValue (los,nts) t1 gv1 l0 = Some gv ->
-  extractGenericValue (los,nts) t1 gv1' l0 = Some gv' ->
-  gv_inject mi gv gv'.
-Proof.
-  intros.
-  eapply simulation__getOperandValue with (lc2:=lc2) in H2; eauto.
-  eapply simulation__extractGenericValue in H4; eauto.
-  destruct H4 as [gv'' [J1 J2]].
-  uniq_result. auto.
-Qed.
-
-Lemma simulation__InsertValue : forall mi gv1 gv1' los nts t1 l0 gv2 gv2' gl2 lc
-  lc2 v1 v2 F pinfo Mem Mem2 maxb gv3 gv3' t2 ps S
-  (Hprop1: value_doesnt_use_pid pinfo F v1)
-  (Hprop2: value_doesnt_use_pid pinfo F v2)
-  (Hv1: wf_value S (module_intro los nts ps) F v1 t1)
-  (Hv2: wf_value S (module_intro los nts ps) F v2 t2),
-  wf_globals maxb gl2 ->
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation pinfo mi F lc lc2 ->
-  getOperandValue (los,nts) v1 lc gl2 = Some gv1 ->
-  getOperandValue (los,nts) v1 lc2 gl2 = Some gv1' ->
-  getOperandValue (los,nts) v2 lc gl2 = Some gv2 ->
-  getOperandValue (los,nts) v2 lc2 gl2 = Some gv2' ->
-  insertGenericValue (los,nts) t1 gv1 l0 t2 gv2 = ret gv3 ->
-  insertGenericValue (los,nts) t1 gv1' l0 t2 gv2' = ret gv3' ->
-  gv_inject mi gv3 gv3'.
-Proof.
-  intros.
-  eapply simulation__getOperandValue with (lc2:=lc2) in H2; eauto.
-  eapply simulation__getOperandValue with (lc2:=lc2) in H4; eauto.
-  eapply simulation__insertGenericValue in H6; eauto.
-  destruct H6 as [gv'' [J1 J2]].
-  uniq_result. auto.
-Qed.
-
-Lemma simulation__values2GVs : forall maxb mi lc lc2 los nts Mem Mem2 gl F idxs 
-  gvs gvs' pinfo (Hprop: list_value_doesnt_use_pid pinfo F idxs) S ps
-  (Ht: wf_value_list 
-    (List.map
-      (fun p : sz * value =>
-        let '(sz_, value_) := p in
-         (S,(module_intro los nts ps),F,value_,typ_int Size.ThirtyTwo)) idxs)),
-  wf_globals maxb gl ->
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation pinfo mi F lc lc2 ->
-  values2GVs (los,nts) idxs lc gl = ret gvs ->
-  values2GVs (los,nts) idxs lc2 gl = ret gvs' ->
-  gvs_inject mi gvs gvs'.
-Proof.
-  induction idxs; simpl; intros.
-    inv H2. inv H3. simpl. auto.
-
-    simpl_prod.
-    rewrite wf_value_list_cons_iff in Ht. destruct Ht.
-    inv_mbind'. symmetry_ctx.
-    assert (list_value_doesnt_use_pid pinfo F idxs /\
-            value_doesnt_use_pid pinfo F v) as J.
-      unfold list_value_doesnt_use_pid in *.
-      unfold value_doesnt_use_pid in *.
-      simpl in Hprop.
-      destruct Hprop as [Hprop | Hprop]; auto.
-      apply orb_false_iff in Hprop.
-      destruct Hprop; auto.
-    destruct J as [J1 J2].
-    eapply simulation__getOperandValue with (lc2:=lc2) in HeqR1; eauto.
-    simpl. split; eauto.
-Qed.
-
-Lemma simulation__GEP : forall maxb mi los nts Mem Mem2 inbounds0 vidxs1 vidxs2 
-    gv1 gv1' gv2 gv2' t gl2 lc lc2 idxs v F pinfo t' S ps
-  (Hprop1: value_doesnt_use_pid pinfo F v)
-  (Hprop2: list_value_doesnt_use_pid pinfo F idxs)
-  (Hv1: wf_value S (module_intro los nts ps) F v (typ_pointer t))
-  (Ht: wf_value_list 
-    (List.map
-      (fun p : sz * value =>
-        let '(sz_, value_) := p in
-          (S,(module_intro los nts ps),F,value_,typ_int Size.ThirtyTwo)) idxs)),
-  wf_globals maxb gl2 ->
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation pinfo mi F lc lc2 ->
-  getOperandValue (los,nts) v lc gl2 = Some gv1 ->
-  getOperandValue (los,nts) v lc2 gl2 = Some gv1' ->
-  values2GVs (los,nts) idxs lc gl2 = Some vidxs1 ->
-  values2GVs (los,nts) idxs lc2 gl2 = Some vidxs2 ->
-  GEP (los,nts) t gv1 vidxs1 inbounds0 t' = ret gv2 ->
-  GEP (los,nts) t gv1' vidxs2 inbounds0 t' = ret gv2' ->
-  gv_inject mi gv2 gv2'.
-Proof.
-  intros.
-  eapply simulation__getOperandValue with (lc2:=lc2) in H2; eauto.
-  eapply simulation__values2GVs with (lc2:=lc2) in H4; eauto.
-  eapply genericvalues_inject.simulation__GEP in H6; eauto.
-  destruct H6 as [gv'' [J1 J2]].
-  uniq_result. auto.
-Qed.
-
-Lemma simulation__TRUNC : forall maxb mi lc lc2 los nts gl F op t1 t2
-    v1 gv3 gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
-  S ps (Hv1: wf_value S (module_intro los nts ps) F v1 t1),
-  wf_globals maxb gl ->
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation pinfo mi F lc lc2 ->
-  TRUNC (los,nts) lc gl op t1 v1 t2 = ret gv3 ->
-  TRUNC (los,nts) lc2 gl op t1 v1 t2 = ret gv3' ->
-  gv_inject mi gv3 gv3'.
-Proof.
-  intros maxb mi lc lc2 los nts gl F op t1 t2 v1 gv3 gv3' pinfo Mem Mem2 Hwfg 
-    Hprop1 S ps Hv1 H0 H1 H2 H3.
-  unfold TRUNC in *.
-  inv_mbind'. symmetry_ctx.
-  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR; eauto.
-  eapply simulation__mtrunc in H3; eauto.
-  destruct H3 as [gv4 [J1 J2]].
-  uniq_result. auto.
-Qed.
-
-Lemma simulation__EXT : forall maxb mi lc lc2 los nts gl F op t1 t2
-    v1 gv3 gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
-  S ps (Hv1: wf_value S (module_intro los nts ps) F v1 t1),
-  wf_globals maxb gl ->
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation pinfo mi F lc lc2 ->
-  EXT (los,nts) lc gl op t1 v1 t2 = ret gv3 ->
-  EXT (los,nts) lc2 gl op t1 v1 t2 = ret gv3' ->
-  gv_inject mi gv3 gv3'.
-Proof.
-  intros maxb mi lc lc2 los nts gl F op t1 t2 v1 gv3 gv3' pinfo Mem Mem2 Hprop1 
-    S ps Hv1 Hwfg H0 H1 H2 H3.
-  unfold EXT in *.
-  inv_mbind'. symmetry_ctx.
-  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR; eauto.
-  eapply simulation__mext in H3; eauto.
-  destruct H3 as [gv4 [J1 J2]].
-  uniq_result. auto.
-Qed.
-
-Lemma simulation__CAST : forall maxb mi lc lc2 los nts gl F op t1 t2
-    v1 gv3 gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
-  S ps (Hv1: wf_value S (module_intro los nts ps) F v1 t1),
-  wf_globals maxb gl ->
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation pinfo mi F lc lc2 ->
-  CAST (los,nts) lc gl op t1 v1 t2 = ret gv3 ->
-  CAST (los,nts) lc2 gl op t1 v1 t2 = ret gv3' ->
-  gv_inject mi gv3 gv3'.
-Proof.
-  intros maxb mi lc lc2 los nts gl F op t1 t2 v1 gv3 gv3' pinfo Mem Mem2 Hprop1 
-    S ps Hv1 Hwfg H0 H1 H2 H3.
-  unfold CAST in *.
-  inv_mbind'. symmetry_ctx.
-  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR; eauto.
-  eapply simulation__mcast in H3; eauto.
-  destruct H3 as [gv4 [J1 J2]].
-  uniq_result. auto.
-Qed.
-
-Lemma simulation__ICMP : forall maxb mi lc lc2 los nts gl F cond0 t1 v1 v2 gv3 
-  gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
-  (Hprop2: value_doesnt_use_pid pinfo F v2)
-  S ps (Hv1: wf_value S (module_intro los nts ps) F v1 t1)
-  (Hv2: wf_value S (module_intro los nts ps) F v2 t1),
-  wf_globals maxb gl ->
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation pinfo mi F lc lc2 ->
-  ICMP (los,nts) lc gl cond0 t1 v1 v2 = ret gv3 ->
-  ICMP (los,nts) lc2 gl cond0 t1 v1 v2 = ret gv3' ->
-  gv_inject mi gv3 gv3'.
-Proof.
-  intros maxb mi lc lc2 los nts gl F cond0 t1 v1 v2 gv3 gv3' pinfo Me Mem2 
-    Hprop1 Hprop2 S ps Hv1 Hv2 Hwfg H0 H1 H2 H3.
-  unfold ICMP in *.
-  inv_mbind'. symmetry_ctx.
-  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR1; eauto.
-  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR2; eauto.
-  eapply simulation__micmp in H2; eauto.
-  destruct H2 as [gv4 [J1 J2]].
-  uniq_result. auto.
-Qed.
-
-Lemma simulation__FCMP : forall maxb mi lc lc2 los nts gl F fcond0 fp v1 v2 gv3 
-  gv3' pinfo Mem Mem2 (Hprop1: value_doesnt_use_pid pinfo F v1)
-  (Hprop2: value_doesnt_use_pid pinfo F v2)
-  S ps (Hv1: wf_value S (module_intro los nts ps) F v1 (typ_floatpoint fp))
-  (Hv2: wf_value S (module_intro los nts ps) F v2 (typ_floatpoint fp)),
-  wf_globals maxb gl ->
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation pinfo mi F lc lc2 ->
-  FCMP (los,nts) lc gl fcond0 fp v1 v2 = ret gv3 ->
-  FCMP (los,nts) lc2 gl fcond0 fp v1 v2 = ret gv3' ->
-  gv_inject mi gv3 gv3'.
-Proof.
-  intros maxb mi lc lc2 los nts gl F cond0 t1 v1 v2 gv3 gv3' pinfo Me Mem2 Hprop1
-    Hprop2 S ps Hv1 Hv2 Hwfg H0 H1 H2 H3.
-  unfold FCMP in *.
-  inv_mbind'. symmetry_ctx.
-  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR1; eauto.
-  eapply simulation__getOperandValue with (lc2:=lc2) in HeqR2; eauto.
-  eapply simulation__mfcmp in H2; eauto.
-  destruct H2 as [gv4 [J1 J2]].
-  uniq_result. auto.
-Qed.
-
 Lemma mem_simulation__malloc_l2r' : forall mi TD Mem1 Mem2 tsz gn Mem1' mb1
   pinfo maxb align0 gn' ecs 
   (Hmsim : mem_simulation pinfo maxb mi ecs Mem1 Mem2)
@@ -756,51 +733,6 @@ Proof.
   eapply mem_simulation__malloc_l2r in Hmsim; eauto.
   destruct Hmsim as [Mem2'0 [mi' [mb3 [J1 [J2 [J3 J4]]]]]].
   uniq_result. eauto.
-Qed.
-
-Lemma als_simulation__malloc: forall pinfo F lc mi id0 mi' Mem1 Mem1' mb TD
-  t tsz0 gn align0 maxb als1 als2
-  (Hprom: if fdef_dec (PI_f pinfo) F
-          then Promotability.wf_defs maxb pinfo TD Mem1 lc als1
-          else True)
-  (Hml: malloc TD Mem1 tsz0 gn align0 = ret (Mem1', mb))
-  (Hprop1 : inject_incr mi mi')
-  (Hprop2 : forall b : mblock, b <> mb -> mi b = mi' b),
-  PI_f pinfo <> F \/ PI_id pinfo <> id0 ->
-  als_simulation pinfo mi F lc als1 als2 ->
-  als_simulation pinfo mi' F
-    (updateAddAL (GVsT DGVs) lc id0 ($ blk2GV TD mb # typ_pointer t $))
-    als1 als2.
-Proof.
-  intros.
-  apply als_simulation_update_lc; auto.
-  eapply inject_incr__preserves__als_simulation; eauto.
-  eapply malloc__is_alloca_in_EC; eauto.
-Qed.
-
-Lemma als_simulation__alloca: forall pinfo F als1 als2 lc mi id0 mi' mb1 mb2 TD
-  t tsz0 gn align0 maxb Mem1 Mem1'
-  (Hprom: if fdef_dec (PI_f pinfo) F
-          then Promotability.wf_defs maxb pinfo TD Mem1 lc als1
-          else True)
-  (Hml: malloc TD Mem1 tsz0 gn align0 = ret (Mem1', mb1))
-  (Hprop1 : inject_incr mi mi') (Hprop3 : mi' mb1 = ret (mb2, 0))
-  (Hprop2 : forall b : mblock, b <> mb1 -> mi b = mi' b),
-  PI_f pinfo <> F \/ PI_id pinfo <> id0 ->
-  als_simulation pinfo mi F lc als1 als2 ->
-  als_simulation pinfo mi' F
-    (updateAddAL (GVsT DGVs) lc id0 ($ blk2GV TD mb1 # typ_pointer t $))
-    (mb1::als1) (mb2::als2).
-Proof.
-  intros.
-  apply als_simulation_update_lc; auto.
-  apply inject_incr__preserves__als_simulation with (mi':=mi') in H0; auto.
-    simpl.
-    assert (Hml':=Hml).
-    apply MemProps.malloc_result in Hml'. subst.
-    erewrite Promotability_wf_EC__isnt_alloca_in_EC; eauto.
-
-    eapply malloc__is_alloca_in_EC; eauto.
 Qed.
 
 Lemma simulation__mload_l2r : forall mi TD pinfo maxb Mem1 Mem2 gvp1 align0 gv1 
@@ -946,6 +878,8 @@ Proof.
   split; auto. split; auto. exists mi''. eauto.
 Qed.
 
+(***********************************************************)
+(* Preservation *)
 Ltac destruct_ctx_other :=
 match goal with
 | Hwfcfg : OpsemPP.wf_Config
@@ -1109,6 +1043,80 @@ Ltac simulation__getOperandValue_tac2 := try solve [
       eapply simulation__getOperandValue; simulation__getOperandValue_tac1
     ].
 
+Lemma dae_is_sim_removable_state: forall (maxb : Values.block) (pinfo : PhiInfo)
+  (mi : MoreMem.meminj) (Cfg1 : OpsemAux.Config) (St1 : Opsem.State)
+  (Cfg2 : OpsemAux.Config) (St2 : Opsem.State) (Hwfpi : WF_PhiInfo pinfo)
+  (Hwfgl : wf_globals maxb (OpsemAux.Globals Cfg1)) (Hinbd : 0 <= maxb)
+  (Hnuse : used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
+  (Hwfcfg : OpsemPP.wf_Config Cfg1) (Hwfpp : OpsemPP.wf_State Cfg1 St1)
+  (Hnoalias : Promotability.wf_State maxb pinfo Cfg1 St1)
+  (Hsim : State_simulation pinfo maxb mi Cfg1 St1 Cfg2 St2)
+  (Hrem : removable_State pinfo St1) (St1' : Opsem.State) (tr1 : trace)
+  (Hpalloca : palloca_props.wf_State pinfo St1)
+  (Hop1 : Opsem.sInsn Cfg1 St1 St1' tr1),
+  exists mi' : MoreMem.meminj,
+    State_simulation pinfo maxb mi' Cfg1 St1' Cfg2 St2 /\
+    tr1 = E0 /\ inject_incr mi mi'.
+Proof.
+  intros.
+  destruct Cfg1 as [S1 [los nts] Ps1 gl1 fs1].
+  destruct St1 as [ECs1 M1].
+  destruct ECs1 as [|[F1 B1 [|c1 cs1] tmn1 lc1 als1] ECs1]; tinv Hrem.
+  simpl in Hrem.
+  destruct (fdef_dec (PI_f pinfo) F1); subst; tinv Hrem.
+  destruct (id_dec (PI_id pinfo) (getCmdLoc c1)); subst; tinv Hrem.
+
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]]; subst.
+  destruct Hwfpp as
+    [_ [
+     [Hreach1 [HBinF1 [HFinPs1 _]]]
+     [HwfECs Hwfcall]]
+    ]; subst.
+  fold (@OpsemPP.wf_ECStack DGVs) in HwfECs.
+
+  destruct Hnoalias as
+    [
+      [[Hinscope' _] [HwfECs' HwfHT]]
+      [[Hdisjals Halsbd] HwfM]
+    ]; simpl in Hdisjals.
+  fold Promotability.wf_ECStack in HwfECs'.
+
+  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2].
+  destruct St2 as [ECs2 M2].
+
+  simpl in Hsim.
+  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst.
+  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim.
+  destruct Hstksim as [Hecsim Hstksim].
+  unfold EC_simulation in Hecsim.
+  destruct Hecsim as
+      [Hfsim2 [Heq1 [Halsim2 [Hbsim2
+        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst.
+
+  assert (c1 = 
+    insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) (PI_align pinfo)) 
+    as EQ.
+    destruct Heq3 as [? [? [? Heq3]]]; subst.
+    eapply WF_PhiInfo_spec1'; eauto 2 using wf_system__uniqFdef.
+  subst.
+
+  inv Hop1.
+
+  uniq_result.
+  eapply mem_simulation__palloca in Hmsim; eauto.
+  destruct Hmsim as [mi' [Hmsim [Hinc [Hmi1 Hmi2]]]].
+  exists mi'.
+  repeat_solve.
+    eapply als_simulation_update_palloca; eauto.
+      eapply WF_PhiInfo_spec15 in Hpalloca; eauto using wf_system__uniqFdef.
+    eapply reg_simulation_update_palloca; eauto.
+    eapply RemoveSim.cmds_simulation_elim_cons_inv; eauto.
+    eapply inject_incr__preserves__ECs_simulation; eauto.
+      eapply malloc__isnt_alloca_in_ECs; eauto.
+    eapply OpsemAux.inject_incr__preserves__ftable_simulation; eauto.
+Qed.
+
+(* The main result *)
 Lemma dae_is_sim : forall maxb pinfo mi Cfg1 St1 Cfg2 St2
   (Hwfpi: WF_PhiInfo pinfo)
   (Hwfgl: genericvalues_inject.wf_globals maxb (OpsemAux.Globals Cfg1))

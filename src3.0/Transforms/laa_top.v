@@ -21,6 +21,7 @@ Require Import subst_sim.
 Require Import die_wfS.
 Require Import die_top.
 
+(* LAA's vev_State invariant is preserved. *)
 Lemma vev_State_preservation : forall pinfo laainfo cfg IS maxb
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg))
   (Halias: Promotability.wf_State maxb pinfo cfg IS) (Hwfpi: WF_PhiInfo pinfo)
@@ -39,6 +40,7 @@ Proof.
     eapply alive_alloca.preservation in Hstep; eauto.
 Qed.
 
+(* LAA refines programs. *)
 Lemma LAA_value__dominates__LAA_lid: forall pinfo lasinfo,
   valueDominates (PI_f pinfo) [! pinfo !] (value_id (LAA_lid pinfo lasinfo)).
 Proof. simpl. auto. Qed.
@@ -173,6 +175,7 @@ Proof.
   eapply laa_sim'; eauto.
 Qed.
 
+(* LAA + deletion refines programs and preserves well-formedness. *)
 Lemma laa_die_sim_wfS': forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo : PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)

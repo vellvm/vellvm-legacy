@@ -1,6 +1,15 @@
 Require Import vellvm.
 Require Import Iteration.
 
+(* Define an iterated block-level transformation pass. *)
+
+(* One iteration:
+   effects: the states that a pass needs to maintain;
+   context: unchanged parameters of the pass;
+   iter_block: the transformer that, given a function, a block in the function,
+     parameters and states, returns whether the function is changed, and the 
+     changed function and states.
+   init_effects: initial states. *)
 Structure IterPass := mkIterPass {
   effects: Type;
   context: Type;
@@ -14,6 +23,7 @@ Section IterationPass.
 
 Variable (pass:IterPass).
 
+(* Apply iter_block to a list of blocks *)
 Fixpoint iter_blocks (f:fdef) (bs: blocks) (ctx:pass.(context)) (rd:list l) 
   (efs:pass.(effects)) : fdef * bool * pass.(effects) :=
 match bs with
@@ -26,10 +36,13 @@ match bs with
     else iter_blocks f bs' ctx rd efs
 end.
 
+(* Apply iter_block to a function *)
 Definition iter_fdef (f:fdef) (ctx:pass.(context)) (rd:list l)  
   (efs:pass.(effects)) : fdef * bool * pass.(effects) :=
 let '(fdef_intro fh bs) := f in iter_blocks f bs ctx rd efs.
 
+(* The iteration runs until the maximal number of steps reaches, or 
+   the function is not changed. *)
 Definition iter_step (ctx:pass.(context)) (rd:list l) (st: fdef * pass.(effects))
   : fdef * pass.(effects) + fdef * pass.(effects) :=
 let '(f, efs) := st in

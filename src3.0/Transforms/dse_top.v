@@ -17,6 +17,8 @@ Require Import top_sim.
 Require Import dse.
 Require Import dse_wfS.
 
+(* This file proves that DSE refines programs by top_sim. *)
+
 Lemma s_genInitState__dse_State_simulation: forall pinfo S1 S2 main VarArgs cfg2
   IS2 (Hssim: system_simulation pinfo S1 S2) (Hwfpi: WF_PhiInfo pinfo)
   (HwfS1: wf_system S1) Ps1 Ps2 los0 nts0 f0
@@ -1114,6 +1116,7 @@ End TOPSIM.
 
 Require Import Program.Tactics.
 
+(* The main result *)
 Lemma dse_sim: forall (pinfo:PhiInfo) f pid Ps1 Ps2 los nts main
   VarArgs (Heq1: PI_id pinfo = pid) (Heq2: PI_f pinfo = f)
   (Hwfpi: WF_PhiInfo pinfo)

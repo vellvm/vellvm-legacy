@@ -35,39 +35,7 @@ Proof.
         exists l0. simpl. auto.
 Qed.
 
-Lemma eliminate_phi_false_spec: forall f p f'
-  (Helim: (f', false) = eliminate_phi f p), f = f'.
-Proof.
-  destruct p as [pid pty pvls].
-  unfold eliminate_phi.
-  intros. 
-  remember (remove_redundancy nil (value_id pid :: List.map fst pvls)) 
-    as R.
-  destruct R as [|[] l0]; inv Helim; auto.
-    repeat destruct_if; auto.
-
-    destruct l0 as [|[] l0]; inv H0; try solve [
-      auto |
-      destruct l0 as [|]; inv H1; 
-        try solve [auto | repeat destruct_if; auto]
-    ].
-
-    destruct l0 as [|? [|]]; inv H0; 
-      try solve [auto | repeat destruct_if; auto].
-Qed.
-
-Lemma eliminate_phis_false_spec: forall f' f ps0
-  (Helim: (f', false) = eliminate_phis f ps0 ), f' = f.
-Proof.
-  induction ps0 as [|p]; simpl; intros.
-    congruence.
-
-    remember (eliminate_phi f p) as R.
-    destruct R as []; inv Helim.
-    destruct_if; auto.
-    apply eliminate_phi_false_spec in HeqR. subst. auto.
-Qed.
-
+(*****************************************************)
 (* b0 defines a phinode whose reachable incoming values are all defined in b0 *)
 Inductive selfrefl_phi (f:fdef) (b0:block): phinode -> Prop :=
 | selfrefl_phi_intro: forall pid ty vls
@@ -201,6 +169,7 @@ Proof.
       destruct Hwalk2; subst; auto.
 Qed.
 
+(*****************************************************)
 (* 
   all incoming variables equal to the variable defined by the phinode:
     vid = phi [vid vid ... vid] 
@@ -245,6 +214,7 @@ Proof.
     eauto using identity_phi__selfrefl_phi.
 Qed.
 
+(*****************************************************)
 (* 
   all incoming values equal to either v or the variable defined by the phinode:
     vid = phi [vid v ... vid v] 
@@ -477,6 +447,30 @@ Proof.
       contradict n. solve_in_list.
 Qed.
 
+Lemma assigned_phi__wf_value: forall S M p f l0 ps0 cs0 tmn0
+  (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
+  (HBinF: blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true) 
+  (Hin: In p ps0) v (Hassign: assigned_phi v p),
+  forall ty, 
+    lookupTypViaIDFromFdef f (getPhiNodeID p) = Some ty ->
+    wf_value S M f v ty.
+Proof.
+  intros.
+  erewrite uniqF__lookupPhiNodeTypViaIDFromFdef in H; eauto.
+  inv H.
+  assert (Hwfp:=HBinF).
+  eapply wf_fdef__wf_phinodes in Hwfp; eauto.
+  eapply wf_phinodes__wf_phinode in Hwfp; eauto.
+  inv Hwfp.
+  inv Hassign.
+  destruct Hex as [lv Hinlist].
+  apply H0.
+  rewrite <- fst_split__map_fst. 
+  apply in_split_l in Hinlist; auto.
+Qed.
+
+(*****************************************************)
+(* Properties of valueInListValueB *)
 Lemma valueInListValueB_spec: forall (v:value) (vs:list value),
   valueInListValueB v vs = true <-> In v vs.
 Proof.
@@ -502,7 +496,9 @@ Proof.
             intros; subst; auto.
 Qed.
 
-Lemma remove_redundancy_aux: forall vs acc re
+(*****************************************************)
+(* Properties of remove_redundancy *)
+Lemma remove_redundancy_spec_aux: forall vs acc re
   (Hred: re = remove_redundancy acc vs) 
   (Hnodup: NoDup (values2ids acc)),
   (forall v0, (In v0 vs \/ In v0 acc) <-> In v0 re) /\
@@ -551,13 +547,13 @@ Proof.
           apply J1 in J. simpl in J. tauto.
 Qed.
 
-Lemma remove_redundancy: forall vs vs'
+Lemma remove_redundancy_spec: forall vs vs'
   (Hred: vs' = remove_redundancy nil vs),
   (forall v0, In v0 vs <-> In v0 vs') /\
   NoDup (values2ids vs').
 Proof.
   intros.
-  apply remove_redundancy_aux in Hred; simpl; auto.
+  apply remove_redundancy_spec_aux in Hred; simpl; auto.
   destruct Hred as [J1 J2].
   split; auto.
     intros v0.  
@@ -565,6 +561,42 @@ Proof.
     split; auto.
       intro J.
       apply J4 in J. tauto.
+Qed.
+
+(*****************************************************)
+(* Properties of eliminate_phis *)
+
+Lemma eliminate_phi_false_spec: forall f p f'
+  (Helim: (f', false) = eliminate_phi f p), f = f'.
+Proof.
+  destruct p as [pid pty pvls].
+  unfold eliminate_phi.
+  intros. 
+  remember (remove_redundancy nil (value_id pid :: List.map fst pvls)) 
+    as R.
+  destruct R as [|[] l0]; inv Helim; auto.
+    repeat destruct_if; auto.
+
+    destruct l0 as [|[] l0]; inv H0; try solve [
+      auto |
+      destruct l0 as [|]; inv H1; 
+        try solve [auto | repeat destruct_if; auto]
+    ].
+
+    destruct l0 as [|? [|]]; inv H0; 
+      try solve [auto | repeat destruct_if; auto].
+Qed.
+
+Lemma eliminate_phis_false_spec: forall f' f ps0
+  (Helim: (f', false) = eliminate_phis f ps0 ), f' = f.
+Proof.
+  induction ps0 as [|p]; simpl; intros.
+    congruence.
+
+    remember (eliminate_phi f p) as R.
+    destruct R as []; inv Helim.
+    destruct_if; auto.
+    apply eliminate_phi_false_spec in HeqR. subst. auto.
 Qed.
 
 Lemma eliminate_phi_true_spec: forall S M f b f'
@@ -585,7 +617,7 @@ Proof.
   simpl in HPinB. apply InPhiNodesB_In in HPinB.
   remember (vmem2reg.remove_redundancy nil 
              (value_id pid :: List.map fst pvls)) as vs.
-  apply remove_redundancy in Heqvs.
+  apply remove_redundancy_spec in Heqvs.
   destruct Heqvs as [Hinc Hnodup].
   rewrite <- fst_split__map_fst in Hinc.
   destruct vs as [|v1 vs']; try solve [repeat destruct_if; auto].
@@ -746,24 +778,25 @@ Proof.
   bsplit; auto. simpl. solve_in_list.
 Qed.
 
-Lemma assigned_phi__wf_value: forall S M p f l0 ps0 cs0 tmn0
-  (Hwf: wf_fdef S M f) (Huniq: uniqFdef f)
-  (HBinF: blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true) 
-  (Hin: In p ps0) v (Hassign: assigned_phi v p),
-  forall ty, 
-    lookupTypViaIDFromFdef f (getPhiNodeID p) = Some ty ->
-    wf_value S M f v ty.
+Lemma eliminate_phi_true_simpl_spec: forall p f f'
+  (Helim: (f', true) = eliminate_phi f p),
+  f' = remove_fdef (getPhiNodeID p) f \/
+  exists v, 
+    f' = remove_fdef (getPhiNodeID p) (subst_fdef (getPhiNodeID p) v f).
 Proof.
-  intros.
-  erewrite uniqF__lookupPhiNodeTypViaIDFromFdef in H; eauto.
-  inv H.
-  assert (Hwfp:=HBinF).
-  eapply wf_fdef__wf_phinodes in Hwfp; eauto.
-  eapply wf_phinodes__wf_phinode in Hwfp; eauto.
-  inv Hwfp.
-  inv Hassign.
-  destruct Hex as [lv Hinlist].
-  apply H0.
-  rewrite <- fst_split__map_fst. 
-  apply in_split_l in Hinlist; auto.
+  destruct p as [pid pty pvls].
+  unfold eliminate_phi.
+  intros. 
+  remember (vmem2reg.remove_redundancy nil 
+             (value_id pid :: List.map fst pvls)) as vs.
+  destruct vs as [|v1 vs']; try solve [repeat destruct_if; auto].
+  destruct v1 as [vid1 | vc1].
+    destruct vs' as [|v2]; inv Helim; auto.
+      destruct vs' as [|]; try solve [repeat destruct_if; auto].
+        right. destruct_if; eauto.
+    destruct vs' as [|? vs']; try solve [repeat destruct_if; auto].
+      inv Helim. auto.
+      destruct vs' as [|? vs']; try solve [repeat destruct_if; auto].
+        inv Helim. eauto.
 Qed.
+

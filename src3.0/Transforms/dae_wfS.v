@@ -13,6 +13,9 @@ Require Import trans_tactic.
 Require Import dae.
 Require Import filter.
 
+(* This file proves that DAE preserves well-formedness. *)
+
+(* DAE preserves well-formedness. *)
 Lemma dae_wfS: forall
   (id0 : id) (f :fdef) (pinfo : PhiInfo)
   (los : layouts) (nts : namedts) (Ps1 Ps2 : list product)

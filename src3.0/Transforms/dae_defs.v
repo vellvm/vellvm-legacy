@@ -14,6 +14,8 @@ Require Import genericvalues_inject.
 Require Import trans_tactic.
 Require Import top_sim.
 
+(************************************************************)
+(* Simulation relation *)
 Definition fdef_simulation (pinfo: PhiInfo) f1 f2 : Prop :=
 RemoveSim.fdef_simulation (PI_f pinfo) (PI_id pinfo) f1 f2.
 
@@ -35,6 +37,7 @@ Definition products_simulation (pinfo: PhiInfo) Ps1 Ps2 : Prop :=
 Definition system_simulation (pinfo: PhiInfo) S1 S2 : Prop :=
 @TopSim.system_simulation (Fsim pinfo) S1 S2.
 
+(* Check if blk1 is a promotable block. *)
 Definition is_alloca_in_EC (pinfo: PhiInfo) F1 (lc1:@Opsem.GVsMap DGVs)
   (blk1: mblock) : bool :=
   if (fdef_dec (PI_f pinfo) F1) then
@@ -46,11 +49,10 @@ Definition is_alloca_in_EC (pinfo: PhiInfo) F1 (lc1:@Opsem.GVsMap DGVs)
     end
   else false.
 
-Definition als_blk_simulation (pinfo: PhiInfo) (mi:MoreMem.meminj) F1
-  (lc1:@Opsem.GVsMap DGVs) (blk1 blk2: mblock) : Prop :=
-  if (is_alloca_in_EC pinfo F1 lc1 blk1) then mi blk1 = None
-  else mi blk1 = Some (blk2, 0).
-
+(* mi is a mapping between memory states. 
+   blk1 and blk2 are memory blocks from two programs.
+   If blk1 is not promotable, mi maps blk1 to blk2.
+   Otherwise, mi ignores blk1. *)
 Fixpoint als_simulation (pinfo: PhiInfo) (mi:MoreMem.meminj) F1 lc1
   (als1 als2:list mblock) : Prop :=
   match (als1, als2) with
@@ -67,6 +69,7 @@ Fixpoint als_simulation (pinfo: PhiInfo) (mi:MoreMem.meminj) F1 lc1
   | _ => False
   end.
 
+(* Values equal in terms of memory mapping mi. *)
 Definition reg_simulation (pinfo: PhiInfo) (mi:MoreMem.meminj) (F1:fdef)
   (lc1 lc2:@Opsem.GVsMap DGVs) : Prop :=
   if (fdef_dec (PI_f pinfo) F1) then
@@ -110,15 +113,19 @@ match ECs1, ECs2 with
 | _, _ => False
 end.
 
+(* Ensure that blk is promotable in all frames of stack. *)
 Definition isnt_alloca_in_ECs (pinfo:PhiInfo) (ecs:list (fdef*Opsem.GVsMap))
   (blk:mblock) : Prop :=
   forall f lc (Hin: In (f,lc) ecs),
     is_alloca_in_EC pinfo f lc blk = false.
 
+(* Get interesting parts (function and locals) from ECs. *)
 Definition strip_ECs (ecs:list (@Opsem.ExecutionContext DGVs))
   : list (fdef*Opsem.GVsMap) :=
 List.map (fun ec => (Opsem.CurFunction ec, Opsem.Locals ec)) ecs.
 
+(* memory states are related by well-formed mapping mi.
+   mi does not map promotable blocks. *)
 Definition mem_simulation (pinfo:PhiInfo) mgb (mi:MoreMem.meminj)
   (ecs:list (fdef*Opsem.GVsMap)) Mem1 Mem2 : Prop :=
 MoreMem.mem_inj mi Mem1 Mem2 /\
@@ -145,9 +152,37 @@ match (St1, St2) with
     mem_simulation pinfo mgb mi (strip_ECs ECs1) M1 M2
 end.
 
+(***********************************************************)
 Definition removable_State (pinfo: PhiInfo) (St:@Opsem.State DGVs) : Prop :=
 RemoveSim.removable_State (PI_f pinfo) (PI_id pinfo) St.
 
+(***********************************************************)
+(* Properties of gv_inject *)
+Lemma simulation__lift_opt1: forall (mi : MoreMem.meminj) (TD : TargetData)
+  (t : typ) (g1 g2 g2' g1': GVsT DGVs)
+  (HeqR2 : lift_op1 DGVs (fit_gv TD t) g2 t = ret g2')
+  (HeqR1 : lift_op1 DGVs (fit_gv TD t) g1 t = ret g1')
+  (HeqR : gv_inject mi g1 g2),
+  gv_inject mi g1' g2'.
+Proof.
+  intros.
+Transparent lift_op1.
+  unfold lift_op1 in *. simpl in *.
+  unfold MDGVs.lift_op1 in *.
+  unfold fit_gv in *.
+  inv_mbind'. symmetry_ctx.
+  erewrite gv_inject__same_size in H0; eauto.
+  erewrite simulation__gv_chunks_match_typb in H0; eauto.
+  destruct_if.
+    inv HeqR2. auto.
+
+    uniq_result.
+    eapply gv_inject_gundef; eauto.
+Opaque lift_op1.
+Qed.
+
+(***********************************************************)
+(* Properties of reg_simulation *)
 Lemma reg_simulation_update_palloca: forall (pinfo : PhiInfo)
   (mi : MoreMem.meminj) TD (lc1 lc2 : Opsem.GVsMap)
   (Hlcsim2 : reg_simulation pinfo mi (PI_f pinfo) lc1 lc2)
@@ -167,185 +202,6 @@ Proof.
   rewrite <- lookupAL_updateAddAL_neq in H; auto.
   eapply J in H; eauto.
   eapply gv_inject_incr; eauto.
-Qed.
-
-Lemma inject_incr__preserves__als_simulation: forall pinfo mi f lc1 als1 als2
-  mi',
-  als_simulation pinfo mi f lc1 als1 als2 ->
-  (forall blk,
-    is_alloca_in_EC pinfo f lc1 blk = true ->
-    mi blk = None -> mi' blk = None) ->
-  inject_incr mi mi' ->
-  als_simulation pinfo mi' f lc1 als1 als2.
-Proof.
-  induction als1; destruct als2; simpl; intros; auto.
-    remember (is_alloca_in_EC pinfo f lc1 a) as R.
-    destruct R; auto.
-    destruct H.
-    split; eauto.
-
-    remember (is_alloca_in_EC pinfo f lc1 a) as R.
-    destruct R; destruct H; split; eauto.
-Qed.
-
-Lemma inject_incr__preserves__reg_simulation: forall pinfo mi f lc1 lc2 mi',
-  reg_simulation pinfo mi f lc1 lc2 ->
-  inject_incr mi mi' ->
-  reg_simulation pinfo mi' f lc1 lc2.
-Proof.
-  intros pinfo mi f lc1 lc2 mi' Hrsim Hinc.
-  unfold reg_simulation in *.
-  destruct (fdef_dec (PI_f pinfo) f); subst.
-    intros.
-    assert (J:=@Hrsim i0).
-    destruct (id_dec (PI_id pinfo) i0); subst; auto.
-    intros. eapply J in H; eauto using gv_inject_incr.
-
-    intros. eapply Hrsim in H; eauto using gv_inject_incr.
-Qed.
-
-Lemma inject_incr__preserves__EC_simulation: forall pinfo mi mi' EC1 EC2,
-  EC_simulation pinfo mi EC1 EC2 ->
-  (forall blk,
-    is_alloca_in_EC pinfo (Opsem.CurFunction EC1) (Opsem.Locals EC1) blk
-      = true ->
-    mi blk = None -> mi' blk = None) ->
-  inject_incr mi mi' ->
-  EC_simulation pinfo mi' EC1 EC2.
-Proof.
-  intros.
-  destruct EC1 as [f1 b1 cs1 tmn1 lc1 als1].
-  destruct EC2 as [f2 b2 cs2 tmn2 lc2 als2].
-  destruct f1. destruct f2.
-  destruct b1; tinv H.
-  unfold EC_simulation in H.
-  destruct H as [Hfsim [Heq0 [Hasim [Hbsim [Heqb1 [Heqb2 [Hrsim Hcssim]]]]]]];
-    subst.
-  eapply inject_incr__preserves__als_simulation in Hasim; eauto.
-  eapply inject_incr__preserves__reg_simulation in Hrsim; eauto.
-  repeat (split; auto).
-Qed.
-
-Lemma inject_incr__preserves__ECs_simulation: forall pinfo mi mi' ECs1 ECs2,
-  ECs_simulation pinfo mi ECs1 ECs2 ->
-  (forall blk, ~ isnt_alloca_in_ECs pinfo (strip_ECs ECs1) blk ->
-    mi blk = None -> mi' blk = None) ->
-  inject_incr mi mi' ->
-  ECs_simulation pinfo mi' ECs1 ECs2.
-Proof.
-  induction ECs1; destruct ECs2; simpl; intros; auto.
-    destruct H as [J1 J2].
-    split.
-      eapply inject_incr__preserves__EC_simulation; eauto.
-        intros.
-        apply H0; auto.
-        intro J.
-        unfold isnt_alloca_in_ECs in J.
-        assert (In (Opsem.CurFunction a, Opsem.Locals a)
-          ((Opsem.CurFunction a, Opsem.Locals a)::strip_ECs ECs1)) as G.
-          simpl. auto.
-        apply J in G. uniq_result.
-
-        apply IHECs1; auto.
-        intros. apply H0; auto.
-        intro J. apply H.
-        unfold isnt_alloca_in_ECs in *.
-        intros. apply J. simpl; auto.
-Qed.
-
-Lemma isnt_alloca_in_ECs_tail: forall pinfo (mi:MoreMem.meminj) EC1 EC2 ECs ,
-  (forall blk,
-    ~ isnt_alloca_in_ECs pinfo (EC1 :: EC2 :: ECs) blk -> mi blk = merror) ->
-  (forall blk,
-    ~ isnt_alloca_in_ECs pinfo (EC2 :: ECs) blk -> mi blk = merror).
-Proof.
-  intros.
-  apply H; auto.
-  intro J. apply H0.
-  unfold isnt_alloca_in_ECs in J. unfold isnt_alloca_in_ECs.
-  intros.
-  apply J; auto.
-  simpl. simpl in Hin. destruct Hin; auto.
-Qed.
-
-Lemma mem_simulation_tail: forall pinfo mgb mi EC1 EC2 ECs M1 M2,
-  mem_simulation pinfo mgb mi (EC1 :: EC2 :: ECs) M1 M2 ->
-  mem_simulation pinfo mgb mi (EC2 :: ECs) M1 M2.
-Proof.
-  intros.
-  destruct H as [J1 [J2 J3]].
-  split; auto.
-  split; auto.
-    eapply isnt_alloca_in_ECs_tail; eauto.
-Qed.
-
-Lemma is_alloca_in_EC_update_lc: forall pinfo F lc id0 gvs0 blk,
-  PI_f pinfo <> F \/ PI_id pinfo <> id0 ->
-  is_alloca_in_EC pinfo F lc blk =
-    is_alloca_in_EC pinfo F (updateAddAL (GVsT DGVs) lc id0 gvs0) blk.
-Proof.
-  intros.
-  unfold is_alloca_in_EC in *.
-  destruct (fdef_dec (PI_f pinfo) F); subst; auto.
-  destruct H as [H | H]; try congruence.
-  rewrite <- lookupAL_updateAddAL_neq; auto.
-Qed.
-
-Lemma isnt_alloca_in_ECs_update_non_palloca :
-  forall pinfo lc1 lc2 ECs F (mi:MoreMem.meminj) gvs3 id0,
-  PI_f pinfo <> F \/ PI_id pinfo <> id0 ->
-  updateAddAL (GVsT DGVs) lc1 id0 gvs3 = lc2 ->
-  (forall blk:mblock,
-    ~ isnt_alloca_in_ECs pinfo ((F, lc1) :: ECs) blk ->
-    mi blk = merror) ->
-  (forall blk:mblock,
-    ~ isnt_alloca_in_ECs pinfo ((F, lc2) :: ECs) blk ->
-    mi blk = merror).
-Proof.
-  intros. subst.
-  apply H1. clear H1.
-  intro J. apply H2. clear H2.
-  unfold isnt_alloca_in_ECs in *.
-  intros.
-  simpl in Hin.
-  destruct Hin as [Hin | Hin]; subst.
-    inv Hin.
-    rewrite <- is_alloca_in_EC_update_lc; auto.
-    apply J. simpl. auto.
-
-    apply J. clear J. simpl. auto.
-Qed.
-
-Lemma als_simulation_update_lc: forall pinfo F lc mi id0 gvs0 als1 als2,
-  PI_f pinfo <> F \/ PI_id pinfo <> id0 ->
-  als_simulation pinfo mi F lc als1 als2 ->
-  als_simulation pinfo mi F (updateAddAL (GVsT DGVs) lc id0 gvs0) als1 als2.
-Proof.
-  induction als1; destruct als2; simpl; auto.
-    intros.
-    rewrite <- is_alloca_in_EC_update_lc; auto.
-    destruct (is_alloca_in_EC pinfo F lc a); auto.
-    destruct H0 as [J1 J2].
-    split; auto.
-
-    intros.
-    rewrite <- is_alloca_in_EC_update_lc; auto.
-    destruct (is_alloca_in_EC pinfo F lc a); destruct H0 as [J1 J2]; split; auto.
-Qed.
-
-Lemma returnUpdateLocals_als_simulation: forall pinfo mi F' lc' als' als3 TD i0 n
-  c t0 v0 v p Result lc gl2 lc'' (Hsim: als_simulation pinfo mi F' lc' als' als3)
-  (Hprop: PI_f pinfo <> F' \/ PI_id pinfo <> i0)
-  (Hupdate: Opsem.returnUpdateLocals TD (insn_call i0 n c t0 v0 v p) Result lc lc'
-              gl2 = ret lc''),
-  als_simulation pinfo mi F' lc'' als' als3.
-Proof.
-  intros.
-  unfold Opsem.returnUpdateLocals in Hupdate.
-  inv_mbind'.
-  destruct n; inv H0; auto.
-  inv_mbind'.
-  apply als_simulation_update_lc; auto.
 Qed.
 
 Lemma reg_simulation_update_non_palloca: forall pinfo F lc1 lc2 mi id0 gvs0 gvs3,
@@ -379,6 +235,22 @@ Proof.
       rewrite <- lookupAL_updateAddAL_neq in H3; auto.
 Qed.
 
+Lemma inject_incr__preserves__reg_simulation: forall pinfo mi f lc1 lc2 mi',
+  reg_simulation pinfo mi f lc1 lc2 ->
+  inject_incr mi mi' ->
+  reg_simulation pinfo mi' f lc1 lc2.
+Proof.
+  intros pinfo mi f lc1 lc2 mi' Hrsim Hinc.
+  unfold reg_simulation in *.
+  destruct (fdef_dec (PI_f pinfo) f); subst.
+    intros.
+    assert (J:=@Hrsim i0).
+    destruct (id_dec (PI_id pinfo) i0); subst; auto.
+    intros. eapply J in H; eauto using gv_inject_incr.
+
+    intros. eapply Hrsim in H; eauto using gv_inject_incr.
+Qed.
+
 Definition value_doesnt_use_pid pinfo F v :=
   conditional_used_in_value (PI_f pinfo) F (PI_id pinfo) v.
 
@@ -409,29 +281,6 @@ Proof.
       uniq_result. inv Hv. eapply sb_mem_inj__const2GV; eauto.
 Qed.
 
-Lemma simulation__lift_opt1: forall (mi : MoreMem.meminj) (TD : TargetData)
-  (t : typ) (g1 g2 g2' g1': GVsT DGVs)
-  (HeqR2 : lift_op1 DGVs (fit_gv TD t) g2 t = ret g2')
-  (HeqR1 : lift_op1 DGVs (fit_gv TD t) g1 t = ret g1')
-  (HeqR : gv_inject mi g1 g2),
-  gv_inject mi g1' g2'.
-Proof.
-  intros.
-Transparent lift_op1.
-  unfold lift_op1 in *. simpl in *.
-  unfold MDGVs.lift_op1 in *.
-  unfold fit_gv in *.
-  inv_mbind'. symmetry_ctx.
-  erewrite gv_inject__same_size in H0; eauto.
-  erewrite simulation__gv_chunks_match_typb in H0; eauto.
-  destruct_if.
-    inv HeqR2. auto.
-
-    uniq_result.
-    eapply gv_inject_gundef; eauto.
-Opaque lift_op1.
-Qed.
-
 Lemma returnUpdateLocals_reg_simulation: forall pinfo mi F' lc' los nts i0 n
   c t0 v0 v p Result lc gl lc'' lc3 lc''0 lc2 F Mem1 Mem2 maxb S Ps rt
   (Hv: wf_value S (module_intro los nts Ps) F Result rt)
@@ -454,19 +303,6 @@ Proof.
   inv_mbind'. symmetry_ctx.
   apply reg_simulation_update_non_palloca; auto.
   eapply simulation__lift_opt1; eauto.
-Qed.
-
-Definition phis_simulation (pinfo: PhiInfo) (f1:fdef) ps1 ps2 : Prop :=
-RemoveSim.phis_simulation (PI_f pinfo) (PI_id pinfo) f1 ps1 ps2.
-
-Lemma phis_simulation_inv: forall pinfo F ps1 ps2 l1 cs1 tmn1
-  (HBinF: blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) F = true),
-  WF_PhiInfo pinfo -> uniqFdef F ->
-  phis_simulation pinfo F ps1 ps2 -> ps1 = ps2.
-Proof.
-  intros.
-  eapply RemoveSim.phis_simulation_inv; eauto 1.
-    intro. subst. WF_PhiInfo_spec6_tac.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_rsim : forall los nts B1 B2 gl F mi lc1'
@@ -567,254 +403,6 @@ Proof.
     WF_PhiInfo_spec6_tac.
 Qed.
 
-Lemma getIncomingValuesForBlockFromPHINodes_asim:
-  forall pinfo F als1 als2 lc mi gl B TD
-  (Hsim: als_simulation pinfo mi F lc als1 als2) ps l1
-  (Hnuse: PI_f pinfo <> F \/ ~ In (PI_id pinfo) (getPhiNodesIDs ps)),
-  Opsem.getIncomingValuesForBlockFromPHINodes TD ps B gl lc = ret l1 ->
-  als_simulation pinfo mi F (Opsem.updateValuesForNewBlock l1 lc) als1 als2.
-Proof.
-  induction ps as [|[i0 ? ?]]; simpl; intros.
-    uniq_result. simpl. auto.
-
-    inv_mbind'. symmetry_ctx. simpl.
-    assert (PI_f pinfo <> F \/ PI_id pinfo <> i0) as J1.
-      clear - Hnuse.
-      destruct Hnuse as [Hnuse | Hnuse]; auto.
-    assert (PI_f pinfo <> F \/ ~ In (PI_id pinfo) (getPhiNodesIDs ps)) as J2.
-      clear - Hnuse.
-      destruct Hnuse as [Hnuse | Hnuse]; auto.
-    apply als_simulation_update_lc; auto.
-Qed.
-
-Lemma switchToNewBasicBlock_asim: forall pinfo F l0 ps0 cs0 tmn0 als1 als2 lc
-  lc' mi gl B TD,
-  WF_PhiInfo pinfo -> uniqFdef F ->
-  blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) F = true ->
-  als_simulation pinfo mi F lc als1 als2 ->
-  Opsem.switchToNewBasicBlock TD (l0, stmts_intro ps0 cs0 tmn0) B gl lc =
-    ret lc' ->
-  als_simulation pinfo mi F lc' als1 als2.
-Proof.
-  intros.
-  unfold Opsem.switchToNewBasicBlock in *. simpl in *.
-  inv_mbind'. symmetry_ctx.
-  eapply getIncomingValuesForBlockFromPHINodes_asim; eauto.
-    WF_PhiInfo_spec6_tac.
-Qed.
-
-Lemma getIncomingValuesForBlockFromPHINodes_isnt_alloca_in_ECs :
-  forall pinfo TD ECs F gl B blk ps lc1 l0
-  (Hnuse: PI_f pinfo <> F \/ ~ In (PI_id pinfo) (getPhiNodesIDs ps)),
-  Opsem.getIncomingValuesForBlockFromPHINodes TD ps B gl lc1 = ret l0 ->
-  isnt_alloca_in_ECs pinfo ((F,lc1) :: ECs) blk ->
-  isnt_alloca_in_ECs pinfo ((F,Opsem.updateValuesForNewBlock l0 lc1) :: ECs) blk.
-Proof.
-  induction ps as [|[]]; simpl; intros.
-    uniq_result. simpl. auto.
-
-    inv_mbind'. symmetry_ctx. simpl.
-    assert (PI_f pinfo <> F \/ ~ In (PI_id pinfo) (getPhiNodesIDs ps)) as J.
-      clear - Hnuse.
-      destruct Hnuse; auto.
-    apply IHps in HeqR1; auto. clear IHps.
-    unfold isnt_alloca_in_ECs. unfold isnt_alloca_in_ECs in H0.
-    intros.
-    simpl in Hin.
-    destruct Hin as [Hin | Hin].
-      inv Hin.
-      rewrite <- is_alloca_in_EC_update_lc.
-        apply HeqR1. simpl. auto.
-        clear - Hnuse. destruct Hnuse; auto.
-      apply H0. simpl. auto.
-Qed.
-
-Lemma switchToNewBasicBlock_isnt_alloca_in_ECs :
-  forall pinfo TD ECs F gl B B' blk lc1 lc2,
-  WF_PhiInfo pinfo -> uniqFdef F ->
-  blockInFdefB B' F = true ->
-  Opsem.switchToNewBasicBlock TD B' B gl lc1 = ret lc2 ->
-  isnt_alloca_in_ECs pinfo ((F,lc1) :: ECs) blk ->
-  isnt_alloca_in_ECs pinfo ((F,lc2) :: ECs) blk.
-Proof.
-  intros.
-  unfold Opsem.switchToNewBasicBlock in *. simpl in *.
-  inv_mbind'. symmetry_ctx.
-  destruct B' as [? []]. simpl in *.
-  eapply getIncomingValuesForBlockFromPHINodes_isnt_alloca_in_ECs; eauto.
-    WF_PhiInfo_spec6_tac.
-Qed.
-
-Lemma Promotability_wf_EC__isnt_alloca_in_EC: forall maxb pinfo TD M1 f lc als,
-  (if fdef_dec (PI_f pinfo) f
-      then Promotability.wf_defs maxb pinfo TD M1 lc als
-      else True) ->
-  is_alloca_in_EC pinfo f lc (Mem.nextblock M1) = false.
-Proof.
-  intros.
-  unfold is_alloca_in_EC.
-  destruct (fdef_dec (PI_f pinfo) f); subst; auto.
-  remember (lookupAL (GVsT DGVs) lc (PI_id pinfo)) as R.
-  destruct R as [[]|]; auto.
-  destruct p as [[]]; auto.
-  destruct l0; auto.
-  destruct (Z_eq_dec b (Mem.nextblock M1)); subst; auto.
-  symmetry in HeqR.
-  apply H in HeqR.
-  destruct HeqR as [HeqR _].
-  destruct HeqR as [_ [HeqR _]].
-  destruct HeqR as [mb [J1 [J2 J3]]].
-  rewrite simpl_blk2GV in J1.
-  inv J1.
-  contradict J3; omega.
-Qed.
-
-Lemma Promotability_wf_ECs__isnt_alloca_in_ECs: forall maxb pinfo TD M1 ECs1,
-  Promotability.wf_ECStack maxb pinfo TD M1 ECs1 ->
-  isnt_alloca_in_ECs pinfo (strip_ECs ECs1) (Mem.nextblock M1).
-Proof.
-  induction ECs1; simpl; intros.
-    unfold isnt_alloca_in_ECs.
-    intros. inv Hin.
-
-    destruct H as [H1 [H2 H3]].
-    unfold isnt_alloca_in_ECs in *.
-    intros.
-    simpl in Hin.
-    destruct Hin as [Hin | Hin]; subst.
-      inv Hin. destruct a. destruct H1.
-      eapply Promotability_wf_EC__isnt_alloca_in_EC; eauto.
-
-      apply IHECs1; simpl; auto.
-Qed.
-
-Lemma malloc__is_alloca_in_EC: forall maxb pinfo TD Mem f lc tsz0 gn align0 Mem'
-  mb (mi mi':MoreMem.meminj) als
-  (H1: if fdef_dec (PI_f pinfo) f
-       then Promotability.wf_defs maxb pinfo TD Mem lc als
-       else True)
-  (H2: malloc TD Mem tsz0 gn align0 = ret (Mem', mb))
-  (Hprop2 : forall b : mblock, b <> mb -> mi b = mi' b),
-  forall blk : mblock,
-    is_alloca_in_EC pinfo f lc blk= true ->
-    mi blk = merror -> mi' blk = merror.
-Proof.
-  intros.
-  destruct (zeq blk mb); subst.
-    apply MemProps.malloc_result in H2. subst.
-    eapply Promotability_wf_EC__isnt_alloca_in_EC in H1; eauto.
-    rewrite H1 in H. inv H.
-
-    rewrite <- Hprop2; auto.
-Qed.
-
-Lemma malloc__isnt_alloca_in_ECs: forall maxb pinfo TD Mem EC tsz0 gn align0 Mem'
-  mb (mi mi':MoreMem.meminj) (H1: Promotability.wf_ECStack maxb pinfo TD Mem EC)
-  (H2: malloc TD Mem tsz0 gn align0 = ret (Mem', mb))
-  (Hprop2 : forall b : mblock, b <> mb -> mi b = mi' b),
-  forall blk : mblock,
-    ~ isnt_alloca_in_ECs pinfo (strip_ECs EC) blk ->
-    mi blk = merror -> mi' blk = merror.
-Proof.
-  intros.
-  destruct (zeq blk mb); subst.
-    apply MemProps.malloc_result in H2. subst.
-    contradict H.
-    eapply Promotability_wf_ECs__isnt_alloca_in_ECs; eauto.
-
-    rewrite <- Hprop2; auto.
-Qed.
-
-(*
-  lookupAL _ lc1 (PI_id pinfo) = None is important.
-
-  if p = alloca is in a loop, then at runtime,
-    p can be assigned multiple times by p1, p2, p3...
-    all of which will be erased, and should not have corresponding memory block
-    in the transformed program.
-
-  But, we can only keep track of the last one, the earlier ones will be
-   over-written...
-
-  In practice, a promotable allocation is always at the entry block, so
-  before its first assignment, its value must be none. Therefore, we are fine.
-*)
-Lemma als_simulation_weaken_palloca:
-  forall mi' mb mi pinfo lc1 ofs mc
-  (Hlkup : lookupAL _ lc1 (PI_id pinfo) = None)
-  (Hmi1 : mi' mb = merror)
-  (Hmi2 : forall b : mblock, b <> mb -> mi b = mi' b)
-  als1 als2
-  (Hsim : als_simulation pinfo mi (PI_f pinfo) lc1 als1 als2)
-  (Hfresh : forall al, In al als1 -> al <> mb),
-  als_simulation pinfo mi' (PI_f pinfo)
-    (updateAddAL _ lc1 (PI_id pinfo) ((Vptr mb ofs, mc) :: nil))
-    als1 als2.
-Proof.
-  induction als1; simpl; intros; auto.
-    unfold is_alloca_in_EC in *.
-    rewrite Hlkup in Hsim.
-    destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-    destruct (id_dec (PI_id pinfo) (PI_id pinfo)); try congruence.
-    rewrite lookupAL_updateAddAL_eq.
-    destruct (Z_eq_dec mb a); subst.
-      assert (a <> a) as Hneq.
-        apply Hfresh; auto.
-      congruence.
-
-      destruct als2; auto.
-      destruct Hsim as [Hsim1 Hsim2].
-      split.
-        rewrite <- Hmi2; auto.
-        apply IHals1; auto.
-Qed.
-
-Lemma als_simulation_update_palloca:
-  forall mi' mb mi pinfo lc1 TD M1 tsz gn M1'
-  (H21: malloc TD M1 tsz gn (PI_align pinfo) = Some (M1', mb))
-  (Hlkup : lookupAL _ lc1 (PI_id pinfo) = None)
-  (Hmi1 : mi' mb = merror)
-  (Hmi2 : forall b : mblock, b <> mb -> mi b = mi' b) maxb
-  als1 als2 (Hsim : als_simulation pinfo mi (PI_f pinfo) lc1 als1 als2) ECs1
-  (Halsbd : forall al : Values.block,
-            In al
-              (als1 ++
-               flat_map
-                 (fun ec : @Opsem.ExecutionContext DGVs =>
-                  let '{| Opsem.Allocas := als |} := ec in als) ECs1) ->
-            maxb < al < Mem.nextblock M1),
-  als_simulation pinfo mi' (PI_f pinfo)
-    (updateAddAL _ lc1 (PI_id pinfo)
-      ($ blk2GV TD mb # typ_pointer (PI_typ pinfo) $))
-      (mb::als1) als2.
-Proof.
-  intros.
-  simpl.
-  unfold is_alloca_in_EC.
-  destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-  destruct (id_dec (PI_id pinfo) (PI_id pinfo)); try congruence.
-  rewrite lookupAL_updateAddAL_eq.
-  rewrite simpl_blk2GV.
-  destruct (Z_eq_dec mb mb); try congruence.
-  split; auto.
-    eapply als_simulation_weaken_palloca; eauto.
-      apply MemProps.malloc_result in H21.
-      intros. intro EQ. subst.
-      assert (maxb < Mem.nextblock M1 < Mem.nextblock M1) as J.
-        apply Halsbd. simpl.
-        apply in_or_app; auto.
-      contradict J. omega.
-Qed.
-
-Definition list_value_doesnt_use_pid pinfo F idxs :=
-  conditional_used_in_list_value (PI_f pinfo) F (PI_id pinfo) idxs.
-
-Lemma mem_simulation__wf_sb_sim: forall pinfo maxb mi ECs M1 M2,
-  mem_simulation pinfo maxb mi ECs M1 M2 -> wf_sb_mi maxb mi M1 M2.
-Proof.
-  intros. destruct H as [_ [_ H]]; auto.
-Qed.
-
 Lemma reg_simulation__malloc: forall pinfo F lc1 lc2 mi id0 mi' mb1 mb2 TD
   t (Hprop1 : mi' mb1 = ret (mb2, 0)) (Hprop3 : inject_incr mi mi'),
   PI_f pinfo <> F \/ PI_id pinfo <> id0 ->
@@ -835,6 +423,9 @@ Proof.
       rewrite EQ at 2.
       econstructor; eauto.
 Qed.
+
+Definition list_value_doesnt_use_pid pinfo F idxs :=
+  conditional_used_in_list_value (PI_f pinfo) F (PI_id pinfo) idxs.
 
 Definition params_dont_use_pid pinfo F (ps:params) :=
   conditional_used_in_params (PI_f pinfo) F (PI_id pinfo) ps.
@@ -975,6 +566,145 @@ Proof.
   apply reg_simulation_nil; auto.
 Qed.
 
+(***********************************************************)
+(* Properties of isnt_alloca *)
+Lemma isnt_alloca_in_ECs_tail: forall pinfo (mi:MoreMem.meminj) EC1 EC2 ECs ,
+  (forall blk,
+    ~ isnt_alloca_in_ECs pinfo (EC1 :: EC2 :: ECs) blk -> mi blk = merror) ->
+  (forall blk,
+    ~ isnt_alloca_in_ECs pinfo (EC2 :: ECs) blk -> mi blk = merror).
+Proof.
+  intros.
+  apply H; auto.
+  intro J. apply H0.
+  unfold isnt_alloca_in_ECs in J. unfold isnt_alloca_in_ECs.
+  intros.
+  apply J; auto.
+  simpl. simpl in Hin. destruct Hin; auto.
+Qed.
+
+Lemma is_alloca_in_EC_update_lc: forall pinfo F lc id0 gvs0 blk,
+  PI_f pinfo <> F \/ PI_id pinfo <> id0 ->
+  is_alloca_in_EC pinfo F lc blk =
+    is_alloca_in_EC pinfo F (updateAddAL (GVsT DGVs) lc id0 gvs0) blk.
+Proof.
+  intros.
+  unfold is_alloca_in_EC in *.
+  destruct (fdef_dec (PI_f pinfo) F); subst; auto.
+  destruct H as [H | H]; try congruence.
+  rewrite <- lookupAL_updateAddAL_neq; auto.
+Qed.
+
+Lemma isnt_alloca_in_ECs_update_non_palloca :
+  forall pinfo lc1 lc2 ECs F (mi:MoreMem.meminj) gvs3 id0,
+  PI_f pinfo <> F \/ PI_id pinfo <> id0 ->
+  updateAddAL (GVsT DGVs) lc1 id0 gvs3 = lc2 ->
+  (forall blk:mblock,
+    ~ isnt_alloca_in_ECs pinfo ((F, lc1) :: ECs) blk ->
+    mi blk = merror) ->
+  (forall blk:mblock,
+    ~ isnt_alloca_in_ECs pinfo ((F, lc2) :: ECs) blk ->
+    mi blk = merror).
+Proof.
+  intros. subst.
+  apply H1. clear H1.
+  intro J. apply H2. clear H2.
+  unfold isnt_alloca_in_ECs in *.
+  intros.
+  simpl in Hin.
+  destruct Hin as [Hin | Hin]; subst.
+    inv Hin.
+    rewrite <- is_alloca_in_EC_update_lc; auto.
+    apply J. simpl. auto.
+
+    apply J. clear J. simpl. auto.
+Qed.
+
+Lemma getIncomingValuesForBlockFromPHINodes_isnt_alloca_in_ECs :
+  forall pinfo TD ECs F gl B blk ps lc1 l0
+  (Hnuse: PI_f pinfo <> F \/ ~ In (PI_id pinfo) (getPhiNodesIDs ps)),
+  Opsem.getIncomingValuesForBlockFromPHINodes TD ps B gl lc1 = ret l0 ->
+  isnt_alloca_in_ECs pinfo ((F,lc1) :: ECs) blk ->
+  isnt_alloca_in_ECs pinfo ((F,Opsem.updateValuesForNewBlock l0 lc1) :: ECs) blk.
+Proof.
+  induction ps as [|[]]; simpl; intros.
+    uniq_result. simpl. auto.
+
+    inv_mbind'. symmetry_ctx. simpl.
+    assert (PI_f pinfo <> F \/ ~ In (PI_id pinfo) (getPhiNodesIDs ps)) as J.
+      clear - Hnuse.
+      destruct Hnuse; auto.
+    apply IHps in HeqR1; auto. clear IHps.
+    unfold isnt_alloca_in_ECs. unfold isnt_alloca_in_ECs in H0.
+    intros.
+    simpl in Hin.
+    destruct Hin as [Hin | Hin].
+      inv Hin.
+      rewrite <- is_alloca_in_EC_update_lc.
+        apply HeqR1. simpl. auto.
+        clear - Hnuse. destruct Hnuse; auto.
+      apply H0. simpl. auto.
+Qed.
+
+Lemma switchToNewBasicBlock_isnt_alloca_in_ECs :
+  forall pinfo TD ECs F gl B B' blk lc1 lc2,
+  WF_PhiInfo pinfo -> uniqFdef F ->
+  blockInFdefB B' F = true ->
+  Opsem.switchToNewBasicBlock TD B' B gl lc1 = ret lc2 ->
+  isnt_alloca_in_ECs pinfo ((F,lc1) :: ECs) blk ->
+  isnt_alloca_in_ECs pinfo ((F,lc2) :: ECs) blk.
+Proof.
+  intros.
+  unfold Opsem.switchToNewBasicBlock in *. simpl in *.
+  inv_mbind'. symmetry_ctx.
+  destruct B' as [? []]. simpl in *.
+  eapply getIncomingValuesForBlockFromPHINodes_isnt_alloca_in_ECs; eauto.
+    WF_PhiInfo_spec6_tac.
+Qed.
+
+Lemma Promotability_wf_EC__isnt_alloca_in_EC: forall maxb pinfo TD M1 f lc als,
+  (if fdef_dec (PI_f pinfo) f
+      then Promotability.wf_defs maxb pinfo TD M1 lc als
+      else True) ->
+  is_alloca_in_EC pinfo f lc (Mem.nextblock M1) = false.
+Proof.
+  intros.
+  unfold is_alloca_in_EC.
+  destruct (fdef_dec (PI_f pinfo) f); subst; auto.
+  remember (lookupAL (GVsT DGVs) lc (PI_id pinfo)) as R.
+  destruct R as [[]|]; auto.
+  destruct p as [[]]; auto.
+  destruct l0; auto.
+  destruct (Z_eq_dec b (Mem.nextblock M1)); subst; auto.
+  symmetry in HeqR.
+  apply H in HeqR.
+  destruct HeqR as [HeqR _].
+  destruct HeqR as [_ [HeqR _]].
+  destruct HeqR as [mb [J1 [J2 J3]]].
+  rewrite simpl_blk2GV in J1.
+  inv J1.
+  contradict J3; omega.
+Qed.
+
+Lemma Promotability_wf_ECs__isnt_alloca_in_ECs: forall maxb pinfo TD M1 ECs1,
+  Promotability.wf_ECStack maxb pinfo TD M1 ECs1 ->
+  isnt_alloca_in_ECs pinfo (strip_ECs ECs1) (Mem.nextblock M1).
+Proof.
+  induction ECs1; simpl; intros.
+    unfold isnt_alloca_in_ECs.
+    intros. inv Hin.
+
+    destruct H as [H1 [H2 H3]].
+    unfold isnt_alloca_in_ECs in *.
+    intros.
+    simpl in Hin.
+    destruct Hin as [Hin | Hin]; subst.
+      inv Hin. destruct a. destruct H1.
+      eapply Promotability_wf_EC__isnt_alloca_in_EC; eauto.
+
+      apply IHECs1; simpl; auto.
+Qed.
+
 Lemma WF_PhiInfo__isnt_alloca_in_EC: forall pinfo fa rt fid va lb la blk lc gvs
   TD (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb)),
   WF_PhiInfo pinfo ->
@@ -1003,3 +733,296 @@ Proof.
       apply IHla in J; auto.
       intros. eapply H; simpl; eauto.
 Qed.
+
+(***********************************************************)
+(* Properties of als_simulation *)
+Lemma als_simulation_update_lc: forall pinfo F lc mi id0 gvs0 als1 als2,
+  PI_f pinfo <> F \/ PI_id pinfo <> id0 ->
+  als_simulation pinfo mi F lc als1 als2 ->
+  als_simulation pinfo mi F (updateAddAL (GVsT DGVs) lc id0 gvs0) als1 als2.
+Proof.
+  induction als1; destruct als2; simpl; auto.
+    intros.
+    rewrite <- is_alloca_in_EC_update_lc; auto.
+    destruct (is_alloca_in_EC pinfo F lc a); auto.
+    destruct H0 as [J1 J2].
+    split; auto.
+
+    intros.
+    rewrite <- is_alloca_in_EC_update_lc; auto.
+    destruct (is_alloca_in_EC pinfo F lc a); destruct H0 as [J1 J2]; split; auto.
+Qed.
+
+Lemma returnUpdateLocals_als_simulation: forall pinfo mi F' lc' als' als3 TD i0 n
+  c t0 v0 v p Result lc gl2 lc'' (Hsim: als_simulation pinfo mi F' lc' als' als3)
+  (Hprop: PI_f pinfo <> F' \/ PI_id pinfo <> i0)
+  (Hupdate: Opsem.returnUpdateLocals TD (insn_call i0 n c t0 v0 v p) Result lc lc'
+              gl2 = ret lc''),
+  als_simulation pinfo mi F' lc'' als' als3.
+Proof.
+  intros.
+  unfold Opsem.returnUpdateLocals in Hupdate.
+  inv_mbind'.
+  destruct n; inv H0; auto.
+  inv_mbind'.
+  apply als_simulation_update_lc; auto.
+Qed.
+
+Lemma inject_incr__preserves__als_simulation: forall pinfo mi f lc1 als1 als2
+  mi',
+  als_simulation pinfo mi f lc1 als1 als2 ->
+  (forall blk,
+    is_alloca_in_EC pinfo f lc1 blk = true ->
+    mi blk = None -> mi' blk = None) ->
+  inject_incr mi mi' ->
+  als_simulation pinfo mi' f lc1 als1 als2.
+Proof.
+  induction als1; destruct als2; simpl; intros; auto.
+    remember (is_alloca_in_EC pinfo f lc1 a) as R.
+    destruct R; auto.
+    destruct H.
+    split; eauto.
+
+    remember (is_alloca_in_EC pinfo f lc1 a) as R.
+    destruct R; destruct H; split; eauto.
+Qed.
+
+Lemma getIncomingValuesForBlockFromPHINodes_asim:
+  forall pinfo F als1 als2 lc mi gl B TD
+  (Hsim: als_simulation pinfo mi F lc als1 als2) ps l1
+  (Hnuse: PI_f pinfo <> F \/ ~ In (PI_id pinfo) (getPhiNodesIDs ps)),
+  Opsem.getIncomingValuesForBlockFromPHINodes TD ps B gl lc = ret l1 ->
+  als_simulation pinfo mi F (Opsem.updateValuesForNewBlock l1 lc) als1 als2.
+Proof.
+  induction ps as [|[i0 ? ?]]; simpl; intros.
+    uniq_result. simpl. auto.
+
+    inv_mbind'. symmetry_ctx. simpl.
+    assert (PI_f pinfo <> F \/ PI_id pinfo <> i0) as J1.
+      clear - Hnuse.
+      destruct Hnuse as [Hnuse | Hnuse]; auto.
+    assert (PI_f pinfo <> F \/ ~ In (PI_id pinfo) (getPhiNodesIDs ps)) as J2.
+      clear - Hnuse.
+      destruct Hnuse as [Hnuse | Hnuse]; auto.
+    apply als_simulation_update_lc; auto.
+Qed.
+
+Lemma switchToNewBasicBlock_asim: forall pinfo F l0 ps0 cs0 tmn0 als1 als2 lc
+  lc' mi gl B TD,
+  WF_PhiInfo pinfo -> uniqFdef F ->
+  blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) F = true ->
+  als_simulation pinfo mi F lc als1 als2 ->
+  Opsem.switchToNewBasicBlock TD (l0, stmts_intro ps0 cs0 tmn0) B gl lc =
+    ret lc' ->
+  als_simulation pinfo mi F lc' als1 als2.
+Proof.
+  intros.
+  unfold Opsem.switchToNewBasicBlock in *. simpl in *.
+  inv_mbind'. symmetry_ctx.
+  eapply getIncomingValuesForBlockFromPHINodes_asim; eauto.
+    WF_PhiInfo_spec6_tac.
+Qed.
+
+(*
+  lookupAL _ lc1 (PI_id pinfo) = None is important.
+
+  if p = alloca is in a loop, then at runtime,
+    p can be assigned multiple times by p1, p2, p3...
+    all of which will be erased, and should not have corresponding memory block
+    in the transformed program.
+
+  But, we can only keep track of the last one, the earlier ones will be
+   over-written...
+
+  In practice, a promotable allocation is always at the entry block, so
+  before its first assignment, its value must be none. Therefore, we are fine.
+*)
+Lemma als_simulation_weaken_palloca:
+  forall mi' mb mi pinfo lc1 ofs mc
+  (Hlkup : lookupAL _ lc1 (PI_id pinfo) = None)
+  (Hmi1 : mi' mb = merror)
+  (Hmi2 : forall b : mblock, b <> mb -> mi b = mi' b)
+  als1 als2
+  (Hsim : als_simulation pinfo mi (PI_f pinfo) lc1 als1 als2)
+  (Hfresh : forall al, In al als1 -> al <> mb),
+  als_simulation pinfo mi' (PI_f pinfo)
+    (updateAddAL _ lc1 (PI_id pinfo) ((Vptr mb ofs, mc) :: nil))
+    als1 als2.
+Proof.
+  induction als1; simpl; intros; auto.
+    unfold is_alloca_in_EC in *.
+    rewrite Hlkup in Hsim.
+    destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
+    destruct (id_dec (PI_id pinfo) (PI_id pinfo)); try congruence.
+    rewrite lookupAL_updateAddAL_eq.
+    destruct (Z_eq_dec mb a); subst.
+      assert (a <> a) as Hneq.
+        apply Hfresh; auto.
+      congruence.
+
+      destruct als2; auto.
+      destruct Hsim as [Hsim1 Hsim2].
+      split.
+        rewrite <- Hmi2; auto.
+        apply IHals1; auto.
+Qed.
+
+Lemma als_simulation_update_palloca:
+  forall mi' mb mi pinfo lc1 TD M1 tsz gn M1'
+  (H21: malloc TD M1 tsz gn (PI_align pinfo) = Some (M1', mb))
+  (Hlkup : lookupAL _ lc1 (PI_id pinfo) = None)
+  (Hmi1 : mi' mb = merror)
+  (Hmi2 : forall b : mblock, b <> mb -> mi b = mi' b) maxb
+  als1 als2 (Hsim : als_simulation pinfo mi (PI_f pinfo) lc1 als1 als2) ECs1
+  (Halsbd : forall al : Values.block,
+            In al
+              (als1 ++
+               flat_map
+                 (fun ec : @Opsem.ExecutionContext DGVs =>
+                  let '{| Opsem.Allocas := als |} := ec in als) ECs1) ->
+            maxb < al < Mem.nextblock M1),
+  als_simulation pinfo mi' (PI_f pinfo)
+    (updateAddAL _ lc1 (PI_id pinfo)
+      ($ blk2GV TD mb # typ_pointer (PI_typ pinfo) $))
+      (mb::als1) als2.
+Proof.
+  intros.
+  simpl.
+  unfold is_alloca_in_EC.
+  destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
+  destruct (id_dec (PI_id pinfo) (PI_id pinfo)); try congruence.
+  rewrite lookupAL_updateAddAL_eq.
+  rewrite simpl_blk2GV.
+  destruct (Z_eq_dec mb mb); try congruence.
+  split; auto.
+    eapply als_simulation_weaken_palloca; eauto.
+      apply MemProps.malloc_result in H21.
+      intros. intro EQ. subst.
+      assert (maxb < Mem.nextblock M1 < Mem.nextblock M1) as J.
+        apply Halsbd. simpl.
+        apply in_or_app; auto.
+      contradict J. omega.
+Qed.
+
+(***********************************************************)
+(* Properties of EC_simulation *)
+Lemma inject_incr__preserves__EC_simulation: forall pinfo mi mi' EC1 EC2,
+  EC_simulation pinfo mi EC1 EC2 ->
+  (forall blk,
+    is_alloca_in_EC pinfo (Opsem.CurFunction EC1) (Opsem.Locals EC1) blk
+      = true ->
+    mi blk = None -> mi' blk = None) ->
+  inject_incr mi mi' ->
+  EC_simulation pinfo mi' EC1 EC2.
+Proof.
+  intros.
+  destruct EC1 as [f1 b1 cs1 tmn1 lc1 als1].
+  destruct EC2 as [f2 b2 cs2 tmn2 lc2 als2].
+  destruct f1. destruct f2.
+  destruct b1; tinv H.
+  unfold EC_simulation in H.
+  destruct H as [Hfsim [Heq0 [Hasim [Hbsim [Heqb1 [Heqb2 [Hrsim Hcssim]]]]]]];
+    subst.
+  eapply inject_incr__preserves__als_simulation in Hasim; eauto.
+  eapply inject_incr__preserves__reg_simulation in Hrsim; eauto.
+  repeat (split; auto).
+Qed.
+
+Lemma inject_incr__preserves__ECs_simulation: forall pinfo mi mi' ECs1 ECs2,
+  ECs_simulation pinfo mi ECs1 ECs2 ->
+  (forall blk, ~ isnt_alloca_in_ECs pinfo (strip_ECs ECs1) blk ->
+    mi blk = None -> mi' blk = None) ->
+  inject_incr mi mi' ->
+  ECs_simulation pinfo mi' ECs1 ECs2.
+Proof.
+  induction ECs1; destruct ECs2; simpl; intros; auto.
+    destruct H as [J1 J2].
+    split.
+      eapply inject_incr__preserves__EC_simulation; eauto.
+        intros.
+        apply H0; auto.
+        intro J.
+        unfold isnt_alloca_in_ECs in J.
+        assert (In (Opsem.CurFunction a, Opsem.Locals a)
+          ((Opsem.CurFunction a, Opsem.Locals a)::strip_ECs ECs1)) as G.
+          simpl. auto.
+        apply J in G. uniq_result.
+
+        apply IHECs1; auto.
+        intros. apply H0; auto.
+        intro J. apply H.
+        unfold isnt_alloca_in_ECs in *.
+        intros. apply J. simpl; auto.
+Qed.
+
+(***********************************************************)
+(* Properties of phis_simulation *)
+Definition phis_simulation (pinfo: PhiInfo) (f1:fdef) ps1 ps2 : Prop :=
+RemoveSim.phis_simulation (PI_f pinfo) (PI_id pinfo) f1 ps1 ps2.
+
+Lemma phis_simulation_inv: forall pinfo F ps1 ps2 l1 cs1 tmn1
+  (HBinF: blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) F = true),
+  WF_PhiInfo pinfo -> uniqFdef F ->
+  phis_simulation pinfo F ps1 ps2 -> ps1 = ps2.
+Proof.
+  intros.
+  eapply RemoveSim.phis_simulation_inv; eauto 1.
+    intro. subst. WF_PhiInfo_spec6_tac.
+Qed.
+
+(***********************************************************)
+(* Properties of mem_simulation *)
+Lemma mem_simulation_tail: forall pinfo mgb mi EC1 EC2 ECs M1 M2,
+  mem_simulation pinfo mgb mi (EC1 :: EC2 :: ECs) M1 M2 ->
+  mem_simulation pinfo mgb mi (EC2 :: ECs) M1 M2.
+Proof.
+  intros.
+  destruct H as [J1 [J2 J3]].
+  split; auto.
+  split; auto.
+    eapply isnt_alloca_in_ECs_tail; eauto.
+Qed.
+
+Lemma malloc__is_alloca_in_EC: forall maxb pinfo TD Mem f lc tsz0 gn align0 Mem'
+  mb (mi mi':MoreMem.meminj) als
+  (H1: if fdef_dec (PI_f pinfo) f
+       then Promotability.wf_defs maxb pinfo TD Mem lc als
+       else True)
+  (H2: malloc TD Mem tsz0 gn align0 = ret (Mem', mb))
+  (Hprop2 : forall b : mblock, b <> mb -> mi b = mi' b),
+  forall blk : mblock,
+    is_alloca_in_EC pinfo f lc blk= true ->
+    mi blk = merror -> mi' blk = merror.
+Proof.
+  intros.
+  destruct (zeq blk mb); subst.
+    apply MemProps.malloc_result in H2. subst.
+    eapply Promotability_wf_EC__isnt_alloca_in_EC in H1; eauto.
+    rewrite H1 in H. inv H.
+
+    rewrite <- Hprop2; auto.
+Qed.
+
+Lemma malloc__isnt_alloca_in_ECs: forall maxb pinfo TD Mem EC tsz0 gn align0 Mem'
+  mb (mi mi':MoreMem.meminj) (H1: Promotability.wf_ECStack maxb pinfo TD Mem EC)
+  (H2: malloc TD Mem tsz0 gn align0 = ret (Mem', mb))
+  (Hprop2 : forall b : mblock, b <> mb -> mi b = mi' b),
+  forall blk : mblock,
+    ~ isnt_alloca_in_ECs pinfo (strip_ECs EC) blk ->
+    mi blk = merror -> mi' blk = merror.
+Proof.
+  intros.
+  destruct (zeq blk mb); subst.
+    apply MemProps.malloc_result in H2. subst.
+    contradict H.
+    eapply Promotability_wf_ECs__isnt_alloca_in_ECs; eauto.
+
+    rewrite <- Hprop2; auto.
+Qed.
+
+Lemma mem_simulation__wf_sb_sim: forall pinfo maxb mi ECs M1 M2,
+  mem_simulation pinfo maxb mi ECs M1 M2 -> wf_sb_mi maxb mi M1 M2.
+Proof.
+  intros. destruct H as [_ [_ H]]; auto.
+Qed.
+

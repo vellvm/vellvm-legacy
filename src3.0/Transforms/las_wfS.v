@@ -11,6 +11,9 @@ Require Import subst.
 Require Import las.
 Require Import die_wfS.
 
+(* This file proves that LAS preserves well-formedness. *)
+
+(* First, vmem2reg pass indeed finds a LAS pair. *)
 Lemma find_st_ld__lasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo)) 
@@ -90,6 +93,7 @@ Proof.
   eauto 7.
 Qed.
 
+(* After LAS, the substituted definition is removable. *)
 Lemma las_diinfo': forall (los : layouts) (nts : namedts) (fh : fheader)
   (pinfo: PhiInfo) (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) 
   (tmn0 : terminator) (bs2 : list block) (Ps1 : list product) (Ps2 : list product)
@@ -164,6 +168,7 @@ Proof.
   eapply las_diinfo'; eauto.
 Qed.
 
+(* LAS preserves promotability (WF_PhiInfo). *)
 Lemma las_wfPI': forall (fh : fheader) (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block)
@@ -204,6 +209,7 @@ Proof.
   eapply las_wfPI'; eauto.
 Qed.
 
+(* LAS preserves well-formedness. *)
 Lemma las_wfS': forall (los : layouts) (nts : namedts) (fh : fheader)
   (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
@@ -290,6 +296,7 @@ Proof.
   eapply las_wfS'; eauto.
 Qed.
 
+(* LAS + deletion preserves promotability. *)
 Lemma las_die_wfPI': forall (los : layouts) (nts : namedts) (fh : fheader)
   (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)

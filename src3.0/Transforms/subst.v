@@ -2,6 +2,12 @@ Require Import vellvm.
 Require Import primitives.
 Require Import top_wfS.
 
+(* This file proves the static properties of substitution. *)
+
+(*******************************************************************)
+(* We first prove well-formedness preservation by top_wfS. *)
+
+(* Prove that substitution satisfies the requirement of top_wfS. *)
 Lemma subst_block__getBlockLabel: forall i0 v0 b,
   getBlockLabel b = getBlockLabel (subst_block i0 v0 b).
 Proof.
@@ -1727,6 +1733,7 @@ Qed.
 
 End Subst.
 
+(* the main result *)
 Lemma subst_wfS: forall (los : layouts) (nts : namedts) (f:fdef)
   (Ps1 : list product) (Ps2 : list product) (id0 : id) (v0 : value) 
   (Hdom: valueDominates f v0 (value_id id0))
@@ -1756,6 +1763,9 @@ Proof.
         apply csubst_wf_phi_operands; auto.
     eapply subst_uniqFdef; eauto.
 Qed.
+
+(*******************************************************************)
+(* Then, we prove that how substitution affects uses. *)
 
 Require Import palloca_props.
 Require Import vmem2reg.
@@ -1996,6 +2006,9 @@ Proof.
 
     rewrite <- subst_reachablity_analysis; auto.
 Qed.
+
+(*******************************************************************)
+(* Other properties of infrastructure *)
 
 Section SubstOther.
 

@@ -11,12 +11,17 @@ Require Import trans_tactic.
 Require Import top_sim.
 Require Import program_sim.
 
+(* This file proves the dynamic properties of substitution. *)
+
+(*******************************************************************)
+(* We first prove semantics preservation by top_sim. *)
 Module SubstSim.
 
 Section SubstSim.
 
 Variable (sf:fdef) (sid:id) (sv:value).
 
+(* Prove that substitution satisfies the requirement of top_sim. *)
 Definition fdef_simulation f1 f2 : Prop :=
   if (fdef_dec sf f1) then subst_fdef sid sv f1 = f2 else f1 = f2.
 
@@ -1021,17 +1026,7 @@ Ltac subst_is_sim_tac :=
       uniq_result; auto
     end.
 
-(* copied from SB *)
-Lemma cmds_at_block_tail_next : forall (B:block) c cs tmn2,
-  (exists l1, exists ps1, exists cs11, B =
-    (l1, stmts_intro ps1 (cs11 ++ c :: cs) tmn2)) ->
-  exists l1, exists ps1, exists cs11, B = (l1, stmts_intro ps1 (cs11 ++ cs) tmn2).
-Proof.
-  intros.
-  destruct H as [l1 [ps1 [cs11 H]]]; subst.
-  exists l1. exists ps1. exists (cs11 ++ [c]). simpl_env. auto.
-Qed.
-
+(* preserving backward simulation *)
 Lemma step_sim : forall  Cfg1 St1 Cfg2 St2 St2' tr2 tr1 St1'
   (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
   (HwfS1: subst_inv.wf_State (value_id sid) sv sf Cfg1 St1)
@@ -1382,6 +1377,7 @@ Transparent inscope_of_tmn inscope_of_cmd.
 
 Qed.
 
+(* Properties for initial states, final states and stuck states. *)
 Lemma s_genInitState__subst_State_simulation: forall S1 S2 main
   VarArgs cfg2 IS2
   (Hssim: system_simulation S1 S2)
@@ -1954,6 +1950,7 @@ Hypothesis s_genInitState__ctx_inv: forall (S : system) (main : id)
   Opsem.s_genInitState S main VarArgs Mem.empty = ret (cfg, IS) ->
   ctx_inv cfg IS.
 
+(* the main result *)
 Lemma sim: forall (main : id) (VarArgs : list (GVsT DGVs)) 
   (Ps1 : list product) (Ps2 : list product)
   S2 (Heq2: S2= [module_intro los nts (Ps1 ++ product_fdef sf :: Ps2)])

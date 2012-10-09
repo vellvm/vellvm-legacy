@@ -124,6 +124,8 @@ repeat match goal with
 | H: _ =tmn= _ = true |- _ => apply terminatorEqB_inv in H; inv H
 | H: _ =b= _ = true |- _ => apply blockEqB_inv in H; inv H
 | H: left ?e = false |- _ => inv H
+| J1 : ?f = Some _, J2 : None = ?f |- _ => 
+    rewrite J1 in J2; congruence
 end.
 
 Ltac wfCall_inv :=

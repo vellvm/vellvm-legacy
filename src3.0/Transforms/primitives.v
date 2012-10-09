@@ -660,6 +660,40 @@ Proof.
   rewrite H1. auto.
 Qed.
 
+Lemma load_notin_fdef__unused_in_value: forall F v t id0 align0 cs B tmn2 vid0
+  (Hnld: load_in_fdef vid0 F = false) (HBinF: blockInFdefB B F = true)
+  (Heq3 : exists l1 : l,
+           exists ps1 : phinodes,
+             exists cs11 : list cmd,
+               B =
+               (l1, stmts_intro ps1
+                 (cs11 ++ insn_load id0 t v align0 :: cs) tmn2)),
+  used_in_value vid0 v = false.
+Proof.
+  destruct F as [fh bs]. simpl. intros.
+  remember false as R. rewrite HeqR in Hnld at 2. rewrite HeqR. clear HeqR.
+  generalize dependent R. 
+  induction bs; simpl in *; intros.
+    inv HBinF.
+
+    apply orb_true_iff in HBinF.
+    destruct HBinF as [HBinF | HBinF]; eauto 2.
+      apply blockEqB_inv in HBinF.
+      subst.
+
+      clear IHbs.
+      apply fold_left_eq in Hnld.
+        apply orb_false_iff in Hnld.
+        destruct Hnld.
+        destruct Heq3 as [l1 [ps1 [cs11 Heq3]]]; subst.
+        simpl in H0.
+        apply load_notin_cmds__unused_in_value in H0; auto.
+
+        intros c b J.
+        apply orb_false_iff in J.
+        destruct J; auto.
+Qed.
+
 (**************************************************************)
 Lemma remove_phinodes_stable: forall id' ps 
   (Hnotin: ~ In id' (getPhiNodesIDs ps)), ps = remove_phinodes id' ps.

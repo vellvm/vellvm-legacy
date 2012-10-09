@@ -428,6 +428,9 @@ repeat match goal with
 | H: Forall uniqEC (_::?EC::_) |- uniqEC ?EC => inv H; auto
 end.
 
+(*************************************)
+(* More dynamic properties *)
+
 Lemma GEP_inv: forall TD t (mp1 : GVsT DGVs) inbounds0 vidxs mp2 t'
   (H1 : Opsem.GEP TD t mp1 vidxs inbounds0 t' = ret mp2),
   gundef TD (typ_pointer t') = ret mp2 \/
@@ -461,3 +464,31 @@ Local Transparent lift_op1.
 Opaque lift_op1.
 Qed.
 
+Lemma wf__getTypeStoreSize_eq_sizeGenericValue: forall (gl2 : GVMap)
+  (lc2 : Opsem.GVsMap) (S : system) (los : layouts) (nts : namedts)
+  (Ps : list product) (v1 : value) (gv1 : GenericValue)
+  (Hwfg : LLVMgv.wf_global (los, nts) S gl2) (n : nat) t
+  (HeqR : ret n = getTypeStoreSize (los, nts) t) F
+  (H24 : @Opsem.getOperandValue DGVs (los, nts) v1 lc2 gl2 = ret gv1)
+  (Hwflc1 : OpsemPP.wf_lc (los, nts) F lc2)
+  (Hwfv : wf_value S (module_intro los nts Ps) F v1 t),
+  n = sizeGenericValue gv1.
+Proof.
+  intros.
+  eapply OpsemPP.getOperandValue__wf_gvs in Hwflc1; eauto.
+  inv Hwflc1.
+  assert (gv1 @ gv1) as Hinst. auto.
+  apply H2 in Hinst.
+  unfold gv_chunks_match_typ in Hinst.
+  clear - Hinst HeqR Hwfv. inv_mbind.
+  apply wf_value__wf_typ in Hwfv. destruct Hwfv as [J1 J2].
+  symmetry in HeqR0.
+  eapply flatten_typ__getTypeSizeInBits in HeqR0; eauto.
+  destruct HeqR0 as [sz [al [A B]]].          
+  unfold getTypeAllocSize, getTypeStoreSize, getABITypeAlignment,
+         getTypeSizeInBits, getAlignment, 
+         getTypeSizeInBits_and_Alignment in HeqR.
+  rewrite A in HeqR.
+  inv HeqR. rewrite B.
+  eapply vm_matches_typ__sizeMC_eq_sizeGenericValue; eauto.
+Qed.

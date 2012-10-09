@@ -10,6 +10,7 @@ Require Import subst.
 Require Import die.
 Require Import filter.
 
+(* substituting a definition makes the definition dead. *)
 Lemma subst_fdef__diinfo: forall f id0 v0
   (Hpure: forall (instr : insn)
             (Hlkup: lookupInsnViaIDFromFdef f id0 = ret instr),
@@ -49,6 +50,7 @@ Proof.
     eapply idDominates_acyclic; eauto.
 Qed.
 
+(* DIE preserves well-formedness. *)
 Lemma die_wfS: forall id0 f diinfo los nts Ps1 Ps2
   (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Heq1: f = DI_f diinfo) (Heq2: id0 = DI_id diinfo),
@@ -62,6 +64,7 @@ Proof.
     apply fdef_doesnt_use_dead_insn; auto.
 Qed.
 
+(* DIE preserves promotability. *)
 Lemma die_wfPI: forall id0 f diinfo los nts Ps1 Ps2 pinfo
   (Hwfpi: WF_PhiInfo pinfo)
   (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
@@ -78,6 +81,7 @@ Proof.
     destruct c; tinv Hlkup; auto.
 Qed.
 
+(* DIE preserves CFG. *)
 Lemma remove_successors : forall f id',
   successors f = successors (remove_fdef id' f).
 Proof.
@@ -102,6 +106,7 @@ Proof.
   split; eauto using remove_reachablity_analysis, remove_successors.
 Qed.
 
+(* subst + DIE preserves CFG. *)
 Lemma remove_subst_reachablity_successors : forall i2 i1 v1 f,
   reachablity_analysis f =
     reachablity_analysis (remove_fdef i2 (subst_fdef i1 v1 f)) /\

@@ -18,6 +18,8 @@ Require Import top_sim.
 Require Import sas.
 Require Import sas_wfS.
 
+(* This file proves that SAS refines programs by top_sim. *)
+
 Lemma s_genInitState__sas_State_simulation: forall pinfo sasinfo S1 S2 main
   VarArgs cfg2 IS2 (Hssim: system_simulation pinfo sasinfo S1 S2)
   (Hwfpi: WF_PhiInfo pinfo) (HwfS1: wf_system S1) Ps1 Ps2 los0 nts0 f0
@@ -789,6 +791,7 @@ Qed.
 
 Require Import Program.Tactics.
 
+(* The main result *)
 Lemma sas_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo : PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)

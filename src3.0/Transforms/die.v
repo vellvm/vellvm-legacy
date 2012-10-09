@@ -13,7 +13,10 @@ Require Import palloca_props.
 Require Import top_sim.
 Require Import trans_tactic.
 
+(* This file proves that dead instruction elimination backward simulates. *) 
+
 (**********************************************)
+(* The spec of DIE: the instruction to delete must be pure. *)
 
 Definition pure_insn (instr:insn) : Prop :=
 match instr with
@@ -41,6 +44,9 @@ Record DIInfo := mkDIInfo {
 
 Hint Unfold runused_in_fdef.
 
+(**********************************************)
+(* The simulation relation for DIE. *)
+ 
 Definition fdef_simulation (diinfo: DIInfo) f1 f2 : Prop :=
 RemoveSim.fdef_simulation (DI_f diinfo) (DI_id diinfo) f1 f2.
 
@@ -62,6 +68,9 @@ Definition products_simulation (diinfo: DIInfo) Ps1 Ps2 : Prop :=
 Definition system_simulation (diinfo: DIInfo) S1 S2 : Prop :=
 @TopSim.system_simulation (Fsim diinfo) S1 S2.
 
+(* If the current pc is for the function with dead code, 
+   locals match except the dead definition;
+   otherwise, locals match. *)
 Definition reg_simulation (diinfo: DIInfo) (F1:fdef)
   (lc1 lc2:@Opsem.GVsMap DGVs) : Prop :=
   if (fdef_dec (DI_f diinfo) F1) then
@@ -109,8 +118,22 @@ match (St1, St2) with
     gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2
 end.
 
+(**********************************************)
+(* Properties of reg_simulation *)  
 Definition value_doesnt_use_did dinfo F v :=
   conditional_used_in_value (DI_f dinfo) F (DI_id dinfo) v.
+
+Definition phis_simulation (dinfo: DIInfo) (f1:fdef) ps1 ps2 : Prop :=
+RemoveSim.phis_simulation (DI_f dinfo) (DI_id dinfo) f1 ps1 ps2.
+
+Definition list_value_doesnt_use_did dinfo F idxs :=
+  conditional_used_in_list_value (DI_f dinfo) F (DI_id dinfo) idxs.
+
+Definition params_dont_use_did dinfo F (ps:params) :=
+  conditional_used_in_params (DI_f dinfo) F (DI_id dinfo) ps.
+
+Definition args_dont_use_did dinfo F (la:list (typ * attributes * id)) :=
+  conditional_used_in_args (DI_f dinfo) F (DI_id dinfo) la.
 
 Lemma simulation__getOperandValue : forall dinfo lc lc2 los nts  
   gl F v (Hprop: value_doesnt_use_did dinfo F v)
@@ -129,9 +152,6 @@ Proof.
       destruct (id_dec (DI_id dinfo) id5); subst; auto.  
       destruct_dec. 
 Qed.
-
-Definition phis_simulation (dinfo: DIInfo) (f1:fdef) ps1 ps2 : Prop :=
-RemoveSim.phis_simulation (DI_f dinfo) (DI_id dinfo) f1 ps1 ps2.
 
 (* regsim can also be generalized *)
 Lemma reg_simulation_update: forall dinfo F lc1 lc2 id0 gvs,
@@ -247,12 +267,6 @@ Proof.
       eauto.
 Qed.
 
-Definition list_value_doesnt_use_did dinfo F idxs :=
-  conditional_used_in_list_value (DI_f dinfo) F (DI_id dinfo) idxs.
-
-Definition params_dont_use_did dinfo F (ps:params) :=
-  conditional_used_in_params (DI_f dinfo) F (DI_id dinfo) ps.
-
 Lemma reg_simulation__params2GVs: forall dinfo F lc1 lc2 gl
   los nts (Hrsim: reg_simulation dinfo F lc1 lc2) 
   lp (Hnuse: params_dont_use_did dinfo F lp),
@@ -280,9 +294,6 @@ Proof.
     erewrite simulation__getOperandValue; eauto.
     rewrite IHlp; auto.
 Qed.
-
-Definition args_dont_use_did dinfo F (la:list (typ * attributes * id)) :=
-  conditional_used_in_args (DI_f dinfo) F (DI_id dinfo) la.
 
 Lemma reg_simulation__initializeFrameValues: forall dinfo fa0 rt0 fid0 va0
     TD lb la2 la1 (gvs:list (GVsT DGVs)) lc1 lc2 lc1' lc2',
@@ -370,6 +381,31 @@ Proof.
     apply reg_simulation_update; auto.
 Qed.
 
+Lemma simulation__values2GVs : forall lc lc2 los nts gl F idxs 
+  dinfo (Hprop: list_value_doesnt_use_did dinfo F idxs),
+  reg_simulation dinfo F lc lc2 ->
+  Opsem.values2GVs (los,nts) idxs lc gl = Opsem.values2GVs (los,nts) idxs lc2 gl.
+Proof.
+  induction idxs as [|[]]; simpl; intros.
+    auto.
+
+    inv_mbind'. symmetry_ctx.
+    assert (list_value_doesnt_use_did dinfo F idxs /\
+            value_doesnt_use_did dinfo F v) as J.
+      unfold list_value_doesnt_use_did in *.
+      unfold value_doesnt_use_did in *.
+      simpl in Hprop.
+      destruct Hprop as [Hprop | Hprop]; auto.
+      apply orb_false_iff in Hprop.
+      destruct Hprop; auto.
+    destruct J as [J1 J2].
+    erewrite simulation__getOperandValue; eauto.
+    erewrite IHidxs; eauto.
+Qed.
+
+(**********************************************)
+(* Properties of DIInfo *)  
+
 Lemma dont_remove_impure_cmd: forall (dinfo : DIInfo) (ps1 : phinodes)
   (l1 : l) (cs1 : cmds) (tmn1 : terminator) F c cs0
   (HBinF : blockInFdefB (l1, stmts_intro ps1 (cs0++c::cs1) tmn1) F = true)
@@ -382,6 +418,32 @@ Proof.
   eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in HBinF; eauto using in_middle.
   intro EQ. rewrite <- EQ in HBinF.
   apply (DI_pure dinfo) in HBinF. auto.
+Qed.
+
+(**********************************************)
+(* Properties of states with program counters that are removable *)  
+
+Definition removable_State (dinfo: DIInfo) (St:@Opsem.State DGVs) : Prop :=
+RemoveSim.removable_State (DI_f dinfo) (DI_id dinfo) St.
+
+Lemma removable_State_inv': forall F0 ID0 St,
+  RemoveSim.removable_State F0 ID0 St ->
+  exists F, exists b, exists c, exists cs, exists tmn, exists lc, 
+    exists als, exists ECs, exists M,
+      St = {| Opsem.ECS := 
+                {| Opsem.CurFunction := F;
+                   Opsem.CurBB := b;
+                   Opsem.CurCmds := c :: cs;
+                   Opsem.Terminator := tmn;
+                   Opsem.Locals := lc;
+                   Opsem.Allocas := als |} :: ECs;
+              Opsem.Mem := M |} /\
+      F0 = F /\ ID0 = getCmdLoc c.
+Proof.
+  intros.
+  destruct St as [[|[? ? [|] ? ?]] ?]; tinv H.
+  apply RemoveSim.removable_State_inv in H. 
+  eauto 11.
 Qed.
 
 Ltac destruct_ctx_other :=
@@ -431,29 +493,6 @@ match goal with
   end
 end.
 
-Definition removable_State (dinfo: DIInfo) (St:@Opsem.State DGVs) : Prop :=
-RemoveSim.removable_State (DI_f dinfo) (DI_id dinfo) St.
-
-Lemma removable_State_inv': forall F0 ID0 St,
-  RemoveSim.removable_State F0 ID0 St ->
-  exists F, exists b, exists c, exists cs, exists tmn, exists lc, 
-    exists als, exists ECs, exists M,
-      St = {| Opsem.ECS := 
-                {| Opsem.CurFunction := F;
-                   Opsem.CurBB := b;
-                   Opsem.CurCmds := c :: cs;
-                   Opsem.Terminator := tmn;
-                   Opsem.Locals := lc;
-                   Opsem.Allocas := als |} :: ECs;
-              Opsem.Mem := M |} /\
-      F0 = F /\ ID0 = getCmdLoc c.
-Proof.
-  intros.
-  destruct St as [[|[? ? [|] ? ?]] ?]; tinv H.
-  apply RemoveSim.removable_State_inv in H. 
-  eauto 11.
-Qed.
-
 Ltac solve_lookupCmdViaIDFromFdef:=
 match goal with
 | Huniq: uniqFdef ?f,
@@ -462,11 +501,6 @@ match goal with
   eapply IngetCmdsIDs__lookupCmdViaIDFromFdef; 
     eauto 1 using in_middle
 end.
-
-Ltac repeat_solve :=
-  repeat (match goal with
-          | |- _ => split; eauto 2 using cmds_at_block_tail_next
-          end).
 
 Lemma die_is_sim_removable_state: forall (diinfo : DIInfo) 
   (Cfg1 : OpsemAux.Config) (St1 : Opsem.State) (Cfg2 : OpsemAux.Config)
@@ -500,27 +534,8 @@ Proof.
     ).
 Qed.
 
-Lemma simulation__values2GVs : forall lc lc2 los nts gl F idxs 
-  dinfo (Hprop: list_value_doesnt_use_did dinfo F idxs),
-  reg_simulation dinfo F lc lc2 ->
-  Opsem.values2GVs (los,nts) idxs lc gl = Opsem.values2GVs (los,nts) idxs lc2 gl.
-Proof.
-  induction idxs as [|[]]; simpl; intros.
-    auto.
-
-    inv_mbind'. symmetry_ctx.
-    assert (list_value_doesnt_use_did dinfo F idxs /\
-            value_doesnt_use_did dinfo F v) as J.
-      unfold list_value_doesnt_use_did in *.
-      unfold value_doesnt_use_did in *.
-      simpl in Hprop.
-      destruct Hprop as [Hprop | Hprop]; auto.
-      apply orb_false_iff in Hprop.
-      destruct Hprop; auto.
-    destruct J as [J1 J2].
-    erewrite simulation__getOperandValue; eauto.
-    erewrite IHidxs; eauto.
-Qed.
+(**********************************************)
+(* tactics *) 
 
 Ltac value_doesnt_use_did_tac :=
 match goal with
@@ -690,6 +705,8 @@ Ltac die_is_sim_branch :=
     end
   end.
 
+(**********************************************)
+(* the main result *) 
 Lemma die_is_sim : forall diinfo Cfg1 St1 Cfg2 St2
   (Hwfpp: OpsemPP.wf_State Cfg1 St1) (Hwfcfg: OpsemPP.wf_Config Cfg1)
   (Hsim: State_simulation diinfo Cfg1 St1 Cfg2 St2),
