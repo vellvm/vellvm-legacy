@@ -23,6 +23,10 @@ Import LLVMtd.
 Import LLVMtypings.
 Import LLVMinfra.
 
+(* This file defines the deterministic instance of Vellvm's operational 
+   semantics. *)
+
+(* DGVs implements the signature of GenericValues. *)
 Module MDGVs.
 
 Definition t := GenericValue.
@@ -279,6 +283,7 @@ Notation "$ gv # t $" := (DGVs.(gv2gvs) gv t) (at level 41).
 Notation "vidxs @@ vidxss" := (@Opsem.in_list_gvs DGVs vidxs vidxss)
   (at level 43, right associativity).
 
+(* Properties of deterministic operational semantics. *)
 Lemma dos_in_list_gvs_inv : forall gvs gvss, gvs @@ gvss -> gvs = gvss.
 Proof.
   induction 1; subst; auto.

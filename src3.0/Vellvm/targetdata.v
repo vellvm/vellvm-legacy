@@ -7,6 +7,8 @@ Require Import Coqlib.
 Require Import alist.
 Require Import vellvm_tactics.
 
+(* This file defines data layouts. *)
+
 Module LLVMtd.
 
 Export LLVMsyntax.
@@ -644,8 +646,7 @@ end.
    We should use different flag when t types global or aggregate
 *)
 
-(* Same problem with nested fixpoints as before *)
-
+(* Check if a type has a finite size and a well-formed alignment. *)
 Definition feasible_typs_aux_
   (feasible_typ_aux :
     layouts -> list (id * Prop) -> typ -> Prop) :=
@@ -696,6 +697,7 @@ Definition feasible_typs (TD:TargetData) lt : Prop :=
 let '(los, nts) := TD in
 feasible_typs_aux los (feasible_typ_for_namedts los nts) lt.
 
+(* Properties of feasible_typ *)
 Lemma RoundUpAlignment_spec : 
   forall a b, (b > 0)%nat -> (RoundUpAlignment a b >= a)%nat.
 Proof.
@@ -706,38 +708,6 @@ Proof.
       destruct b; try solve [contradict H; omega | apply Coqlib.Z_of_S_gt_O].
   apply nat_of_Z_inj_ge in J.
   rewrite Coqlib.Z_of_nat_eq in J. auto.
-Qed.
-
-Lemma getTypeAllocSize_inv : forall TD typ5 sz,
-  getTypeAllocSize TD typ5 = Some sz ->
-  exists sz0, exists al0, getABITypeAlignment TD typ5 = Some al0 /\
-    getTypeSizeInBits_and_Alignment TD true typ5 = Some (sz0, al0) /\
-    sz = RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz0) 8)) al0.
-Proof.
-  intros.
-  unfold getTypeAllocSize in H.
-  unfold getTypeStoreSize in H.
-  unfold getTypeSizeInBits in H.
-  unfold getABITypeAlignment in *.
-  unfold getAlignment in *.
-  remember (getTypeSizeInBits_and_Alignment TD true typ5) as R.
-  destruct R as [[sz1 al1]|]; inv H.
-  eauto.
-Qed.
-
-Lemma getTypeAllocSize_inv' : forall los nts typ5 sz sz2 al2,
-  getTypeAllocSize (los,nts) typ5 = Some sz ->
-  _getTypeSizeInBits_and_Alignment los
-         (_getTypeSizeInBits_and_Alignment_for_namedts los nts true)
-         true typ5 = Some (sz2, al2) ->
-  sz = RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz2) 8)) al2.
-Proof.
-  intros.
-  apply getTypeAllocSize_inv in H.
-  destruct H as [sz1 [al1 [J1 [J2 J3]]]].
-  unfold getTypeSizeInBits_and_Alignment in J2.
-  unfold getTypeSizeInBits_and_Alignment_for_namedts in J2.
-  rewrite J2 in H0. inv H0. auto.
 Qed.
 
 Lemma feasible_array_typ_inv : forall TD s t,
@@ -1146,6 +1116,39 @@ Proof.
   destruct H as [sz [al [H1 [H2 H3]]]]; eauto.
 Qed.
 
+(* Properties of getTypeAllocSize *)
+Lemma getTypeAllocSize_inv : forall TD typ5 sz,
+  getTypeAllocSize TD typ5 = Some sz ->
+  exists sz0, exists al0, getABITypeAlignment TD typ5 = Some al0 /\
+    getTypeSizeInBits_and_Alignment TD true typ5 = Some (sz0, al0) /\
+    sz = RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz0) 8)) al0.
+Proof.
+  intros.
+  unfold getTypeAllocSize in H.
+  unfold getTypeStoreSize in H.
+  unfold getTypeSizeInBits in H.
+  unfold getABITypeAlignment in *.
+  unfold getAlignment in *.
+  remember (getTypeSizeInBits_and_Alignment TD true typ5) as R.
+  destruct R as [[sz1 al1]|]; inv H.
+  eauto.
+Qed.
+
+Lemma getTypeAllocSize_inv' : forall los nts typ5 sz sz2 al2,
+  getTypeAllocSize (los,nts) typ5 = Some sz ->
+  _getTypeSizeInBits_and_Alignment los
+         (_getTypeSizeInBits_and_Alignment_for_namedts los nts true)
+         true typ5 = Some (sz2, al2) ->
+  sz = RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz2) 8)) al2.
+Proof.
+  intros.
+  apply getTypeAllocSize_inv in H.
+  destruct H as [sz1 [al1 [J1 [J2 J3]]]].
+  unfold getTypeSizeInBits_and_Alignment in J2.
+  unfold getTypeSizeInBits_and_Alignment_for_namedts in J2.
+  rewrite J2 in H0. inv H0. auto.
+Qed.
+
 Lemma getTypeAllocSize_roundup : forall los nts sz2 al2 t
   (H31 : feasible_typ (los, nts) t)
   (J6 : _getTypeSizeInBits_and_Alignment los
@@ -1172,6 +1175,7 @@ Proof.
   rewrite <- le_plus_minus; auto.
 Qed.
 
+(* A layout is well-formed if its alignments are positive. *)
 Definition wf_layouts (los:layouts) : Prop :=
 forall ABInfo,
   (getPointerAlignmentInfo los ABInfo > 0)%nat /\

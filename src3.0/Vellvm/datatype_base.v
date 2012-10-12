@@ -2,6 +2,8 @@ Require Import ZArith.
 Require Import Coqlib.
 Require Import Floats.
 
+(* This file defines the data types for defining syntax. *) 
+
 Local Open Scope nat_scope.
 
 Module Size.

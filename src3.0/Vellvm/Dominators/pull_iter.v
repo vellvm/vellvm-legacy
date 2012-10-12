@@ -8,6 +8,8 @@ Require Import Program.Tactics.
 Require Import dom_libs.
 Require Import dfs.
 
+(* When the Kildall's algorithm propogates, it ``pulls'' data from the 
+   predecessors of a note to the node. *)
 Module Weak_Pred_Dataflow_Solver (NS: PNODE_SET) (L: LATTICEELT).
 
 Section Kildall.
@@ -104,6 +106,7 @@ End Kildall.
 
 End Weak_Pred_Dataflow_Solver.
 
+(* Implement dominator analysis by the above Kildall's algorithm. *)
 Module LDoms := Doms (MergeLt).
 Module DomDS := Weak_Pred_Dataflow_Solver (PNodeSetMax) (LDoms).
 

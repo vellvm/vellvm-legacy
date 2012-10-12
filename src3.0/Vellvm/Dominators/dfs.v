@@ -7,6 +7,9 @@ Require Import Program.Tactics.
 Require Import dom_libs.
 Require Import cfg.
 Require Import Dipaths.
+Require Import util.
+
+(* This file defines DFS. *)
 
 Ltac inv_mbind_app :=
   match goal with
@@ -29,80 +32,14 @@ Proof.
   destruct_if; congruence.
 Qed.
 
-Lemma length_le__length_lt: forall A 
-  (eq_dec : forall x y : A, {x = y}+{x <> y})
-  (a:A) (l2:list A) (l1:list A) 
-  (Huniq: list_norepet l1) (Hinc: incl l1 l2)  
-  (Hnotin: ~ In a l1) (Hin: In a l2), 
-  (length l1 < length l2)%nat.
-Proof.
-  intros.
-  assert (incl l1 (List.remove eq_dec a l2)) as Hinc'.
-    apply remove_notin_incl; eauto with datatypes v62.
-  apply incl__length_le in Hinc'; auto.
-  assert (length (List.remove eq_dec a l2) < length l2)%nat as Hle.
-    apply remove_in_length; auto with datatypes v62.
-  omega.
-Qed.
-
-(**********************************************************)
-
 Import LLVMsyntax.
 
-Record Frame := mkFrame {
-  Fr_name: l;
-  Fr_scs: ls
-}.
+(* DFS starts at the entry, visits nodes as deep as possible along each path, 
+   and backtracks when all deep nodes are visited. DFS generates PO by 
+   numbering a node after all its children are numbered. *)
 
-(**********************************************************)
-
-Fixpoint find_next_visit_in_scs (visited: ATree.t unit) (scs: ls) 
-  : option (l * ls) :=
-match scs with
-| nil => None
-| sc::scs' => 
-    match ATree.get sc visited with
-    | None => Some (sc, scs')
-    | _ => find_next_visit_in_scs visited scs'
-    end
-end.
-
-Lemma find_next_visit_in_scs_spec': forall visited scs sc scs'
-  (Hfind : Some (sc, scs') = find_next_visit_in_scs visited scs),
-  exists scs0,
-    scs = scs0 ++ sc::scs' /\ 
-    (forall sc0 (Hin: In sc0 scs0), ATree.get sc0 visited <> None) /\
-    ATree.get sc visited = None.
-Proof.
-  induction scs as [|sc scs]; simpl; intros.
-    congruence.
-
-    inv_mbind_app.
-      apply IHscs in Hfind.
-      destruct Hfind as [scs0 Hfind].
-      destruct_pairs. subst.
-      exists (sc::scs0). 
-      repeat (split; eauto with datatypes v62).
-        intros sc1 Hin. 
-        destruct_in Hin; eauto.
-          congruence.
-        
-      uniq_result.
-      exists nil. repeat (split; eauto with datatypes v62).
-Qed.
-
-Lemma find_next_visit_in_scs_spec: forall visited scs sc scs'
-  (Hfind : Some (sc, scs') = find_next_visit_in_scs visited scs),
-  incl (sc::scs') scs /\ ATree.get sc visited = None.
-Proof.
-  intros.
-  apply find_next_visit_in_scs_spec' in Hfind.
-  destruct_conjs. subst.
-  split; eauto 2 with datatypes v62.
-Qed.
-
-(**********************************************************)
-
+(* PostOrder takes the next available PO number and a map from nodes to their 
+   PO numbers with type positive. succs maps a node to its successors. *)
 Record PostOrder := mkPO {
   PO_cnt: positive;
   PO_a2p: ATree.t positive
@@ -144,7 +81,38 @@ Proof.
   destruct po. simpl. intro. auto with positive.
 Qed.
 
-(*************************************************************)
+(**********************************************************)
+(* To facilitate reasoning about DFS, we represent the recursive information of 
+   DFS explicitly by a list of Frame records that each contains a node Fr_name 
+   and its unprocessed successors Fr_scs. *)
+Record Frame := mkFrame {
+  Fr_name: l;
+  Fr_scs: ls
+}.
+
+(**********************************************************)
+(* To prevent the search from revisiting nodes, the DFS algorithm uses visited to
+   record visited nodes. 
+
+   Initially the DFS adds the entry and its successors to the stack. At each 
+   recursive step, find_next_visit_in_stk finds the next available node that is 
+   the unvisited node in the Fr_scs of the latest node l0 of the stack. If the 
+   next available node exists, the DFS pushes the node with its successors to the 
+   stack, and makes the node to be visited. find_next_visit_in_stk pops all nodes 
+   in front of l0, and gives them PO numbers. If find_next_visit_in_stk fails to 
+   find available nodes, the DFS stops.
+*)
+
+Fixpoint find_next_visit_in_scs (visited: ATree.t unit) (scs: ls) 
+  : option (l * ls) :=
+match scs with
+| nil => None
+| sc::scs' => 
+    match ATree.get sc visited with
+    | None => Some (sc, scs')
+    | _ => find_next_visit_in_scs visited scs'
+    end
+end.
 
 Fixpoint find_next_visit_in_stk (succs: ATree.t ls)
   (visited: ATree.t unit) (po:PostOrder) (frs: list Frame) 
@@ -159,11 +127,70 @@ match frs with
     end
 end.
 
-Lemma find_next_visit_in_stk_inl_spec: forall succs visited po stk re
-  (Heq: find_next_visit_in_stk succs visited po stk = inl re),
-  stk <> nil.
+(* Similar to bounded iteration, the top-level entry is iter, which needs a 
+   bounded step n, a fixpoint F and a default value g. iter only calls g when n 
+   reaches zero, and otherwise recursively calls one more iteration of F. If F is 
+   terminating, we can prove that there must exist a final value and a bound n, 
+   such that for any bound k that is greater than or equal to n, iter always stops 
+   and generates the same final value. In other words, F must reach a fixpoint 
+   with less than n steps. In fact, the proof of the existence of n is erasable; 
+   the computation part of the proof provides a terminating algorithm for free, not
+   requiring the bound step at runtime.
+
+   dfs_aux_F defines one recursive step of DFS. *)
+Fixpoint iter (A:Type) (n:nat) (F:A->A)(g:A) : A :=
+  match n with
+  | O => g
+  | S p => F (iter A p F g)
+  end.
+
+Definition dfs_aux_type : Type :=
+  forall (succs: ATree.t ls)
+  (visited: ATree.t unit) (po:PostOrder) (stk: list Frame),
+  PostOrder.
+
+Definition dfs_aux_F (f: dfs_aux_type)
+  (succs: ATree.t ls)
+  (visited: ATree.t unit) (po:PostOrder) (stk: list Frame) 
+  : PostOrder :=
+  match find_next_visit_in_stk succs visited po stk with
+  | inr po' => po'
+  | inl (next, stk', po') => f succs (ATree.set next tt visited) po' stk'
+  end.
+
+(* Properties of find_next_visit_in_scs *)
+Lemma find_next_visit_in_scs_spec': forall visited scs sc scs'
+  (Hfind : Some (sc, scs') = find_next_visit_in_scs visited scs),
+  exists scs0,
+    scs = scs0 ++ sc::scs' /\ 
+    (forall sc0 (Hin: In sc0 scs0), ATree.get sc0 visited <> None) /\
+    ATree.get sc visited = None.
 Proof.
-  induction stk as [|[v scs] stk]; simpl; intros; congruence.
+  induction scs as [|sc scs]; simpl; intros.
+    congruence.
+
+    inv_mbind_app.
+      apply IHscs in Hfind.
+      destruct Hfind as [scs0 Hfind].
+      destruct_pairs. subst.
+      exists (sc::scs0). 
+      repeat (split; eauto with datatypes v62).
+        intros sc1 Hin. 
+        destruct_in Hin; eauto.
+          congruence.
+        
+      uniq_result.
+      exists nil. repeat (split; eauto with datatypes v62).
+Qed.
+
+Lemma find_next_visit_in_scs_spec: forall visited scs sc scs'
+  (Hfind : Some (sc, scs') = find_next_visit_in_scs visited scs),
+  incl (sc::scs') scs /\ ATree.get sc visited = None.
+Proof.
+  intros.
+  apply find_next_visit_in_scs_spec' in Hfind.
+  destruct_conjs. subst.
+  split; eauto 2 with datatypes v62.
 Qed.
 
 Lemma find_next_visit_in_scs_none_spec: forall visited sc scs 
@@ -181,7 +208,13 @@ Proof.
         congruence.
 Qed.
 
-(**************************************************)
+(* Properties of find_next_visit_in_stk *)
+Lemma find_next_visit_in_stk_inl_spec: forall succs visited po stk re
+  (Heq: find_next_visit_in_stk succs visited po stk = inl re),
+  stk <> nil.
+Proof.
+  induction stk as [|[v scs] stk]; simpl; intros; congruence.
+Qed.
 
 Definition stk_in_children succs (stk : list Frame) : Prop :=
 List.Forall (fun fr : Frame => 
@@ -310,51 +343,16 @@ Proof.
     eapply find_next_visit_in_stk_spec2; eauto.
 Qed.
 
-(************************)
-
-Program Fixpoint dfs_aux1 (succs: ATree.t ls)
-  (visited: ATree.t unit) (po:PostOrder) (stk: list Frame) 
-  (Hp: stk_in_children succs stk /\
-       incl (XATree.parents_of_tree visited) (XATree.children_of_tree succs))
-  {measure 
-     (length (XATree.children_of_tree succs) - 
-      length (XATree.parents_of_tree visited))%nat }
-  : PostOrder :=
-  match find_next_visit_in_stk succs visited po stk with
-  | inr po' => po'
-  | inl (next, stk', po') => dfs_aux1 succs (ATree.set next tt visited) po' stk' _
-  end.
-Next Obligation.
-  split.
-    eapply find_next_visit_in_stk_spec1; eauto.
-    eapply find_next_visit_in_stk_spec2; eauto.
-Qed.
-Next Obligation.
-  eapply find_next_visit_in_stk_spec3; eauto.
-Qed.
-
-(************************)
-
-Fixpoint iter (A:Type) (n:nat) (F:A->A)(g:A) : A :=
-  match n with
-  | O => g
-  | S p => F (iter A p F g)
-  end.
-
-Definition dfs_aux_type : Type :=
-  forall (succs: ATree.t ls)
-  (visited: ATree.t unit) (po:PostOrder) (stk: list Frame),
-  PostOrder.
-
-Definition dfs_aux_F (f: dfs_aux_type)
-  (succs: ATree.t ls)
-  (visited: ATree.t unit) (po:PostOrder) (stk: list Frame) 
-  : PostOrder :=
-  match find_next_visit_in_stk succs visited po stk with
-  | inr po' => po'
-  | inl (next, stk', po') => f succs (ATree.set next tt visited) po' stk'
-  end.
-
+(* Proves that the DFS must terminate, which is implemented by wellfounded 
+   recursion over the number of unvisited nodes. Intuitively, this follows 
+   because after each iteration, the DFS visits more nodes. The invariant that 
+   the number of unvisited nodes decreases holds only for wellformed recursion 
+   states, which requires that all visited nodes and unprocessed nodes 
+   in frames must be in the CFG. We implemented dfs_tmn by Coq’s Program Fixpoint, 
+   which allows programmers to leave holes for which Program Fixpoint 
+   automatically generates obligations to solve. Using dfs_aux_tmn, dfs defines 
+   the final definition of DFS.
+*)
 Require Import cpdt_tactics.
 
 Program Fixpoint dfs_aux_terminates (succs: ATree.t ls)
@@ -427,6 +425,7 @@ Qed.
 
 Require Import Max.
 
+(* A recursion equation of DFS. *)
 Lemma dfs_aux_fix_eqn: forall succs visited po stk Hp po1
   (Heq: dfs_aux succs visited po stk Hp = po1),
   match find_next_visit_in_stk succs visited po stk with
@@ -465,81 +464,12 @@ Proof.
 Qed.
 
 (*************************************************************)
-
-Definition node_in_stk (a2:atom) (stk:list Frame) : Prop :=
-exists stk1, exists stk3, exists scs2, stk = stk1 ++ mkFrame a2 scs2  :: stk3.
-
-Lemma node_in_stk_push: forall a2 hd v scs l1 stk
-  (Hnd: node_in_stk a2 ({| Fr_name := v; Fr_scs := scs |} :: stk)),
-  node_in_stk a2 (hd :: {| Fr_name := v; Fr_scs := l1 |} :: stk).
-Proof.
-  intros.
-  destruct Hnd as [stk1 [stk2 [scs' Hin]]].
-  destruct stk1 as [|fr1 stk1].
-    inv Hin.
-    exists [hd]. exists stk2. exists l1. simpl_env. auto.
-
-    inv Hin.
-    exists (hd::{|Fr_name:=v; Fr_scs:=l1|}::stk1). 
-    exists stk2. exists scs'. simpl_env. auto.
-Qed.
-
-Lemma node_in_stk_hd: forall Fr_name0 Fr_scs0 stk,
-  node_in_stk Fr_name0 ({| Fr_name := Fr_name0; Fr_scs := Fr_scs0 |} :: stk).
-Proof.
-  exists nil. exists stk. exists Fr_scs0. auto.
-Qed.
-
-Lemma node_in_stk_pop: forall a2 v scs fr stk
-  (Hin: node_in_stk a2
-           ({| Fr_name := v; Fr_scs := scs |}
-            :: fr :: stk))
-  (Hneq: a2 <> v),
-  node_in_stk a2 (fr :: stk).
-Proof.
-  intros.
-  destruct Hin as [stk1 [stk2 [scs' Hin]]].
-  destruct stk1 as [|fr1 stk1].
-    inv Hin. congruence.
-
-    inv Hin.
-    rewrite H1. unfold node_in_stk. eauto.
-Qed.
-
-Lemma node_notin_empty_stk: forall a2 (H:node_in_stk a2 nil), False.
-Proof.
-  unfold node_in_stk.
-  intros.
-  destruct_conjs.
-  symmetry in H2.
-  contradict H2.
-  apply app_cons_not_nil.
-Qed.
-
-Lemma node_in_single_stk: forall a2 entry scs
-  (Hnd: node_in_stk a2 ({| Fr_name := entry; Fr_scs := scs |} :: nil)),
-  a2 = entry.
-Proof.
-  unfold node_in_stk.
-  intros.
-  destruct_conjs.
-  destruct Hnd; inv H1; auto.
-    symmetry in H4.
-    contradict H4.
-    apply app_cons_not_nil.
-Qed.
-
-Lemma node_in_stk_cons_inv: forall n hd stk
-  (Hnd: node_in_stk n (hd :: stk)),
-  n = Fr_name hd \/ node_in_stk n stk.
-Proof.
-  unfold node_in_stk.
-  intros.
-  destruct Hnd as [A [B [C Hnd]]].
-  destruct A as [|A]; inv Hnd; eauto.
-Qed.
-
-(*************************************************************)
+(* To reason about dfs, we show a well-founded inductive principle for dfs. 
+   In Module Inv, to prove that the final result has the property wf_po and 
+   the property wf_stack holds for all its intermediate states, we need to 
+   show that the initial state satisfies wf_stack, and that find_next preserves 
+   wf_stack when it can find a new available node, and produces a well-formed 
+   final result when no available nodes exist. *)
 
 Module Inv. Section Inv.
 
@@ -628,7 +558,86 @@ Qed.
 End Inv. End Inv.
 
 (*************************************************************)
+(* With the inductive principle, we proved the following properties of DFS. *)
 
+(* Some auxilary poperties of whether a node is in stack. *)
+Definition node_in_stk (a2:atom) (stk:list Frame) : Prop :=
+exists stk1, exists stk3, exists scs2, stk = stk1 ++ mkFrame a2 scs2  :: stk3.
+
+Lemma node_in_stk_push: forall a2 hd v scs l1 stk
+  (Hnd: node_in_stk a2 ({| Fr_name := v; Fr_scs := scs |} :: stk)),
+  node_in_stk a2 (hd :: {| Fr_name := v; Fr_scs := l1 |} :: stk).
+Proof.
+  intros.
+  destruct Hnd as [stk1 [stk2 [scs' Hin]]].
+  destruct stk1 as [|fr1 stk1].
+    inv Hin.
+    exists [hd]. exists stk2. exists l1. simpl_env. auto.
+
+    inv Hin.
+    exists (hd::{|Fr_name:=v; Fr_scs:=l1|}::stk1). 
+    exists stk2. exists scs'. simpl_env. auto.
+Qed.
+
+Lemma node_in_stk_hd: forall Fr_name0 Fr_scs0 stk,
+  node_in_stk Fr_name0 ({| Fr_name := Fr_name0; Fr_scs := Fr_scs0 |} :: stk).
+Proof.
+  exists nil. exists stk. exists Fr_scs0. auto.
+Qed.
+
+Lemma node_in_stk_pop: forall a2 v scs fr stk
+  (Hin: node_in_stk a2
+           ({| Fr_name := v; Fr_scs := scs |}
+            :: fr :: stk))
+  (Hneq: a2 <> v),
+  node_in_stk a2 (fr :: stk).
+Proof.
+  intros.
+  destruct Hin as [stk1 [stk2 [scs' Hin]]].
+  destruct stk1 as [|fr1 stk1].
+    inv Hin. congruence.
+
+    inv Hin.
+    rewrite H1. unfold node_in_stk. eauto.
+Qed.
+
+Lemma node_notin_empty_stk: forall a2 (H:node_in_stk a2 nil), False.
+Proof.
+  unfold node_in_stk.
+  intros.
+  destruct_conjs.
+  symmetry in H2.
+  contradict H2.
+  apply app_cons_not_nil.
+Qed.
+
+Lemma node_in_single_stk: forall a2 entry scs
+  (Hnd: node_in_stk a2 ({| Fr_name := entry; Fr_scs := scs |} :: nil)),
+  a2 = entry.
+Proof.
+  unfold node_in_stk.
+  intros.
+  destruct_conjs.
+  destruct Hnd; inv H1; auto.
+    symmetry in H4.
+    contradict H4.
+    apply app_cons_not_nil.
+Qed.
+
+Lemma node_in_stk_cons_inv: forall n hd stk
+  (Hnd: node_in_stk n (hd :: stk)),
+  n = Fr_name hd \/ node_in_stk n stk.
+Proof.
+  unfold node_in_stk.
+  intros.
+  destruct Hnd as [A [B [C Hnd]]].
+  destruct A as [|A]; inv Hnd; eauto.
+Qed.
+
+(* First of all, a non-entry node must have at least one predecessor that has a 
+   greater PO number than the node’s. This is because 
+   1) DFS must visit at least one predecessor of a node before visiting the node; 
+   2) PO gives greater numbers to the nodes visited earlier: *)
 Module Order.
 
 Fixpoint stk_isa_path (succs: ATree.t ls) (entry:atom) (stk:list Frame) : Prop :=
@@ -903,7 +912,7 @@ Qed.
 End Order.
 
 (************************)
-
+(* Second, the entry is always PO-numbered. *)
 Module ReachableEntry. 
 
 Definition wf_stack entry (po:PostOrder) (stk: list Frame) : Prop :=
@@ -994,6 +1003,7 @@ Qed.
 End ReachableEntry. 
 
 (************************)
+(* Third, if a node is PO-numbered, then all of its successors are PO-numbered. *)
 
 Require Import Program.Equality.
 
@@ -1304,6 +1314,7 @@ Qed.
 End ReachableSucc. 
 
 (************************)
+(* Forth, a node is PO-numbered iff it is reachable. *)
 
 Module NumberedAreReachable. 
 
@@ -1499,7 +1510,7 @@ Proof.
 Qed.
 
 (************************)
-
+(* Moreover, different nodes do not have the same PO number. *)
 Module Injective. 
 
 Definition a2p_injective po : Prop :=

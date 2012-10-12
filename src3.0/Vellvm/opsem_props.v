@@ -23,6 +23,9 @@ Require Import opsem.
 Require Import vellvm_tactics.
 Require Import util.
 
+(***********************************************************)
+(* This file proves the properties of operational semantics. *)
+
 Module OpsemProps. Section OpsemProps.
 
 Context `{GVsSig : GenericValues}.
@@ -34,6 +37,8 @@ Notation "gv @ gvs" :=
   (GVsSig.(instantiate_gvs) gv gvs) (at level 43, right associativity).
 Notation "$ gv # t $" := (GVsSig.(gv2gvs) gv t) (at level 41).
 
+(***********************************************************)
+(* Properties of updating locals after calls. *)
 Lemma func_callUpdateLocals_is_returnUpdateLocals :
   forall TD rid noret0 tailc0 rt va fid lp Result lc lc' gl,
   @returnUpdateLocals GVsSig TD 
@@ -55,6 +60,8 @@ Proof.
   destruct noret0; inversion H; auto.
 Qed.
 
+(***********************************************************)
+(* Properties of sop_star *)
 Lemma sInsn__implies__sop_star : forall cfg state state' tr,
   @sInsn GVsSig cfg state state' tr ->
   sop_star cfg state state' tr.
@@ -64,6 +71,20 @@ Proof.
   eauto.
 Qed.
 
+Lemma sop_star_trans : forall cfg state1 state2 state3 tr12 tr23,
+  @sop_star GVsSig cfg state1 state2 tr12 ->
+  sop_star cfg state2 state3 tr23 ->
+  sop_star cfg state1 state3 (Eapp tr12 tr23).
+Proof.
+  intros cfg state1 state2 state3 tr12 tr23 Hdsop12 Hdsop23.
+  generalize dependent state3.
+  generalize dependent tr23.
+  induction Hdsop12; intros; auto.
+    rewrite Eapp_assoc. eauto.
+Qed.
+
+(***********************************************************)
+(* Properties of sop_plus *)
 Lemma sInsn__implies__sop_plus : forall cfg state state' tr,
   @sInsn GVsSig cfg state state' tr ->
   sop_plus cfg state state' tr.
@@ -83,30 +104,6 @@ Qed.
 
 Hint Resolve sInsn__implies__sop_star sInsn__implies__sop_plus
   sop_plus__implies__sop_star.
-
-Lemma sop_star_trans : forall cfg state1 state2 state3 tr12 tr23,
-  @sop_star GVsSig cfg state1 state2 tr12 ->
-  sop_star cfg state2 state3 tr23 ->
-  sop_star cfg state1 state3 (Eapp tr12 tr23).
-Proof.
-  intros cfg state1 state2 state3 tr12 tr23 Hdsop12 Hdsop23.
-  generalize dependent state3.
-  generalize dependent tr23.
-  induction Hdsop12; intros; auto.
-    rewrite Eapp_assoc. eauto.
-Qed.
-
-Lemma sop_diverging_trans : forall cfg state tr1 state' tr2,
-  @sop_star GVsSig cfg state state' tr1 ->
-  sop_diverges cfg state' tr2 ->
-  sop_diverges cfg state (Eappinf tr1 tr2).
-Proof.
-  intros cfg state tr1 state' tr2 state_dsop_state' state'_dsop_diverges.
-  generalize dependent tr2.
-  (sop_star_cases (induction state_dsop_state') Case); intros; auto.
-  Case "sop_star_cons".
-    rewrite Eappinf_assoc. eauto.
-Qed.
 
 Lemma sop_plus_star__implies__sop_plus: forall cfg S1 S2 S3 tr1 tr2,
   sop_plus cfg S1 S2 tr1 ->
@@ -137,6 +134,20 @@ Lemma sop_step_plus__implies__sop_plus: forall cfg S1 S2 S3 tr1 tr2,
 Proof.
   intros. inv H0.
   econstructor; eauto.
+Qed.
+
+(***********************************************************)
+(* Properties of sop_diverges *)
+Lemma sop_diverging_trans : forall cfg state tr1 state' tr2,
+  @sop_star GVsSig cfg state state' tr1 ->
+  sop_diverges cfg state' tr2 ->
+  sop_diverges cfg state (Eappinf tr1 tr2).
+Proof.
+  intros cfg state tr1 state' tr2 state_dsop_state' state'_dsop_diverges.
+  generalize dependent tr2.
+  (sop_star_cases (induction state_dsop_state') Case); intros; auto.
+  Case "sop_star_cons".
+    rewrite Eappinf_assoc. eauto.
 Qed.
 
 Lemma sop_star_diverges'__sop_diverges': forall cfg IS1 IS2 tr1 tr2,
@@ -747,6 +758,8 @@ Proof.
   apply bopInf__implies__sop_diverges; eauto.
 Qed.
 
+(***********************************************************)
+(* Inversion of operations *)
 Lemma BOP_inversion : forall TD lc gl b s v1 v2 gv2,
   BOP TD lc gl b s v1 v2 = Some gv2 ->
   exists gvs1, exists gvs2,
@@ -850,6 +863,8 @@ Proof.
   eauto.
 Qed.
 
+(***********************************************************)
+(* Equivalence of operations *)
 Lemma const2GV_eqAL : forall c gl1 gl2 TD,
   eqAL _ gl1 gl2 ->
   @const2GV GVsSig TD gl1 c = const2GV TD gl2 c.
@@ -1085,6 +1100,29 @@ Proof.
   exists g. auto.
 Qed.
 
+Lemma getIncomingValuesForBlockFromPHINodes_eq :
+  forall ps TD l1 ps1 cs1 tmn1 ps2 cs2 tmn2,
+  @getIncomingValuesForBlockFromPHINodes GVsSig TD ps
+    (l1, stmts_intro ps1 cs1 tmn1) =
+  getIncomingValuesForBlockFromPHINodes TD ps (l1, stmts_intro ps2 cs2 tmn2).
+Proof.
+  induction ps; intros; auto.
+    simpl.
+    erewrite IHps; eauto.
+Qed.
+
+Lemma switchToNewBasicBlock_eq :
+  forall TD B l1 ps1 cs1 tmn1 ps2 cs2 tmn2 gl lc,
+  @switchToNewBasicBlock GVsSig TD B (l1, stmts_intro ps1 cs1 tmn1) gl lc =
+  switchToNewBasicBlock TD B (l1, stmts_intro ps2 cs2 tmn2) gl lc.
+Proof.
+  intros.
+  unfold switchToNewBasicBlock.
+  erewrite getIncomingValuesForBlockFromPHINodes_eq; eauto.
+Qed.
+
+(***********************************************************)
+(* Uniqueness of operations *)
 Lemma exCallUpdateLocals_uniq : forall TD rt noret0 rid oresult lc lc',
   uniq lc ->
   @exCallUpdateLocals GVsSig TD rt noret0 rid oresult lc = Some lc' ->
@@ -1123,19 +1161,6 @@ Lemma updateValuesForNewBlock_uniq : forall l0 lc,
 Proof.
   induction l0; intros lc Uniqc; simpl; auto.
     destruct a; apply updateAddAL_uniq; auto.
-Qed.
-
-Lemma updateValuesForNewBlock_spec4 : forall rs lc id1 gv,
-  lookupAL _ rs id1 = Some gv ->
-  lookupAL _ (@updateValuesForNewBlock GVsSig rs lc) id1 = Some gv.
-Proof.
-  induction rs; intros; simpl in *.
-    inversion H.
-
-    destruct a.
-    destruct (id1==a); subst.
-      inversion H; subst. apply lookupAL_updateAddAL_eq; auto.
-      rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
 
 Lemma switchToNewBasicBlock_uniq : forall TD B1 B2 gl lc lc',
@@ -1177,6 +1202,21 @@ Proof.
   apply initializeFrameValues_init; auto.
 Qed.
 
+Lemma updateValuesForNewBlock_spec4 : forall rs lc id1 gv,
+  lookupAL _ rs id1 = Some gv ->
+  lookupAL _ (@updateValuesForNewBlock GVsSig rs lc) id1 = Some gv.
+Proof.
+  induction rs; intros; simpl in *.
+    inversion H.
+
+    destruct a.
+    destruct (id1==a); subst.
+      inversion H; subst. apply lookupAL_updateAddAL_eq; auto.
+      rewrite <- lookupAL_updateAddAL_neq; auto.
+Qed.
+
+(***********************************************************)
+(* Properties of initLocals and initializeFrameValues *)
 Lemma initLocals_spec : forall TD la gvs id1 lc,
   In id1 (getArgsIDs la) ->
   @initLocals GVsSig TD la gvs = Some lc ->
@@ -1233,27 +1273,113 @@ Proof.
           rewrite <- lookupAL_updateAddAL_neq; eauto.
 Qed.
 
-Lemma getIncomingValuesForBlockFromPHINodes_eq :
-  forall ps TD l1 ps1 cs1 tmn1 ps2 cs2 tmn2,
-  @getIncomingValuesForBlockFromPHINodes GVsSig TD ps
-    (l1, stmts_intro ps1 cs1 tmn1) =
-  getIncomingValuesForBlockFromPHINodes TD ps (l1, stmts_intro ps2 cs2 tmn2).
+Lemma In_initializeFrameValues__In_getArgsIDs: forall
+  (TD : TargetData) (la : args) (gvs : list (GVsT GVsSig)) (id1 : atom)
+  (lc : Opsem.GVsMap) (gv : GVsT GVsSig) acc,
+  Opsem._initializeFrameValues TD la gvs acc = ret lc ->
+  lookupAL (GVsT GVsSig) lc id1 = ret gv ->
+  In id1 (getArgsIDs la) \/ id1 `in` dom acc.
 Proof.
-  induction ps; intros; auto.
-    simpl.
-    erewrite IHps; eauto.
+  induction la as [|[]]; simpl; intros.
+    inv H.
+    right. apply lookupAL_Some_indom in H0; auto.
+
+    destruct p.
+    destruct gvs.
+      inv_mbind. 
+      destruct (id_dec i0 id1); subst; auto.
+      rewrite <- lookupAL_updateAddAL_neq in H0; auto.
+      eapply IHla in H0; eauto.
+      destruct H0 as [H0 | H0]; auto.
+
+      inv_mbind.
+      destruct (id_dec i0 id1); subst; auto.
+      rewrite <- lookupAL_updateAddAL_neq in H0; auto.
+      eapply IHla in H0; eauto.
+      destruct H0 as [H0 | H0]; auto.
 Qed.
 
-Lemma switchToNewBasicBlock_eq :
-  forall TD B l1 ps1 cs1 tmn1 ps2 cs2 tmn2 gl lc,
-  @switchToNewBasicBlock GVsSig TD B (l1, stmts_intro ps1 cs1 tmn1) gl lc =
-  switchToNewBasicBlock TD B (l1, stmts_intro ps2 cs2 tmn2) gl lc.
+Lemma In_initLocals__In_getArgsIDs : forall TD la gvs id1 lc gv,
+  @Opsem.initLocals GVsSig TD la gvs = Some lc ->
+  lookupAL _ lc id1 = Some gv ->
+  In id1 (getArgsIDs la).
 Proof.
+  unfold Opsem.initLocals.
   intros.
-  unfold switchToNewBasicBlock.
-  erewrite getIncomingValuesForBlockFromPHINodes_eq; eauto.
+  eapply In_initializeFrameValues__In_getArgsIDs in H; eauto.
+  destruct H as [H | H]; auto.
+    fsetdec.
 Qed.
 
+Lemma dom_initializeFrameValues: forall
+  (TD : TargetData) (la : args) gvs lc acc,
+  @Opsem._initializeFrameValues GVsSig TD la gvs acc = ret lc ->
+  (forall i0, i0 `in` dom lc -> i0 `in` dom acc \/ In i0 (getArgsIDs la)).
+Proof.
+  induction la as [|[[]]]; simpl; intros.
+    inv H. auto.
+
+    destruct gvs.
+      inv_mbind'.
+      rewrite updateAddAL_dom_eq in H0.
+      assert (i1 `in` (dom g) \/ i1 = i0) as J.
+        fsetdec.
+      destruct J as [J | J]; subst; auto.
+        symmetry in HeqR.
+        apply IHla with (i0:=i1) in HeqR; auto.
+        destruct HeqR as [HeqR | HeqR]; auto.
+
+      inv_mbind'.
+      rewrite updateAddAL_dom_eq in H0.
+      assert (i1 `in` (dom g0) \/ i1 = i0) as J.
+        fsetdec.
+      destruct J as [J | J]; subst; auto.
+        symmetry in HeqR.
+        apply IHla with (i0:=i1) in HeqR; auto.
+        destruct HeqR as [HeqR | HeqR]; auto.
+Qed.
+
+Lemma NotIn_getArgsIDs__NotIn_initializeFrameValues: forall
+  (TD : TargetData) (la : args) gvs (id1 : atom) lc acc,
+  @Opsem._initializeFrameValues GVsSig TD la gvs acc = ret lc ->
+  ~ In id1 (getArgsIDs la) /\ id1 `notin` dom acc ->
+  lookupAL _ lc id1 = None.
+Proof.
+  induction la as [|[]]; simpl; intros.
+    inv H.
+    destruct H0.
+    apply notin_lookupAL_None; auto.
+
+    destruct H0 as [H1 H2].
+    assert (i0 <> id1 /\ ~ In id1 (getArgsIDs la)) as J.
+      split; intro; subst; contradict H1; auto.
+    destruct J as [J1 J2].
+    destruct p.
+    destruct gvs.
+      inv_mbind'.
+      rewrite <- lookupAL_updateAddAL_neq; auto.
+      apply notin_lookupAL_None; auto.
+      intro J. symmetry in HeqR.
+      apply dom_initializeFrameValues with (i0:=id1) in HeqR; auto.
+      destruct HeqR; auto.
+
+      inv_mbind'.
+      rewrite <- lookupAL_updateAddAL_neq; auto.
+      eapply IHla; eauto.
+Qed.
+
+Lemma NotIn_getArgsIDs__NotIn_initLocals : forall TD la gvs id1 lc,
+  @Opsem.initLocals GVsSig TD la gvs = Some lc ->
+  ~ In id1 (getArgsIDs la) ->
+  lookupAL _ lc id1 = None.
+Proof.
+  unfold Opsem.initLocals.
+  intros.
+  eapply NotIn_getArgsIDs__NotIn_initializeFrameValues in H; eauto.
+Qed.
+
+(***********************************************************)
+(* Properties of updateValuesForNewBlock *)
 Lemma updateValuesForNewBlock_spec6 : forall lc rs id1 gvs
   (Hlk : lookupAL _ (@updateValuesForNewBlock GVsSig rs lc) id1 = ret gvs)
   (Hin : id1 `in` (dom rs)),
@@ -1273,43 +1399,6 @@ Proof.
         subst; eauto.
         rewrite lookupAL_updateAddAL_eq in Hlk; auto.
         rewrite <- lookupAL_updateAddAL_neq in Hlk; eauto.
-Qed.
-
-Lemma getIncomingValuesForBlockFromPHINodes_spec6 : forall TD b gl lc ps' rs id1
-  (HeqR1 : ret rs = @getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc)
-  (Hin : In id1 (getPhiNodesIDs ps')),
-  id1 `in` dom rs.
-Proof.
-  induction ps'; simpl; intros.
-    inv Hin.
-
-    destruct a. destruct b. simpl in *.
-    inv_mbind. inv HeqR1.
-    destruct Hin as [Hin | Hin]; subst; simpl; auto.
-Qed.
-
-Lemma getIncomingValuesForBlockFromPHINodes_spec7 : forall TD b gl lc ps' rs id1
-  (HeqR1 : ret rs = @getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc)
-  (Hin : id1 `in` dom rs),
-  In id1 (getPhiNodesIDs ps').
-Proof.
-  induction ps'; simpl; intros.
-    inv HeqR1. fsetdec.
-
-    destruct a as [i0 ?]. destruct b as [l2 ? ? ?]. simpl in *.
-    inv_mbind. inv HeqR1. simpl in *.
-    assert (id1 = i0 \/ id1 `in` dom l1) as J. fsetdec.
-    destruct J as [J | J]; subst; eauto.
-Qed.
-
-Lemma getIncomingValuesForBlockFromPHINodes_spec8 : forall TD b gl lc ps' rs id1
-  (HeqR1 : ret rs = @getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc)
-  (Hnotin : ~ In id1 (getPhiNodesIDs ps')),
-  id1 `notin` dom rs.
-Proof.
-  intros.
-  intro J. apply Hnotin.
-  eapply getIncomingValuesForBlockFromPHINodes_spec7 in HeqR1; eauto.
 Qed.
 
 Lemma updateValuesForNewBlock_spec7 : forall lc rs id1 gvs
@@ -1388,6 +1477,116 @@ Proof.
       rewrite updateValuesForNewBlock_spec7'; auto.
 Qed.
 
+Lemma updateValuesForNewBlock_spec5: forall lc1' lc2' i0
+  (Hlk: lookupAL _ lc1' i0 = lookupAL _ lc2' i0) lc2
+  (Hlk: merror = lookupAL _ lc2 i0),
+  lookupAL _ lc1' i0 =
+    lookupAL _ (@Opsem.updateValuesForNewBlock GVsSig lc2 lc2') i0.
+Proof.
+  induction lc2 as [|[]]; simpl; intros; auto.
+    destruct (i0 == a); try congruence.
+    rewrite <- lookupAL_updateAddAL_neq; auto.
+Qed.
+
+(***********************************************************)
+(* Properties of getIncomingValuesForBlockFromPHINodes *)
+Lemma getIncomingValuesForBlockFromPHINodes_spec6 : forall TD b gl lc ps' rs id1
+  (HeqR1 : ret rs = @getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc)
+  (Hin : In id1 (getPhiNodesIDs ps')),
+  id1 `in` dom rs.
+Proof.
+  induction ps'; simpl; intros.
+    inv Hin.
+
+    destruct a. destruct b. simpl in *.
+    inv_mbind. inv HeqR1.
+    destruct Hin as [Hin | Hin]; subst; simpl; auto.
+Qed.
+
+Lemma getIncomingValuesForBlockFromPHINodes_spec7 : forall TD b gl lc ps' rs id1
+  (HeqR1 : ret rs = @getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc)
+  (Hin : id1 `in` dom rs),
+  In id1 (getPhiNodesIDs ps').
+Proof.
+  induction ps'; simpl; intros.
+    inv HeqR1. fsetdec.
+
+    destruct a as [i0 ?]. destruct b as [l2 ? ? ?]. simpl in *.
+    inv_mbind. inv HeqR1. simpl in *.
+    assert (id1 = i0 \/ id1 `in` dom l1) as J. fsetdec.
+    destruct J as [J | J]; subst; eauto.
+Qed.
+
+Lemma getIncomingValuesForBlockFromPHINodes_spec8 : forall TD b gl lc ps' rs id1
+  (HeqR1 : ret rs = @getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc)
+  (Hnotin : ~ In id1 (getPhiNodesIDs ps')),
+  id1 `notin` dom rs.
+Proof.
+  intros.
+  intro J. apply Hnotin.
+  eapply getIncomingValuesForBlockFromPHINodes_spec7 in HeqR1; eauto.
+Qed.
+
+Lemma getIncomingValuesForBlockFromPHINodes_spec9: forall TD gl lc b id0 gvs0
+  ps' l0,
+  ret l0 = @Opsem.getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc ->
+  id0 `in` dom l0 ->
+  lookupAL _ l0 id0 = ret gvs0 ->
+  exists id1, exists t1, exists vls1, exists v, exists n,
+    In (insn_phi id1 t1 vls1) ps' /\
+    nth_error vls1 n = Some (v, getBlockLabel b) /\
+    Opsem.getOperandValue TD v lc gl= Some gvs0.
+Proof.
+  induction ps' as [|[i0 t l0]]; simpl; intros.
+    inv H. fsetdec.
+
+    inv_mbind. simpl in *.
+    destruct (id0 == i0); subst.
+      destruct b. simpl in *.
+      symmetry in HeqR.
+      apply getValueViaLabelFromValuels__nth_list_value_l in HeqR; auto.
+      destruct HeqR as [n HeqR].
+      destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i0 i0);
+        try congruence.
+      inv H1.
+      exists i0. exists t. exists l0. exists v. exists n.
+      split; auto.
+
+      apply IHps' in H1; auto; try fsetdec.
+      destruct H1 as [id1 [t1 [vls1 [v' [n' [J1 [J2 J3]]]]]]].
+      exists id1. exists t1. exists vls1. exists v'. exists n'.
+      split; auto.
+Qed.
+
+Lemma getIncomingValuesForBlockFromPHINodes_spec9': forall TD gl lc b id0 gvs0
+  ps' l0,
+  ret l0 = @Opsem.getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc ->
+  id0 `in` dom l0 ->
+  lookupAL _ l0 id0 = ret gvs0 ->
+  exists t1, exists vls1, exists v, 
+    In (insn_phi id0 t1 vls1) ps' /\
+    getValueViaLabelFromValuels vls1 (getBlockLabel b) = Some v /\
+    Opsem.getOperandValue TD v lc gl= Some gvs0.
+Proof.
+  induction ps' as [|[i0 t l0]]; simpl; intros.
+    inv H. fsetdec.
+
+    inv_mbind. simpl in *.
+    destruct (id0 == i0); subst.
+      destruct b. simpl in *.
+      symmetry in HeqR.
+      inv H1.
+      exists t. exists l0. exists v. 
+      split; auto.
+
+      apply IHps' in H1; auto; try fsetdec.
+      destruct H1 as [t1 [vls1 [v' [J1 [J2 J3]]]]].
+      exists t1. exists vls1. exists v'.
+      split; auto.
+Qed.
+
+(***********************************************************)
+(* Properties of bop *)
 Lemma bops_trans : forall cfg state1 state2 state3 tr1 tr2,
   @bops GVsSig cfg state1 state2 tr1 ->
   bops cfg state2 state3 tr2 ->
@@ -1430,7 +1629,7 @@ Proof.
   inversion H; subst; try solve [inversion H0 | repeat (split; auto)].
 Qed.
 
-(* preservation of uniqueness and inclusion *)
+(* preservation of uniqueness and inclusion for bop *)
 
 Definition bInsn_preservation_prop cfg state1 state2 tr
   (db:@bInsn GVsSig cfg state1 state2 tr) :=
@@ -1577,180 +1776,6 @@ Proof.
   destruct b_preservation as [_ [_ J]].
   unfold bFdef_preservation_prop in J.
   eapply J; eauto.
-Qed.
-
-Lemma In_initializeFrameValues__In_getArgsIDs: forall
-  (TD : TargetData) (la : args) (gvs : list (GVsT GVsSig)) (id1 : atom)
-  (lc : Opsem.GVsMap) (gv : GVsT GVsSig) acc,
-  Opsem._initializeFrameValues TD la gvs acc = ret lc ->
-  lookupAL (GVsT GVsSig) lc id1 = ret gv ->
-  In id1 (getArgsIDs la) \/ id1 `in` dom acc.
-Proof.
-  induction la as [|[]]; simpl; intros.
-    inv H.
-    right. apply lookupAL_Some_indom in H0; auto.
-
-    destruct p.
-    destruct gvs.
-      inv_mbind. 
-      destruct (id_dec i0 id1); subst; auto.
-      rewrite <- lookupAL_updateAddAL_neq in H0; auto.
-      eapply IHla in H0; eauto.
-      destruct H0 as [H0 | H0]; auto.
-
-      inv_mbind.
-      destruct (id_dec i0 id1); subst; auto.
-      rewrite <- lookupAL_updateAddAL_neq in H0; auto.
-      eapply IHla in H0; eauto.
-      destruct H0 as [H0 | H0]; auto.
-Qed.
-
-Lemma In_initLocals__In_getArgsIDs : forall TD la gvs id1 lc gv,
-  @Opsem.initLocals GVsSig TD la gvs = Some lc ->
-  lookupAL _ lc id1 = Some gv ->
-  In id1 (getArgsIDs la).
-Proof.
-  unfold Opsem.initLocals.
-  intros.
-  eapply In_initializeFrameValues__In_getArgsIDs in H; eauto.
-  destruct H as [H | H]; auto.
-    fsetdec.
-Qed.
-
-Lemma getIncomingValuesForBlockFromPHINodes_spec9: forall TD gl lc b id0 gvs0
-  ps' l0,
-  ret l0 = @Opsem.getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc ->
-  id0 `in` dom l0 ->
-  lookupAL _ l0 id0 = ret gvs0 ->
-  exists id1, exists t1, exists vls1, exists v, exists n,
-    In (insn_phi id1 t1 vls1) ps' /\
-    nth_error vls1 n = Some (v, getBlockLabel b) /\
-    Opsem.getOperandValue TD v lc gl= Some gvs0.
-Proof.
-  induction ps' as [|[i0 t l0]]; simpl; intros.
-    inv H. fsetdec.
-
-    inv_mbind. simpl in *.
-    destruct (id0 == i0); subst.
-      destruct b. simpl in *.
-      symmetry in HeqR.
-      apply getValueViaLabelFromValuels__nth_list_value_l in HeqR; auto.
-      destruct HeqR as [n HeqR].
-      destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i0 i0);
-        try congruence.
-      inv H1.
-      exists i0. exists t. exists l0. exists v. exists n.
-      split; auto.
-
-      apply IHps' in H1; auto; try fsetdec.
-      destruct H1 as [id1 [t1 [vls1 [v' [n' [J1 [J2 J3]]]]]]].
-      exists id1. exists t1. exists vls1. exists v'. exists n'.
-      split; auto.
-Qed.
-
-Lemma getIncomingValuesForBlockFromPHINodes_spec9': forall TD gl lc b id0 gvs0
-  ps' l0,
-  ret l0 = @Opsem.getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc ->
-  id0 `in` dom l0 ->
-  lookupAL _ l0 id0 = ret gvs0 ->
-  exists t1, exists vls1, exists v, 
-    In (insn_phi id0 t1 vls1) ps' /\
-    getValueViaLabelFromValuels vls1 (getBlockLabel b) = Some v /\
-    Opsem.getOperandValue TD v lc gl= Some gvs0.
-Proof.
-  induction ps' as [|[i0 t l0]]; simpl; intros.
-    inv H. fsetdec.
-
-    inv_mbind. simpl in *.
-    destruct (id0 == i0); subst.
-      destruct b. simpl in *.
-      symmetry in HeqR.
-      inv H1.
-      exists t. exists l0. exists v. 
-      split; auto.
-
-      apply IHps' in H1; auto; try fsetdec.
-      destruct H1 as [t1 [vls1 [v' [J1 [J2 J3]]]]].
-      exists t1. exists vls1. exists v'.
-      split; auto.
-Qed.
-
-Lemma updateValuesForNewBlock_spec5: forall lc1' lc2' i0
-  (Hlk: lookupAL _ lc1' i0 = lookupAL _ lc2' i0) lc2
-  (Hlk: merror = lookupAL _ lc2 i0),
-  lookupAL _ lc1' i0 =
-    lookupAL _ (@Opsem.updateValuesForNewBlock GVsSig lc2 lc2') i0.
-Proof.
-  induction lc2 as [|[]]; simpl; intros; auto.
-    destruct (i0 == a); try congruence.
-    rewrite <- lookupAL_updateAddAL_neq; auto.
-Qed.
-
-Lemma dom_initializeFrameValues: forall
-  (TD : TargetData) (la : args) gvs lc acc,
-  @Opsem._initializeFrameValues GVsSig TD la gvs acc = ret lc ->
-  (forall i0, i0 `in` dom lc -> i0 `in` dom acc \/ In i0 (getArgsIDs la)).
-Proof.
-  induction la as [|[[]]]; simpl; intros.
-    inv H. auto.
-
-    destruct gvs.
-      inv_mbind'.
-      rewrite updateAddAL_dom_eq in H0.
-      assert (i1 `in` (dom g) \/ i1 = i0) as J.
-        fsetdec.
-      destruct J as [J | J]; subst; auto.
-        symmetry in HeqR.
-        apply IHla with (i0:=i1) in HeqR; auto.
-        destruct HeqR as [HeqR | HeqR]; auto.
-
-      inv_mbind'.
-      rewrite updateAddAL_dom_eq in H0.
-      assert (i1 `in` (dom g0) \/ i1 = i0) as J.
-        fsetdec.
-      destruct J as [J | J]; subst; auto.
-        symmetry in HeqR.
-        apply IHla with (i0:=i1) in HeqR; auto.
-        destruct HeqR as [HeqR | HeqR]; auto.
-Qed.
-
-Lemma NotIn_getArgsIDs__NotIn_initializeFrameValues: forall
-  (TD : TargetData) (la : args) gvs (id1 : atom) lc acc,
-  @Opsem._initializeFrameValues GVsSig TD la gvs acc = ret lc ->
-  ~ In id1 (getArgsIDs la) /\ id1 `notin` dom acc ->
-  lookupAL _ lc id1 = None.
-Proof.
-  induction la as [|[]]; simpl; intros.
-    inv H.
-    destruct H0.
-    apply notin_lookupAL_None; auto.
-
-    destruct H0 as [H1 H2].
-    assert (i0 <> id1 /\ ~ In id1 (getArgsIDs la)) as J.
-      split; intro; subst; contradict H1; auto.
-    destruct J as [J1 J2].
-    destruct p.
-    destruct gvs.
-      inv_mbind'.
-      rewrite <- lookupAL_updateAddAL_neq; auto.
-      apply notin_lookupAL_None; auto.
-      intro J. symmetry in HeqR.
-      apply dom_initializeFrameValues with (i0:=id1) in HeqR; auto.
-      destruct HeqR; auto.
-
-      inv_mbind'.
-      rewrite <- lookupAL_updateAddAL_neq; auto.
-      eapply IHla; eauto.
-Qed.
-
-Lemma NotIn_getArgsIDs__NotIn_initLocals : forall TD la gvs id1 lc,
-  @Opsem.initLocals GVsSig TD la gvs = Some lc ->
-  ~ In id1 (getArgsIDs la) ->
-  lookupAL _ lc id1 = None.
-Proof.
-  unfold Opsem.initLocals.
-  intros.
-  eapply NotIn_getArgsIDs__NotIn_initializeFrameValues in H; eauto.
 Qed.
 
 End OpsemProps. End OpsemProps.

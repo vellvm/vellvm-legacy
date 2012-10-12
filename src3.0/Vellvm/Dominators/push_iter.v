@@ -8,6 +8,8 @@ Require Import Program.Tactics.
 Require Import dom_libs.
 Require Import dfs.
 
+(* When the Kildall's algorithm propogates, it ``pushes'' data from a node to its
+   successors. *)
 Module Weak_Succ_Dataflow_Solver (NS: PNODE_SET) (L: LATTICEELT).
 
 Section Kildall.
@@ -106,12 +108,16 @@ End Kildall.
 End Weak_Succ_Dataflow_Solver.
 
 (***************************************************)
+(* Instantiate Weak_Succ_Dataflow_Solver for computing dominators:
+   1) a merge function for nodes sorted by less-than
+   2) a worklist that always picks maximal node. *)
 
 Module LDoms := Doms (MergeLt).
 Module DomDS := Weak_Succ_Dataflow_Solver (PNodeSetMax) (LDoms).
 Module DomMap := LATTICEELT_MAP (LDoms).
 
 (***************************************************)
+(* Properties of propagate_succ_list *)
 
 Lemma propagate_succ_list_st_in_aux: forall out sc st2 scs st1 (Hnotin: ~ In sc scs)
   (Heq: (DomDS.st_in st1) ?? sc = (DomDS.st_in st2) ?? sc),
@@ -297,6 +303,7 @@ Proof.
   congruence.
 Qed.
 
+(* Properties of DomMap.in_incr *)
 Lemma DomMap_eq_incr_incr__eq_eq: forall bd dm1 dm2 dm3 (Heq13: DomMap.eq bd dm1 dm3)
   (Hincr12: DomMap.in_incr dm1 dm2) (Hincr23: DomMap.in_incr dm2 dm3),
   DomMap.eq bd dm1 dm2 /\ DomMap.eq bd dm2 dm3.
@@ -333,6 +340,7 @@ Proof.
 Qed.
 
 (***************************************************)
+(* All elements in a worklist must be in the CFG. *)
 
 Module WorklistProps. Section WorklistProps.
 
@@ -424,6 +432,10 @@ Qed.
 End WorklistProps. End WorklistProps.
 
 (*******************************************************************)
+(* Suppose that for each node, dfs numbering gives at least one predecessor
+   of the node a larger number than the node.
+   Initially, if a node's dominator set is full, then there must exist 
+   at least one predecessor in the worklist that has a larger PO-number. *)
 
 Module InitOrder. Section InitOrder.
 
@@ -655,6 +667,7 @@ Qed.
 End Mono. End Mono.
 
 (***************************************************)
+(* Dominators of a node must be parents of the node. *)
 
 Module DomsInParents. Section DomsInParents.
 
@@ -795,6 +808,7 @@ Qed.
 End DomsInParents. End DomsInParents.
 
 (******************************************************)
+(* Nodes that are not in CFG are dominated by any nodes. *)
 
 Module NonCFGIsBot. Section NonCFGIsBot.
 
@@ -838,6 +852,7 @@ Qed.
 End NonCFGIsBot. End NonCFGIsBot.
 
 (***************************************************)
+(* A node's dominators' PO-number must be larger than the node's. *)
 
 Module LtDoms. Section LtDoms.
 
@@ -1028,6 +1043,7 @@ Qed.
 End LtDoms. End LtDoms.
 
 (***************************************************)
+(* A node's dominators are sorted by less-than. *)
 
 Require Import Sorted.
 
@@ -1478,6 +1494,7 @@ Qed.
 End Inequations. End Inequations.
 
 (***************************************************)
+(* Define the interfaces of computing dominators. *)
 
 Require Import Dipaths.
 Require Import cfg.
@@ -1549,6 +1566,7 @@ Qed.
 Variable entrypoint: positive.
 Variable num_iters: positive.
 
+(* The main interface *)
 Definition pdom_analyze : PMap.t LDoms.t :=
 match DomDS.fixpoint successors LDoms.transfer 
               ((entrypoint, LDoms.top) :: nil) num_iters with
@@ -1579,6 +1597,7 @@ Qed.
 End Domination.
 
 (***************************************************)
+(* Properties of entry points *)
 
 Section StartStateIn.
 
@@ -1805,6 +1824,7 @@ Proof.
 Qed.
 
 (***********************************************************)
+(* Prove that the analyis must terminate. *)
 
 Module Termination. Section Termination.
 
@@ -2459,6 +2479,7 @@ match goal with
 end.
 
 (***************************************************)
+(* Unreachable nodes are dominated by any nodes. *)
 
 Module UnreachableDoms. Section UnreachableDoms.
 
@@ -2587,6 +2608,7 @@ Qed.
 End UnreachableDoms. End UnreachableDoms.
 
 (***************************************************)
+(* The entry point dominates all other nodes. *)
 
 Module EntryDomsOthers. Section EntryDomsOthers.
 
@@ -2716,6 +2738,7 @@ Qed.
 End EntryDomsOthers. End EntryDomsOthers.
 
 (***************************************************)
+(* The completeness of the analysis. *)
 
 (* Inequations, EntryDomsOthers and DomComplete should be 
    generalized by parametering SortedDoms and LtDoms *)
@@ -2894,6 +2917,7 @@ Qed.
 End DomComplete. End DomComplete.
 
 (*****************************************************************)
+(*The soundness of the analysis. *)
 
 Require Import Program.Equality.
 
@@ -3076,7 +3100,7 @@ Qed.
 End DomSound. End DomSound.
 
 (***************************************************************)
-
+(* Prove that pdom_analyze satisfies the specification defined in dom_type.v. *) 
 Module PDomProps. Section PDomProps.
 
 Variable successors: PTree.t (list positive).
@@ -3225,6 +3249,8 @@ Qed.
 
 End PDomProps. End PDomProps.
 
+(**************************************************************)
+(* Dominators are sorted by immediate-domination relations.   *)
 Require Import dom_decl.
 
 Module IdomSorted. Section IdomSorted.

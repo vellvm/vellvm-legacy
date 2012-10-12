@@ -30,19 +30,8 @@ Import LLVMtypings.
 Import LLVMgv.
 Import AtomSet.
 
-(* Basic inversion lemmas *)
+(* This file proves the properties of typing rules. *)
 
-Lemma wf_value_list_cons_iff p l :
-  wf_value_list (p :: l) <->
-  wf_value_list l /\
-  let '(s, m, f, v, t) := p in wf_value s m f v t.
-Proof.
-  unfold wf_value_list; repeat rewrite <- Forall_forall; split; intros H.
-  inversion H; subst. eauto.
-  inversion H; constructor; eauto.
-Qed.
-
-(********************************************)
 (** * Inversion of well-formedness *)
 
 Ltac inv_wf_fdef H :=
@@ -65,41 +54,123 @@ inversion H as
   [S5 los5 nts5 prods5 fh5 bs5 b5 HpInS Hwffh Hentry Hnpred
    Hwfb EQ1 EQ2 EQ3]; subst S5.
 
-Lemma getEntryBlock_inv : forall fh bs
-  (l3 : l)
-  (l' : l)
-  (ps : phinodes)
-  (cs : cmds)
-  (tmn : terminator)
-  (s : system)
-  (m : module)
-  (HwfF : wf_fdef s m (fdef_intro fh bs)) (Huniq:uniqFdef (fdef_intro fh bs))
-  (HBinF : InBlocksB (l3, stmts_intro ps cs tmn) bs = true)
-  (Hsucc : In l' (successors_terminator tmn)) a s0
-  (H : getEntryBlock (fdef_intro fh bs) = ret (a, s0)),
-  l' <> a.
+(* Properties of wf_typ *)
+Lemma wf_styp__isValidElementTyp: forall S td t (Hty: wf_styp S td t),
+  isValidElementTyp t.
 Proof.
   intros.
-  destruct (eq_atom_dec l' a); subst; auto.
-  inv_wf_fdef HwfF. subst.
-  uniq_result.
-  eapply successors_predecessors_of_block in Hsucc; eauto 1.
-  apply has_no_predecessors_tinv in Hnpred.
-  simpl in Hnpred. rewrite Hnpred in Hsucc. tauto.
+  unfold isValidElementTyp, isValidElementTypB, isNotValidElementTypB.
+  inv Hty; simpl; auto.
 Qed.
 
-Lemma entryBlock_has_no_pred: forall s m F B l0 l3 ps cs tmn
-  (HwfF: wf_fdef s m F) (Hentry:  getEntryBlock F = Some B) (Huniq:uniqFdef F)
-  (HBinF : blockInFdefB (l3, stmts_intro ps cs tmn) F = true)
-  (Hsucc : In l0 (successors_terminator tmn)) (Heq: l0 = fst B)
-  (Hlkup: lookupBlockViaLabelFromFdef F l0 = Some (snd B)),
-  False.
+Lemma getPointerAlignmentInfo_pos: forall los (Hwfl: wf_layouts los),
+ (getPointerAlignmentInfo los true > 0)%nat.
 Proof.
-  intros. subst.
-  destruct F as [fh bs]. destruct B.
-  eapply getEntryBlock_inv in HBinF; eauto.
+  intros.
+  destruct (@Hwfl true); auto.
 Qed.
 
+Lemma wf_typ_pointer: forall S los nts t (Hwft: wf_typ S (los,nts) t)
+  (Hwfl: wf_layouts los),
+  wf_typ S (los,nts) (typ_pointer t).
+Proof.
+  intros. 
+  inv Hwft.
+  constructor; auto.
+    constructor; auto.
+      eapply wf_styp__isValidElementTyp; eauto.
+      apply getPointerAlignmentInfo_pos; auto.
+Qed.
+
+(* Properties of wf_tmn *)
+Lemma wf_tmn__wf_value : forall s m f b tmn v,
+  wf_insn s m f b (insn_terminator tmn) ->
+  valueInTmnOperands v tmn ->
+  exists t, wf_value s m f v t.
+Proof.
+  intros s m f b tmn v Hwfinsn HvInOps.
+  inv Hwfinsn; simpl in HvInOps; subst; try solve [
+    eauto | inversion HvInOps
+  ].
+Qed.
+
+Lemma wf_tmn__in_successors: forall s m f l0 cs ps tmn l1
+  (HuniqF : uniqFdef f)
+  (Hwftmn : wf_insn s m f (l0, stmts_intro cs ps tmn) (insn_terminator tmn))
+  (Hin : In l1 (successors_terminator tmn)),
+  exists s1, blockInFdefB (l1, s1) f.
+Proof.
+  intros.
+  inv Hwftmn; simpl in Hin; tinv Hin.
+    destruct Hin as [Hin | [Hin | Hin]]; tinv Hin; subst.
+      apply lookupBlockViaLabelFromFdef_inv in H2; eauto.
+      apply lookupBlockViaLabelFromFdef_inv in H3; eauto.
+
+    destruct Hin as [Hin | Hin]; tinv Hin; subst.
+      apply lookupBlockViaLabelFromFdef_inv in H0; eauto.
+Qed.
+
+(* Properties of wf_blocks *)
+Lemma wf_blocks__wf_block : forall s m f bs b,
+  wf_blocks s m f bs ->
+  InBlocksB b bs = true ->
+  wf_block s m f b.
+Proof.
+  induction bs; intros b Hwfbs Hbinbs.
+    inv Hbinbs.
+
+    inv Hwfbs.
+    simpl in Hbinbs.
+    apply orb_prop in Hbinbs.
+    inv Hbinbs; eauto.
+      apply blockEqB_inv in H.
+      subst. auto.
+Qed.
+
+(* Properties of wf_cmds *)
+Lemma wf_cmds__wf_cmd : forall s m f b cs c,
+  wf_cmds s m f b cs ->
+  In c cs ->
+  wf_insn s m f b (insn_cmd c).
+Proof.
+  induction cs; intros.
+    inversion H0.
+
+    simpl in H0.
+    inv H.
+    destruct H0 as [H0 | H0]; subst; eauto.
+Qed.
+
+Lemma wf_cmds_intro: forall s m f b cs,
+  (forall c, In c cs -> wf_insn s m f b (insn_cmd c)) ->
+  wf_cmds s m f b cs.
+Proof.
+  induction cs; intros.
+    constructor.
+    constructor.
+      apply H; simpl; auto.
+      apply IHcs. intros. apply H; simpl; auto.
+Qed.
+
+Lemma wf_cmds_elim: forall s m f b cs,
+  wf_cmds s m f b cs -> forall c, In c cs -> wf_insn s m f b (insn_cmd c).
+Proof.
+  intros s m f b cs J.
+  induction J; intros.
+    inv H.
+
+    simpl in H0.
+    destruct H0 as [H0 | H0]; subst; auto.
+Qed.
+
+Lemma wf_cmds_app: forall s m f b cs2 (Hwfcs2: wf_cmds s m f b cs2) cs1
+  (Hwfcs1: wf_cmds s m f b cs1), wf_cmds s m f b (cs1++cs2).
+Proof.
+  induction cs1; simpl; intros; auto.
+    inv Hwfcs1. constructor; auto.
+Qed.
+
+(* Properties of wf_modules *)
 Lemma wf_modules__wf_module : forall S ms m,
   wf_modules S ms ->
   moduleInSystemB m ms ->
@@ -115,6 +186,28 @@ Proof.
       subst. auto.
 Qed.
 
+Lemma wf_modules_elim: forall (md:module) S mds 
+  (Hwfms: wf_modules S mds) (Hin: In md mds), 
+  wf_module S md.
+Proof.
+  induction 1; intros; try tauto.
+    destruct_in Hin; auto.
+Qed.
+
+Lemma wf_modules_intro: forall S mds 
+  (H: forall (md:module) (Hin: In md mds), wf_module S md),
+  wf_modules S mds.
+Proof.
+  induction mds; intros.
+    constructor.
+    constructor.
+      apply H. xsolve_in_list.
+
+      apply IHmds. intros.
+      apply H. xsolve_in_list.
+Qed.    
+
+(* Properties of wf_prods *)
 Lemma wf_prods__wf_prod : forall S M Ps P,
   wf_prods S M Ps ->
   InProductsB P Ps = true ->
@@ -131,6 +224,28 @@ Proof.
       subst. auto.
 Qed.
 
+Lemma wf_prods_elim: forall (prod:product) S md prods 
+  (Hwfps: wf_prods S md prods) (Hin: In prod prods), 
+  wf_prod S md prod.
+Proof.
+  induction 1; intros; try tauto.
+    destruct_in Hin; auto.
+Qed.    
+
+Lemma wf_prods_intro: forall S md prods 
+  (H: forall (prod:product) (Hin: In prod prods), wf_prod S md prod),
+  wf_prods S md prods.
+Proof.
+  induction prods; intros.
+    constructor.
+    constructor.
+      apply IHprods. intros.
+      apply H. xsolve_in_list.
+
+      apply H. xsolve_in_list.
+Qed.    
+
+(* Properties of wf_system *)
 Lemma wf_system__wf_fdef : forall S los nts Ps f,
   wf_system S ->
   moduleInSystemB (module_intro los nts Ps) S = true ->
@@ -189,32 +304,6 @@ Proof.
   apply andb_true_iff; auto.
 Qed.
 
-Lemma wf_blocks__wf_block : forall s m f bs b,
-  wf_blocks s m f bs ->
-  InBlocksB b bs = true ->
-  wf_block s m f b.
-Proof.
-  induction bs; intros b Hwfbs Hbinbs.
-    inv Hbinbs.
-
-    inv Hwfbs.
-    simpl in Hbinbs.
-    apply orb_prop in Hbinbs.
-    inv Hbinbs; eauto.
-      apply blockEqB_inv in H.
-      subst. auto.
-Qed.
-
-Lemma wf_fdef__blockInFdefB__wf_block : forall b S M f,
-  blockInFdefB b f = true ->
-  wf_fdef S M f ->
-  wf_block S M f b.
-Proof.
-  intros.
-  inv H0.
-  eapply wf_blocks__wf_block; eauto.
-Qed.
-
 Lemma wf_system__blockInFdefB__wf_block : forall b f ps los nts s,
   blockInFdefB b f = true ->
   InProductsB (product_fdef f) ps = true ->
@@ -256,19 +345,6 @@ Proof.
   eapply uniqBlocksLocs__uniqBlockLocs in H; eauto.
 Qed.
 
-Lemma wf_cmds__wf_cmd : forall s m f b cs c,
-  wf_cmds s m f b cs ->
-  In c cs ->
-  wf_insn s m f b (insn_cmd c).
-Proof.
-  induction cs; intros.
-    inversion H0.
-
-    simpl in H0.
-    inv H.
-    destruct H0 as [H0 | H0]; subst; eauto.
-Qed.
-
 Lemma wf_system__wf_cmd : forall l1 ps1 cs1 tmn1 f ps los nts s c,
   blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) f = true ->
   InProductsB (product_fdef f) ps = true ->
@@ -297,48 +373,86 @@ Proof.
   inv H1. auto.
 Qed.
 
-Lemma wf_fdef__wf_cmd : forall l1 ps1 cs1 tmn1 s m f c,
-  blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) f = true ->
-  wf_fdef s m f ->
-  In c cs1 ->
-  wf_insn s m f (l1, stmts_intro ps1 cs1 tmn1) (insn_cmd c).
+Lemma wf_system__wf_layouts: forall los nts Ps1 f Ps2 S 
+  (HwfS : wf_system S) 
+  (Hin: In (module_intro los nts (Ps1 ++ product_fdef f :: Ps2)) S),
+  wf_layouts los.
 Proof.
   intros.
-  eapply wf_fdef__blockInFdefB__wf_block in H; eauto.
-  inv H. eapply wf_cmds__wf_cmd; eauto.
+  inv HwfS.
+  apply In_InModulesB in Hin.
+  eapply wf_modules__wf_module in H; eauto.
+  inv H. inv H5; auto.
 Qed.
 
-Lemma wf_fdef__wf_tmn : forall l1 ps1 cs1 tmn1 s m f,
-  blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) f = true ->
-  wf_fdef s m f ->
-  wf_insn s m f (l1, stmts_intro ps1 cs1 tmn1) (insn_terminator tmn1).
+Lemma wf_single_system__wf_uniq_fdef: forall los nts Ps1 f Ps2,
+  wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] ->
+  wf_fdef [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
+    (module_intro los nts (Ps1 ++ product_fdef f :: Ps2)) f /\
+  uniqFdef f.
 Proof.
   intros.
-  eapply wf_fdef__blockInFdefB__wf_block in H; eauto.
-  inv H. auto.
+  assert (
+    moduleInSystemB (module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
+      [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] = true) as HmInS.
+    simpl. rewrite moduleEqB_refl. auto.
+  assert (
+    InProductsB (product_fdef f) (Ps1 ++ product_fdef f :: Ps2) = true)
+    as HpInM.
+    apply InProductsB_middle; auto.
+  split.
+    eapply wf_system__wf_fdef; eauto 1.
+    eapply wf_system__uniqFdef; eauto 1.
 Qed.
 
-Lemma wf_fdef__non_entry: forall s m f,
-  wf_fdef s m f -> getEntryBlock f <> None.
+Lemma wf_system__uniqSystem: forall S, wf_system S -> uniqSystem S.
 Proof.
-  intros. inv H.
+  intros.
+  destruct H; auto.
+Qed.
+
+(* Properties of wf_phinodes *)
+Lemma wf_phinodes_app: forall s m f b ps2 (Hwfps2: wf_phinodes s m f b ps2) ps1
+  (Hwfps1: wf_phinodes s m f b ps1), wf_phinodes s m f b (ps1++ps2).
+Proof.
+  induction ps1; simpl; intros; auto.
+    inv Hwfps1. constructor; auto.
+Qed.
+
+Lemma wf_phinodes__wf_phinode : forall s m f b ps p,
+  wf_phinodes s m f b ps ->
+  In p ps ->
+  wf_insn s m f b (insn_phinode p).
+Proof.
+  induction ps; intros.
+    inversion H0.
+
+    simpl in H0.
+    inv H.
+    destruct H0 as [H0 | H0]; subst; eauto.
+Qed.
+
+Lemma wf_phinodes__nth_list_value_l__wf_value: forall s m f b ps id1 t1 vls1
+  n v lv (Hwfps: wf_phinodes s m f b ps) (Hin: In (insn_phi id1 t1 vls1) ps)
+  (Hnth: nth_error vls1 n = Some (v, lv)),
+  wf_value s m f v t1.
+Proof.
+  intros.
+  eapply wf_phinodes__wf_phinode in Hwfps; eauto. inv Hwfps.
   match goal with
-  | H2: getEntryBlock ?f = Some _ |- getEntryBlock ?f <> None =>
-      rewrite H2; congruence
+  | Hnth: nth_error _ _ = _,
+    H6: forall _:_, In _ _ -> _ |- _ => clear - Hnth H6
   end.
+  generalize dependent vls1.
+  induction n as [|n]; simpl; intros; auto.
+    destruct vls1 as [|[val l0] vls1]; inv Hnth.
+      apply H6. left. trivial.
+    destruct vls1 as [|[vla l0] vls1]; inv Hnth.
+      apply IHn with vls1; auto.
+      intros v' Hv'. apply H6. right. trivial.
 Qed.
 
-Lemma wf_tmn__wf_value : forall s m f b tmn v,
-  wf_insn s m f b (insn_terminator tmn) ->
-  valueInTmnOperands v tmn ->
-  exists t, wf_value s m f v t.
-Proof.
-  intros s m f b tmn v Hwfinsn HvInOps.
-  inv Hwfinsn; simpl in HvInOps; subst; try solve [
-    eauto | inversion HvInOps
-  ].
-Qed.
-
+(* Properties of wf_value *)
 Lemma wf_value__wf_typ : forall s los nts ps f v t,
   wf_value s (module_intro los nts ps) f v t ->
   wf_typ s (los, nts) t /\ feasible_typ (los, nts) t.
@@ -347,113 +461,14 @@ Proof.
   inv H; eauto using wf_typ__feasible_typ.
 Qed.
 
-Lemma wf_fdef_entryBlock_has_no_phinodes : forall s m f l1 ps1 cs1 tmn1
-  (Hwff: wf_fdef s m f)
-  (Hentry: getEntryBlock f = Some (l1, stmts_intro ps1 cs1 tmn1)),
-  ps1 = nil.
+Lemma wf_value_list_cons_iff p l :
+  wf_value_list (p :: l) <->
+  wf_value_list l /\
+  let '(s, m, f, v, t) := p in wf_value s m f v t.
 Proof.
-  intros s m f l1 ps1 cs1 tmn1 Hwff Hentry.
-  assert (wf_block s m f (l1, stmts_intro ps1 cs1 tmn1)) as Hwfb.
-    apply entryBlockInFdef in Hentry.
-    eapply wf_fdef__blockInFdefB__wf_block; eauto.
-  inv Hwfb.
-  match goal with
-  | H8: wf_cmds _ _ _ _ _, H9: wf_insn _ _ _ _ _ |- _ => clear H8 H9
-  end.
-  destruct ps1; auto.
-  match goal with
-  | H7: wf_phinodes _ _ _ _ _ |- _ => inv H7
-  end.
-  match goal with
-  | H8: wf_phinodes _ _ _ _ _ |- _ => clear H8
-  end.
-  match goal with
-  | H5: wf_insn _ _ _ _ _ |- _ => inv H5
-  end.
-  match goal with
-  | H11: wf_phinode _ _ _ |- _ => inv H11
-  end.
-  match goal with
-  | H5: check_list_value_l _ _ _ |- _ =>
-    unfold check_list_value_l in H5;
-    remember (split value_l_list) as R;
-    destruct R;
-    destruct H5 as [J1 [J2 J3]]
-  end.
-  inv Hwff. uniq_result.
-  match goal with
-  | H5: has_no_predecessors _ _ = _,
-    J1: (length _ > 0)%nat |- _ => 
-    apply has_no_predecessors_tinv in H5;
-    rewrite H5 in J1;
-    contradict J1; simpl; omega
-  end.
-Qed.
-
-Lemma entryBlock_has_no_phinodes : forall s f l1 ps1 cs1 tmn1 los nts ps,
-  InProductsB (product_fdef f) ps = true ->
-  moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system s ->
-  getEntryBlock f = Some (l1, stmts_intro ps1 cs1 tmn1) ->
-  ps1 = nil.
-Proof.
-  intros s f l1 ps1 cs1 tmn1 los nts ps HFinP HMinS Hwfs Hentry.
-  assert (wf_fdef s (module_intro los nts ps) f) as Hwff.
-    eapply wf_system__wf_fdef; eauto.
-  eapply wf_fdef_entryBlock_has_no_phinodes; eauto.
-Qed.
-
-Lemma wf_operand_list__wf_operand : forall id_list fdef5 block5 insn5 id_ n,
-  wf_operand_list
-  (List.map
-    (fun id_ : id => (fdef5, block5, insn5, id_)) id_list) ->
-  nth_error id_list n = Some id_ ->
-  wf_operand fdef5 block5 insn5 id_.
-Proof.
-  induction id_list; intros fdef5 block5 insn5 id_ n Hwfops Hnth.
-    destruct n; inversion Hnth.
-
-    unfold wf_operand_list in *. simpl in Hwfops.
-    destruct n; inv Hnth; eauto.
-      apply (Hwfops (_, _, _, _)). eauto.
-      eapply IHid_list; eauto. intros p Hp. apply Hwfops. eauto.
-Qed.
-
-Lemma wf_phi_operands__elim' : forall f b i0 t0 vls0 vid1 l1
-  (Hwfop: wf_phi_operands f b i0 t0 vls0)
-  (Hin: In (value_id vid1, l1) vls0),
-  exists sts1,
-    lookupBlockViaLabelFromFdef f l1 = Some sts1 /\
-    (((exists vb,
-        lookupBlockViaIDFromFdef f vid1 = Some vb /\
-        blockDominates f vb (l1, sts1)) \/ 
-      not (isReachableFromEntry f (l1, sts1))) \/
-     In vid1 (getArgsIDsOfFdef f)).
-Proof.
-  induction 1; intros.
-    tauto.
-
-    destruct_in Hin.
-      inv Hin. eauto.
-
-    destruct_in Hin.
-      congruence.
-Qed.
-
-Lemma wf_phi_operands__elim : forall f b i0 t0 vls0 vid1 l1 n,
-  wf_phi_operands f b i0 t0 vls0 ->
-  nth_error vls0 n = Some (value_id vid1, l1) ->
-  exists sts1,
-    lookupBlockViaLabelFromFdef f l1 = Some sts1 /\
-    (((exists vb,
-       lookupBlockViaIDFromFdef f vid1 = Some vb /\
-       blockDominates f vb (l1, sts1)) \/ 
-      not (isReachableFromEntry f (l1, sts1))) \/
-     In vid1 (getArgsIDsOfFdef f)).
-Proof.
-  induction vls0; intros.
-    destruct n; inversion H0.
-    inv H; destruct n; inv H0; eauto.
+  unfold wf_value_list; repeat rewrite <- Forall_forall; split; intros H.
+  inversion H; subst. eauto.
+  inversion H; constructor; eauto.
 Qed.
 
 Lemma wf_value_list__getValueViaLabelFromValuels__wf_value : forall
@@ -552,6 +567,56 @@ Proof.
       eapply IHtvs; eauto. intros p Hp. apply H18. right. trivial.
 Qed.
 
+Lemma wf_value_list__getValueViaBlockFromValuels__wf_value : forall
+  (s : system)  (m : module)  (f : fdef) b (t0 : typ) v l2
+  (H2 : wf_value_list
+          (List.map
+            (fun (p : value * l) =>
+              let '(v, _) := p in (s, m, f, v, t0)) l2))
+  (J : getValueViaBlockFromValuels l2 b = ret v),
+  wf_value s m f v t0.
+Proof.
+  intros. destruct b. simpl in J.
+  eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H2; eauto.
+Qed.
+
+Lemma wf_value_id__in_getFdefLocs : forall S m f v t,
+  wf_value S m f v t -> getValueID' v[<=]ids2atoms (getFdefLocs f).
+Proof.
+  intros.
+  inv H; simpl.
+    clear. fsetdec.
+
+    destruct f as [f b]. destruct f as [? ? ? a ?]. simpl in *.
+    apply ids2atoms__in.
+    destruct_match.
+      destruct (In_dec eq_atom_dec id5 (getArgsIDs a)) as [Hin | Hnotin].
+        apply in_or_app. auto.
+
+        apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
+        congruence.
+      destruct (In_dec eq_atom_dec id5 (getBlocksLocs b)) as [Hin | Hnotin].
+        apply in_or_app. auto.
+
+        apply notInBlocks__lookupTypViaIDFromBlocks in Hnotin.
+        congruence.
+Qed.
+
+Lemma wf_value_id__in_getFdefLocs' : forall S m f v t,
+  wf_value S m f v t ->
+  match v with
+  | value_id vid => In vid (getFdefLocs f)
+  | _ => True
+  end.
+Proof.
+  intros.
+  destruct v; auto.
+  apply wf_value_id__in_getFdefLocs in H.
+  simpl in H.
+  apply ids2atoms__in in H; auto.
+Qed.
+
+(* Properties of wf_cmd *)
 Lemma wf_cmd__wf_value : forall s m f b c v,
   wf_insn s m f b (insn_cmd c) ->
   valueInCmdOperands v c ->
@@ -573,92 +638,6 @@ Proof.
       unfold wf_value_list in *.
       remove_irrelevant wf_value.
       solve_forall_like_ind.
-Qed.
-
-Lemma wf_operand_list__elim : forall ops f1 b1 insn1 id1,
-  wf_operand_list ops ->
-  In (f1, b1, insn1, id1) ops ->
-  wf_operand f1 b1 insn1 id1.
-Proof.
-  induction ops; intros f1 b1 insn1 id1 Hwfops Hin; simpl in *.
-    inversion Hin.
-
-    destruct Hin as [Hin | Hin]; subst; apply (Hwfops (_, _, _, _)).
-      left. trivial.
-      right. trivial.
-Qed.
-
-Lemma wf_insn__wf_insn_base : forall s m f b insn,
-  ~ isPhiNode insn -> wf_insn s m f b insn -> wf_insn_base f b insn.
-Proof.
-  intros s m f b insn Hnonphi Hwf.
-  inv Hwf; auto.
-    inv H; auto.
-    inv H; auto.
-    inv H; auto.
-    unfold isPhiNode in Hnonphi. simpl in Hnonphi. contradict Hnonphi; auto.
-Qed.
-
-Lemma wf_value_list__getValueViaBlockFromValuels__wf_value : forall
-  (s : system)  (m : module)  (f : fdef) b (t0 : typ) v l2
-  (H2 : wf_value_list
-          (List.map
-            (fun (p : value * l) =>
-              let '(v, _) := p in (s, m, f, v, t0)) l2))
-  (J : getValueViaBlockFromValuels l2 b = ret v),
-  wf_value s m f v t0.
-Proof.
-  intros. destruct b. simpl in J.
-  eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H2; eauto.
-Qed.
-
-Lemma wf_fdef__wf_phinodes : forall s m f l3 cs tmn ps,
-  wf_fdef s m f ->
-  blockInFdefB (l3, stmts_intro ps cs tmn) f ->
-  wf_phinodes s m f (l3, stmts_intro ps cs tmn) ps.
-Proof.
-  intros.
-  inv H.
-  match goal with
-  | H6: wf_blocks _ _ _ _ |- _ =>
-    eapply wf_blocks__wf_block in H6; eauto;
-    inv H6; auto
-  end.
-Qed.
-
-Lemma wf_fdef__wf_phinodes': forall s m F ps' cs' tmn' l2,
-  wf_fdef s m F ->
-  ret (stmts_intro ps' cs' tmn') = lookupBlockViaLabelFromFdef F l2 ->
-  uniqFdef F ->
-  wf_phinodes s m F (l2, stmts_intro ps' cs' tmn') ps'.
-Proof.
-  intros.
-  symmetry in H0.
-  apply lookupBlockViaLabelFromFdef_inv in H0; auto.
-  eapply wf_fdef__wf_phinodes in H0; eauto.
- Qed.
-
-Lemma wf_typ_list__in_args__wf_typ : forall s td typ_attributes_id_list
-  (H18: wf_typ_list
-          (List.map
-            (fun (p : typ * attributes * id) =>
-              let '(t, _, _) := p in (s, td, t)) typ_attributes_id_list))
-  t a i0,
-    In (t, a, i0)
-       (List.map
-         (fun p : typ * attributes * id =>
-           let '(typ_, attributes_, id_) := p in
-             (typ_, attributes_, id_)) typ_attributes_id_list) ->
-    wf_typ s td t.
-Proof.
-  induction typ_attributes_id_list; simpl; intros.
-    inv H.
-
-    destruct a as [[? ?] ?].
-    destruct H as [H | H]; eauto.
-      inv H. apply (H18 (_, _, _)). left. trivial.
-      eapply IHtyp_attributes_id_list; eauto.
-      intros p Hp. apply H18. right. trivial.
 Qed.
 
 Lemma wf_trunc__wf_typ : forall s los nts ps f b i0 t t0 v t1
@@ -697,8 +676,322 @@ Proof.
   inv H; auto.
 Qed.
 
-(********************************************)
-(** * Correctness of analysis *)
+(* Properties of wf_insn *)
+Lemma wf_insn__wf_insn_base : forall s m f b insn,
+  ~ isPhiNode insn -> wf_insn s m f b insn -> wf_insn_base f b insn.
+Proof.
+  intros s m f b insn Hnonphi Hwf.
+  inv Hwf; auto.
+    inv H; auto.
+    inv H; auto.
+    inv H; auto.
+    unfold isPhiNode in Hnonphi. simpl in Hnonphi. contradict Hnonphi; auto.
+Qed.
+
+Lemma wf_insn__wf_value: forall S m F B instr v
+  (Hwfi: wf_insn S m F B instr)
+  (HvInOps : valueInInsnOperands v instr),
+  exists t, wf_value S m F v t.
+Proof.
+  intros.
+  destruct instr.
+    inv Hwfi. simpl in *.
+    apply In_list_prj1__getValueViaLabelFromValuels in HvInOps.
+      destruct HvInOps as [l1 HvInOps].
+
+      find_wf_value_list.
+      eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H0; eauto.
+
+      match goal with
+      | H9: _ /\ check_list_value_l _ _ _ |- _ =>
+        destruct H9 as [_ H5];
+        unfold check_list_value_l in H5;
+        remember (split value_l_list) as R;
+        destruct R;
+        destruct H5 as [_ [_ H5]]; auto
+      end.
+
+    eapply wf_cmd__wf_value; eauto.
+
+    eapply wf_tmn__wf_value; eauto.
+Qed.
+
+(* Properties of wf_fdef *)
+Lemma wf_fdef__blockInFdefB__wf_block : forall b S M f,
+  blockInFdefB b f = true ->
+  wf_fdef S M f ->
+  wf_block S M f b.
+Proof.
+  intros.
+  inv H0.
+  eapply wf_blocks__wf_block; eauto.
+Qed.
+
+Lemma wf_fdef__wf_cmd : forall l1 ps1 cs1 tmn1 s m f c,
+  blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) f = true ->
+  wf_fdef s m f ->
+  In c cs1 ->
+  wf_insn s m f (l1, stmts_intro ps1 cs1 tmn1) (insn_cmd c).
+Proof.
+  intros.
+  eapply wf_fdef__blockInFdefB__wf_block in H; eauto.
+  inv H. eapply wf_cmds__wf_cmd; eauto.
+Qed.
+
+Lemma wf_fdef__wf_tmn : forall l1 ps1 cs1 tmn1 s m f,
+  blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) f = true ->
+  wf_fdef s m f ->
+  wf_insn s m f (l1, stmts_intro ps1 cs1 tmn1) (insn_terminator tmn1).
+Proof.
+  intros.
+  eapply wf_fdef__blockInFdefB__wf_block in H; eauto.
+  inv H. auto.
+Qed.
+
+Lemma wf_fdef__non_entry: forall s m f,
+  wf_fdef s m f -> getEntryBlock f <> None.
+Proof.
+  intros. inv H.
+  match goal with
+  | H2: getEntryBlock ?f = Some _ |- getEntryBlock ?f <> None =>
+      rewrite H2; congruence
+  end.
+Qed.
+
+Lemma wf_fdef_entryBlock_has_no_phinodes : forall s m f l1 ps1 cs1 tmn1
+  (Hwff: wf_fdef s m f)
+  (Hentry: getEntryBlock f = Some (l1, stmts_intro ps1 cs1 tmn1)),
+  ps1 = nil.
+Proof.
+  intros s m f l1 ps1 cs1 tmn1 Hwff Hentry.
+  assert (wf_block s m f (l1, stmts_intro ps1 cs1 tmn1)) as Hwfb.
+    apply entryBlockInFdef in Hentry.
+    eapply wf_fdef__blockInFdefB__wf_block; eauto.
+  inv Hwfb.
+  match goal with
+  | H8: wf_cmds _ _ _ _ _, H9: wf_insn _ _ _ _ _ |- _ => clear H8 H9
+  end.
+  destruct ps1; auto.
+  match goal with
+  | H7: wf_phinodes _ _ _ _ _ |- _ => inv H7
+  end.
+  match goal with
+  | H8: wf_phinodes _ _ _ _ _ |- _ => clear H8
+  end.
+  match goal with
+  | H5: wf_insn _ _ _ _ _ |- _ => inv H5
+  end.
+  match goal with
+  | H11: wf_phinode _ _ _ |- _ => inv H11
+  end.
+  match goal with
+  | H5: check_list_value_l _ _ _ |- _ =>
+    unfold check_list_value_l in H5;
+    remember (split value_l_list) as R;
+    destruct R;
+    destruct H5 as [J1 [J2 J3]]
+  end.
+  inv Hwff. uniq_result.
+  match goal with
+  | H5: has_no_predecessors _ _ = _,
+    J1: (length _ > 0)%nat |- _ => 
+    apply has_no_predecessors_tinv in H5;
+    rewrite H5 in J1;
+    contradict J1; simpl; omega
+  end.
+Qed.
+
+Lemma wf_fdef__wf_phinodes : forall s m f l3 cs tmn ps,
+  wf_fdef s m f ->
+  blockInFdefB (l3, stmts_intro ps cs tmn) f ->
+  wf_phinodes s m f (l3, stmts_intro ps cs tmn) ps.
+Proof.
+  intros.
+  inv H.
+  match goal with
+  | H6: wf_blocks _ _ _ _ |- _ =>
+    eapply wf_blocks__wf_block in H6; eauto;
+    inv H6; auto
+  end.
+Qed.
+
+Lemma wf_fdef__wf_phinodes': forall s m F ps' cs' tmn' l2,
+  wf_fdef s m F ->
+  ret (stmts_intro ps' cs' tmn') = lookupBlockViaLabelFromFdef F l2 ->
+  uniqFdef F ->
+  wf_phinodes s m F (l2, stmts_intro ps' cs' tmn') ps'.
+Proof.
+  intros.
+  symmetry in H0.
+  apply lookupBlockViaLabelFromFdef_inv in H0; auto.
+  eapply wf_fdef__wf_phinodes in H0; eauto.
+ Qed.
+
+Lemma getEntryBlock_inv : forall fh bs
+  (l3 : l)
+  (l' : l)
+  (ps : phinodes)
+  (cs : cmds)
+  (tmn : terminator)
+  (s : system)
+  (m : module)
+  (HwfF : wf_fdef s m (fdef_intro fh bs)) (Huniq:uniqFdef (fdef_intro fh bs))
+  (HBinF : InBlocksB (l3, stmts_intro ps cs tmn) bs = true)
+  (Hsucc : In l' (successors_terminator tmn)) a s0
+  (H : getEntryBlock (fdef_intro fh bs) = ret (a, s0)),
+  l' <> a.
+Proof.
+  intros.
+  destruct (eq_atom_dec l' a); subst; auto.
+  inv_wf_fdef HwfF. subst.
+  uniq_result.
+  eapply successors_predecessors_of_block in Hsucc; eauto 1.
+  apply has_no_predecessors_tinv in Hnpred.
+  simpl in Hnpred. rewrite Hnpred in Hsucc. tauto.
+Qed.
+
+Lemma entryBlock_has_no_pred: forall s m F B l0 l3 ps cs tmn
+  (HwfF: wf_fdef s m F) (Hentry:  getEntryBlock F = Some B) (Huniq:uniqFdef F)
+  (HBinF : blockInFdefB (l3, stmts_intro ps cs tmn) F = true)
+  (Hsucc : In l0 (successors_terminator tmn)) (Heq: l0 = fst B)
+  (Hlkup: lookupBlockViaLabelFromFdef F l0 = Some (snd B)),
+  False.
+Proof.
+  intros. subst.
+  destruct F as [fh bs]. destruct B.
+  eapply getEntryBlock_inv in HBinF; eauto.
+Qed.
+
+Lemma entryBlock_has_no_phinodes : forall s f l1 ps1 cs1 tmn1 los nts ps,
+  InProductsB (product_fdef f) ps = true ->
+  moduleInSystemB (module_intro los nts ps) s = true ->
+  wf_system s ->
+  getEntryBlock f = Some (l1, stmts_intro ps1 cs1 tmn1) ->
+  ps1 = nil.
+Proof.
+  intros s f l1 ps1 cs1 tmn1 los nts ps HFinP HMinS Hwfs Hentry.
+  assert (wf_fdef s (module_intro los nts ps) f) as Hwff.
+    eapply wf_system__wf_fdef; eauto.
+  eapply wf_fdef_entryBlock_has_no_phinodes; eauto.
+Qed.
+
+Lemma wf_fdef__wf_entry: forall (S : system) (M : module) (f : fdef)
+  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f),
+  match getEntryBlock f with
+  | ret (l0, _) =>
+      (XATree.make_predecessors (successors f)) !!! l0 = nil
+  | merror => False
+  end.
+Proof.
+  intros.
+  assert (HwfF':=HwfF).
+  inv_wf_fdef HwfF'. subst.
+  rewrite Hentry.
+  destruct b5 as [l0 ?]. simpl.
+  remember ((XATree.make_predecessors (successors_blocks bs5)) !!! l0) as R.
+  destruct R as [|a]; auto.
+  assert (In a (XATree.make_predecessors (successors_blocks bs5)) !!! l0) as Hin. 
+    rewrite <- HeqR. simpl; auto.
+  apply XATree.make_predecessors_correct' in Hin.
+  apply successors_blocks__blockInFdefB with (fh:=fh5) in Hin.
+  destruct Hin as [ps0 [cs0 [tmn0 [J1 J2]]]].
+  eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.
+    congruence.
+Qed.
+
+Lemma entry_no_preds: forall (S : system) (M : module) (f : fdef)
+  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f) le 
+  (Hentry: getEntryLabel f = Some le),
+  (XATree.make_predecessors (successors f)) !!! le = nil.
+Proof.
+  intros.
+  apply wf_fdef__wf_entry in HwfF; auto.
+  apply getEntryLabel__getEntryBlock in Hentry.
+  destruct Hentry as [[le' ?] [Hentry' EQ]]; 
+    simpl in EQ; subst le'; rewrite Hentry' in HwfF; auto.
+Qed.
+
+Lemma getEntryBlock_inv': forall (S : system) (M : module) (f : fdef)
+  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f),
+  forall (l3 l' : l) (ps : phinodes) (cs : cmds) (tmn : terminator),
+  blockInFdefB (l3, stmts_intro ps cs tmn) f = true ->
+  In l' (successors_terminator tmn) ->
+  forall (a : l) s0,
+  getEntryBlock f = ret (a, s0) -> 
+  l' <> a.
+Proof.
+  intros. destruct f. eapply getEntryBlock_inv; eauto.
+Qed.
+
+Lemma wf_fdef__wf_insn: forall S m instr F B
+  (HwfF: wf_fdef S m F)
+  (HBinF : insnInFdefBlockB instr F B = true),
+  wf_insn S m F B instr.
+Proof.
+  intros.
+  destruct B as [? []].
+  destruct instr; apply andb_true_iff in HBinF; destruct HBinF as [J1 J2].
+    eapply wf_fdef__blockInFdefB__wf_block in J2; eauto.
+    simpl in J1.
+    apply InPhiNodesB_In in J1.
+    inv J2.
+    eapply wf_phinodes__wf_phinode; eauto.
+
+    simpl in J1.
+    apply InCmdsB_in in J1.
+    apply wf_fdef__wf_cmd; auto.
+
+    simpl in J1.
+    apply terminatorEqB_inv in J1.
+    subst.
+    apply wf_fdef__wf_tmn; auto.
+Qed.
+
+Lemma wf_fdef__wf_phinode: forall (s : system) (m : module) (f : fdef) 
+  (l3 : l) (cs : cmds) (tmn : terminator) (ps : phinodes) p
+  (HwfF: wf_fdef s m f) (HBinF: blockInFdefB (l3, stmts_intro ps cs tmn) f)
+  (HinPs: In p ps), wf_phinode f (l3, stmts_intro ps cs tmn) p.
+Proof.
+  intros.
+  eapply wf_fdef__wf_phinodes in HBinF; eauto.
+  eapply wf_phinodes__wf_phinode in HBinF; eauto.
+  inv HBinF; auto.
+Qed.
+
+Lemma wf_fdef__wf_insn_base' : forall S M F id1 instr
+  (HwfF: wf_fdef S M F) (HnPhi:~ isPhiNode instr)
+  (Hlkup: lookupInsnViaIDFromFdef F id1 = ret instr),
+  exists b1, wf_insn_base F b1 instr.
+Proof.
+  intros.
+  apply lookupInsnViaIDFromFdef__insnInFdefBlockB' in Hlkup.
+  destruct Hlkup as [b Hlkup]. exists b.
+  apply destruct_insnInFdefBlockB in Hlkup.
+  destruct Hlkup as [J1 J2].
+  destruct b as [? []].
+  destruct instr.
+    contradict HnPhi. constructor.
+
+    apply InCmdsB_in in J1.
+    eapply wf_fdef__wf_cmd in J2; eauto.
+    apply wf_insn__wf_insn_base in J2; auto.
+
+    simpl in J1. apply terminatorEqB_inv in J1. subst.
+    eapply wf_fdef__wf_tmn in J2; eauto.
+    apply wf_insn__wf_insn_base in J2; auto.
+Qed.
+
+Lemma wf_fdef__wf_insn_base : forall S M F id1 c1,
+  wf_fdef S M F ->
+  lookupInsnViaIDFromFdef F id1 = ret insn_cmd c1 ->
+  exists b1, wf_insn_base F b1 (insn_cmd c1).
+Proof.
+  intros.
+  eapply wf_fdef__wf_insn_base'; eauto.
+    intro. inv H1.
+Qed.
+
+(** Properties of dominations *)
 
 Lemma dom_successors : forall
   (bs : blocks) (l3 : l) (l' : l) ps3 cs3 tmn fh
@@ -718,22 +1011,6 @@ Proof.
     assert (successors_terminator tmn = (successors_blocks bs) !!! l3) as EQ.
       eapply successors_terminator__successors_blocks; eauto.
     simpl. rewrite <- EQ. auto.
-Qed.
-
-Lemma wf_tmn__in_successors: forall s m f l0 cs ps tmn l1
-  (HuniqF : uniqFdef f)
-  (Hwftmn : wf_insn s m f (l0, stmts_intro cs ps tmn) (insn_terminator tmn))
-  (Hin : In l1 (successors_terminator tmn)),
-  exists s1, blockInFdefB (l1, s1) f.
-Proof.
-  intros.
-  inv Hwftmn; simpl in Hin; tinv Hin.
-    destruct Hin as [Hin | [Hin | Hin]]; tinv Hin; subst.
-      apply lookupBlockViaLabelFromFdef_inv in H2; eauto.
-      apply lookupBlockViaLabelFromFdef_inv in H3; eauto.
-
-    destruct Hin as [Hin | Hin]; tinv Hin; subst.
-      apply lookupBlockViaLabelFromFdef_inv in H0; eauto.
 Qed.
 
 Require Import Dipaths.
@@ -835,54 +1112,6 @@ Proof.
   apply get_reachable_labels__spec'' in Hin.
   unfold ReachDS.L.t in *.
   rewrite Hin in HeqR0. auto.
-Qed.
-
-Lemma wf_fdef__wf_entry: forall (S : system) (M : module) (f : fdef)
-  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f),
-  match getEntryBlock f with
-  | ret (l0, _) =>
-      (XATree.make_predecessors (successors f)) !!! l0 = nil
-  | merror => False
-  end.
-Proof.
-  intros.
-  assert (HwfF':=HwfF).
-  inv_wf_fdef HwfF'. subst.
-  rewrite Hentry.
-  destruct b5 as [l0 ?]. simpl.
-  remember ((XATree.make_predecessors (successors_blocks bs5)) !!! l0) as R.
-  destruct R as [|a]; auto.
-  assert (In a (XATree.make_predecessors (successors_blocks bs5)) !!! l0) as Hin. 
-    rewrite <- HeqR. simpl; auto.
-  apply XATree.make_predecessors_correct' in Hin.
-  apply successors_blocks__blockInFdefB with (fh:=fh5) in Hin.
-  destruct Hin as [ps0 [cs0 [tmn0 [J1 J2]]]].
-  eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.
-    congruence.
-Qed.
-
-Lemma entry_no_preds: forall (S : system) (M : module) (f : fdef)
-  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f) le 
-  (Hentry: getEntryLabel f = Some le),
-  (XATree.make_predecessors (successors f)) !!! le = nil.
-Proof.
-  intros.
-  apply wf_fdef__wf_entry in HwfF; auto.
-  apply getEntryLabel__getEntryBlock in Hentry.
-  destruct Hentry as [[le' ?] [Hentry' EQ]]; 
-    simpl in EQ; subst le'; rewrite Hentry' in HwfF; auto.
-Qed.
-
-Lemma getEntryBlock_inv': forall (S : system) (M : module) (f : fdef)
-  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f),
-  forall (l3 l' : l) (ps : phinodes) (cs : cmds) (tmn : terminator),
-  blockInFdefB (l3, stmts_intro ps cs tmn) f = true ->
-  In l' (successors_terminator tmn) ->
-  forall (a : l) s0,
-  getEntryBlock f = ret (a, s0) -> 
-  l' <> a.
-Proof.
-  intros. destruct f. eapply getEntryBlock_inv; eauto.
 Qed.
 
 Ltac solve_dom :=
@@ -1071,71 +1300,192 @@ Proof.
         intro J. rewrite J in H2. inv H2.
 Qed.
 
-Lemma wf_insn__wf_value: forall S m F B instr v
-  (Hwfi: wf_insn S m F B instr)
-  (HvInOps : valueInInsnOperands v instr),
-  exists t, wf_value S m F v t.
+Lemma blockDominates__domination: forall (S : system) (M : module) (f : fdef)
+  (Hwf : wf_fdef S M f) (Huniq : uniqFdef f) (b1 b2:block)
+  (HBinF : blockInFdefB b2 f) (Hdom : blockDominates f b1 b2),
+  domination f (getBlockLabel b1) (getBlockLabel b2).
 Proof.
   intros.
-  destruct instr.
-    inv Hwfi. simpl in *.
-    apply In_list_prj1__getValueViaLabelFromValuels in HvInOps.
-      destruct HvInOps as [l1 HvInOps].
-
-      find_wf_value_list.
-      eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H0; eauto.
-
-      match goal with
-      | H9: _ /\ check_list_value_l _ _ _ |- _ =>
-        destruct H9 as [_ H5];
-        unfold check_list_value_l in H5;
-        remember (split value_l_list) as R;
-        destruct R;
-        destruct H5 as [_ [_ H5]]; auto
-      end.
-
-    eapply wf_cmd__wf_value; eauto.
-
-    eapply wf_tmn__wf_value; eauto.
+  destruct b1 as [l5 ?], b2.
+  unfold blockDominates in Hdom.
+  eapply dom_is_sound with (l':=l5) in HBinF; simpl; eauto 1.
+    destruct Hdom; auto.
 Qed.
 
-Lemma wf_phinodes__wf_phinode : forall s m f b ps p,
-  wf_phinodes s m f b ps ->
-  In p ps ->
-  wf_insn s m f b (insn_phinode p).
+(* Properties of wf_operand *)
+Lemma wf_operand_list__wf_operand : forall id_list fdef5 block5 insn5 id_ n,
+  wf_operand_list
+  (List.map
+    (fun id_ : id => (fdef5, block5, insn5, id_)) id_list) ->
+  nth_error id_list n = Some id_ ->
+  wf_operand fdef5 block5 insn5 id_.
 Proof.
-  induction ps; intros.
-    inversion H0.
+  induction id_list; intros fdef5 block5 insn5 id_ n Hwfops Hnth.
+    destruct n; inversion Hnth.
 
-    simpl in H0.
+    unfold wf_operand_list in *. simpl in Hwfops.
+    destruct n; inv Hnth; eauto.
+      apply (Hwfops (_, _, _, _)). eauto.
+      eapply IHid_list; eauto. intros p Hp. apply Hwfops. eauto.
+Qed.
+
+Lemma wf_operand_list__elim : forall ops f1 b1 insn1 id1,
+  wf_operand_list ops ->
+  In (f1, b1, insn1, id1) ops ->
+  wf_operand f1 b1 insn1 id1.
+Proof.
+  induction ops; intros f1 b1 insn1 id1 Hwfops Hin; simpl in *.
+    inversion Hin.
+
+    destruct Hin as [Hin | Hin]; subst; apply (Hwfops (_, _, _, _)).
+      left. trivial.
+      right. trivial.
+Qed.
+
+(* Properties of wf_phi_operands *)
+
+(* wf_phi_operands doesnt depend on i0 and t0, which should be removed. *)
+Lemma wf_phi_operands__intro : forall f b i0 t0 vls0,
+  (forall vid1 l1 (Hin: In (value_id vid1, l1) vls0), 
+     exists sts1,
+      lookupBlockViaLabelFromFdef f l1 = Some sts1 /\
+      (((exists vb,
+         lookupBlockViaIDFromFdef f vid1 = Some vb /\
+         blockDominates f vb (l1, sts1)) \/ 
+        not (isReachableFromEntry f (l1, sts1))) \/
+      In vid1 (getArgsIDsOfFdef f))) ->
+  wf_phi_operands f b i0 t0 vls0.
+Proof.
+  induction vls0 as [|[[vid5|] l0]]; intros.
+    constructor.
+
+    assert (In (value_id vid5, l0) ((value_id vid5, l0) :: vls0)) as Hin.
+      xsolve_in_list.
+    apply H in Hin.
+    destruct Hin as [b1 [J1 J2]].
+    econstructor; eauto.
+      apply IHvls0.
+      intros.
+      apply H. simpl. auto.
+
+    constructor.
+      apply IHvls0.
+      intros.
+      apply H. simpl. auto.
+Qed.
+
+Lemma wf_phi_operands__elim' : forall f b i0 t0 vls0 vid1 l1
+  (Hwfop: wf_phi_operands f b i0 t0 vls0)
+  (Hin: In (value_id vid1, l1) vls0),
+  exists sts1,
+    lookupBlockViaLabelFromFdef f l1 = Some sts1 /\
+    (((exists vb,
+        lookupBlockViaIDFromFdef f vid1 = Some vb /\
+        blockDominates f vb (l1, sts1)) \/ 
+      not (isReachableFromEntry f (l1, sts1))) \/
+     In vid1 (getArgsIDsOfFdef f)).
+Proof.
+  induction 1; intros.
+    tauto.
+
+    destruct_in Hin.
+      inv Hin. eauto.
+
+    destruct_in Hin.
+      congruence.
+Qed.
+
+Lemma wf_phi_operands__elim : forall f b i0 t0 vls0 vid1 l1 n,
+  wf_phi_operands f b i0 t0 vls0 ->
+  nth_error vls0 n = Some (value_id vid1, l1) ->
+  exists sts1,
+    lookupBlockViaLabelFromFdef f l1 = Some sts1 /\
+    (((exists vb,
+       lookupBlockViaIDFromFdef f vid1 = Some vb /\
+       blockDominates f vb (l1, sts1)) \/ 
+      not (isReachableFromEntry f (l1, sts1))) \/
+     In vid1 (getArgsIDsOfFdef f)).
+Proof.
+  induction vls0; intros.
+    destruct n; inversion H0.
+    inv H; destruct n; inv H0; eauto.
+Qed.
+
+Lemma wf_phi_operands__elim'': forall (S : system) (M : module) (f : fdef)
+  (l0 : l) sts0
+  (Hwf : wf_fdef S M f) (Huniq : uniqFdef f) (value_l_list : list (value * l))
+  (id5 : id) (typ5 : typ)
+  (Hwfops : wf_phi_operands f (l0, sts0) id5 typ5
+              value_l_list) vid
+  (Hnotinfh : ~ In vid (getArgsIDsOfFdef f)) (l1 : l)
+  (Hinlist: In (value_id vid, l1) value_l_list) (Hreach: reachable f l1),
+  exists bv, exists bvl,
+    lookupBlockViaLabelFromFdef f l1 = ret bvl /\
+    lookupBlockViaIDFromFdef f vid = ret bv /\
+    domination f (getBlockLabel bv) l1.
+Proof.
+  intros.
+  eapply wf_phi_operands__elim' in Hinlist; eauto.
+  destruct Hinlist 
+    as [blv' [Hlkupblv [[[bv' [Hlkbv Hdom]]|Hnreachblv]|?]]]; 
+    try solve [contradict Hnotinfh; auto].
+  Case "bv' doms blk'".
+    exists bv'. exists blv'.
+    split; auto.
+    split; auto.
+      lookupBlockViaLabelFromFdef_inv_tac.
+      eapply blockDominates__domination in Hdom; eauto 1.
+
+  Case "blk' is unreachable".
+    lookupBlockViaLabelFromFdef_inv_tac.
+    simpl in *. congruence.
+Qed.
+
+Lemma wf_phi_operands__successors: forall (S : system) (M : module) (f : fdef) b
+  (Huniq : uniqFdef f) (vls : list (value * l))
+  (id5 : id) (typ5 : typ) 
+  (Hwfops : check_list_value_l f b vls) l1
+  (Hscs: arcs_fdef f (A_ends (index (getBlockLabel b)) (index l1))),
+  exists v1, In (v1, l1) vls.
+Proof. 
+  simpl.
+  intros.
+  unfold check_list_value_l in Hwfops.
+  remember (split vls) as R.
+  destruct R as [? ls1].
+  destruct Hwfops as [_ [Hwfops _]].
+  apply successors_predecessors_of_block' in Hscs; auto.
+  apply Hwfops in Hscs.
+  apply split_r_in; auto.
+    unfold l in *.
+    rewrite <- HeqR. auto.
+Qed.
+
+(* Properties of wf_typ_list *)
+Lemma wf_typ_list__in_args__wf_typ : forall s td typ_attributes_id_list
+  (H18: wf_typ_list
+          (List.map
+            (fun (p : typ * attributes * id) =>
+              let '(t, _, _) := p in (s, td, t)) typ_attributes_id_list))
+  t a i0,
+    In (t, a, i0)
+       (List.map
+         (fun p : typ * attributes * id =>
+           let '(typ_, attributes_, id_) := p in
+             (typ_, attributes_, id_)) typ_attributes_id_list) ->
+    wf_typ s td t.
+Proof.
+  induction typ_attributes_id_list; simpl; intros.
     inv H.
-    destruct H0 as [H0 | H0]; subst; eauto.
+
+    destruct a as [[? ?] ?].
+    destruct H as [H | H]; eauto.
+      inv H. apply (H18 (_, _, _)). left. trivial.
+      eapply IHtyp_attributes_id_list; eauto.
+      intros p Hp. apply H18. right. trivial.
 Qed.
 
-Lemma wf_fdef__wf_insn: forall S m instr F B
-  (HwfF: wf_fdef S m F)
-  (HBinF : insnInFdefBlockB instr F B = true),
-  wf_insn S m F B instr.
-Proof.
-  intros.
-  destruct B as [? []].
-  destruct instr; apply andb_true_iff in HBinF; destruct HBinF as [J1 J2].
-    eapply wf_fdef__blockInFdefB__wf_block in J2; eauto.
-    simpl in J1.
-    apply InPhiNodesB_In in J1.
-    inv J2.
-    eapply wf_phinodes__wf_phinode; eauto.
-
-    simpl in J1.
-    apply InCmdsB_in in J1.
-    apply wf_fdef__wf_cmd; auto.
-
-    simpl in J1.
-    apply terminatorEqB_inv in J1.
-    subst.
-    apply wf_fdef__wf_tmn; auto.
-Qed.
-
+(* const2GV has invariant system and targetdata. *)
 Definition wf_list_targetdata_typ (S:system) (TD:targetdata) gl lsd :=
   forall S1 TD1, In (S1,TD1) lsd -> wf_global TD S1 gl /\ S = S1 /\ TD = TD1.
 
@@ -1321,75 +1671,7 @@ Proof.
   split; auto.
 Qed.
 
-Lemma wf_phinodes__nth_list_value_l__wf_value: forall s m f b ps id1 t1 vls1
-  n v lv (Hwfps: wf_phinodes s m f b ps) (Hin: In (insn_phi id1 t1 vls1) ps)
-  (Hnth: nth_error vls1 n = Some (v, lv)),
-  wf_value s m f v t1.
-Proof.
-  intros.
-  eapply wf_phinodes__wf_phinode in Hwfps; eauto. inv Hwfps.
-  match goal with
-  | Hnth: nth_error _ _ = _,
-    H6: forall _:_, In _ _ -> _ |- _ => clear - Hnth H6
-  end.
-  generalize dependent vls1.
-  induction n as [|n]; simpl; intros; auto.
-    destruct vls1 as [|[val l0] vls1]; inv Hnth.
-      apply H6. left. trivial.
-    destruct vls1 as [|[vla l0] vls1]; inv Hnth.
-      apply IHn with vls1; auto.
-      intros v' Hv'. apply H6. right. trivial.
-Qed.
-
-Lemma block_in_scope__strict: forall (l' : l) sts' F
-  (Hreach' : isReachableFromEntry F (l', sts')) s m
-  (HwfF : wf_fdef s m F) (HuniqF : uniqFdef F)
-  (contents' : ListSet.set atom)
-  (Heqdefs' : contents' = AlgDom.sdom F l')
-  (l0 : l) (Hindom' : In l0 contents')
-  (HbInF' : blockInFdefB (l', sts') F = true),
-  l0 <> l'.
-Proof.
-  intros.
-  assert (strict_domination F l0 l') as Hdom12.
-    eapply sdom_is_sound; eauto.
-      rewrite <- Heqdefs'. simpl. auto.
-  eapply DecDom.sdom_isnt_refl; eauto.
-Qed.
-
-Lemma wf_fdef__wf_insn_base' : forall S M F id1 instr
-  (HwfF: wf_fdef S M F) (HnPhi:~ isPhiNode instr)
-  (Hlkup: lookupInsnViaIDFromFdef F id1 = ret instr),
-  exists b1, wf_insn_base F b1 instr.
-Proof.
-  intros.
-  apply lookupInsnViaIDFromFdef__insnInFdefBlockB' in Hlkup.
-  destruct Hlkup as [b Hlkup]. exists b.
-  apply destruct_insnInFdefBlockB in Hlkup.
-  destruct Hlkup as [J1 J2].
-  destruct b as [? []].
-  destruct instr.
-    contradict HnPhi. constructor.
-
-    apply InCmdsB_in in J1.
-    eapply wf_fdef__wf_cmd in J2; eauto.
-    apply wf_insn__wf_insn_base in J2; auto.
-
-    simpl in J1. apply terminatorEqB_inv in J1. subst.
-    eapply wf_fdef__wf_tmn in J2; eauto.
-    apply wf_insn__wf_insn_base in J2; auto.
-Qed.
-
-Lemma wf_fdef__wf_insn_base : forall S M F id1 c1,
-  wf_fdef S M F ->
-  lookupInsnViaIDFromFdef F id1 = ret insn_cmd c1 ->
-  exists b1, wf_insn_base F b1 (insn_cmd c1).
-Proof.
-  intros.
-  eapply wf_fdef__wf_insn_base'; eauto.
-    intro. inv H1.
-Qed.
-
+(* Properties of operands *)
 Lemma in_unmake_list_id__nth_list_id: forall i0 tl hd
   (id_list : list id)
   (H1 : hd ++ i0 :: tl  = id_list),
@@ -1461,6 +1743,80 @@ try match goal with
         destruct H as [n Hn];
         solve [ exists n; trivial | exists (S n); trivial ]
     end.
+Qed.
+
+(* Properties of reachability *)
+Lemma isReachableFromEntry_successors : forall f l3 ps cs tmn l' sts'
+  (Hreach : isReachableFromEntry f (l3, stmts_intro ps cs tmn))
+  (HBinF : blockInFdefB (l3, stmts_intro ps cs tmn) f = true)
+  (Huniq : uniqFdef f) s m (HwfF : wf_fdef s m f)
+  (Hsucc : In l' (successors_terminator tmn))
+  (Hlkup : lookupBlockViaLabelFromFdef f l' = Some sts'),
+  isReachableFromEntry f (l', sts').
+Proof.
+  intros.
+  unfold isReachableFromEntry in *. 
+  apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
+  eapply reachable_successors; eauto.
+Qed.
+
+Ltac unfold_reachable_tac :=
+match goal with
+| Hentry: getEntryBlock ?f = ret ?be, Hreach: reachable ?f _ |- _ =>
+  let vl := fresh "vl" in
+  let al := fresh "al" in
+  let Hwalk := fresh "Hwalk" in
+    unfold reachable in Hreach;
+    rewrite Hentry in Hreach;
+    match goal with 
+    | _: getEntryBlock ?f = ret (_, _) |- _ => idtac
+    | _ =>
+        let le := fresh "le" in
+        destruct be as [le []]
+    end;
+    destruct Hreach as [vl [al Hwalk]]
+end.
+
+Lemma reachable_phinode__ex_reachable_incoming: forall (S : system) (M : module)
+  (f : fdef) (Hwf : wf_fdef S M f) (Huniq : uniqFdef f) b
+  (Hreach : isReachableFromEntry f b) (pid : id) (ty : typ) 
+  (vls : list (value * l))
+  (Hwfops : check_list_value_l f b vls)
+  (be : block) (Hentry : getEntryBlock f = ret be)
+  (Hneq : getBlockLabel be <> getBlockLabel b),
+  exists v0 : value, exists l1 : l, In (v0, l1) vls /\ reachable f l1.
+Proof.
+  intros.
+  destruct b.
+  simpl in *.
+  unfold_reachable_tac.
+  simpl in Hneq.
+  inv Hwalk; try congruence.
+  destruct y as [ly].
+  eapply wf_phi_operands__successors in Hwfops; eauto.
+  destruct Hwfops as [v1 Hwfops].
+  exists v1. exists ly.
+  split; auto.
+    unfold reachable. autounfold with cfg.
+    rewrite Hentry.
+    eauto.
+Qed.
+
+(* Properties of scoping *)
+Lemma block_in_scope__strict: forall (l' : l) sts' F
+  (Hreach' : isReachableFromEntry F (l', sts')) s m
+  (HwfF : wf_fdef s m F) (HuniqF : uniqFdef F)
+  (contents' : ListSet.set atom)
+  (Heqdefs' : contents' = AlgDom.sdom F l')
+  (l0 : l) (Hindom' : In l0 contents')
+  (HbInF' : blockInFdefB (l', sts') F = true),
+  l0 <> l'.
+Proof.
+  intros.
+  assert (strict_domination F l0 l') as Hdom12.
+    eapply sdom_is_sound; eauto.
+      rewrite <- Heqdefs'. simpl. auto.
+  eapply DecDom.sdom_isnt_refl; eauto.
 Qed.
 
 Lemma in_getArgsIDsOfFdef__inscope_of_tmn: forall defs f b tmn id1
@@ -1568,20 +1924,6 @@ Proof.
     unfold wf_operand_list.
     remove_irrelevant wf_operand.
     solve_forall_like_ind.
-Qed.
-
-Lemma isReachableFromEntry_successors : forall f l3 ps cs tmn l' sts'
-  (Hreach : isReachableFromEntry f (l3, stmts_intro ps cs tmn))
-  (HBinF : blockInFdefB (l3, stmts_intro ps cs tmn) f = true)
-  (Huniq : uniqFdef f) s m (HwfF : wf_fdef s m f)
-  (Hsucc : In l' (successors_terminator tmn))
-  (Hlkup : lookupBlockViaLabelFromFdef f l' = Some sts'),
-  isReachableFromEntry f (l', sts').
-Proof.
-  intros.
-  unfold isReachableFromEntry in *. 
-  apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
-  eapply reachable_successors; eauto.
 Qed.
 
 Lemma strict_operands__in_scope: forall f (l1 : l) sts1 
@@ -2555,32 +2897,6 @@ Proof.
       simpl. solve_in_list.
 Qed.
 
-Lemma wf_single_system__wf_uniq_fdef: forall los nts Ps1 f Ps2,
-  wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] ->
-  wf_fdef [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
-    (module_intro los nts (Ps1 ++ product_fdef f :: Ps2)) f /\
-  uniqFdef f.
-Proof.
-  intros.
-  assert (
-    moduleInSystemB (module_intro los nts (Ps1 ++ product_fdef f :: Ps2))
-      [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] = true) as HmInS.
-    simpl. rewrite moduleEqB_refl. auto.
-  assert (
-    InProductsB (product_fdef f) (Ps1 ++ product_fdef f :: Ps2) = true)
-    as HpInM.
-    apply InProductsB_middle; auto.
-  split.
-    eapply wf_system__wf_fdef; eauto 1.
-    eapply wf_system__uniqFdef; eauto 1.
-Qed.
-
-Lemma wf_system__uniqSystem: forall S, wf_system S -> uniqSystem S.
-Proof.
-  intros.
-  destruct H; auto.
-Qed.
-
 Ltac get_wf_value_for_simop :=
   match goal with
   | HBinF: blockInFdefB (_, stmts_intro _ (_++_::_) _) _ = _ |- _ =>
@@ -2630,56 +2946,6 @@ Ltac get_wf_value_for_simop_ex :=
     end
   end.
 
-Lemma wf_prods_elim: forall (prod:product) S md prods 
-  (Hwfps: wf_prods S md prods) (Hin: In prod prods), 
-  wf_prod S md prod.
-Proof.
-  induction 1; intros; try tauto.
-    destruct_in Hin; auto.
-Qed.    
-
-Lemma wf_prods_intro: forall S md prods 
-  (H: forall (prod:product) (Hin: In prod prods), wf_prod S md prod),
-  wf_prods S md prods.
-Proof.
-  induction prods; intros.
-    constructor.
-    constructor.
-      apply IHprods. intros.
-      apply H. xsolve_in_list.
-
-      apply H. xsolve_in_list.
-Qed.    
-
-Lemma wf_modules_elim: forall (md:module) S mds 
-  (Hwfms: wf_modules S mds) (Hin: In md mds), 
-  wf_module S md.
-Proof.
-  induction 1; intros; try tauto.
-    destruct_in Hin; auto.
-Qed.
-
-Lemma wf_modules_intro: forall S mds 
-  (H: forall (md:module) (Hin: In md mds), wf_module S md),
-  wf_modules S mds.
-Proof.
-  induction mds; intros.
-    constructor.
-    constructor.
-      apply H. xsolve_in_list.
-
-      apply IHmds. intros.
-      apply H. xsolve_in_list.
-Qed.    
-
-Lemma wf_styp__isValidElementTyp: forall S td t (Hty: wf_styp S td t),
-  isValidElementTyp t.
-Proof.
-  intros.
-  unfold isValidElementTyp, isValidElementTypB, isNotValidElementTypB.
-  inv Hty; simpl; auto.
-Qed.
-
 Lemma dom_analysis__entry_doms_others: forall S M f 
   (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) entry
   (H: getEntryLabel f = Some entry),
@@ -2706,49 +2972,6 @@ Proof.
   eapply dom_analysis__entry_doms_others with (b:=l2) in Gentry; eauto.
 Qed.
 
-Lemma getPointerAlignmentInfo_pos: forall los (Hwfl: wf_layouts los),
- (getPointerAlignmentInfo los true > 0)%nat.
-Proof.
-  intros.
-  destruct (@Hwfl true); auto.
-Qed.
-
-Lemma wf_cmds_intro: forall s m f b cs,
-  (forall c, In c cs -> wf_insn s m f b (insn_cmd c)) ->
-  wf_cmds s m f b cs.
-Proof.
-  induction cs; intros.
-    constructor.
-    constructor.
-      apply H; simpl; auto.
-      apply IHcs. intros. apply H; simpl; auto.
-Qed.
-
-Lemma wf_cmds_elim: forall s m f b cs,
-  wf_cmds s m f b cs -> forall c, In c cs -> wf_insn s m f b (insn_cmd c).
-Proof.
-  intros s m f b cs J.
-  induction J; intros.
-    inv H.
-
-    simpl in H0.
-    destruct H0 as [H0 | H0]; subst; auto.
-Qed.
-
-Lemma wf_cmds_app: forall s m f b cs2 (Hwfcs2: wf_cmds s m f b cs2) cs1
-  (Hwfcs1: wf_cmds s m f b cs1), wf_cmds s m f b (cs1++cs2).
-Proof.
-  induction cs1; simpl; intros; auto.
-    inv Hwfcs1. constructor; auto.
-Qed.
-
-Lemma wf_phinodes_app: forall s m f b ps2 (Hwfps2: wf_phinodes s m f b ps2) ps1
-  (Hwfps1: wf_phinodes s m f b ps1), wf_phinodes s m f b (ps1++ps2).
-Proof.
-  induction ps1; simpl; intros; auto.
-    inv Hwfps1. constructor; auto.
-Qed.
-
 Ltac inv_wf_block H :=
 let S5 := fresh "S5" in
 let M5 := fresh "M5" in
@@ -2768,36 +2991,6 @@ let EQ4 := fresh "EQ4" in
 inversion H as 
   [S5 M5 F5 l5 ps5 cs5 tmn5 HBinSMF Hwfps Hwfcs Hwfi EQ1 EQ2 EQ3 EQ4];
 subst S5 M5 F5.
-
-(* wf_phi_operands doesnt depend on i0 and t0, which should be removed. *)
-Lemma wf_phi_operands__intro : forall f b i0 t0 vls0,
-  (forall vid1 l1 (Hin: In (value_id vid1, l1) vls0), 
-     exists sts1,
-      lookupBlockViaLabelFromFdef f l1 = Some sts1 /\
-      (((exists vb,
-         lookupBlockViaIDFromFdef f vid1 = Some vb /\
-         blockDominates f vb (l1, sts1)) \/ 
-        not (isReachableFromEntry f (l1, sts1))) \/
-      In vid1 (getArgsIDsOfFdef f))) ->
-  wf_phi_operands f b i0 t0 vls0.
-Proof.
-  induction vls0 as [|[[vid5|] l0]]; intros.
-    constructor.
-
-    assert (In (value_id vid5, l0) ((value_id vid5, l0) :: vls0)) as Hin.
-      xsolve_in_list.
-    apply H in Hin.
-    destruct Hin as [b1 [J1 J2]].
-    econstructor; eauto.
-      apply IHvls0.
-      intros.
-      apply H. simpl. auto.
-
-    constructor.
-      apply IHvls0.
-      intros.
-      apply H. simpl. auto.
-Qed.
 
 Lemma blockStrictDominates_isReachableFromEntry: forall f b1 b2 S M
   (HuniqF: uniqFdef f) (HwfF: wf_fdef S M f) 
@@ -2980,85 +3173,6 @@ Proof.
       eapply NoDup_disjoint in HBinF; simpl; eauto.
 Qed.
 
-Lemma blockDominates__domination: forall (S : system) (M : module) (f : fdef)
-  (Hwf : wf_fdef S M f) (Huniq : uniqFdef f) (b1 b2:block)
-  (HBinF : blockInFdefB b2 f) (Hdom : blockDominates f b1 b2),
-  domination f (getBlockLabel b1) (getBlockLabel b2).
-Proof.
-  intros.
-  destruct b1 as [l5 ?], b2.
-  unfold blockDominates in Hdom.
-  eapply dom_is_sound with (l':=l5) in HBinF; simpl; eauto 1.
-    destruct Hdom; auto.
-Qed.
-
-Lemma wf_phi_operands__elim'': forall (S : system) (M : module) (f : fdef)
-  (l0 : l) sts0
-  (Hwf : wf_fdef S M f) (Huniq : uniqFdef f) (value_l_list : list (value * l))
-  (id5 : id) (typ5 : typ)
-  (Hwfops : wf_phi_operands f (l0, sts0) id5 typ5
-              value_l_list) vid
-  (Hnotinfh : ~ In vid (getArgsIDsOfFdef f)) (l1 : l)
-  (Hinlist: In (value_id vid, l1) value_l_list) (Hreach: reachable f l1),
-  exists bv, exists bvl,
-    lookupBlockViaLabelFromFdef f l1 = ret bvl /\
-    lookupBlockViaIDFromFdef f vid = ret bv /\
-    domination f (getBlockLabel bv) l1.
-Proof.
-  intros.
-  eapply wf_phi_operands__elim' in Hinlist; eauto.
-  destruct Hinlist 
-    as [blv' [Hlkupblv [[[bv' [Hlkbv Hdom]]|Hnreachblv]|?]]]; 
-    try solve [contradict Hnotinfh; auto].
-  Case "bv' doms blk'".
-    exists bv'. exists blv'.
-    split; auto.
-    split; auto.
-      lookupBlockViaLabelFromFdef_inv_tac.
-      eapply blockDominates__domination in Hdom; eauto 1.
-
-  Case "blk' is unreachable".
-    lookupBlockViaLabelFromFdef_inv_tac.
-    simpl in *. congruence.
-Qed.
-
-Lemma wf_phi_operands__successors: forall (S : system) (M : module) (f : fdef) b
-  (Huniq : uniqFdef f) (vls : list (value * l))
-  (id5 : id) (typ5 : typ) 
-  (Hwfops : check_list_value_l f b vls) l1
-  (Hscs: arcs_fdef f (A_ends (index (getBlockLabel b)) (index l1))),
-  exists v1, In (v1, l1) vls.
-Proof. 
-  simpl.
-  intros.
-  unfold check_list_value_l in Hwfops.
-  remember (split vls) as R.
-  destruct R as [? ls1].
-  destruct Hwfops as [_ [Hwfops _]].
-  apply successors_predecessors_of_block' in Hscs; auto.
-  apply Hwfops in Hscs.
-  apply split_r_in; auto.
-    unfold l in *.
-    rewrite <- HeqR. auto.
-Qed.
-
-Ltac unfold_reachable_tac :=
-match goal with
-| Hentry: getEntryBlock ?f = ret ?be, Hreach: reachable ?f _ |- _ =>
-  let vl := fresh "vl" in
-  let al := fresh "al" in
-  let Hwalk := fresh "Hwalk" in
-    unfold reachable in Hreach;
-    rewrite Hentry in Hreach;
-    match goal with 
-    | _: getEntryBlock ?f = ret (_, _) |- _ => idtac
-    | _ =>
-        let le := fresh "le" in
-        destruct be as [le []]
-    end;
-    destruct Hreach as [vl [al Hwalk]]
-end.
-
 Ltac unfold_domination_tac :=
 match goal with
 | Hentry: getEntryBlock ?f = ret ?be, Hdom: domination ?f _ _ |- _ =>
@@ -3071,42 +3185,6 @@ match goal with
         destruct be as [le []]
     end
 end.
-
-Lemma reachable_phinode__ex_reachable_incoming: forall (S : system) (M : module)
-  (f : fdef) (Hwf : wf_fdef S M f) (Huniq : uniqFdef f) b
-  (Hreach : isReachableFromEntry f b) (pid : id) (ty : typ) 
-  (vls : list (value * l))
-  (Hwfops : check_list_value_l f b vls)
-  (be : block) (Hentry : getEntryBlock f = ret be)
-  (Hneq : getBlockLabel be <> getBlockLabel b),
-  exists v0 : value, exists l1 : l, In (v0, l1) vls /\ reachable f l1.
-Proof.
-  intros.
-  destruct b.
-  simpl in *.
-  unfold_reachable_tac.
-  simpl in Hneq.
-  inv Hwalk; try congruence.
-  destruct y as [ly].
-  eapply wf_phi_operands__successors in Hwfops; eauto.
-  destruct Hwfops as [v1 Hwfops].
-  exists v1. exists ly.
-  split; auto.
-    unfold reachable. autounfold with cfg.
-    rewrite Hentry.
-    eauto.
-Qed.
-
-Lemma wf_fdef__wf_phinode: forall (s : system) (m : module) (f : fdef) 
-  (l3 : l) (cs : cmds) (tmn : terminator) (ps : phinodes) p
-  (HwfF: wf_fdef s m f) (HBinF: blockInFdefB (l3, stmts_intro ps cs tmn) f)
-  (HinPs: In p ps), wf_phinode f (l3, stmts_intro ps cs tmn) p.
-Proof.
-  intros.
-  eapply wf_fdef__wf_phinodes in HBinF; eauto.
-  eapply wf_phinodes__wf_phinode in HBinF; eauto.
-  inv HBinF; auto.
-Qed.
 
 Lemma phinodes_from_the_same_block__dont__valueDominate: forall 
   l0 ps0 cs0 tmn0 f vid1 vid2 s m (HwfF: wf_fdef s m f)
@@ -3153,30 +3231,7 @@ Proof.
       apply ListSet.set_diff_elim1 in J1; auto.
 Qed.
 
-Lemma wf_system__wf_layouts: forall los nts Ps1 f Ps2 S 
-  (HwfS : wf_system S) 
-  (Hin: In (module_intro los nts (Ps1 ++ product_fdef f :: Ps2)) S),
-  wf_layouts los.
-Proof.
-  intros.
-  inv HwfS.
-  apply In_InModulesB in Hin.
-  eapply wf_modules__wf_module in H; eauto.
-  inv H. inv H5; auto.
-Qed.
-
-Lemma wf_typ_pointer: forall S los nts t (Hwft: wf_typ S (los,nts) t)
-  (Hwfl: wf_layouts los),
-  wf_typ S (los,nts) (typ_pointer t).
-Proof.
-  intros. 
-  inv Hwft.
-  constructor; auto.
-    constructor; auto.
-      eapply wf_styp__isValidElementTyp; eauto.
-      apply getPointerAlignmentInfo_pos; auto.
-Qed.
-
+(* Properties of CFGs. *)
 Lemma successors_codom__uniq: forall s m f 
   (HwfF : wf_fdef s m f) l0, 
   NoDup ((successors f) !!! l0).
@@ -3206,41 +3261,3 @@ Proof.
   unfold XATree.successors_list in J.
   rewrite <- HeqR3 in J. auto.
 Qed.
-
-(****************************************************)
-Lemma wf_value_id__in_getFdefLocs : forall S m f v t,
-  wf_value S m f v t -> getValueID' v[<=]ids2atoms (getFdefLocs f).
-Proof.
-  intros.
-  inv H; simpl.
-    clear. fsetdec.
-
-    destruct f as [f b]. destruct f as [? ? ? a ?]. simpl in *.
-    apply ids2atoms__in.
-    destruct_match.
-      destruct (In_dec eq_atom_dec id5 (getArgsIDs a)) as [Hin | Hnotin].
-        apply in_or_app. auto.
-
-        apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
-        congruence.
-      destruct (In_dec eq_atom_dec id5 (getBlocksLocs b)) as [Hin | Hnotin].
-        apply in_or_app. auto.
-
-        apply notInBlocks__lookupTypViaIDFromBlocks in Hnotin.
-        congruence.
-Qed.
-
-Lemma wf_value_id__in_getFdefLocs' : forall S m f v t,
-  wf_value S m f v t ->
-  match v with
-  | value_id vid => In vid (getFdefLocs f)
-  | _ => True
-  end.
-Proof.
-  intros.
-  destruct v; auto.
-  apply wf_value_id__in_getFdefLocs in H.
-  simpl in H.
-  apply ids2atoms__in in H; auto.
-Qed.
-

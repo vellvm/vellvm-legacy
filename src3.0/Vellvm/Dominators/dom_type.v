@@ -17,12 +17,33 @@ Require Import infrastructure_props.
 Import LLVMsyntax.
 Import LLVMinfra.
 
+(* The file defines the specification of computing dominators. *)
+
 Notation "x {+} y" := (x :: y) (at level 0): dom.
 Notation "x {<=} y" := (incl x y) (at level 0): dom.
 Notation "{}" := nil (at level 0): dom.
 Notation "x `in` y" := (In x y) (at level 70): dom.
 Local Open Scope dom.
 
+(* ALGDOM gives an abstract specification of algorithms that compute dominators. 
+   First of all, sdom defines the signature of a dominance analysis algorithm: 
+   given a function f and a label l1, (sdom f l1) returns the set of strict 
+   dominators of l1 in f ; dom defines the set of dominators of l1 by adding l1 
+   into l1’s strict dominators.
+
+   To make the interface simple, ALGDOM only requires the basic properties that 
+   ensure that sdom is correct: it must be both sound and complete in terms of 
+   the declarative definitions (Definition 2). Given the correctness of sdom, 
+   the AlgDom_Properties module can ‘lift’ properties (conversion, transitivity, 
+   acyclicity, ordering, etc.) from the declarative definitions to the 
+   implementations of sdom and dom. 
+
+   ALGDOM requires completeness directly. Soundness can be proven by two more 
+   basic properties: entry_sound requires that the entry has no strict 
+   dominators; successors_sound requires that if l1 is a successor of l2, then 
+   l2’s dominators must include l1’s strict dominators. Given an algorithm that 
+   establishes the two properties, AlgDom_Properties proves that the algorithm 
+   is sound by induction over any path from the entry to l2. *)
 Module Type ALGDOM.
 
 Parameter sdom : fdef -> atom -> set atom.
@@ -262,6 +283,8 @@ Qed.
 
 End AlgDom_Properties.
 
+(* The analysis that create trees must ensure that generated trees are
+   well-formed. *)
 Module Type ALGDOM_WITH_TREE.
 
 Include Type ALGDOM.

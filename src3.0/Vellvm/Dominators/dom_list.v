@@ -16,12 +16,19 @@ Require Import dom_tree.
 Require Import dom_list_tree.
 
 (***************************************************)
+(* This file implements the list-based dominaton analysis. At the high-level, 
+   our implementation works in three steps: 
+   1) calculate the PO of a CFG by depth-first-search (DFS); 
+   2) compute strict dominators for PO-numbered nodes in Kildall (push_iter); 
+   3) finally relate the analysis results to the original nodes.
+*)
 
 Require Import Dipaths.
 Require Import infrastructure.
 Import LLVMsyntax.
 Import LLVMinfra.
 
+(* Define the conversion from atom-based CFGs to positive-based CFGs. *)
 Definition a2p_Vertex (a2p:ATree.t positive) (av: Vertex) (pv : Vertex) :=
 let '(index a) := av in
 let '(index p) := pv in
@@ -38,6 +45,7 @@ a2p_Vertex a2p av1 pv1 /\ a2p_Vertex a2p av2 pv2.
 Definition a2p_A_list (a2p:ATree.t positive) (aal: A_list) (pal : A_list) :=
 List.Forall2 (a2p_Arc a2p) aal pal.
 
+(* Properties of atolist_ptolist *)
 Lemma in_init__in_atolist_ptolist: forall a a2p ps acc (Hin: In a acc),
   In a (fold_left (atolist_ptolist_fun a2p) ps acc).
 Proof.
@@ -179,6 +187,7 @@ Proof.
       congruence.
 Qed.
 
+(* Properties of asuccs_psuccs. *)
 Section asuccs_psuccs.
 
 Variable a2p: ATree.t positive.
@@ -313,6 +322,7 @@ repeat match goal with
      end] => fill' e
 end.
 
+(* Properties of get_reachable_nodes. *)
 Definition get_reachable_nodes_fun (a2p:ATree.t positive) (acc:list positive) 
   (a:l) : list positive :=
 match a2p ! a with
@@ -379,6 +389,7 @@ Import AtomSet.
 
 Require Import dom_type.
 
+(* Properties of the conversion from atom-based CFGs to positive-based CFGs. *)
 Section adom_pdom.
 
 Variable f:fdef.
@@ -1186,6 +1197,7 @@ Qed.
 
 End adom_pdom.
 
+(* The main function that computes dominators. *)
 Definition dom_analyze (f: fdef) : PMap.t LDoms.t * ATree.t positive :=
   let asuccs := cfg.successors f in
   match LLVMinfra.getEntryLabel f with
@@ -1199,9 +1211,12 @@ Definition dom_analyze (f: fdef) : PMap.t LDoms.t * ATree.t positive :=
   | None => (PMap.init LDoms.top, ATree.empty _)
   end.
 
+(* Compute a map from positive to atom in terms of the map from atom to 
+   positive. *)
 Definition a2p_p2a (a2p:ATree.t positive) : PTree.t l :=
   ATree.fold (fun acc from to => PTree.set to from acc) a2p (PTree.empty l).
 
+(*Properties of a2p_p2a *)
 Lemma a2p_p2a_spec2: forall a2p a p (Hget: (a2p_p2a a2p) ? p = Some a),
   a2p ! a = Some p.
 Proof.
@@ -1371,6 +1386,7 @@ Qed.
 
 End in_ps__in_ps2as.
 
+(* The iteration bound we choose is large enough to ensure termination. *)
 Section Num_iters__is__large_enough.
 
 Variable f:fdef.
@@ -1462,6 +1478,7 @@ match goal with
              ((?pe, _)::_) ?ni] |- _ => foo a2p f pe
 end.
 
+(* Show that the algorithm meets the specification. *)
 Module AlgDom : ALGDOM_WITH_TREE.
 
 Definition p2a_dom p2a bd (res: LDoms.t) : list atom :=
@@ -1505,15 +1522,6 @@ match goal with
   assert (Hentry:=Hsdom);
   apply DecDom.strict_domination__getEntryLabel in Hentry;
   destruct Hentry as [entry Hentry]
-(*
-| H: dom_analysis_is_successful ?f |- _ =>
-  unfold dom_analysis_is_successful in H;
-  let Hentry:=fresh "Hentry" in
-  let le:=fresh "le" in
-  case_eq (getEntryLabel f); 
-    try solve [intro Hentry; rewrite Hentry in H; tauto];
-  intros le Hentry
-*)
 | _ => idtac
 end;
 match goal with
@@ -1772,6 +1780,7 @@ Qed.
 
 End dom_unreachable.
 
+(* Transformation that preserve CFGs preserves analysis results. *)
 Section pres_dom.
 
 Variable ftrans: fdef -> fdef.

@@ -4,30 +4,31 @@ Require Import infrastructure_props.
 Require Import cfg.
 Require Import Relations.Relation_Operators.
 
+(* This file defines dominator trees with properties. *)
 Section DTree.
 
 Variable A:Set.
 Hypothesis Hdec: forall x y:A, {x = y} + {x <> y}.
-
+(* A rose tree. *)
 Inductive DTree : Set :=
 | DT_node : A -> DTrees -> DTree
 with DTrees : Set :=
 | DT_nil : DTrees
 | DT_cons : DTree -> DTrees -> DTrees
 .
-
+(* The number of children *)
 Fixpoint size_of_dtrees (dts:DTrees) : nat :=
 match dts with
 | DT_nil => O
 | DT_cons _ dts' => S (size_of_dtrees dts')
 end.
-
+(* Convert a list to a tree *)
 Fixpoint list2tree hd tl := 
 match tl with
 | nil => DT_node hd DT_nil
 | hd'::tl' => DT_node hd (DT_cons (list2tree hd' tl') DT_nil)
 end.
-
+(* In the tree dt, insert a subtree converted from (parent::child::tl). *)
 Fixpoint dtree_insert dt parent child tl : DTree :=
 match dt with
 | DT_node l0 dts0 =>
@@ -47,7 +48,7 @@ match dts with
       end
     else DT_cons dt0 (dtrees_insert dts0 child tl)
 end.
-
+(* Create trees by merging lists. *)
 Definition create_dtree_from_chain dt chain : DTree :=
 match chain with
 | p::(ch::chain') => dtree_insert dt p ch chain'
@@ -58,14 +59,14 @@ Definition create_dtree_from_chains pe (chains:list (A * list A)) : DTree :=
 fold_left 
   (fun acc elt => create_dtree_from_chain acc (snd elt))
   chains (DT_node pe DT_nil).
-
+(* Check if child is a node in dts. *)
 Fixpoint in_children_roots child dts : bool :=
 match dts with
 | DT_nil => false
 | DT_cons (DT_node l0 _) dts' =>
     if (Hdec l0 child) then true else in_children_roots child dts'
 end.
-
+(* Check if (parent,child) is an edge of dt. *)
 Fixpoint is_dtree_edge dt parent child : bool :=
 match dt with
 | DT_node l0 dts0 =>
@@ -87,97 +88,21 @@ Scheme dtree_rec2 := Induction for DTree Sort Set
 Definition dtree_mutrec P P' :=
   fun h1 h2 h3 =>
     (pair (@dtree_rec2 P P' h1 h2 h3) (@dtrees_rec2 P P' h1 h2 h3)).
-
+(* Check if (p0,ch0) is an edge of chain. *)
 Fixpoint is_chain_edge (chain:list A) p0 ch0 : Prop :=
 match chain with
 | p::((ch::_) as chain') => (p = p0 /\ ch = ch0) \/ is_chain_edge chain' p0 ch0
 | _ => False
 end.
 
-Lemma dtrees_insert__in_children_roots: forall ch ch0 tl dts
-  (Hin: in_children_roots ch dts = true),
-  in_children_roots ch (dtrees_insert dts ch0 tl) = true.
-Proof.
-  induction dts as [|[]]; simpl; intro; try congruence.
-    destruct_if.
-      destruct_if.
-        destruct tl; simpl.
-          destruct_if.
-          destruct_if. destruct_if.
-        simpl. destruct_if.
-      destruct_if.
-        destruct tl; simpl.
-          destruct_if.
-          destruct_if; try congruence.
-            destruct_if.
-        simpl. 
-        destruct_if.
-          rewrite IHdts; auto.
-Qed.
-
+(* Properties of list2tree. *)
 Lemma list2tree_spec: forall ch0 tl,
   exists dts, list2tree ch0 tl = DT_node ch0 dts.
 Proof.
   destruct tl; simpl; eauto.
 Qed.
 
-Lemma inserted_in_children_roots: forall ch ch0 tl dts
-  (Hnotin: in_children_roots ch dts = false)
-  (Hin: in_children_roots ch (dtrees_insert dts ch0 tl) = true),
-  ch = ch0.
-Proof.
-  induction dts as [|[]]; simpl; intros.
-  Case "1".
-    destruct (list2tree_spec ch0 tl) as [dts Heq].
-    rewrite Heq in Hin.
-    destruct_if; try solve [auto | congruence].
-  Case "2".
-    destruct_if.
-    SCase "2.1".
-      destruct_if; try congruence.
-      destruct_if.
-      destruct tl; simpl in *.
-        destruct_if; try congruence.
-        destruct_if; try congruence.
-    SCase "2.2".
-      destruct_if; try solve [congruence | auto].
-Qed.
-
-Lemma inserted_in_children_roots': forall ch0 tl dts,
-  in_children_roots ch0 (dtrees_insert dts ch0 tl) = true.
-Proof.
-  induction dts as [|[]]; simpl; intros.
-  Case "1".
-    destruct (list2tree_spec ch0 tl) as [dts Heq].
-    rewrite Heq.
-    destruct_if; try solve [auto | congruence].
-  Case "2".
-    destruct_if.
-    SCase "2.1".
-      destruct_if; try congruence.
-      destruct tl; simpl in *.
-        destruct_if; try congruence.
-        destruct_if; try congruence.
-    SCase "2.2".
-      simpl. destruct_if; try solve [congruence | auto].
-Qed.
-
-Definition get_dtree_root (dt:DTree) : A :=
-match dt with
-| DT_node l0 _ => l0
-end.
-
-Definition dtree_insert__is_dtree_edge_prop (dt:DTree) :=
-forall p ch tl p0 ch0,
-  is_dtree_edge (dtree_insert dt p ch tl) p0 ch0 = true <->
-  is_dtree_edge dt p0 ch0 = true \/ 
-    (p = get_dtree_root dt /\ is_chain_edge (p::ch::tl) p0 ch0).
-
-Definition dtrees_insert__is_dtrees_edge_prop (dts:DTrees) :=
-forall ch tl p0 ch0,
-  is_dtrees_edge (dtrees_insert dts ch tl) p0 ch0 = true <->
-  is_dtrees_edge dts p0 ch0 = true \/ is_chain_edge (ch::tl) p0 ch0.
-
+(* Properties of is_dtree_edge. *)
 Lemma is_dtree_edge_node_elim: forall a1 dts2 p ch
   (Hin: is_dtree_edge (DT_node a1 dts2) p ch = true),
   (a1 = p /\ in_children_roots ch dts2 = true) \/ 
@@ -273,6 +198,85 @@ Proof.
         left. rewrite <- Heq. apply IHtl'; auto.          
 Transparent is_dtrees_edge.
 Qed.
+
+(* Properties of dtrees_insert. *)
+Lemma dtrees_insert__in_children_roots: forall ch ch0 tl dts
+  (Hin: in_children_roots ch dts = true),
+  in_children_roots ch (dtrees_insert dts ch0 tl) = true.
+Proof.
+  induction dts as [|[]]; simpl; intro; try congruence.
+    destruct_if.
+      destruct_if.
+        destruct tl; simpl.
+          destruct_if.
+          destruct_if. destruct_if.
+        simpl. destruct_if.
+      destruct_if.
+        destruct tl; simpl.
+          destruct_if.
+          destruct_if; try congruence.
+            destruct_if.
+        simpl. 
+        destruct_if.
+          rewrite IHdts; auto.
+Qed.
+
+Lemma inserted_in_children_roots: forall ch ch0 tl dts
+  (Hnotin: in_children_roots ch dts = false)
+  (Hin: in_children_roots ch (dtrees_insert dts ch0 tl) = true),
+  ch = ch0.
+Proof.
+  induction dts as [|[]]; simpl; intros.
+  Case "1".
+    destruct (list2tree_spec ch0 tl) as [dts Heq].
+    rewrite Heq in Hin.
+    destruct_if; try solve [auto | congruence].
+  Case "2".
+    destruct_if.
+    SCase "2.1".
+      destruct_if; try congruence.
+      destruct_if.
+      destruct tl; simpl in *.
+        destruct_if; try congruence.
+        destruct_if; try congruence.
+    SCase "2.2".
+      destruct_if; try solve [congruence | auto].
+Qed.
+
+Lemma inserted_in_children_roots': forall ch0 tl dts,
+  in_children_roots ch0 (dtrees_insert dts ch0 tl) = true.
+Proof.
+  induction dts as [|[]]; simpl; intros.
+  Case "1".
+    destruct (list2tree_spec ch0 tl) as [dts Heq].
+    rewrite Heq.
+    destruct_if; try solve [auto | congruence].
+  Case "2".
+    destruct_if.
+    SCase "2.1".
+      destruct_if; try congruence.
+      destruct tl; simpl in *.
+        destruct_if; try congruence.
+        destruct_if; try congruence.
+    SCase "2.2".
+      simpl. destruct_if; try solve [congruence | auto].
+Qed.
+
+Definition get_dtree_root (dt:DTree) : A :=
+match dt with
+| DT_node l0 _ => l0
+end.
+
+Definition dtree_insert__is_dtree_edge_prop (dt:DTree) :=
+forall p ch tl p0 ch0,
+  is_dtree_edge (dtree_insert dt p ch tl) p0 ch0 = true <->
+  is_dtree_edge dt p0 ch0 = true \/ 
+    (p = get_dtree_root dt /\ is_chain_edge (p::ch::tl) p0 ch0).
+
+Definition dtrees_insert__is_dtrees_edge_prop (dts:DTrees) :=
+forall ch tl p0 ch0,
+  is_dtrees_edge (dtrees_insert dts ch tl) p0 ch0 = true <->
+  is_dtrees_edge dts p0 ch0 = true \/ is_chain_edge (ch::tl) p0 ch0.
 
 Lemma dtree_insert__is_dtree_edge_mutrec :
   (forall dt, dtree_insert__is_dtree_edge_prop dt) *
@@ -405,6 +409,7 @@ Proof.
   eauto.
 Qed.
 
+(* An edge is in dtree iff the edge is in chains that construct the dtree. *)
 Definition chain_connects_dtree dt (chain:list A) : Prop :=
 match chain with
 | entry :: _ :: _ => entry = get_dtree_root dt
@@ -518,6 +523,7 @@ Proof.
       simpl in J. destruct (Hdec p0 pe); tinv J.
 Qed.
 
+(* Properties of is_chain_edge *)
 Lemma is_chain_edge_tail: forall p0 ch0 ls2 ls1 
   (Hintl: is_chain_edge ls2 p0 ch0),
   is_chain_edge (ls1 ++ ls2) p0 ch0.
@@ -570,6 +576,7 @@ Proof.
           congruence.     
 Qed.
 
+(* Nodes in dtree are disjointed. *)
 Import AtomSet.
 Import ListSet.
 
@@ -758,6 +765,7 @@ Proof.
     do 2 constructor.
 Qed.
 
+(* A path in a dtree is a chain that constructs the dtree. *)
 Fixpoint in_children (dt: DTree) dts : Prop :=
 match dts with
 | DT_nil => False
@@ -1168,6 +1176,7 @@ Implicit Arguments create_dtree_from_chains__is_dtree_edge__is_chain_edge [A].
 
 Require Import Maps.
 
+(* create_dtree constructs a well-formed dom-tree. *)
 Module DTreeProps (T:TREE).
 
 Module TCfg := Cfg(T).
@@ -1428,6 +1437,12 @@ Qed.
 Definition idom := TCfg.imm_domination succs entry.
 Definition sdom := TCfg.strict_domination succs entry.
 
+(* The well-formedness predicate: given a tree node l, 
+   1) l is reachable;
+   2) l is different from all labels in l’s descendants; 
+   3) labels of l’s subtrees are disjointed; 
+   4) l immediatedominates its children; 
+   5) l’s subtrees are well-formed. *)
 Inductive wf_dtree : @DTree T.elt -> Prop :=
 | Wf_DT_node : forall p dts
                (Hrd: TCfg.reachable succs entry p) 
@@ -1582,6 +1597,8 @@ End DTreeProps.
 Module PDProps := DTreeProps(PTree).
 Module ADProps := DTreeProps(ATree).
 
+(* Properties of converting trees with different name domains:
+   preserving well-formedness. *)
 Module DTreeConv.
 (* This module may be able to define with parameters source and target TREEs.
    Say DTreeConv (S:TREE) (T:TREE).
@@ -2166,5 +2183,3 @@ Qed.
 End DTreeConv.
 
 End DTreeConv.
-
-

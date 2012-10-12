@@ -395,6 +395,11 @@ Qed.
 Lemma incl_nil : forall A (d:list A), incl nil d.
 Proof. intros. intros x J. inv J. Qed.
 
+Lemma incl_cons : forall A l1 (x:A), incl l1 (x::l1).
+Proof.
+  intros. intros y J. simpl; auto.
+Qed.
+
 (* index *)
 Lemma firstn_nil : forall A n, firstn n (@nil A) = nil.
 Proof. induction n; simpl; auto. Qed.
@@ -621,3 +626,19 @@ Proof.
     inversion Hn. subst. auto.
 Qed.
 
+(* length *)
+Lemma length_le__length_lt: forall A 
+  (eq_dec : forall x y : A, {x = y}+{x <> y})
+  (a:A) (l2:list A) (l1:list A) 
+  (Huniq: list_norepet l1) (Hinc: incl l1 l2)  
+  (Hnotin: ~ In a l1) (Hin: In a l2), 
+  (length l1 < length l2)%nat.
+Proof.
+  intros.
+  assert (incl l1 (List.remove eq_dec a l2)) as Hinc'.
+    apply remove_notin_incl; eauto with datatypes v62.
+  apply incl__length_le in Hinc'; auto.
+  assert (length (List.remove eq_dec a l2) < length l2)%nat as Hle.
+    apply remove_in_length; auto with datatypes v62.
+  omega.
+Qed.

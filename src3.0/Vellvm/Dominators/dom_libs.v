@@ -5,6 +5,9 @@ Require Import infrastructure_props.
 Require Import Program.Tactics.
 Require Import Program.Equality.
 
+(* This file implements and proves libraries for domination analysis. *)
+
+(* A signature for a worklist of Kildall. *)
 Module Type PNODE_SET.
 
   Variable t: Type.
@@ -29,10 +32,10 @@ End PNODE_SET.
 Require Import FSets.
 Require Import FSetAVL.
 Require Import Ordered.
-(* Require Import FSets.FSetPositive. *)
 Module PositiveSet := FSetAVL.Make(OrderedPositive).
 Module PositiveSetFacts := FSetFacts.Facts(PositiveSet).
 
+(* A worklist that picks the maximal node. *)
 Module PNodeSetMax <: PNODE_SET.
   Definition t := PositiveSet.t.
   Definition add (n: positive) (s: t) : t := PositiveSet.add n s.
@@ -145,6 +148,7 @@ Module PNodeSetMax <: PNODE_SET.
   
 End PNodeSetMax.
 
+(* A worklist that picks the minimal node. *)
 Module PNodeSetMin <: PNODE_SET.
   Definition t := PositiveSet.t.
   Definition add (n: positive) (s: t) : t := PositiveSet.add n s.
@@ -206,6 +210,7 @@ Import AtomSet.
 Require Import Sorted.
 Require Import ListSet.
 
+(* A signature of merging two sorted lists by preserving orders. *)
 Module Type MERGE.
 
   Variable Pcmp: positive -> positive -> Prop.
@@ -280,6 +285,7 @@ match goal with
               end] => remember e as R; destruct R
 end.
 
+(* Merging two lists sorted by less-than. *)
 Module MergeLt <: MERGE.
 
   Definition Pcmp := Plt.
@@ -688,93 +694,7 @@ Module MergeLt <: MERGE.
 
 End MergeLt.
 
-(*
-Module MergeGt <: MERGE.
-
-  Definition Pcmp := Pgt.
-
-  Program Fixpoint merge (l1 l2: list positive) 
-    {measure ((fun l1 l2 => (length l1 + length l2)%nat) l1 l2)}
-    : list positive :=
-  match l1, l2 with
-  | p1::l1', p2::l2' =>
-      match (Pcompare p1 p2 Eq) with
-      | Eq => l1
-      | Gt => merge l1' l2 
-      | Lt => merge l1 l2'
-      end
-  | _, _ => nil
-  end.
-  Next Obligation.
-    simpl. omega.
-  Qed.
-  
-  Definition merge_is_tail_of_left_prop (n:nat) := forall Xsdms Ysdms
-    (Hlen: (length Xsdms + length Ysdms = n)%nat),
-    is_tail (merge Xsdms Ysdms) Xsdms.
-
-  Ltac fold_merge :=
-  match goal with
-  | |- context [merge_func (existT _ ?arg1 ?arg2)] => 
-         fold (merge arg1 arg2)
-  end.
-
-  Ltac unfold_merge :=
-  match goal with
-  | |- appcontext [merge ?arg] =>
-     unfold merge; unfold merge_func;
-     Program.Wf.WfExtensionality.unfold_sub merge arg; simpl;
-     repeat Program.Wf.fold_sub merge_func;
-     repeat fold_merge
-  end.
-
-  Lemma merge_is_tail_of_left_aux: forall n, merge_is_tail_of_left_prop n.
-  Proof.
-    induction n; unfold merge_is_tail_of_left_prop; intros.
-      destruct Xsdms as [|Xsdms]; destruct Ysdms as [|Ysdms]; 
-        simpl in Hlen; try solve [contradict Hlen; simpl; omega].
-      compute. auto with coqlib.
-  
-      destruct Xsdms as [|Xsdms]; destruct Ysdms as [|Ysdms]; 
-        simpl in Hlen; try solve [contradict Hlen; simpl; omega].
-      
-        uniq_result.
-        compute. auto with coqlib.
-  
-        uniq_result.
-        compute. apply is_tail_nil.
-  
-        uniq_result.
-        unfold_merge.
-        remember ((Xsdms ?= Ysdms)%positive Eq) as Cmp.
-        destruct Cmp; auto with coqlib.
-          apply IHn. simpl. omega.
-  Qed.
-
-  Lemma merge_is_tail_of_left: forall Xsdms Ysdms, 
-    is_tail (merge Xsdms Ysdms) Xsdms.
-  Proof.
-    intros.
-    assert (J:=@merge_is_tail_of_left_aux (length Xsdms + length Ysdms)).
-    unfold merge_is_tail_of_left_prop in J.
-    auto.
-  Qed.
-  
-  Lemma merge_cmp_cons: forall p ps (Hlt: Forall (Pgt p) ps),
-    ps = merge ps (p :: ps).
-  Proof.
-    destruct 1; intros.
-      compute. auto.
-
-      unfold_merge.
-      rewrite ZC1; auto.
-      unfold_merge.
-      rewrite Pcompare_refl. auto.
-  Qed.
-
-End MergeGt.
-*)
-
+(* A signature of lattice used for computing dominators. *)
 Module Type LATTICEELT.
 
   Variable t: Type.
@@ -795,6 +715,7 @@ Module Type LATTICEELT.
 
 End LATTICEELT.
 
+(* A signature of lattice maps used for computing dominators. *)
 Module LATTICEELT_MAP (L: LATTICEELT).
 
 Definition in_incr (in1 in2: PMap.t L.t) : Prop :=
@@ -817,36 +738,17 @@ Definition eq bd (in1 in2: PMap.t L.t) : Prop :=
 
 End LATTICEELT_MAP.
 
+(* A lattice used for computing dominators, parameterized by a merging 
+   function. *)
 Module Doms (MG:MERGE) <: LATTICEELT.
 
   Definition t := option (list positive).
-
-(*  
-  Definition beq_hd (l1 l2: list positive) : bool :=
-  match l1, l2 with
-  | h1::_, h2::_ => Peqb h1 h2
-  | nil, nil => true
-  | _, _ => false
-  end.
-  
-  Definition beq (x y:t) : bool := 
-  match x, y with
-  | Some x', Some y' => beq_hd x' y'
-  | None, None => true
-  | _, _ => false
-  end.
-*)  
 
   Definition eq (x y: t) := (x = y).
   Definition eq_refl: forall x, eq x x := (@refl_equal t).
   Definition eq_sym: forall x y, eq x y -> eq y x := (@sym_equal t).
   Definition eq_trans: forall x y z, eq x y -> eq y z -> eq x z := (@trans_equal t).
 
-(* 
-  Lemma beq_correct: forall x y (Heq: beq x y = true), eq x y.
-  Proof. auto. Qed.
-*)
-  
   Definition bot : t := None.
   
   Definition lub (x y:t) : t * bool :=
@@ -879,11 +781,7 @@ Module Doms (MG:MERGE) <: LATTICEELT.
     unfold ge.
     destruct x as [x|]; auto using sublist_refl.
   Qed.
-(*
-  Lemma merge_is_tail_of_left: forall Xsdms Ysdms, 
-    is_tail (MG.merge Xsdms Ysdms) Xsdms.
-  Proof. apply MG.merge_is_tail_of_left. Qed.
-*)  
+
   Lemma merge_cmp_cons: forall p ps (Hlt: Forall (MG.Pcmp p) ps),
     MG.merge ps (p :: ps) = (ps, false).
   Proof. apply MG.merge_cmp_cons. Qed.
@@ -1098,6 +996,7 @@ End Doms.
 Require Import syntax.
 Import LLVMsyntax.
 
+(* Converting an atom-named successor map to a positive-named successor map. *)
 Definition atolist_ptolist_fun (a2p:ATree.t positive) :=
   fun acc ato => 
    match ATree.get ato a2p with
@@ -1120,5 +1019,3 @@ Definition asucc_psucc (a2p: ATree.t positive)
 Definition asuccs_psuccs (mapping: ATree.t positive) (succs: ATree.t ls)  
   : PTree.t (list positive) :=
   ATree.fold (asucc_psucc mapping) succs (PTree.empty (list positive)).
-
-

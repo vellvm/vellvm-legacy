@@ -19,8 +19,7 @@ Require Import external_intrinsics.
 Require Import genericvalues_inject.
 
 (*************************************************************)
-(* 
-*)
+(* The operational semantics of Vellvm                       *)
 
 Import LLVMsyntax.
 Import LLVMtd.
@@ -28,21 +27,29 @@ Import LLVMinfra.
 Import LLVMgv.
 Import LLVMtypings.
 
+(* GenericValues represent dynamic values at runtime. We provide
+   different styles of semantics that have different definitions of
+   dynamic values. The following defines their signatures. *)
 Structure GenericValues := mkGVs {
+(* The type of GenericValues *)
 GVsT : Type;
+(* instantiate_gvs gv gvs ensures that gvs includes gv. *) 
 instantiate_gvs : GenericValue -> GVsT -> Prop;
-
+(* inhabited gvs ensures that gvs is not empty. *)
 inhabited : GVsT -> Prop;
-
+(* cgv2gvs cgv t converts the constant cgv to GenericValues w.r.t type t. *)
 cgv2gvs : GenericValue -> typ -> GVsT;
-
+(* gv2gvs gv t converts gv to GenericValues in terms of type t. *)
 gv2gvs : GenericValue -> typ -> GVsT;
-
+(* f is a unary operation of gv, lift_op1 f returns a unary operation of 
+   GenericValues. *)
 lift_op1 : (GenericValue -> option GenericValue) -> GVsT -> typ -> option GVsT;
-
+(* f is a binary operation of gv, lift_op2 f returns a binary operation of 
+   GenericValues. *)
 lift_op2 : (GenericValue -> GenericValue -> option GenericValue) ->
   GVsT -> GVsT -> typ -> option GVsT;
-
+(* All values in (cgv2gvs cgv t) are of type size t, match type t, and non-empty.
+ *)
 cgv2gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
   wf_typ S (los,nts) t ->
   _getTypeSizeInBits_and_Alignment los
@@ -60,7 +67,8 @@ cgv2gvs__matches_chunks : forall S los nts gv t gv',
   gv_chunks_match_typ (los, nts) gv' t;
 
 cgv2gvs__inhabited : forall gv t, inhabited (cgv2gvs gv t);
-
+(* All values in (gv2gvs gv t) are of type size t, match type t, and non-empty.
+ *)
 gv2gvs__getTypeSizeInBits : forall S los nts gv t sz al,
   wf_typ S (los,nts) t ->
   _getTypeSizeInBits_and_Alignment los
@@ -77,7 +85,8 @@ gv2gvs__matches_chunks : forall S los nts gv t,
   gv_chunks_match_typ (los, nts) gv' t;
 
 gv2gvs__inhabited : forall gv t, inhabited (gv2gvs gv t);
-
+(* lift_op1 and lift_op2 preserve inhabitedness, totalness, type size, and 
+   chunks. *)
 lift_op1__inhabited : forall f gvs1 t gvs2
   (H:forall x, exists z, f x = Some z),
   inhabited gvs1 ->
@@ -141,24 +150,54 @@ lift_op2__matches_chunks : forall S los nts f g1 g2 t gvs,
   forall gv : GenericValue,
   instantiate_gvs gv gvs ->
   gv_chunks_match_typ (los, nts) gv t;
-
+(* Inhabited values are not empty. *)
 inhabited_inv : forall gvs, inhabited gvs -> exists gv, instantiate_gvs gv gvs;
-
+(* gv is in (gv2gvs gv t). *)
 instantiate_gv__gv2gvs : forall gv t, instantiate_gvs gv (gv2gvs gv t);
-
+(* If gv's is not undefined, (gv2gvs gv' t) only includes gv'. *)
 none_undef2gvs_inv : forall gv gv' t,
   instantiate_gvs gv (gv2gvs gv' t) -> (forall mc, (Vundef, mc)::nil <> gv') ->
   gv = gv'
 }.
 
-Global Opaque GVsT gv2gvs instantiate_gvs inhabited cgv2gvs gv2gvs lift_op1 lift_op2.
-
-(************** Opsem ***************************************************** ***)
+Global Opaque GVsT gv2gvs instantiate_gvs inhabited cgv2gvs lift_op1 lift_op2.
 
 Module OpsemAux.
 
 (**************************************)
-(* To realize it in LLVM, we can try to dynamically cast fptr to Function*,
+(* This module defines configuration of semantics. A configuration includes
+   the invariants and parameters of semantics. *)
+
+(* The configuration for small-step semantics. *)
+Record Config : Type := mkCfg {
+CurSystem          : system;        (* programs *)
+CurTargetData      : TargetData;    (* data layouts of the current program *)
+CurProducts        : list product;  (* the currenr program *)
+Globals            : GVMap;         (* globals *)
+(* FunTable maps function names to their addresses that are taken as function
+   pointers. When we are calling a function via an id, we first search in Globals
+   via the value id to get its address, and then search in FunTable to get its
+   name, via the name, we search in CurProducts to get its definition.
+
+   We assume that there is an 'initFunTable' that returns function addresses to
+   initialize FunTable
+*)
+FunTable           : GVMap 
+}.
+
+(* The configuration for big-step semantics. *)
+Record bConfig : Type := mkbCfg {
+bCurSystem          : system;
+bCurTargetData      : TargetData;
+bCurProducts        : list product;
+bGlobals            : GVMap;
+bFunTable           : GVMap;
+bCurFunction        : fdef
+}.
+
+(* Find the name mapped to fptr from the function table fs. 
+
+   To realize it in LLVM, we can try to dynamically cast fptr to Function*,
    if failed, return None
    if successeful, we can return this function's name *)
 Fixpoint lookupFdefViaGVFromFunTable (fs:GVMap)(fptr:GenericValue): option id :=
@@ -170,10 +209,12 @@ match fs with
   else lookupFdefViaGVFromFunTable fs' fptr
 end.
 
-Definition lookupFdefViaPtr Ps fs fptr : option fdef :=
+(* Find the function definition. *)
+Definition lookupFdefViaPtr (Ps:products) (fs:GVMap) fptr : option fdef :=
   do fn <- lookupFdefViaGVFromFunTable fs fptr;
      lookupFdefViaIDFromProducts Ps fn.
 
+(* Find the function declaration of external functions. *)
 Definition lookupExFdecViaPtr (Ps:products) (fs:GVMap) fptr : option fdec :=
 do fn <- lookupFdefViaGVFromFunTable fs fptr;
     match lookupFdefViaIDFromProducts Ps fn with
@@ -182,6 +223,8 @@ do fn <- lookupFdefViaGVFromFunTable fs fptr;
     end
 .
 
+(* Initalize a global with name id0, type t, initial value c, and alignment 
+   align0. *)
 Definition initGlobal (TD:TargetData)(gl:GVMap)(Mem:mem)(id0:id)(t:typ)(c:const)
   (align0:align) : option (GenericValue*mem) :=
   do tsz <- getTypeAllocSize TD t;
@@ -193,15 +236,19 @@ Definition initGlobal (TD:TargetData)(gl:GVMap)(Mem:mem)(id0:id)(t:typ)(c:const)
      | None => None
      end.
 
+(* Initialize targetdata. Mem is used when extraction. *)
 Definition initTargetData (los:layouts)(nts:namedts)(Mem:mem) : TargetData :=
   (los, nts).
 
+(* Return the memory location of external functions. *)
 Axiom getExternalGlobal : mem -> id -> option GenericValue.
 
 (* For each function id, the runtime emits an address as a function pointer.
    It can be realized by taking Function* in LLVM as the address. *)
 Axiom initFunTable : mem -> id -> option GenericValue.
 
+(* Initialized globals and function tables in terms of the definitions in the 
+   program Ps. *)
 Fixpoint genGlobalAndInitMem (TD:TargetData)(Ps:list product)(gl:GVMap)(fs:GVMap)
   (Mem:mem) : option (GVMap*GVMap*mem) :=
 match Ps with
@@ -231,6 +278,7 @@ match Ps with
   end
 end.
 
+(* Properties of lookupFdefViaPtr. *)
 Lemma lookupFdefViaPtr_inversion : forall Ps fs fptr f,
   lookupFdefViaPtr Ps fs fptr = Some f ->
   exists fn,
@@ -241,20 +289,6 @@ Proof.
   unfold lookupFdefViaPtr in H.
   destruct (lookupFdefViaGVFromFunTable fs fptr); tinv H.
   simpl in H. exists i0. eauto.
-Qed.
-
-Lemma lookupExFdecViaPtr_inversion : forall Ps fs fptr f,
-  lookupExFdecViaPtr Ps fs fptr = Some f ->
-  exists fn,
-    lookupFdefViaGVFromFunTable fs fptr = Some fn /\
-    lookupFdefViaIDFromProducts Ps fn = None /\
-    lookupFdecViaIDFromProducts Ps fn = Some f.
-Proof.
-  intros.
-  unfold lookupExFdecViaPtr in H.
-  destruct (lookupFdefViaGVFromFunTable fs fptr); tinv H.
-  simpl in H. exists i0.
-  destruct (lookupFdefViaIDFromProducts Ps i0); inv H; auto.
 Qed.
 
 Lemma lookupFdefViaPtr_inv : forall Ps fs fv F,
@@ -281,6 +315,18 @@ Proof.
   eapply uniqProducts__uniqFdef; simpl; eauto.
 Qed.
 
+Lemma lookupFdefViaPtrInSystem : forall los nts Ps fs S fv F,
+  moduleInSystem (module_intro los nts Ps) S ->
+  lookupFdefViaPtr Ps fs fv = Some F ->
+  productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
+Proof.
+  intros.
+  apply lookupFdefViaPtr_inversion in H0.
+  destruct H0 as [fn [J1 J2]].
+  apply lookupFdefViaIDFromProducts_inv in J2.
+  apply productInSystemModuleB_intro; auto.
+Qed.
+
 Lemma entryBlockInSystemBlockFdef'' : forall los nts Ps fs fv F S B,
   moduleInSystem (module_intro los nts Ps) S ->
   lookupFdefViaPtr Ps fs fv = Some F ->
@@ -295,46 +341,36 @@ Proof.
   apply blockInSystemModuleFdef_intro; auto.
 Qed.
 
-Lemma lookupFdefViaPtrInSystem : forall los nts Ps fs S fv F,
-  moduleInSystem (module_intro los nts Ps) S ->
-  lookupFdefViaPtr Ps fs fv = Some F ->
-  productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
+(* Properties of lookupExFdecViaPtr. *)
+Lemma lookupExFdecViaPtr_inversion : forall Ps fs fptr f,
+  lookupExFdecViaPtr Ps fs fptr = Some f ->
+  exists fn,
+    lookupFdefViaGVFromFunTable fs fptr = Some fn /\
+    lookupFdefViaIDFromProducts Ps fn = None /\
+    lookupFdecViaIDFromProducts Ps fn = Some f.
 Proof.
   intros.
-  apply lookupFdefViaPtr_inversion in H0.
-  destruct H0 as [fn [J1 J2]].
-  apply lookupFdefViaIDFromProducts_inv in J2.
-  apply productInSystemModuleB_intro; auto.
+  unfold lookupExFdecViaPtr in H.
+  destruct (lookupFdefViaGVFromFunTable fs fptr); tinv H.
+  simpl in H. exists i0.
+  destruct (lookupFdefViaIDFromProducts Ps i0); inv H; auto.
 Qed.
 
-Record Config : Type := mkCfg {
-CurSystem          : system;
-CurTargetData      : TargetData;
-CurProducts        : list product;
-Globals            : GVMap;
-FunTable           : GVMap
-}.
-
-Record bConfig : Type := mkbCfg {
-bCurSystem          : system;
-bCurTargetData      : TargetData;
-bCurProducts        : list product;
-bGlobals            : GVMap;
-bFunTable           : GVMap;
-bCurFunction        : fdef
-}.
-
+(* Simulation of function tables. *)
 Definition ftable_simulation mi fs1 fs2 : Prop :=
   forall fv1 fv2, gv_inject mi fv1 fv2 ->
     lookupFdefViaGVFromFunTable fs1 fv1 =
     lookupFdefViaGVFromFunTable fs2 fv2.
 
+(* Assume memory extension preserves function table simulation. *)
 Axiom inject_incr__preserves__ftable_simulation: forall mi mi' fs1 fs2,
   ftable_simulation mi fs1 fs2 ->
   inject_incr mi mi' ->
   ftable_simulation mi' fs1 fs2.
 
 End OpsemAux.
+
+(************** Operational semantics *************************************** ***)
 
 Module Opsem.
 
@@ -361,12 +397,14 @@ List.Forall2 GVsSig.(instantiate_gvs) l1 l2.
 Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss)
   (at level 43, right associativity).
 
+(* Compute the semantic value of a constant. *)
 Definition const2GV (TD:TargetData) (gl:GVMap) (c:const) : option GVs :=
 match (_const2GV TD gl c) with
 | None => None
 | Some (gv, ty) => Some (GVsSig.(cgv2gvs) gv ty)
 end.
 
+(* Compute the semantic value of a program value. *)
 Definition getOperandValue (TD:TargetData) (v:value) (locals:GVsMap)
   (globals:GVMap) : option GVs :=
 match v with
@@ -377,30 +415,25 @@ end.
 (**************************************)
 (** Execution contexts *)
 
+(* Frames *)
 Record ExecutionContext : Type := mkEC {
-CurFunction : fdef;
-CurBB       : block;
+CurFunction : fdef;                  (* the current function *)
+CurBB       : block;                 (* the current block in CurFunction *)
 CurCmds     : cmds;                  (* cmds to run within CurBB *)
-Terminator  : terminator;
+Terminator  : terminator;            (* the terminator of CurBB *)
 Locals      : GVsMap;                (* LLVM values used in this invocation *)
 Allocas     : list mblock            (* Track memory allocated by alloca *)
 }.
-
+(* Stacks *)
 Definition ECStack := list ExecutionContext.
-
-(* FunTable maps function names to their addresses that are taken as function
-   pointers. When we are calling a function via an id, we first search in Globals
-   via the value id to get its address, and then search in FunTable to get its
-   name, via the name, we search in CurProducts to get its definition.
-
-   We assume that there is an 'initFunTable' that returns function addresses to
-   initialize FunTable
-*)
+(* Program states *)
 Record State : Type := mkState {
 ECS                : ECStack;
 Mem                : mem
 }.
 
+(* When a program jumps from the block b to a block with phinodes PNs, the
+  function computes the definitions of PNs. *)
 Fixpoint getIncomingValuesForBlockFromPHINodes (TD:TargetData)
   (PNs:list phinode) (b:block) (globals:GVMap) (locals:GVsMap) :
   option (list (id*GVs)) :=
@@ -419,6 +452,7 @@ match PNs with
   end
 end.
 
+(* Update locals in terms of the mapping ResultValues. *)
 Fixpoint updateValuesForNewBlock (ResultValues:list (id*GVs)) (locals:GVsMap)
   : GVsMap :=
 match ResultValues with
@@ -427,6 +461,8 @@ match ResultValues with
     updateAddAL _ (updateValuesForNewBlock ResultValues' locals) id v
 end.
 
+(* When a program jumps from the block PrevBB to the block Dest, the function 
+   updates locals. *)
 Definition switchToNewBasicBlock (TD:TargetData) (Dest:block)
   (PrevBB:block) (globals: GVMap) (locals:GVsMap): option GVsMap :=
   let PNs := getPHINodesFromBlock Dest in
@@ -435,6 +471,8 @@ Definition switchToNewBasicBlock (TD:TargetData) (Dest:block)
   | None => None
   end.
 
+(* When a program calls a function with parameters lp, the following computes the
+   runtime values of lp. *)
 Fixpoint params2GVs (TD:TargetData) (lp:params) (locals:GVsMap) (globals:GVMap) :
  option (list GVs) :=
 match lp with
@@ -447,8 +485,9 @@ match lp with
     end
 end.
 
-(**************************************)
-(* Realized by libffi in LLVM *)
+(* oResult is the value returned by a external function. rid is the variable
+   that stores the return value. The following updates locals in terms of the
+   type rt of the return value, and noret (whether the function returns). *)
 Definition exCallUpdateLocals TD (rt:typ) (noret:bool) (rid:id)
   (oResult:option GenericValue) (lc :GVsMap) : option GVsMap :=
   match noret with
@@ -464,6 +503,26 @@ Definition exCallUpdateLocals TD (rt:typ) (noret:bool) (rid:id)
   | true => Some lc
   end.
 
+(* c' must be a call of a function that returns Result.
+   lc is the local of the callee's function, and lc' is the local of
+   the caller's function. The following updates lc'. *)
+Definition returnUpdateLocals (TD:TargetData) (c':cmd) (Result:value)
+  (lc lc':GVsMap) (gl:GVMap) : option GVsMap :=
+  match (getOperandValue TD Result lc gl) with
+  | Some gr =>
+      match c' with
+      | insn_call id0 false _ ct _ _ _ =>
+           match (GVsSig.(lift_op1) (fit_gv TD ct) gr ct) with
+           | Some gr' => Some (updateAddAL _ lc' id0 gr')
+           | _ => None
+           end
+      | insn_call _ _ _ _ _ _ _ => Some lc'
+      | _=> None
+      end
+  | None => None
+  end.
+
+(* Convert the list of values of GEP into runtime values. *)
 Fixpoint values2GVs (TD:TargetData) (lv:list (sz * value)) (locals:GVsMap)
   (globals:GVMap) : option (list GVs):=
 match lv with
@@ -479,6 +538,11 @@ match lv with
   end
 end.
 
+(* When a program calls a function with arguments la and the correponding runtime
+   values lg, the following computes the initial locals of the function. 
+   When la and lg do not match, for example, calling a function with the wrong
+   signature, it returns none.
+*)
 Fixpoint _initializeFrameValues TD (la:args) (lg:list GVs) (locals:GVsMap)
   : option GVsMap :=
 match (la, lg) with
@@ -500,6 +564,7 @@ end.
 Definition initLocals TD (la:args) (lg:list GVs): option GVsMap :=
 _initializeFrameValues TD la lg nil.
 
+(* Operations *)
 Definition BOP (TD:TargetData) (lc:GVsMap) (gl:GVMap) (op:bop) (bsz:sz)
   (v1 v2:value) : option GVs :=
 match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
@@ -587,23 +652,7 @@ match (intConsts2Nats TD cidxs) with
 end.
 
 (***************************************************************)
-(* deterministic small-step *)
-
-Definition returnUpdateLocals (TD:TargetData) (c':cmd) (Result:value)
-  (lc lc':GVsMap) (gl:GVMap) : option GVsMap :=
-  match (getOperandValue TD Result lc gl) with
-  | Some gr =>
-      match c' with
-      | insn_call id0 false _ ct _ _ _ =>
-           match (GVsSig.(lift_op1) (fit_gv TD ct) gr ct) with
-           | Some gr' => Some (updateAddAL _ lc' id0 gr')
-           | _ => None
-           end
-      | insn_call _ _ _ _ _ _ _ => Some lc'
-      | _=> None
-      end
-  | None => None
-  end.
+(* small-step *)
 
 Inductive sInsn : Config -> State -> State -> trace -> Prop :=
 | sReturn : forall S TD Ps F B rid RetTy Result lc gl fs
@@ -855,6 +904,8 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
     tr
 .
 
+(* Given the entry of main with input Args, the following initializes the 
+   program S. *)
 Definition s_genInitState (S:system) (main:id) (Args:list GVs) (initmem:mem)
   : option (Config * State) :=
 match (lookupFdefViaIDFromSystem S main) with
@@ -902,6 +953,7 @@ match (lookupFdefViaIDFromSystem S main) with
   end
 end.
 
+(* Return the final result if state is a final state. *)
 Definition s_isFinialState (cfg:Config) (state:State) : option GVs :=
 match state with
 | (mkState ((mkEC _ _ nil (insn_return_void _) _ _)::nil) _ ) => 
@@ -917,6 +969,7 @@ match state with
 | _ => None
 end.
 
+(* >=0 small steps *)
 Inductive sop_star (cfg:Config) : State -> State -> trace -> Prop :=
 | sop_star_nil : forall state, sop_star cfg state state E0
 | sop_star_cons : forall state1 state2 state3 tr1 tr2,
@@ -925,6 +978,7 @@ Inductive sop_star (cfg:Config) : State -> State -> trace -> Prop :=
     sop_star cfg state1 state3 (Eapp tr1 tr2)
 .
 
+(* >=1 small steps *)
 Inductive sop_plus (cfg:Config) : State -> State -> trace -> Prop :=
 | sop_plus_cons : forall state1 state2 state3 tr1 tr2,
     sInsn cfg state1 state2 tr1 ->
@@ -932,6 +986,8 @@ Inductive sop_plus (cfg:Config) : State -> State -> trace -> Prop :=
     sop_plus cfg state1 state3 (Eapp tr1 tr2)
 .
 
+(* Three definitions of divergence. They are used for different proofs.
+   We prove that they are equivalent. *)
 CoInductive sop_diverges (cfg:Config) : State -> traceinf -> Prop :=
 | sop_diverges_intro : forall state1 state2 tr1 tr2,
     sop_plus cfg state1 state2 tr1 ->
@@ -965,6 +1021,7 @@ CoInductive sop_wf_diverges (cfg:Config): Measure -> State -> traceinf -> Prop:=
 
 End SOP_WF_DIVERGES.
 
+(* A program terminates if its initial state reaches a final state. *)
 Inductive s_converges : system -> id -> list GVs -> trace -> GVs -> Prop :=
 | s_converges_intro : forall (s:system) (main:id) (VarArgs:list GVs)    
                               cfg (IS FS:Opsem.State) r tr,
@@ -974,6 +1031,7 @@ Inductive s_converges : system -> id -> list GVs -> trace -> GVs -> Prop :=
   s_converges s main VarArgs tr r
 .
 
+(* A program non-terminates if its initial state diverges. *)
 Inductive s_diverges : system -> id -> list GVs -> traceinf -> Prop :=
 | s_diverges_intro : forall (s:system) (main:id) (VarArgs:list GVs)
                              cfg (IS:State) tr,
@@ -982,9 +1040,11 @@ Inductive s_diverges : system -> id -> list GVs -> traceinf -> Prop :=
   s_diverges s main VarArgs tr
 .
 
+(* A state is stuck if it cannot step. *)
 Definition stuck_state (cfg:OpsemAux.Config) (st:State) : Prop :=
 ~ exists st', exists tr, sInsn cfg st st' tr.
 
+(* A program terminates if its initial state reaches a non-final stuck state. *)
 Inductive s_goeswrong : system -> id -> list GVs -> trace -> State -> Prop :=
 | s_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GVs)
                               cfg (IS FS:State) tr,
@@ -996,7 +1056,7 @@ Inductive s_goeswrong : system -> id -> list GVs -> trace -> State -> Prop :=
 .
 
 (***************************************************************)
-(* deterministic big-step *)
+(* big-step *)
 
 Definition callUpdateLocals (TD:TargetData) rt (noret:bool) (rid:id)
   (oResult:option value) (lc lc':GVsMap) (gl:GVMap) : option GVsMap :=
@@ -1025,15 +1085,18 @@ Definition callUpdateLocals (TD:TargetData) rt (noret:bool) (rid:id)
         end
     end.
 
+(* Execution contexts for big-step *)
 Record bExecutionContext : Type := mkbEC {
-bCurBB       : block;
+bCurBB       : block;                 (* the current block *)
 bCurCmds     : cmds;                  (* cmds to run within CurBB *)
-bTerminator  : terminator;
+bTerminator  : terminator;            (* the terminator of CurBB *)
 bLocals      : GVsMap;                (* LLVM values used in this invocation *)
 bAllocas     : list mblock;           (* Track memory allocated by alloca *)
 bMem         : mem
 }.
 
+(* The big-step semantics takes a function call as a single step by bFdef and
+   bops. *)
 Inductive bInsn :
     bConfig -> bExecutionContext -> bExecutionContext -> trace ->  Prop :=
 | bBranch : forall S TD Ps F B lc gl fs bid Cond l1 l2 conds c
@@ -1283,6 +1346,7 @@ with bFdef : value -> typ -> params -> system -> TargetData -> products ->
     (l'', stmts_intro ps'' cs'' (insn_return_void rid)) rid None tr
 .
 
+(* big-step divergence. *)
 CoInductive bInsnInf : bConfig -> bExecutionContext -> traceinf -> Prop :=
 | bCallInsnInf : forall S TD Ps F B lc gl fs rid noret ca rt fv lp cs tmn
                        tr Mem als rt1 va1,
@@ -1317,6 +1381,7 @@ with bFdefInf : value -> typ -> params -> system -> TargetData -> products ->
   bFdefInf fv rt lp S TD Ps lc gl fs Mem tr
 .
 
+(* Initial states *)
 Definition b_genInitState (S:system) (main:id) (Args:list GVs) (initmem:mem)
   : option (bConfig * bExecutionContext) :=
 match s_genInitState S main Args initmem with
@@ -1325,6 +1390,7 @@ match s_genInitState S main Args initmem with
 | _ => None
 end.
 
+(* Final states *)
 Definition b_isFinialState (cfg:bConfig) (ec:bExecutionContext) : option GVs :=
 match ec with
 | (mkbEC _ nil (insn_return_void _) _ _ _ ) =>
@@ -1336,6 +1402,7 @@ match ec with
 | _ => None
 end.
 
+(* Termination *)
 Inductive b_converges : system -> id -> list GVs -> trace -> GVs -> Prop :=
 | b_converges_intro : forall (s:system) (main:id) (VarArgs:list GVs)
                        cfg (IS FS:bExecutionContext) tr r,
@@ -1345,6 +1412,7 @@ Inductive b_converges : system -> id -> list GVs -> trace -> GVs -> Prop :=
   b_converges s main VarArgs tr r
 .
 
+(* None-termination *)
 Inductive b_diverges : system -> id -> list GVs -> traceinf -> Prop :=
 | b_diverges_intro : forall (s:system) (main:id) (VarArgs:list GVs)
                              cfg (IS S:bExecutionContext) tr,
@@ -1353,6 +1421,7 @@ Inductive b_diverges : system -> id -> list GVs -> traceinf -> Prop :=
   b_diverges s main VarArgs tr
 .
 
+(* Wrong programs *)
 Definition stuck_bstate (cfg:OpsemAux.bConfig) (st:bExecutionContext) : Prop :=
 ~ exists st', exists tr, bInsn cfg st st' tr.
 

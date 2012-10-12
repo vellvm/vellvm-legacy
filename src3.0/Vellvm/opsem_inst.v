@@ -25,6 +25,9 @@ Require Import opsem.
 Require Import opsem_props.
 Require Import opsem_wf.
 
+(* This file proves that one semantics is an instance of another one
+   genericly. *)
+
 Module OpsemInstantiation.
 
 Import Opsem.
@@ -34,6 +37,7 @@ Section Sec.
 
 Context {DGVs : GenericValues} {NDGVs : GenericValues}.
 
+(* The set of gvs2 includes the set of gvs1. *)
 Definition element_of (gvs1:DGVs.(GVsT)) (gvs2: NDGVs.(GVsT)) : Prop :=
 forall gv1,
   DGVs.(instantiate_gvs) gv1 gvs1 -> NDGVs.(instantiate_gvs) gv1 gvs2.
@@ -46,6 +50,7 @@ Lemma element_of__incl : forall x y x0,
   NDGVs.(instantiate_gvs) x0 y.
 Proof. auto. Qed.
 
+(* The operations of the two semantics must preserve element_of. *)
 Hypothesis element_of__gv2gvs : forall gv t,
   element_of (DGVs.(gv2gvs) gv t) (NDGVs.(gv2gvs) gv t).
 
@@ -64,6 +69,7 @@ Hypothesis element_of__lift_op2 : forall f xs1 ys1 xs2 ys2 t zxs1,
   exists zxs2, NDGVs.(lift_op2) f xs2 ys2 t = Some zxs2 /\
     element_of zxs1 zxs2.
 
+(* A program state includes another program state. *)
 Fixpoint instantiate_locals (lc1 : list (id * DGVs.(GVsT)))
   (lc2 : list (id * NDGVs.(GVsT))): Prop :=
 match lc1, lc2 with
@@ -93,6 +99,14 @@ match st1, st2 with
 | mkState ecs1 M1, mkState ecs2 M2 => instantiate_ECs ecs1 ecs2 /\ M1 = M2
 end.
 
+(* Properties of singleton sets. *)
+Lemma same_singleton_set : forall gv,
+  Same_set GenericValue (Singleton _ gv) (Singleton _ gv).
+Proof.
+  unfold Same_set, Included. auto.
+Qed.
+
+(* Properties of instantiate_locals. *)
 Lemma instantiate_locals__lookup : forall lc1 lc2 id1 gv1,
   instantiate_locals lc1 lc2 ->
   lookupAL _ lc1 id1 = Some gv1 ->
@@ -107,12 +121,6 @@ Proof.
     destruct Hinst as [J1 [J2 J3]]; subst.
     destruct (id1 == i1); subst; eauto.
       inv Hlk. eauto.
-Qed.
-
-Lemma same_singleton_set : forall gv,
-  Same_set GenericValue (Singleton _ gv) (Singleton _ gv).
-Proof.
-  unfold Same_set, Included. auto.
 Qed.
 
 Lemma instantiate_locals__getOperandValue : forall TD v lc1 lc2 gl gvs1,
@@ -592,6 +600,7 @@ Ltac simpl_nd_llvmds :=
      destruct Hsim1 as [J1 [J2 [J3 [J4 [Hsim1 J6]]]]]; subst
   end.
 
+(* Preserving instantiation. *)
 Lemma instantiate_dsInsn : forall cfg st1 st2 st1' tr,
   instantiate_State st1 st2 ->
   sInsn cfg st1 st1' tr ->
@@ -807,6 +816,7 @@ Qed.
 
 End Sec.
 
+(* Instantiate the above results to dopsem and ndopsem *)
 Require Import dopsem.
 Require Import ndopsem.
 

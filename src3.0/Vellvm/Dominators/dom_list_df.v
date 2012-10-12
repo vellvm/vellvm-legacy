@@ -11,6 +11,32 @@ Require Import push_iter.
 Import LLVMsyntax.
 Import LLVMinfra.
 
+(* This file constructs domination frontiers. 
+
+  We follow an algorithm that approaches the problem from the opposite direction,
+  and tends to run faster than Cytron et al.’s algorithm in practice. The 
+  algorithm is based on three observations. First, nodes in a dominance frontier 
+  represent join points in the graph, nodes into which control flows from 
+  multiple predecessors. Second, the predecessors of any join point, j, must have
+  j in their respective dominancefrontier sets, unless the predecessor dominates 
+  j. This is a direct result of the defnition of dominance frontiers, above. 
+  Finally, the dominators of j’s predecessors must themselves have j in their 
+  dominance frontier sets unless they also dominate j.
+
+  These observations lead to a simple algorithm. First, we identify each join 
+  point, j—any node with more than one incoming edge is a join point. We then 
+  examine each predecessor, p, of j and walk up the dominator tree starting at p. 
+  We stop the walk when we reach j’s immediate dominator—j is in the dominance 
+  frontier of each of the nodes in the walk, except for j’s immediate dominator. 
+  Intuitively, all of the rest of j’s dominators are shared by j’s predecessors 
+  as well. Since they dominate j, they will not have j in their dominance 
+  frontiers.
+
+  This approach tends to run faster than Cytron et al..’s algorithm in practice, 
+  almost certainly for two reasons. First, the iterative algorithm has already 
+  built the dominator tree. Second, the algorithm uses no more comparisons than 
+  are strictly necessary. Section 9.5.2 will revisit the implementation of the 
+  algorithm. *)
 Definition idom_of (dts: PMap.t LDoms.t) (p:positive) : option positive :=
 match PMap.get p dts with
 | Some (idom::_) => Some idom

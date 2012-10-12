@@ -12,6 +12,7 @@ Require Import infrastructure_props.
 Import LLVMsyntax.
 Import LLVMinfra.
 
+(* This file proves more properties of reachability. *)
 Lemma reachable_has_entry: forall f l1 (Hrd: reachable f l1),
   getEntryBlock f <> None.
 Proof.

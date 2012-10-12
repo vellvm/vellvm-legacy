@@ -12,6 +12,9 @@ Require Import infrastructure_props.
 Require Import Relations.Relation_Operators.
 Require Import Relations.Operators_Properties.
 
+(* This file defines control-flow graphs. *)
+
+(* Properties of closure and transition of relations. *)
 Lemma step_clos_refl_trans_1n__clos_trans_1n: forall A (R:A->A->Prop) y z
   (Hclos: clos_refl_trans_1n A R y z) x (Hrel: R x y),
   clos_trans_1n A R x z.
@@ -43,28 +46,51 @@ Proof.
         right. eapply t_trans; eauto.
 Qed.
 
+(* The Cfg module defines control-flow graphs, and is parameterized by a tree 
+   data type for representing CFGs. *)
 Module Cfg (T:TREE).
 
 Module XTree := More_Tree_Properties(T).
 
 Section Cfg.
-
+(* A map from an id to its successors. *)
 Variable successors: T.t (list T.elt).
-
+(* Nodes in the CFG *)
 Definition vertexes : V_set :=
 fun (v:Vertex) => let '(index n) := v in XTree.in_cfg successors n.
-
+(* Edges of the CFG *)
 Definition arcs : A_set :=
 fun (arc:Arc) =>
   let '(A_ends (index n2) (index n1)) := arc in
   In n2 (XTree.successors_list successors n1).
-
+(* The entry point of the CFG. *)
 Variable entry:T.elt.
-
+(* The node av is reachable from entry. *)
 Definition reachable av : Prop :=
   exists vl: V_list, exists al: A_list, 
      D_walk vertexes arcs (index av) (index entry) vl al.
-
+(* n1 dominates n2. *)
+Definition domination (n1 n2:T.elt) : Prop :=
+  forall vl al,
+    D_walk vertexes arcs (index n2) (index entry) vl al ->
+    (In (index n1) vl \/ n1 = n2).
+(* n1 strictly dominates n2. *)
+Definition strict_domination (n1 n2:T.elt) : Prop :=
+  forall vl al,
+    D_walk vertexes arcs (index n2) (index entry) vl al ->
+    (In (index n1) vl /\ n1 <> n2).
+(* n1 does not strictly dominates n2. *)
+Definition non_sdomination (n1 n2:T.elt) : Prop :=
+  exists vl, exists al,
+    D_walk vertexes arcs (index n2) (index entry) vl al /\
+    ~ In (index n1) vl.
+(* n1 immediately dominates n2. *)
+Definition imm_domination (n1 n2:T.elt) : Prop :=
+  strict_domination n1 n2 /\
+  forall n0, strict_domination n0 n2 -> domination n0 n1.
+(* We assume that the names of CFG nodes are decidable. *)
+Hypothesis Hdec: forall x y : T.elt, {x = y} + {x <> y}.
+(* Properties of reachability. *)
 Lemma reachable_succ: forall
   (n : T.elt) (sc : T.elt) (H1 : reachable n)
   (Hscs : In sc (XTree.successors_list successors n)),
@@ -103,27 +129,15 @@ Proof.
   split; eauto.
 Qed.
 
-Definition domination (n1 n2:T.elt) : Prop :=
-  forall vl al,
-    D_walk vertexes arcs (index n2) (index entry) vl al ->
-    (In (index n1) vl \/ n1 = n2).
+Lemma reachable_is_in_cfg: forall n (Hreach: reachable n), 
+  XTree.in_cfg successors n.
+Proof.
+  intros.
+  destruct Hreach as [vl [al Hreach]].
+  apply DW_endx_inv in Hreach; auto.
+Qed.
 
-Definition strict_domination (n1 n2:T.elt) : Prop :=
-  forall vl al,
-    D_walk vertexes arcs (index n2) (index entry) vl al ->
-    (In (index n1) vl /\ n1 <> n2).
-
-Definition non_sdomination (n1 n2:T.elt) : Prop :=
-  exists vl, exists al,
-    D_walk vertexes arcs (index n2) (index entry) vl al /\
-    ~ In (index n1) vl.
-
-Definition imm_domination (n1 n2:T.elt) : Prop :=
-  strict_domination n1 n2 /\
-  forall n0, strict_domination n0 n2 -> domination n0 n1.
-
-Hypothesis Hdec: forall x y : T.elt, {x = y} + {x <> y}.
-
+(* Properties of domination relations. *)
 Lemma non_sdomination_refl : forall 
   n1 (Hneq: n1 <> entry)
   (Hreach: reachable n1),
@@ -138,16 +152,6 @@ Proof.
     split.
       apply D_path_isa_walk; auto.
       eapply DP_endx_ninV; eauto. congruence.
-Qed.
-
-Lemma sdom_isnt_refl: forall n1 n2 (Hreach: reachable n2)
-  (Hdom12 : strict_domination n1 n2),
-  n1 <> n2.
-Proof.
-  intros.
-  destruct Hreach as [vl [al Hreach]].
-  apply Hdom12 in Hreach. 
-  tauto.
 Qed.
 
 Lemma dom_is_refl: forall n1, domination n1 n1.
@@ -189,6 +193,36 @@ Proof.
   contradict Hreach. eauto.
 Qed.
 
+Lemma dom_reachable : forall n1 n2
+  (H: reachable n2) (H0: domination n1 n2), reachable n1.
+Proof.
+  intros.
+  destruct H as [vl [al H]].
+  assert (H':=H).
+  apply H0 in H'.
+  apply DW_extract with (x:=index n1)(eq_a_dec:=Hdec) in H; simpl; auto.
+    destruct H as [al' H].
+    exists (V_extract Hdec (index n1) (index n2 :: vl)). exists al'. auto.
+
+    destruct H' as [H' | H']; subst; auto.
+Qed.
+
+Lemma idom_sdom: forall l1 l2 (Hdom12 : imm_domination l1 l2),
+  strict_domination l1 l2.
+Proof.
+  intros. destruct Hdom12. auto.
+Qed.
+
+Lemma sdom_isnt_refl: forall n1 n2 (Hreach: reachable n2)
+  (Hdom12 : strict_domination n1 n2),
+  n1 <> n2.
+Proof.
+  intros.
+  destruct Hreach as [vl [al Hreach]].
+  apply Hdom12 in Hreach. 
+  tauto.
+Qed.
+
 Lemma everything_sdominates_unreachable_blocks :
   forall n1 n2 (Hreach: ~ reachable n2),
   strict_domination n1 n2.
@@ -213,20 +247,6 @@ Proof.
   auto.
 Qed.
 
-Lemma dom_reachable : forall n1 n2
-  (H: reachable n2) (H0: domination n1 n2), reachable n1.
-Proof.
-  intros.
-  destruct H as [vl [al H]].
-  assert (H':=H).
-  apply H0 in H'.
-  apply DW_extract with (x:=index n1)(eq_a_dec:=Hdec) in H; simpl; auto.
-    destruct H as [al' H].
-    exists (V_extract Hdec (index n1) (index n2 :: vl)). exists al'. auto.
-
-    destruct H' as [H' | H']; subst; auto.
-Qed.
-
 Lemma sdom_dom: forall n1 n2
   (H: strict_domination n1 n2), domination n1 n2.
 Proof.
@@ -241,12 +261,6 @@ Proof.
   intros vl al H1. apply H in H1.
   destruct H1 as [H1 | H1]; subst; auto.
     congruence.
-Qed.
-
-Lemma idom_sdom: forall l1 l2 (Hdom12 : imm_domination l1 l2),
-  strict_domination l1 l2.
-Proof.
-  intros. destruct Hdom12. auto.
 Qed.
 
 Section dom_acyclic_tran.
@@ -508,14 +522,6 @@ Proof.
     rewrite Hnopred in H1. tauto.
 Qed.
 
-Lemma reachable_is_in_cfg: forall n (Hreach: reachable n), 
-  XTree.in_cfg successors n.
-Proof.
-  intros.
-  destruct Hreach as [vl [al Hreach]].
-  apply DW_endx_inv in Hreach; auto.
-Qed.
-
 Lemma sdom_of_reachable_is_in_cfg: forall n1 n2 
   (Hreach: reachable n2)
   (Hsdom: strict_domination n1 n2),
@@ -539,12 +545,16 @@ Qed.
 
 End Cfg. End Cfg.
 
+(* A CFG named by atoms *)
 Module ACfg := Cfg(ATree).
+(* A CFG named by positives *)
 Module PCfg := Cfg (PTree).
 
 Import LLVMsyntax.
 Import LLVMinfra.
+(* The following defines CFGs used by Vellvm's semantics. *)
 
+(* Compute a successor map of a list of blocks. *)
 Fixpoint successors_blocks (bs: blocks) : ATree.t ls :=
 match bs with
 | nil => ATree.empty ls
@@ -552,26 +562,32 @@ match bs with
     ATree.set l0 (successors_terminator tmn) (successors_blocks bs')
 end.
 
+(* Compute a successor map of a function. *)
 Definition successors (f: fdef) : ATree.t ls :=
 let '(fdef_intro _ bs) := f in
 successors_blocks bs.
 
+(* The set of label names of a list of blocks *)
 Fixpoint bound_blocks (bs: blocks) : set atom :=
 match bs with
 | nil => empty_set _
 | (l0, _) :: bs' => l0::(bound_blocks bs')
 end.
 
+(* The set of label names of a function *)
 Definition bound_fdef (f: fdef) : set atom :=
 let '(fdef_intro _ bs) := f in
 bound_blocks bs.
 
+(* All CFG nodes of a funcion *)
 Definition vertexes_fdef (f:fdef) : V_set :=
 ACfg.vertexes (successors f).
 
+(* All CFG edges of a funcion *)
 Definition arcs_fdef (f:fdef) : A_set :=
 ACfg.arcs (successors f).
 
+(* l0 is reachable by f's entry. *)
 Definition reachable (f:fdef) (l0:l) : Prop :=
 match getEntryBlock f with
 | Some (entry, _) =>
@@ -579,6 +595,7 @@ match getEntryBlock f with
 | _ => false
 end.
 
+(* l1 dominates l2 in f. *)
 Definition domination (f:fdef) (l1 l2:l) : Prop :=
 match getEntryBlock f with
 | Some (entry, _) =>
@@ -586,6 +603,7 @@ match getEntryBlock f with
 | _ => False
 end.
 
+(* l1 strictly dominates l2 in f. *)
 Definition strict_domination (f:fdef) (l1 l2:l) : Prop :=
 match getEntryBlock f with
 | Some (entry, _) =>
@@ -596,6 +614,7 @@ end.
 Hint Unfold ACfg.domination ACfg.reachable ACfg.non_sdomination
             ACfg.strict_domination: cfg.
 
+(* l1 immediately dominates l2 in f. *)
 Definition imm_domination (f:fdef) (l1 l2:l) : Prop :=
 strict_domination f l1 l2 /\
 forall l0, strict_domination f l0 l2 -> domination f l0 l1.
@@ -605,29 +624,18 @@ Notation " f |= l1 >> l2 " := (strict_domination f l1 l2) (at level 0): dom.
 Notation " f |= l1 >>= l2 " := (domination f l1 l2) (at level 0): dom.
 Notation " f |= l1 >>> l2 " := (imm_domination f l1 l2) (at level 0): dom.
 
+(* Compute a predecessor map of a function. *)
 Definition predecessors (f: fdef) : ATree.t ls :=
 XATree.make_predecessors (successors f).
 
+(* Check if b has no predecessors in f. *)
 Definition has_no_predecessors (f: fdef) (b:block) : bool :=
 match (predecessors f) !!! (getBlockLabel b) with
 | nil => true
 | _ => false
 end.
 
-Lemma entry_in_vertexes : forall f l0 s0
-  (Hentry : getEntryBlock f = Some (l0, s0)),
-  vertexes_fdef f (index l0).
-Proof.
-  intros.
-  unfold vertexes_fdef, ACfg.vertexes. destruct f as [f b].
-  destruct b; simpl in *.
-    congruence.
-    inv Hentry. 
-    left. destruct s0.
-    apply ACfg.XTree.parents_of_tree__in_successors.
-    rewrite ATree.gss. eauto.
-Qed.
-
+(* Properties of successors *)
 Lemma in_successors_blocks__in_bound_blocks: forall (n : ATree.elt) (s : ls) 
   (bs : blocks) (Hinscs : (successors_blocks bs) ! n = Some s),
   In n (bound_blocks bs).
@@ -649,43 +657,6 @@ Proof.
     rewrite ATree.gsspec.
     destruct_if; eauto.
     destruct Hin; try solve [auto | congruence].
-Qed.
-
-Lemma in_parents__in_bound: forall bs n 
-  (Hparents: In n (XATree.parents_of_tree (successors_blocks bs))), 
-  In n (bound_blocks bs).
-Proof.
-  intros.
-  apply XATree.parents_of_tree__in_successors in Hparents.
-  destruct Hparents as [s Hinscs].
-  eapply in_successors_blocks__in_bound_blocks; eauto.
-Qed.
-
-Lemma in_bound__in_parents: forall bs n 
-  (Hin: In n (bound_blocks bs)), 
-  In n (XATree.parents_of_tree (successors_blocks bs)).
-Proof.
-  intros.
-  apply in_bound_blocks__in_successors_blocks in Hin.
-  apply XATree.parents_of_tree__in_successors in Hin; auto.
-Qed.
-
-Lemma in_parents__in_bound_fdef: forall f n 
-  (Hparents: In n (XATree.parents_of_tree (successors f))), 
-  In n (bound_fdef f).
-Proof.
-  destruct f.
-  intros.
-  apply in_parents__in_bound; auto.
-Qed.
-
-Lemma in_bound_fdef__in_parents: forall f n 
-  (Hin: In n (bound_fdef f)), 
-  In n (XATree.parents_of_tree (successors f)).
-Proof.
-  destruct f.
-  intros.
-  apply in_bound__in_parents; auto.
 Qed.
 
 Lemma successors_blocks__InBlocksB : forall l0 a bs,
@@ -783,39 +754,6 @@ Proof.
   erewrite <- successors_terminator__successors_blocks; eauto.
 Qed.
 
-Lemma blockInFdefB_in_bound_fdef : forall l0 s0 f
-  (HbInF : blockInFdefB (l0, s0) f),
-  In l0 (bound_fdef f).
-Proof.
-  intros.
-  unfold bound_fdef.
-  destruct f as [f b].
-  generalize dependent s0.
-  generalize dependent l0.
-  induction b; simpl in *; intros.
-    congruence.
-
-    destruct a.
-    apply orb_prop in HbInF.
-    destruct HbInF as [HbInF | HbInF].
-      unfold blockEqB in HbInF.
-      apply sumbool2bool_true in HbInF. inv HbInF.
-      simpl. auto.
-
-      apply IHb in HbInF.
-      simpl. auto.
-Qed.
-
-Lemma blockInFdefB_in_vertexes : forall l0 s0 f
-  (HbInF : blockInFdefB (l0, s0) f),
-  vertexes_fdef f (index l0).
-Proof.
-  intros.
-  left.
-  apply blockInFdefB_in_bound_fdef in HbInF.
-  apply in_bound_fdef__in_parents; auto.
-Qed.
-
 Lemma blockInFdefB__successors : forall a ps0 cs0 tmn0 f (Huniq: uniqFdef f)
   (H: blockInFdefB (a, stmts_intro ps0 cs0 tmn0) f),
   (successors f) ! a = Some (successors_terminator tmn0).
@@ -842,6 +780,93 @@ Proof.
       destruct (id_dec l0 a); subst.
         congruence.
         rewrite ATree.gso; auto.
+Qed.
+
+Lemma successors__successors_terminator : forall scs a f
+  (H: Some scs = (successors f) ! a),
+  exists ps0, exists cs0, exists tmn0,
+    blockInFdefB (a, stmts_intro ps0 cs0 tmn0) f /\
+    scs = successors_terminator tmn0.
+Proof.
+  destruct f as [fh bs]. simpl.
+  induction bs as [|a0 bs]; simpl; intro.
+    rewrite ATree.gempty in H. inv H.
+
+    destruct a0 as [l1 [p c t]].
+    destruct (id_dec l1 a); subst.
+      rewrite ATree.gss in H.
+      inv H.
+      exists p. exists c. exists t.
+      split; auto.
+        eapply orb_true_iff. left. apply blockEqB_refl.
+
+      rewrite ATree.gso in H; auto.
+      apply IHbs in H; auto.
+      destruct H as [ps0 [cs0 [tmn0 [J1 J2]]]].
+      exists ps0. exists cs0. exists tmn0.
+      split; auto.
+        eapply orb_true_iff; eauto.
+Qed.
+
+(* Properties of bound *)
+Lemma in_parents__in_bound: forall bs n 
+  (Hparents: In n (XATree.parents_of_tree (successors_blocks bs))), 
+  In n (bound_blocks bs).
+Proof.
+  intros.
+  apply XATree.parents_of_tree__in_successors in Hparents.
+  destruct Hparents as [s Hinscs].
+  eapply in_successors_blocks__in_bound_blocks; eauto.
+Qed.
+
+Lemma in_bound__in_parents: forall bs n 
+  (Hin: In n (bound_blocks bs)), 
+  In n (XATree.parents_of_tree (successors_blocks bs)).
+Proof.
+  intros.
+  apply in_bound_blocks__in_successors_blocks in Hin.
+  apply XATree.parents_of_tree__in_successors in Hin; auto.
+Qed.
+
+Lemma in_parents__in_bound_fdef: forall f n 
+  (Hparents: In n (XATree.parents_of_tree (successors f))), 
+  In n (bound_fdef f).
+Proof.
+  destruct f.
+  intros.
+  apply in_parents__in_bound; auto.
+Qed.
+
+Lemma in_bound_fdef__in_parents: forall f n 
+  (Hin: In n (bound_fdef f)), 
+  In n (XATree.parents_of_tree (successors f)).
+Proof.
+  destruct f.
+  intros.
+  apply in_bound__in_parents; auto.
+Qed.
+
+Lemma blockInFdefB_in_bound_fdef : forall l0 s0 f
+  (HbInF : blockInFdefB (l0, s0) f),
+  In l0 (bound_fdef f).
+Proof.
+  intros.
+  unfold bound_fdef.
+  destruct f as [f b].
+  generalize dependent s0.
+  generalize dependent l0.
+  induction b; simpl in *; intros.
+    congruence.
+
+    destruct a.
+    apply orb_prop in HbInF.
+    destruct HbInF as [HbInF | HbInF].
+      unfold blockEqB in HbInF.
+      apply sumbool2bool_true in HbInF. inv HbInF.
+      simpl. auto.
+
+      apply IHb in HbInF.
+      simpl. auto.
 Qed.
 
 Section reachable__in_bound.
@@ -881,11 +906,6 @@ Qed.
 
 End reachable__in_bound.
 
-Lemma arcs_fdef_inv : forall f a1 a2,
-  arcs_fdef f (A_ends (index a2) (index a1)) ->
-  In a2 ((successors f)!!!a1).
-Proof. auto. Qed.
-
 Lemma In_bound_fdef__blockInFdefB: forall f l3
   (Hin: In l3 (bound_fdef f)),
   exists s3, blockInFdefB (l3, s3) f = true.
@@ -906,6 +926,123 @@ Proof.
       apply orb_true_intro. auto.
 Qed.
 
+Lemma in_bound__in_cfg : forall bs l0 (Hin: In l0 (bound_blocks bs)),
+  XATree.in_cfg (successors_blocks bs) l0.
+Proof.
+  intros. left. apply in_bound__in_parents; auto.
+Qed.
+
+Lemma in_bound_blocks__in_dom: forall bs,
+  (forall a, In a (bound_blocks bs) <-> a `in` dom bs).
+Proof.
+  induction bs as [|[] bs]; simpl; intros.
+    split; intros. tauto. fsetdec.
+
+    split; intros. 
+      destruct H as [H | H]; subst; auto.
+        apply IHbs in H; auto.
+      apply AtomSetFacts.add_iff in H.
+      destruct H as [H | H]; subst; auto.
+        apply IHbs in H; auto.
+Qed.
+
+Lemma notin_bound_blocks__notin_dom: forall bs,
+  (forall a, ~ In a (bound_blocks bs) <-> a `notin` dom bs).
+Proof.
+  intros.
+  split; intros H; intro J; apply H; apply in_bound_blocks__in_dom; auto.
+Qed.
+
+Lemma uniqFdef__NoDup_bounds_fdef: forall f (Huniq: uniqFdef f),
+  NoDup (bound_fdef f).
+Proof.
+  destruct f as [[] bs]. simpl.
+  intros. 
+  destruct Huniq as [[Huniq _] _].
+  induction bs as [|[? []] bs]; simpl.
+    constructor.    
+    
+    inv Huniq.
+    constructor; auto. 
+      apply notin_bound_blocks__notin_dom; auto.
+Qed.
+
+Section ElementsOfCfg__eq__Bound.
+
+Variable f:fdef.
+
+Hypothesis branches_in_bound_fdef: forall p ps0 cs0 tmn0 l2
+  (J3 : blockInFdefB (p, stmts_intro ps0 cs0 tmn0) f)
+  (J4 : In l2 (successors_terminator tmn0)),
+  In l2 (bound_fdef f).
+
+Lemma in_cfg__in_bound : forall l0 
+  (Hin: XATree.in_cfg (successors f) l0), In l0 (bound_fdef f).
+Proof.
+  destruct f as [fh bs].
+  intros. 
+  destruct Hin as [Hin | Hin].
+    apply in_parents__in_bound; auto.
+
+    apply XATree.children_of_tree__in_successors in Hin.
+    destruct Hin as [p [sc [Hscs Hin]]].
+    assert (In l0 (successors (fdef_intro fh bs)) !!! p) as Hin'.
+      unfold XATree.successors_list.
+      unfold ATree.elt, l in *.
+      rewrite Hscs. auto.
+    apply successors__blockInFdefB in Hin'.
+    destruct_conjs. eauto.
+Qed.
+
+Lemma elements_of_acfg__eq__bound : 
+  AtomSet.set_eq (XATree.elements_of_cfg (successors f) eq_atom_dec) 
+    (bound_fdef f).
+Proof.
+  split.
+    intros x Hinx.
+    apply XATree.in_elements_of_cfg__in_cfg in Hinx.
+    apply in_cfg__in_bound; auto.
+
+    intros x Hinx.
+    apply XATree.in_elements_of_cfg__in_cfg.
+    destruct f.
+    apply in_bound__in_cfg in Hinx; auto.
+Qed.
+
+End ElementsOfCfg__eq__Bound.
+
+(* Properties of vertexes *)
+Lemma entry_in_vertexes : forall f l0 s0
+  (Hentry : getEntryBlock f = Some (l0, s0)),
+  vertexes_fdef f (index l0).
+Proof.
+  intros.
+  unfold vertexes_fdef, ACfg.vertexes. destruct f as [f b].
+  destruct b; simpl in *.
+    congruence.
+    inv Hentry. 
+    left. destruct s0.
+    apply ACfg.XTree.parents_of_tree__in_successors.
+    rewrite ATree.gss. eauto.
+Qed.
+
+Lemma blockInFdefB_in_vertexes : forall l0 s0 f
+  (HbInF : blockInFdefB (l0, s0) f),
+  vertexes_fdef f (index l0).
+Proof.
+  intros.
+  left.
+  apply blockInFdefB_in_bound_fdef in HbInF.
+  apply in_bound_fdef__in_parents; auto.
+Qed.
+
+(* Properties of arcs *)
+Lemma arcs_fdef_inv : forall f a1 a2,
+  arcs_fdef f (A_ends (index a2) (index a1)) ->
+  In a2 ((successors f)!!!a1).
+Proof. auto. Qed.
+
+(* Properties of predecessors *)
 Lemma successors_predecessors_of_block : forall f l1 ps1 cs1 tmn1 l0,
   uniqFdef f ->
   blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) f = true ->
@@ -938,32 +1075,6 @@ Proof.
   unfold has_no_predecessors.
   intros.
   destruct (predecessors f) !!! (getBlockLabel b); tinv Hnpred; auto.
-Qed.
-
-Lemma successors__successors_terminator : forall scs a f
-  (H: Some scs = (successors f) ! a),
-  exists ps0, exists cs0, exists tmn0,
-    blockInFdefB (a, stmts_intro ps0 cs0 tmn0) f /\
-    scs = successors_terminator tmn0.
-Proof.
-  destruct f as [fh bs]. simpl.
-  induction bs as [|a0 bs]; simpl; intro.
-    rewrite ATree.gempty in H. inv H.
-
-    destruct a0 as [l1 [p c t]].
-    destruct (id_dec l1 a); subst.
-      rewrite ATree.gss in H.
-      inv H.
-      exists p. exists c. exists t.
-      split; auto.
-        eapply orb_true_iff. left. apply blockEqB_refl.
-
-      rewrite ATree.gso in H; auto.
-      apply IHbs in H; auto.
-      destruct H as [ps0 [cs0 [tmn0 [J1 J2]]]].
-      exists ps0. exists cs0. exists tmn0.
-      split; auto.
-        eapply orb_true_iff; eauto.
 Qed.
 
 Definition predecessors_dom__uniq_prop 
@@ -1122,6 +1233,7 @@ Proof.
   unfold predecessors_dom__uniq_prop in J. destruct J; auto.
 Qed.
 
+(* Properties of entries *)
 Lemma entry_in_parents: forall (f : fdef) (a : atom) 
   (Hentry : getEntryLabel f = Some a),
   In a (XATree.parents_of_tree (successors f)).
@@ -1155,91 +1267,7 @@ Proof.
   eapply entry_in_vertexes; eauto.
 Qed.
 
-Lemma in_bound__in_cfg : forall bs l0 (Hin: In l0 (bound_blocks bs)),
-  XATree.in_cfg (successors_blocks bs) l0.
-Proof.
-  intros. left. apply in_bound__in_parents; auto.
-Qed.
-
-Lemma in_bound_blocks__in_dom: forall bs,
-  (forall a, In a (bound_blocks bs) <-> a `in` dom bs).
-Proof.
-  induction bs as [|[] bs]; simpl; intros.
-    split; intros. tauto. fsetdec.
-
-    split; intros. 
-      destruct H as [H | H]; subst; auto.
-        apply IHbs in H; auto.
-      apply AtomSetFacts.add_iff in H.
-      destruct H as [H | H]; subst; auto.
-        apply IHbs in H; auto.
-Qed.
-
-Lemma notin_bound_blocks__notin_dom: forall bs,
-  (forall a, ~ In a (bound_blocks bs) <-> a `notin` dom bs).
-Proof.
-  intros.
-  split; intros H; intro J; apply H; apply in_bound_blocks__in_dom; auto.
-Qed.
-
-Lemma uniqFdef__NoDup_bounds_fdef: forall f (Huniq: uniqFdef f),
-  NoDup (bound_fdef f).
-Proof.
-  destruct f as [[] bs]. simpl.
-  intros. 
-  destruct Huniq as [[Huniq _] _].
-  induction bs as [|[? []] bs]; simpl.
-    constructor.    
-    
-    inv Huniq.
-    constructor; auto. 
-      apply notin_bound_blocks__notin_dom; auto.
-Qed.
-
-Section ElementsOfCfg__eq__Bound.
-
-Variable f:fdef.
-
-Hypothesis branches_in_bound_fdef: forall p ps0 cs0 tmn0 l2
-  (J3 : blockInFdefB (p, stmts_intro ps0 cs0 tmn0) f)
-  (J4 : In l2 (successors_terminator tmn0)),
-  In l2 (bound_fdef f).
-
-Lemma in_cfg__in_bound : forall l0 
-  (Hin: XATree.in_cfg (successors f) l0), In l0 (bound_fdef f).
-Proof.
-  destruct f as [fh bs].
-  intros. 
-  destruct Hin as [Hin | Hin].
-    apply in_parents__in_bound; auto.
-
-    apply XATree.children_of_tree__in_successors in Hin.
-    destruct Hin as [p [sc [Hscs Hin]]].
-    assert (In l0 (successors (fdef_intro fh bs)) !!! p) as Hin'.
-      unfold XATree.successors_list.
-      unfold ATree.elt, l in *.
-      rewrite Hscs. auto.
-    apply successors__blockInFdefB in Hin'.
-    destruct_conjs. eauto.
-Qed.
-
-Lemma elements_of_acfg__eq__bound : 
-  AtomSet.set_eq (XATree.elements_of_cfg (successors f) eq_atom_dec) 
-    (bound_fdef f).
-Proof.
-  split.
-    intros x Hinx.
-    apply XATree.in_elements_of_cfg__in_cfg in Hinx.
-    apply in_cfg__in_bound; auto.
-
-    intros x Hinx.
-    apply XATree.in_elements_of_cfg__in_cfg.
-    destruct f.
-    apply in_bound__in_cfg in Hinx; auto.
-Qed.
-
-End ElementsOfCfg__eq__Bound.
-
+(* The following defines the maximal iteration step for Kildall's algorithms. *)
 Definition Pcubeplus (p:positive) : positive := (p * (p * p) + p)%positive.
 
 Lemma Pcubeplus_ge: forall p1 p2 (Hge: (p1 >= p2)%positive),

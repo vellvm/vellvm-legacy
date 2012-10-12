@@ -16,12 +16,16 @@ Require Import Floats.
 Require Import vellvm_tactics.
 Require Import util.
 
+(* The file defines generic values that represent values at runtime. *)
 Module LLVMgv.
 
 Import LLVMsyntax.
 Import LLVMinfra.
 Import LLVMtd.
 
+(******************************************************************************)
+(* We first define a generic value that is a list of memory values with memory 
+   chunks. *)
 Definition moffset := Int.int 31.
 Definition mem := Mem.mem.
 Definition GenericValue := list (val*memory_chunk).
@@ -32,26 +36,33 @@ Definition mptr := GenericValue.
 Definition null : GenericValue :=
   (Vptr Mem.nullptr (Int.repr 31 0), Mint 31)::nil.
 
+(******************************************************************************)
+(* Predicate of generic values. *)
+
+(* One generic value is less defined than the other in terms of Val.lessdef. *)
 Definition gv_lessdef (gv1 gv2:GenericValue) : Prop :=
 List.Forall2 (fun vm1 vm2 =>
               let '(v1, cm1) := vm1 in
               let '(v2, cm2) := vm2 in
               Val.lessdef v1 v2 /\ cm1 = cm2) gv1 gv2.
 
+Definition gv_lessdef_list (gvs1 gvs2:list GenericValue) : Prop :=
+List.Forall2 gv_lessdef gvs1 gvs2.
+
+(* Check if memory values in a gv match their corresponding chunks. *)
 Definition gv_has_chunk (gv:GenericValue): Prop :=
 List.Forall (fun vm => 
              let '(v, mc) := vm in
              Val.has_chunk v mc) gv.
 
+(* A computable version of gv_has_chunk. *)
 Fixpoint gv_has_chunkb (gv : GenericValue) : bool := 
 match gv with
 | nil => true
 | (v,m)::gv' => Val.has_chunkb v m && gv_has_chunkb gv'
 end.
 
-Definition gv_lessdef_list (gvs1 gvs2:list GenericValue) : Prop :=
-List.Forall2 gv_lessdef gvs1 gvs2.
-
+(* Equivalence of gvs. *)
 Fixpoint eq_gv (gv1 gv2:GenericValue) : bool :=
 match gv1, gv2 with
 | nil, nil => true
@@ -61,24 +72,25 @@ match gv1, gv2 with
 | _, _ => false
 end.
 
-Definition uninits (n:nat) : GenericValue :=
-   Coqlib.list_repeat n (Vundef, Mint 7).
-
+(* a list of undefined memory chunks with size n. *)
 Definition uninitMCs (n:nat) : list memory_chunk :=
   Coqlib.list_repeat n (Mint 7).
 
+(* a list of repeated memory chunks. *)
 Fixpoint repeatMC (mcs:list memory_chunk) (n:nat) : list memory_chunk :=
 match n with
 | O => nil
 | S n' => mcs ++ repeatMC mcs n'
 end.
 
+(* Return the size of a list of memory chunks. *)
 Fixpoint sizeMC (mc:list memory_chunk) : nat :=
 match mc with
 | nil => 0%nat
 | c::mc' => (size_chunk_nat c + sizeMC mc')%nat
 end.
 
+(* Compute the list of memory chunks that represents a type. *)
 Definition flatten_typs_aux_
   (flatten_typ_aux :
     TargetData -> list (id * option (list memory_chunk)) ->
@@ -163,6 +175,7 @@ Definition flatten_typs (TD:TargetData) (lt:list typ)
 let '(los, nts) := TD in
 flatten_typs_aux TD (flatten_typ_for_namedts TD los nts) lt.
 
+(* Check if gv has type t. *)
 Definition gv_has_type (TD:LLVMtd.TargetData) (gv:GenericValue) 
   (t:typ) : Prop :=
 match flatten_typ TD t with
@@ -172,16 +185,53 @@ match flatten_typ TD t with
                  (fst (List.split gv)) ts
 end.
 
+(* Check if gv contains undefined memory values. *)
+Fixpoint isGVUndef (gv:GenericValue) : Prop :=
+match gv with
+| nil => False
+| (Vundef,_)::gv' => True
+| _::gv' => isGVUndef gv'
+end.
+
+(* Check if a generic value matches its memory chunks. *)
+Definition vm_matches_typ :=
+  fun (vm:val*memory_chunk) (mc:memory_chunk) => 
+    snd vm = mc /\ Val.has_chunk (fst vm) (snd vm).
+
+Definition gv_chunks_match_typ (TD:TargetData) (gv:GenericValue) (t:typ) 
+  : Prop :=
+match flatten_typ TD t with
+| None => False
+| Some ts => List.Forall2 vm_matches_typ gv ts
+end.
+
+Definition gv_chunks_match_list_typ (TD:TargetData) (gv:GenericValue)
+  (ts:list typ) : Prop :=
+match flatten_typs TD ts with
+| None => False
+| Some mcs => List.Forall2 vm_matches_typ gv mcs
+end.
+
+(******************************************************************************)
+(* Operations of generic values. *)
+
+(* a list of undefined memory values with size n. *)
+Definition uninits (n:nat) : GenericValue :=
+   Coqlib.list_repeat n (Vundef, Mint 7).
+
+(* Generate an undefined generic values in terms of memory chunks. *)
 Definition mc2undefs (mc:list memory_chunk) : GenericValue :=
 List.fold_right 
   (fun c acc => (Vundef, c) :: acc) nil mc.
 
+(* Generate an undefined generic values in terms of type. *)
 Definition gundef (TD:TargetData) (t:typ) : option GenericValue :=
 match (flatten_typ TD t) with
 | Some mc => Some (mc2undefs mc)
 | None => None
 end.
 
+(* Convert between generic values and basic memory values. *)
 Definition GV2val (TD:TargetData) (gv:GenericValue) : option val :=
 match gv with
 | (v,c)::nil => Some v
@@ -202,12 +252,6 @@ match gv with
 | (Vptr a b,c)::nil => Some (Vptr a b)
 | _ => None
 end.
-Fixpoint isGVUndef (gv:GenericValue) : Prop :=
-match gv with
-| nil => False
-| (Vundef,_)::gv' => True
-| _::gv' => isGVUndef gv'
-end.
 Definition val2GV (TD:TargetData) (v:val) (c:memory_chunk) : GenericValue :=
 (v,c)::nil.
 Definition ptr2GV (TD:TargetData) (ptr:val) : GenericValue :=
@@ -220,6 +264,7 @@ match (GV2int TD Size.One gv) with
 | _ => false
 end.
 
+(* Internal operations of generic values that Vellvm provides *)
 Definition mgep (TD:TargetData) (t:typ) (ma:val) (idxs:list Z) : option val :=
 match ma with
 | Vptr b ofs =>
@@ -627,9 +672,7 @@ match (GV2val TD gv1, GV2val TD gv2) with
 | _ => gundef TD (typ_int 1%nat)
 end.
 
-(**************************************)
-(** Convert const to GV with storesize, and look up GV from operands. *)
-
+(* Convert constants to generic values *)
 Fixpoint repeatGV (gv:GenericValue) (n:nat) : GenericValue :=
 match n with
 | O => nil
@@ -969,6 +1012,7 @@ match (_const2GV TD gl c) with
 | Some (gv, t) => Some (? gv # t ?)
 end.
 
+(* Compute the generic value of a program value. *)
 Definition getOperandValue (TD:TargetData) (v:value) (locals:GVMap)
   (globals:GVMap) : option GenericValue :=
 match v with
@@ -997,6 +1041,7 @@ match (getOperandValue TD v locals globals) with
 | None => None
 end.
 
+(* Check if the runtime of a program value is undefined. *)
 Definition isOperandUndef (TD:TargetData) (t:typ) (v:value) (locals:GVMap)
   (globals:GVMap) : Prop  :=
 match (getOperandValue TD v locals globals) with
@@ -1004,9 +1049,7 @@ match (getOperandValue TD v locals globals) with
 | None => False
 end.
 
-(**************************************)
-(* conversion between different lists *)
-
+(* convert parameters and values to generic values *)
 Fixpoint params2GVs (TD:TargetData) (lp:params) (locals:GVMap)
   (globals:GVMap) : option (list GenericValue) :=
 match lp with
@@ -1053,9 +1096,7 @@ match lv with
   end
 end.
 
-(**************************************)
-(* helper functions *)
-
+(* Initialize locals of funtions *)
 Definition fit_gv TD (t:typ) (gv:GenericValue) : option GenericValue :=
 match (getTypeSizeInBits TD t) with
 | Some sz =>
@@ -1087,13 +1128,13 @@ end.
 Definition initLocals TD (la:args) (lg:list GenericValue): option GVMap :=
 _initializeFrameValues TD la lg nil.
 
+(* Operations of generic values used by Vellvm's operational semantics *)
 Definition BOP (TD:TargetData) (lc gl:GVMap) (op:bop) (bsz:sz)
   (v1 v2:value) : option GenericValue :=
 match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 | (Some gv1, Some gv2) => mbop TD op bsz gv1 gv2
 | _ => None
-end
-.
+end.
 
 Definition FBOP (TD:TargetData) (lc gl:GVMap) (op:fbop)
   (fp:floating_point) (v1 v2:value) : option GenericValue :=
@@ -1196,24 +1237,6 @@ match allocas with
   end
 end.
 
-Definition vm_matches_typ :=
-  fun (vm:val*memory_chunk) (mc:memory_chunk) => 
-    snd vm = mc /\ Val.has_chunk (fst vm) (snd vm).
-
-Definition gv_chunks_match_typ (TD:TargetData) (gv:GenericValue) (t:typ) 
-  : Prop :=
-match flatten_typ TD t with
-| None => False
-| Some ts => List.Forall2 vm_matches_typ gv ts
-end.
-
-Definition gv_chunks_match_list_typ (TD:TargetData) (gv:GenericValue)
-  (ts:list typ) : Prop :=
-match flatten_typs TD ts with
-| None => False
-| Some mcs => List.Forall2 vm_matches_typ gv mcs
-end.
-
 Fixpoint mload_aux M (mc:list memory_chunk) b ofs : option GenericValue :=
 match mc with
 | nil => Some nil
@@ -1268,10 +1291,9 @@ match (mset TD gv o t0 gv0) with
 | None => gundef TD t
 end.
 
-(********** properties *******************)
-
 Ltac inv H := inversion H; subst; clear H.
 
+(********** Properties of sizeGenericValue *******************)
 Lemma sizeGenericValue__app : forall gv1 gv2,
   sizeGenericValue (gv1 ++ gv2) = sizeGenericValue gv1 + sizeGenericValue gv2.
 Proof.
@@ -1299,6 +1321,22 @@ Proof.
   omega.
 Qed.
 
+Lemma sizeGenericValue_mc2undefs__sizeMC : forall mc, 
+  sizeGenericValue (mc2undefs mc) = sizeMC mc.
+Proof.
+  induction mc; simpl; auto.
+Qed.
+
+(********** Properties of memory chunk *******************)
+Lemma memory_chuck_dec : forall (mc1 mc2:AST.memory_chunk), 
+  mc1 = mc2 \/ mc1 <> mc2.
+Proof.
+  destruct mc1; destruct mc2; try solve [auto | right; congruence].
+    destruct (eq_nat_dec n n0); auto.
+      right. intros J. inv J. auto.
+Qed.
+
+(********** Properties of getSubTypFromConstIdxs *******************)
 Definition wf_global TD system5 gl := forall id5 typ5,
   lookupTypViaGIDFromSystem system5 id5 = ret typ5 ->
   exists gv, exists sz,
@@ -1345,6 +1383,7 @@ Proof.
   eapply getSubTypFromConstIdxs__mgetoffset_aux; eauto.
 Qed.
 
+(********** Properties of splitGenericValue *******************)
 Lemma splitGenericValue_spec0 : forall gv pos gv1 gv2,
   splitGenericValue gv pos = Some (gv1, gv2) -> (pos >= 0)%Z.
 Proof.
@@ -1396,76 +1435,31 @@ Proof.
       split; auto.
 Qed.
 
-Lemma mget_typsize : forall los nts gv1 o typ' gv'
-  (HeqR4 : ret gv' = mget (los, nts) gv1 o typ'),
-   exists sz1 : nat,
-     exists al0 : nat,
-       _getTypeSizeInBits_and_Alignment los
-         (_getTypeSizeInBits_and_Alignment_for_namedts los nts true)
-         true typ' = ret (sz1, al0) /\
-       Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz1) 8) = sizeGenericValue gv'.
+Lemma splitGenericValue_spec1: forall gv o gv1 gv2, 
+  splitGenericValue gv o = Some (gv1, gv2) ->
+  gv = gv1 ++ gv2 /\ sizeGenericValue gv1 = Coqlib.nat_of_Z o.
 Proof.
-  intros.
-  unfold mget in HeqR4.
-  remember (getTypeStoreSize (los, nts) typ') as R.
-  destruct R; tinv HeqR4.
-  simpl in HeqR4.
-  remember (splitGenericValue gv1 o) as R1.
-  destruct R1 as [[? gvr]|]; tinv HeqR4.
-  remember (splitGenericValue gvr (Z_of_nat n)) as R2.
-  destruct R2 as [[gvrl ?]|]; inv HeqR4.
-  destruct (gv_chunks_match_typb (los, nts) gvrl typ'); inv H0.
-  unfold getTypeStoreSize, getTypeSizeInBits, getTypeSizeInBits_and_Alignment,
-    getTypeSizeInBits_and_Alignment_for_namedts in HeqR.
-  remember (_getTypeSizeInBits_and_Alignment los
-               (_getTypeSizeInBits_and_Alignment_for_namedts los
-                  nts true) true typ') as R3.
-  destruct R3 as [[sz ?]|]; tinv HeqR.
-  exists sz. exists n0.
-  split; auto. inv HeqR.
-    symmetry in HeqR2.
-    apply splitGenericValue_spec in HeqR2.
-    destruct HeqR2 as [J1 J2].
-    rewrite J1.
-    erewrite Coqlib.Z_of_nat_eq; eauto.
+  induction gv as [|[]]; simpl; intros.
+    repeat (destruct_if; auto).
+
+    repeat (destruct_if; auto).
+    inv_mbind. uniq_result. symmetry_ctx.
+    assert (J:=HeqR1). apply splitGenericValue_spec0 in J.
+    apply IHgv in HeqR1. 
+    destruct HeqR1 as [J1 J2]; subst.
+    split; simpl; auto.
+      rewrite J2.
+      unfold size_chunk_nat.
+      assert (J0:=@size_chunk_pos m).
+      rewrite <- Coqlib.nat_of_Z_plus; auto.
+        assert (size_chunk m + (o - size_chunk m) = o)%Z as EQ.
+          ring.
+        rewrite EQ. auto.
+
+        auto with zarith.
 Qed.
 
-Lemma mset_typsize : forall los nts gv1 o t2 gv2 gv sz2 al2
-  (J3 : _getTypeSizeInBits_and_Alignment los
-         (_getTypeSizeInBits_and_Alignment_for_namedts los nts true)
-         true t2 = ret (sz2, al2))
-  (J4 : Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz2) 8) = sizeGenericValue gv2)
-  (HeqR4 : ret gv = mset (los, nts) gv1 o t2 gv2),
-  sizeGenericValue gv1 = sizeGenericValue gv.
-Proof.
-  intros.
-  unfold mset in HeqR4.
-  remember (getTypeStoreSize (los, nts) t2) as R.
-  destruct R; tinv HeqR4.
-  simpl in HeqR4.
-  destruct (n =n= length gv2); tinv HeqR4.
-  remember (splitGenericValue gv1 o) as R1.
-  destruct R1 as [[? gvr]|]; tinv HeqR4.
-  remember (splitGenericValue gvr (Z_of_nat n)) as R2.
-  destruct R2 as [[gvrl ?]|]; inv HeqR4.
-  symmetry in HeqR2.
-  apply splitGenericValue_spec in HeqR2.
-  destruct HeqR2 as [J1 J2].
-  symmetry in HeqR1.
-  apply splitGenericValue_spec in HeqR1.
-  destruct HeqR1 as [J3' J4'].
-  rewrite <- J4'. rewrite <- J2.
-  destruct_if.
-  rewrite sizeGenericValue__app.
-  rewrite sizeGenericValue__app.
-  unfold getTypeStoreSize, getTypeSizeInBits, getTypeSizeInBits_and_Alignment,
-    getTypeSizeInBits_and_Alignment_for_namedts in HeqR.
-  rewrite J3 in HeqR.
-  inv HeqR.
-  rewrite Coqlib.Z_of_nat_eq in J1.
-  rewrite <- J1 in J4. rewrite J4. auto.
-Qed.
-
+(********** Properties of gv_chunks_match_typ *******************)
 Lemma gv_chunks_match_typb_aux__gv_chunks_match_typ: forall mcs gv,
   gv_chunks_match_typb_aux gv mcs = true ->
   Forall2 vm_matches_typ gv mcs.
@@ -1498,56 +1492,7 @@ Proof.
   apply gv_chunks_match_typb_aux__gv_chunks_match_typ; auto.
 Qed.
 
-Lemma mget_matches_chunks : forall td gv1 o typ' gv'
-  (HeqR4 : ret gv' = mget td gv1 o typ'),
-  gv_chunks_match_typ td gv' typ'.
-Proof.
-  intros.
-  unfold mget in HeqR4.
-  remember (getTypeStoreSize td typ') as R.
-  destruct R; tinv HeqR4.
-  simpl in HeqR4.
-  remember (splitGenericValue gv1 o) as R1.
-  destruct R1 as [[? gvr]|]; tinv HeqR4.
-  remember (splitGenericValue gvr (Z_of_nat n)) as R2.
-  destruct R2 as [[gvrl ?]|]; inv HeqR4.
-  remember (gv_chunks_match_typb td gvrl typ') as R.
-  destruct R; inv H0.
-  apply gv_chunks_match_typb__gv_chunks_match_typ; auto.
-Qed.
-
-Lemma splitGenericValue_spec1: forall gv o gv1 gv2, 
-  splitGenericValue gv o = Some (gv1, gv2) ->
-  gv = gv1 ++ gv2 /\ sizeGenericValue gv1 = Coqlib.nat_of_Z o.
-Proof.
-  induction gv as [|[]]; simpl; intros.
-    repeat (destruct_if; auto).
-
-    repeat (destruct_if; auto).
-    inv_mbind. uniq_result. symmetry_ctx.
-    assert (J:=HeqR1). apply splitGenericValue_spec0 in J.
-    apply IHgv in HeqR1. 
-    destruct HeqR1 as [J1 J2]; subst.
-    split; simpl; auto.
-      rewrite J2.
-      unfold size_chunk_nat.
-      assert (J0:=@size_chunk_pos m).
-      rewrite <- Coqlib.nat_of_Z_plus; auto.
-        assert (size_chunk m + (o - size_chunk m) = o)%Z as EQ.
-          ring.
-        rewrite EQ. auto.
-
-        auto with zarith.
-Qed.
-
-Lemma uninits_match_uninitMCs: forall n,
-  Forall2 vm_matches_typ (uninits n) (uninitMCs n).
-Proof.
-  unfold uninits, uninitMCs, vm_matches_typ.
-  induction n; simpl; auto.
-    constructor; simpl; auto.
-Qed.
-
+(********** Properties of vm_matches_typ *******************)
 Lemma match_chunks_app: forall gv2 mcs2 (H2: Forall2 vm_matches_typ gv2 mcs2)
   gv1 mcs1 (H1: Forall2 vm_matches_typ gv1 mcs1),
     Forall2 vm_matches_typ (gv1++gv2) (mcs1++mcs2).
@@ -1568,12 +1513,6 @@ Lemma match_chunks_eq_size: forall gv mcs,
 Proof.
   induction 1 as [|[]]; simpl; auto.
     inv H. simpl. congruence.
-Qed.
-
-Lemma sizeGenericValue_mc2undefs__sizeMC : forall mc, 
-  sizeGenericValue (mc2undefs mc) = sizeMC mc.
-Proof.
-  induction mc; simpl; auto.
 Qed.
 
 Lemma match_chunks_app_inv: forall gv2 mcs2 gv1 mcs1 
@@ -1628,6 +1567,14 @@ Proof.
     erewrite IHForall2; eauto.
 Qed.
 
+Lemma uninits_match_uninitMCs: forall n,
+  Forall2 vm_matches_typ (uninits n) (uninitMCs n).
+Proof.
+  unfold uninits, uninitMCs, vm_matches_typ.
+  induction n; simpl; auto.
+    constructor; simpl; auto.
+Qed.
+
 Lemma mset_matches_chunks : forall td gv1 o t2 gv2 gv t1 
   (J1: gv_chunks_match_typ td gv1 t1) (J2: gv_chunks_match_typ td gv2 t2)
   (HeqR4 : ret gv = mset td gv1 o t2 gv2),
@@ -1663,6 +1610,133 @@ Proof.
   subst. auto.
 Qed.
 
+Lemma mget_matches_chunks : forall td gv1 o typ' gv'
+  (HeqR4 : ret gv' = mget td gv1 o typ'),
+  gv_chunks_match_typ td gv' typ'.
+Proof.
+  intros.
+  unfold mget in HeqR4.
+  remember (getTypeStoreSize td typ') as R.
+  destruct R; tinv HeqR4.
+  simpl in HeqR4.
+  remember (splitGenericValue gv1 o) as R1.
+  destruct R1 as [[? gvr]|]; tinv HeqR4.
+  remember (splitGenericValue gvr (Z_of_nat n)) as R2.
+  destruct R2 as [[gvrl ?]|]; inv HeqR4.
+  remember (gv_chunks_match_typb td gvrl typ') as R.
+  destruct R; inv H0.
+  apply gv_chunks_match_typb__gv_chunks_match_typ; auto.
+Qed.
+
+Lemma mcmp_matches_chunks_helper : forall TD gv,
+  gundef TD (typ_int 1%nat) = ret gv ->
+  gv_chunks_match_typ TD gv (typ_int 1%nat).
+Proof.
+  intros. destruct TD.
+  unfold gundef in H. simpl in H. inv H. 
+  unfold gv_chunks_match_typ, vm_matches_typ. 
+  simpl. constructor; simpl; auto.
+Qed.
+
+Lemma micmp_matches_chunks : forall TD cond5 t1 gv1 gv2 gv,
+  micmp TD cond5 t1 gv1 gv2 = Some gv ->
+  gv_chunks_match_typ TD gv (typ_int 1%nat).
+Proof.
+  intros. unfold micmp in H.
+  destruct t1;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  unfold micmp_int, GV2val in H.
+  destruct gv1;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  destruct p.
+  destruct gv1;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  destruct v;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  destruct gv2;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  destruct p.
+  destruct gv2;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  destruct v;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  destruct TD.
+  Local Opaque Val.cmp Val.cmpu.
+  destruct cond5; inv H; unfold gv_chunks_match_typ, vm_matches_typ, val2GV;
+    simpl; constructor; try solve [
+      auto |
+      split; try solve [auto | apply Val.cmp_has_Mint0 | 
+                        apply Val.cmpu_has_Mint0]
+    ].
+  Transparent Val.cmp Val.cmpu.
+Qed.
+
+Lemma mfcmp_matches_chunks : forall TD fcond5 fp gv1 gv2 gv,
+  mfcmp TD fcond5 fp gv1 gv2 = Some gv ->
+  gv_chunks_match_typ TD gv (typ_int 1%nat).
+Proof.
+  intros. unfold mfcmp, GV2val in H.
+  destruct gv1;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  destruct p.
+  destruct gv1;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  destruct v;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  destruct gv2;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  destruct p.
+  destruct gv2;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  destruct v;
+    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
+  destruct TD.
+  Local Opaque Val.cmpf.
+  destruct fp; try solve [
+    inv H | 
+    destruct fcond5; inv H; unfold gv_chunks_match_typ, vm_matches_typ, val2GV;
+      try solve [
+      auto |
+      simpl; constructor; try solve [
+        auto |
+        simpl; split; try solve [auto | apply Val.cmpf_has_Mint0 |
+                                 simpl; split; try solve [
+                                   auto |
+                                   apply Z_mod_lt; apply Int.modulus_pos
+                                ]
+                      ]
+        ]
+      ]
+    ].
+  Transparent Val.cmpf.
+Qed.
+
+Lemma vm_matches_typ__eq__snd: forall gv1 mc 
+  (Hmatch : Forall2 vm_matches_typ gv1 mc), snd (split gv1) = mc.
+Proof.
+  induction 1; simpl; subst; auto.
+    destruct x. inv H.
+    destruct (split l0). auto.
+Qed.
+
+Lemma vm_matches_typ__gv_has_chunk: forall gv1 mc 
+  (Hmatch : Forall2 vm_matches_typ gv1 mc), gv_has_chunk gv1.
+Proof.
+  unfold gv_has_chunk.
+  induction 1; simpl; subst; auto.
+    destruct x. inv H. constructor; auto.
+Qed.
+
+Lemma vm_matches_typ__sizeMC_eq_sizeGenericValue: forall gvs mcs 
+  (Hmatch : Forall2 vm_matches_typ gvs mcs), 
+  sizeMC mcs = sizeGenericValue gvs.
+Proof.
+  induction 1; simpl; subst; auto.
+    destruct x. inv H.
+    simpl. congruence.
+Qed.
+
+(* Inversion *)
 Lemma BOP_inversion : forall TD lc gl b s v1 v2 gv,
   BOP TD lc gl b s v1 v2 = Some gv ->
   exists gv1, exists gv2,
@@ -1806,30 +1880,6 @@ Proof.
         exists g. exists g0. auto.
 Qed.
 
-(*
-Lemma GEP_inversion : forall (TD:TargetData) (t:typ) (ma:GenericValue)
-  (vidxs:list GenericValue) ib mptr0,
-  GEP TD t ma vidxs ib = Some mptr0 ->
-  exists idxs, exists ptr, exists ptr0,
-    GVs2Nats TD vidxs = Some idxs /\
-    GV2ptr TD (getPointerSize TD) ma = Some ptr /\
-    mgep TD t ptr idxs = Some ptr0 /\
-    ptr2GV TD ptr0 = mptr0.
-Proof.
-  intros.
-  unfold GEP in H.
-  remember (GVs2Nats TD vidxs) as oidxs.
-  remember (GV2ptr TD (getPointerSize TD) ma) as R.
-  destruct R.
-    destruct oidxs.
-      remember (mgep TD t v l0) as og.
-      destruct og; inversion H; subst.
-        exists l0. exists v. exists v0. auto.
-        exists l0. exists v. exists v0. auto.
-
-Qed.
-*)
-
 Lemma intValues2Nats_inversion : forall l0 lc gl TD ns0,
   intValues2Nats TD l0 lc gl = Some ns0 ->
   exists gvs0,
@@ -1869,6 +1919,7 @@ Proof.
         rewrite <- IHl0 with (gvs0:=l1); auto.
 Qed.
 
+(* Properties of eqAL *)
 Lemma const2GV_eqAL_aux :
   (forall c gl1 gl2 TD, eqAL _ gl1 gl2 ->
      _const2GV TD gl1 c = _const2GV TD gl2 c) /\
@@ -2084,38 +2135,6 @@ Proof.
     erewrite IHl0; eauto.
 Qed.
 
-(*
-Lemma GEP_eqAL : forall lc1 gl lc2 t ma vidxs ib TD,
-  eqAL _ lc1 lc2 ->
-  GEP TD lc1 gl t ma vidxs ib = GEP TD lc2 gl t ma vidxs ib.
-Proof.
-  intros lc1 gl lc2 t ma vidxs ib TD HeqAL.
-  unfold GEP in *. auto.
-  erewrite intValues2Nats_eqAL; eauto.
-Qed.
-*)
-
-(** allocate memory with size and alignment *)
-
-Lemma sizeMC__app : forall mc1 mc2,
-  sizeMC (mc1 ++ mc2) = (sizeMC mc1 + sizeMC mc2)%nat.
-Proof.
-  induction mc1; intros; simpl; auto.
-    rewrite IHmc1. omega.
-Qed.
-
-Lemma sizeMC__repeatMC : forall mc n,
-  sizeMC (repeatMC mc n) = (n * sizeMC mc)%nat.
-Proof.
-  induction n; simpl; auto.
-    rewrite sizeMC__app. rewrite IHn. auto.
-Qed.
-
-Lemma sizeMC__uninitMCs : forall n, sizeMC (uninitMCs n) = n.
-Proof.
-  induction n; simpl; auto.
-Qed.
-
 Lemma mload_aux__sizeGenericValue : forall M b mc ofs gv,
   mload_aux M mc b ofs = Some gv ->
   sizeMC mc = sizeGenericValue gv.
@@ -2219,6 +2238,27 @@ Proof.
   exists b0. exists i1. exists m. eauto.
 Qed.
 
+(* Properties of sizeMC *)
+Lemma sizeMC__app : forall mc1 mc2,
+  sizeMC (mc1 ++ mc2) = (sizeMC mc1 + sizeMC mc2)%nat.
+Proof.
+  induction mc1; intros; simpl; auto.
+    rewrite IHmc1. omega.
+Qed.
+
+Lemma sizeMC__repeatMC : forall mc n,
+  sizeMC (repeatMC mc n) = (n * sizeMC mc)%nat.
+Proof.
+  induction n; simpl; auto.
+    rewrite sizeMC__app. rewrite IHn. auto.
+Qed.
+
+Lemma sizeMC__uninitMCs : forall n, sizeMC (uninitMCs n) = n.
+Proof.
+  induction n; simpl; auto.
+Qed.
+
+(* Properties of initLocals *)
 Lemma initLocals_spec : forall TD la gvs id1 lc,
   In id1 (getArgsIDs la) ->
   initLocals TD la gvs = Some lc ->
@@ -2278,6 +2318,7 @@ Proof.
           exists gv. rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
 
+(* Properties of gundef *)
 Lemma gundef_p1__total : forall TD, exists mp', gundef TD (typ_pointer (typ_int 1%nat)) = ret mp'.
 Proof.
   intros. unfold gundef. destruct TD. simpl. eauto.
@@ -2288,15 +2329,76 @@ Proof.
   intros. unfold gundef. destruct TD. simpl. eauto.
 Qed.
 
-(*
-Definition wf_zeroconst2GV_total_prop (t:typ) := forall TD,
-  Constant.wf_zeroconst_typ t -> LLVMtd.feasible_typ TD t ->
-  exists gv, zeroconst2GV TD t = Some gv.
+(* Properties of typesize *)
+Lemma mget_typsize : forall los nts gv1 o typ' gv'
+  (HeqR4 : ret gv' = mget (los, nts) gv1 o typ'),
+   exists sz1 : nat,
+     exists al0 : nat,
+       _getTypeSizeInBits_and_Alignment los
+         (_getTypeSizeInBits_and_Alignment_for_namedts los nts true)
+         true typ' = ret (sz1, al0) /\
+       Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz1) 8) = sizeGenericValue gv'.
+Proof.
+  intros.
+  unfold mget in HeqR4.
+  remember (getTypeStoreSize (los, nts) typ') as R.
+  destruct R; tinv HeqR4.
+  simpl in HeqR4.
+  remember (splitGenericValue gv1 o) as R1.
+  destruct R1 as [[? gvr]|]; tinv HeqR4.
+  remember (splitGenericValue gvr (Z_of_nat n)) as R2.
+  destruct R2 as [[gvrl ?]|]; inv HeqR4.
+  destruct (gv_chunks_match_typb (los, nts) gvrl typ'); inv H0.
+  unfold getTypeStoreSize, getTypeSizeInBits, getTypeSizeInBits_and_Alignment,
+    getTypeSizeInBits_and_Alignment_for_namedts in HeqR.
+  remember (_getTypeSizeInBits_and_Alignment los
+               (_getTypeSizeInBits_and_Alignment_for_namedts los
+                  nts true) true typ') as R3.
+  destruct R3 as [[sz ?]|]; tinv HeqR.
+  exists sz. exists n0.
+  split; auto. inv HeqR.
+    symmetry in HeqR2.
+    apply splitGenericValue_spec in HeqR2.
+    destruct HeqR2 as [J1 J2].
+    rewrite J1.
+    erewrite Coqlib.Z_of_nat_eq; eauto.
+Qed.
 
-Definition wf_zeroconsts2GV_total_prop (lt:list_typ) := forall TD,
-  Constant.wf_zeroconsts_typ lt -> LLVMtd.feasible_typs TD lt ->
-  exists gvn, zeroconsts2GV TD lt = Some gvn.
-*)
+Lemma mset_typsize : forall los nts gv1 o t2 gv2 gv sz2 al2
+  (J3 : _getTypeSizeInBits_and_Alignment los
+         (_getTypeSizeInBits_and_Alignment_for_namedts los nts true)
+         true t2 = ret (sz2, al2))
+  (J4 : Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz2) 8) = sizeGenericValue gv2)
+  (HeqR4 : ret gv = mset (los, nts) gv1 o t2 gv2),
+  sizeGenericValue gv1 = sizeGenericValue gv.
+Proof.
+  intros.
+  unfold mset in HeqR4.
+  remember (getTypeStoreSize (los, nts) t2) as R.
+  destruct R; tinv HeqR4.
+  simpl in HeqR4.
+  destruct (n =n= length gv2); tinv HeqR4.
+  remember (splitGenericValue gv1 o) as R1.
+  destruct R1 as [[? gvr]|]; tinv HeqR4.
+  remember (splitGenericValue gvr (Z_of_nat n)) as R2.
+  destruct R2 as [[gvrl ?]|]; inv HeqR4.
+  symmetry in HeqR2.
+  apply splitGenericValue_spec in HeqR2.
+  destruct HeqR2 as [J1 J2].
+  symmetry in HeqR1.
+  apply splitGenericValue_spec in HeqR1.
+  destruct HeqR1 as [J3' J4'].
+  rewrite <- J4'. rewrite <- J2.
+  destruct_if.
+  rewrite sizeGenericValue__app.
+  rewrite sizeGenericValue__app.
+  unfold getTypeStoreSize, getTypeSizeInBits, getTypeSizeInBits_and_Alignment,
+    getTypeSizeInBits_and_Alignment_for_namedts in HeqR.
+  rewrite J3 in HeqR.
+  inv HeqR.
+  rewrite Coqlib.Z_of_nat_eq in J1.
+  rewrite <- J1 in J4. rewrite J4. auto.
+Qed.
 
 Lemma feasible_typ_inv'' : forall TD t,
   LLVMtd.feasible_typ TD t ->
@@ -2310,48 +2412,6 @@ Proof.
     getABITypeAlignment, getAlignment.
   rewrite J1. eauto.
 Qed.
-
-(*
-Lemma wf_zeroconst2GV_total_mutrec :
-  (forall t, wf_zeroconst2GV_total_prop t) *
-  (forall lt, wf_zeroconsts2GV_total_prop lt).
-Proof.
-  apply typ_mutrec;
-    unfold wf_zeroconst2GV_total_prop, wf_zeroconsts2GV_total_prop;
-    intros; simpl in *; try solve [eauto | inversion H | inversion H1 ].
-Case "float".
-  match goal with
-  | f : floating_point |- _ => destruct f; try solve [eauto | inversion H]
-  end.
-Case "array".
-  destruct H with (TD:=TD) as [gv Hz2c]; auto.
-  rewrite Hz2c.
-  match goal with
-  | sz5 : sz |- _ =>
-    destruct sz5; eauto;
-    apply feasible_array_typ_inv in H1;
-    apply feasible_typ_inv'' in H1;
-    destruct H1 as [ssz [asz [J1 J2]]];
-    rewrite J2;
-    eauto
-  end.
-
-Case "struct".
-  destruct (@H TD) as [gv Hz2c]; auto.
-  rewrite Hz2c. destruct gv; eauto.
-
-Case "cons".
-  destruct H1 as [J1 J2].
-  apply feasible_cons_typs_inv in H2.
-  destruct H2 as [J3 J4].
-  destruct (@H TD) as [gv Hz2c]; auto.
-  destruct (@H0 TD) as [gvs Hz2cs]; auto.
-  rewrite Hz2cs. rewrite Hz2c.
-  apply feasible_typ_inv'' in J3.
-  destruct J3 as [ssz [asz [J6 J5]]].
-  rewrite J5. eauto.
-Qed.
-*)
 
 Lemma mcmp_typsize_helper : forall TD gv,
   gundef TD (typ_int 1%nat) = ret gv ->
@@ -2408,95 +2468,14 @@ Proof.
   destruct fp; try solve [inv H | destruct fcond5; inv H; auto].
 Qed.
 
-Lemma mcmp_matches_chunks_helper : forall TD gv,
-  gundef TD (typ_int 1%nat) = ret gv ->
-  gv_chunks_match_typ TD gv (typ_int 1%nat).
-Proof.
-  intros. destruct TD.
-  unfold gundef in H. simpl in H. inv H. 
-  unfold gv_chunks_match_typ, vm_matches_typ. 
-  simpl. constructor; simpl; auto.
-Qed.
-
-Lemma micmp_matches_chunks : forall TD cond5 t1 gv1 gv2 gv,
-  micmp TD cond5 t1 gv1 gv2 = Some gv ->
-  gv_chunks_match_typ TD gv (typ_int 1%nat).
-Proof.
-  intros. unfold micmp in H.
-  destruct t1;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  unfold micmp_int, GV2val in H.
-  destruct gv1;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  destruct p.
-  destruct gv1;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  destruct v;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  destruct gv2;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  destruct p.
-  destruct gv2;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  destruct v;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  destruct TD.
-  Local Opaque Val.cmp Val.cmpu.
-  destruct cond5; inv H; unfold gv_chunks_match_typ, vm_matches_typ, val2GV;
-    simpl; constructor; try solve [
-      auto |
-      split; try solve [auto | apply Val.cmp_has_Mint0 | 
-                        apply Val.cmpu_has_Mint0]
-    ].
-  Transparent Val.cmp Val.cmpu.
-Qed.
-
-Lemma mfcmp_matches_chunks : forall TD fcond5 fp gv1 gv2 gv,
-  mfcmp TD fcond5 fp gv1 gv2 = Some gv ->
-  gv_chunks_match_typ TD gv (typ_int 1%nat).
-Proof.
-  intros. unfold mfcmp, GV2val in H.
-  destruct gv1;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  destruct p.
-  destruct gv1;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  destruct v;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  destruct gv2;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  destruct p.
-  destruct gv2;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  destruct v;
-    try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
-  destruct TD.
-  Local Opaque Val.cmpf.
-  destruct fp; try solve [
-    inv H | 
-    destruct fcond5; inv H; unfold gv_chunks_match_typ, vm_matches_typ, val2GV;
-      try solve [
-      auto |
-      simpl; constructor; try solve [
-        auto |
-        simpl; split; try solve [auto | apply Val.cmpf_has_Mint0 |
-                                 simpl; split; try solve [
-                                   auto |
-                                   apply Z_mod_lt; apply Int.modulus_pos
-                                ]
-                      ]
-        ]
-      ]
-    ].
-  Transparent Val.cmpf.
-Qed.
-
+(* Properties of gv_lessdef *)
 Lemma gv_lessdef_ref: forall gv, gv_lessdef gv gv.
 Proof.
   unfold gv_lessdef.
   induction gv as [|[]]; auto.
 Qed.
     
+(* Properties of gv_has_chunk *)
 Lemma gv_has_chunkb__gv_has_chunk: forall gv (Hchk: gv_has_chunkb gv), 
   gv_has_chunk gv.
 Proof.
@@ -2505,31 +2484,6 @@ Proof.
     apply andb_true_iff in Hchk.
     destruct Hchk as [J1 J2].
     constructor; auto using Val.has_chunkb__has_chunk.
-Qed.
-
-Lemma vm_matches_typ__eq__snd: forall gv1 mc 
-  (Hmatch : Forall2 vm_matches_typ gv1 mc), snd (split gv1) = mc.
-Proof.
-  induction 1; simpl; subst; auto.
-    destruct x. inv H.
-    destruct (split l0). auto.
-Qed.
-
-Lemma vm_matches_typ__gv_has_chunk: forall gv1 mc 
-  (Hmatch : Forall2 vm_matches_typ gv1 mc), gv_has_chunk gv1.
-Proof.
-  unfold gv_has_chunk.
-  induction 1; simpl; subst; auto.
-    destruct x. inv H. constructor; auto.
-Qed.
-
-Lemma vm_matches_typ__sizeMC_eq_sizeGenericValue: forall gvs mcs 
-  (Hmatch : Forall2 vm_matches_typ gvs mcs), 
-  sizeMC mcs = sizeGenericValue gvs.
-Proof.
-  induction 1; simpl; subst; auto.
-    destruct x. inv H.
-    simpl. congruence.
 Qed.
 
 End LLVMgv.

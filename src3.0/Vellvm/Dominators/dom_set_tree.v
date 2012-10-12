@@ -13,6 +13,8 @@ Require Import analysis.
 Import LLVMsyntax.
 Import LLVMinfra.
 
+(* This file proves properties of creating dominator trees based on set. *)
+
 Fixpoint dtree_dom (dt: DTree) : atoms :=
 match dt with
 | DT_node l0 dts0 => {{l0}} `union` dtrees_dom dts0

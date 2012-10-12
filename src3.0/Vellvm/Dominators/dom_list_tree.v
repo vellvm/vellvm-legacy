@@ -7,6 +7,11 @@ Require Import Program.Tactics.
 Require Import dom_tree.
 Require Import push_iter.
 
+(* This file proves that creating dominator trees based on list gives 
+   well-formed dom-trees. *)
+
+(* res is a map from node to dominators, computed by push_iter. So, the
+   dominators of each node are sorted by idom. *)
 Fixpoint compute_sdom_chains_aux (res: positive -> LDoms.t)
   (bd: list positive) (acc: list (positive * list positive)) 
   : list (positive * list positive) :=
@@ -131,6 +136,7 @@ Qed.
 
 Require Import cfg.
 
+(* An edge is in dtree iff the edge represents an idom-relation. *)
 Section create_dtree__wf_dtree.
 
 Variable dts: PMap.t LDoms.t.

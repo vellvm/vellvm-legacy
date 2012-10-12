@@ -23,6 +23,10 @@ Import LLVMgv.
 Import LLVMtd.
 Import LLVMtypings.
 
+(* This file defines the non-deterministic instance of Vellvm's operational 
+   semantics. *)
+
+(* NDGVs implements the signature of GenericValues. *)
 Module MNDGVs.
 
 Lemma singleton_inhabited : forall U (x:U), Inhabited U (Singleton U x).

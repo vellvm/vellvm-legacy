@@ -16,6 +16,7 @@ Require Import infrastructure_props.
 Import LLVMsyntax.
 Import LLVMinfra.
 
+(* This file proves more properties of declarative dominations. *)
 Module DecDom.
 
 Local Open Scope dom.

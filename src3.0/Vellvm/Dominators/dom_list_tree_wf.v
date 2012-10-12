@@ -9,6 +9,7 @@ Import LLVMsyntax.
 Import LLVMinfra.
 Import LLVMtypings.
 
+(* Well-formed programs give well-formed dominator trees. *)
 Section wf_fdef__create_dom_tree_correct.
 
 Variable (S:system) (M:module) (f:fdef) (dt:@DTree l) (le:l).

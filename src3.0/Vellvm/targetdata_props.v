@@ -26,31 +26,10 @@ Import LLVMtypings.
 Import LLVMgv.
 Import AtomSet.
 
-(********************************************)
-(** * feasible typs *)
-(*
-Lemma feasible_typ_list__in_args__feasible_typ : forall td 
-  typ_attributes_id_list
-  (H18: feasible_typ_list
-          (make_list_targetdata_typ
-             (map_list_typ_attributes_id
-                (fun (typ_ : typ) (_ : attributes) (_ : id) =>
-                 (td, typ_)) typ_attributes_id_list)))
-  t a i0,
-    In (t, a, i0)
-       (map_list_typ_attributes_id
-         (fun (typ_ : typ) (attributes_ : attributes) (id_ : id) =>
-          (typ_, attributes_, id_)) typ_attributes_id_list) ->
-    feasible_typ td t.
-Proof.
-  induction typ_attributes_id_list; simpl; intros.
-    inv H.
-   
-    inv H18. 
-    destruct H as [H | H]; eauto.
-      inv H; auto.
-Qed.
-*)
+(* This file proves the properties of data layouts. *)
+
+(**********************************************************)
+(* Helper properties *)
 Lemma make_list_const_spec1 : forall
   (const_list : list const)
   (system5 : system)
@@ -218,6 +197,8 @@ Proof.
     eapply IHtyp_list; eauto.
 Qed.
 
+(**********************************************************)
+(* Well-formed types are feasible. *)
 Definition eq_system_targetdata (S:system) (TD:targetdata) lsd :=
   forall S1 TD1, In (S1,TD1) lsd -> S = S1 /\ TD = TD1.
 
@@ -317,18 +298,6 @@ Case "wf_styp_cons".
   split; eauto.
 Qed.
 
-Lemma lookupAL_middle_inv': forall (X : Type) l0 i0,
-  lookupAL X l0 i0 <> None ->
-  exists a, exists l1 : list (atom * X), exists l2 : list (atom * X), 
-    l0 = l1 ++ (i0, a) :: l2.
-Proof.
-  intros.
-  remember (lookupAL X l0 i0) as R.
-  destruct R; try congruence.
-  symmetry in HeqR. exists x.
-  apply lookupAL_middle_inv in HeqR; auto.
-Qed.
-
 Lemma noncycled__feasible_typ_aux: forall S los nts 
   (H: noncycled S los nts) (Huniq: uniq nts), 
   forall id5 lt nts2 nts1,
@@ -382,6 +351,8 @@ Proof.
   simpl. auto.
 Qed.
 
+(**********************************************************)
+(* Well-formed types must have zero constants. *)
 Definition wf_zeroconst2GV_aux_total_prop S TD t :=
   wf_styp S TD t ->
   forall acc los nts' (Hty: feasible_typ (los, nts') t) nts 
@@ -555,6 +526,8 @@ Proof.
       simpl_env. simpl. auto.
 Qed.
 
+(**********************************************************)
+(* Well-formed types must have finite type size and valid alignments. *)
 Lemma list_system_typ_spec : forall (s : system) td (l0 : list typ),
   exists ls0 : list (system*targetdata),
     split
@@ -780,25 +753,6 @@ Proof.
       apply IHnoncycled in EQ; auto.
 Qed.
 
-(*
-Lemma ty_namedts_app: forall s nts2 (Htyps2: ty_namedts s nts2) nts1 
-  (Htyps1: ty_namedts s nts1), ty_namedts s (nts1 ++ nts2).
-Proof.
-  intros. induction Htyps1; intros; auto.
-    simpl_env. simpl.
-    constructor; auto.
-Qed.
-
-Lemma ty_namedts_rev: forall s nts (Htyps: ty_namedts s nts), 
-  ty_namedts s (rev nts).
-Proof.
-  induction nts; simpl; intros; auto.
-    inv Htyps.
-    apply ty_namedts_app; auto.
-      constructor; auto. constructor.
-Qed.
-*)
- 
 Lemma wf_typ__getTypeSizeInBits_and_Alignment: forall S TD t 
   (H: wf_typ S TD t),
   exists sz, exists al,
@@ -820,26 +774,8 @@ Proof.
   eapply getTypeSizeInBits_and_Alignment_for_namedts_spec2; eauto.
 Qed.
 
-Lemma getTypeStoreSize_le_getTypeAllocSize : forall TD t sz1 sz2,
-  feasible_typ TD t ->
-  getTypeStoreSize TD t = Some sz1 ->
-  getTypeAllocSize TD t = Some sz2 ->
-  (sz2 >= sz1)%nat.
-Proof.
-  intros TD t sz1 sz2 J H H0.
-  unfold getTypeAllocSize in H0.
-  unfold getTypeStoreSize in *.
-  unfold getTypeSizeInBits in *.
-  unfold getABITypeAlignment in *.
-  unfold getAlignment in *.
-  remember (getTypeSizeInBits_and_Alignment TD true t) as R.
-  destruct R as [[]|]; inv H. inv H0.
-  apply feasible_typ_inv' in J; auto.
-  destruct J as [sz [al [J1 J2]]].
-  rewrite J1 in HeqR. inv HeqR.
-  apply RoundUpAlignment_spec; auto.
-Qed.  
-
+(**********************************************************)
+(* Properties of feasible_typ *)
 Lemma feasible_struct_typ_inv' : forall TD ts
   (H:feasible_typs TD ts), feasible_typ TD (typ_struct ts).
 Proof.
@@ -865,6 +801,28 @@ Proof.
     destruct R1; try solve [inversion H0].
     eapply feasible_typ_spec1; eauto.
 Qed.
+
+(**********************************************************)
+(* Properties of getTypeSize *)
+Lemma getTypeStoreSize_le_getTypeAllocSize : forall TD t sz1 sz2,
+  feasible_typ TD t ->
+  getTypeStoreSize TD t = Some sz1 ->
+  getTypeAllocSize TD t = Some sz2 ->
+  (sz2 >= sz1)%nat.
+Proof.
+  intros TD t sz1 sz2 J H H0.
+  unfold getTypeAllocSize in H0.
+  unfold getTypeStoreSize in *.
+  unfold getTypeSizeInBits in *.
+  unfold getABITypeAlignment in *.
+  unfold getAlignment in *.
+  remember (getTypeSizeInBits_and_Alignment TD true t) as R.
+  destruct R as [[]|]; inv H. inv H0.
+  apply feasible_typ_inv' in J; auto.
+  destruct J as [sz [al [J1 J2]]].
+  rewrite J1 in HeqR. inv HeqR.
+  apply RoundUpAlignment_spec; auto.
+Qed.  
 
 Definition getTypeSizeInBits_weaken_prop (t:typ) := forall los nm1 nm2 flag r,
   uniq (nm2++nm1) ->
@@ -1092,4 +1050,3 @@ Proof.
     destruct Hft as [sz [al [J1 ?]]].
     congruence.
 Qed.
-

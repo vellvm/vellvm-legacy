@@ -18,6 +18,9 @@ Require Import infrastructure_props.
 Import LLVMsyntax.
 Import LLVMinfra.
 
+(***************************************************)
+(* This file implements the set-based dominaton analysis *)
+
 Module AlgDom : ALGDOM.
 
 Definition transfer (lbl: l) (before: Dominators.t) :=
@@ -32,6 +35,7 @@ Definition transfer (lbl: l) (before: Dominators.t) :=
 Module DomDS := Dataflow_Solver_Var_Top(AtomNodeSet).
 
 (***************************************************)
+(* All elements in a worklist must be in the CFG. *)
 
 Module WorklistProps. Section WorklistProps.
 
@@ -149,6 +153,7 @@ Qed.
 End WorklistProps. End WorklistProps.
 
 (**************************************************************)
+(* Dominators of a node must be parents of the node. *)
 
 Module DomsInParents. Section DomsInParents.
 
@@ -272,6 +277,7 @@ Qed.
 End DomsInParents. End DomsInParents.
 
 (**************************************************************)
+(* Prove that the analyis must terminate. *)
 
 Module Termination. Section Termination.
 
@@ -956,6 +962,7 @@ end.
 
 (*********************************************************************)
 
+(* The main function that computes dominators. *)
 Definition dom_analyze (f: fdef) : AMap.t Dominators.t :=
   let '(fdef_intro _ bs) := f in
   let top := Dominators.top in
@@ -969,6 +976,7 @@ Definition dom_analyze (f: fdef) : AMap.t Dominators.t :=
   | None => AMap.init top
   end.
 
+(* The iteration bound we choose is large enough to ensure termination. *)
 Section Num_iters__is__large_enough.
 
 Variable f:fdef.
@@ -1061,6 +1069,7 @@ Proof.
     rewrite AMap.gi. auto.
 Qed.
 
+(* The entry point dominates all other nodes. *)
 Module EntryDomsOthers. Section EntryDomsOthers.
 
 Variable bs : blocks.
@@ -1308,6 +1317,7 @@ Proof.
     subst. repeat rewrite AMap.gi. simpl. auto with datatypes v62.
 Qed.
 
+(* The completeness of the analysis. *)
 Module DomComplete. Section DomComplete.
 
 Variable fh : fheader.
@@ -1542,6 +1552,7 @@ Qed.
 
 End sdom_is_complete.
 
+(* Unreachable nodes are dominated by any nodes. *)
 Module UnreachableDoms. Section UnreachableDoms.
 
 Variable fh : fheader.
@@ -1726,6 +1737,7 @@ Qed.
 
 End dom_unreachable.
 
+(* Transformationthat preserve CFGs preserves analysis results. *)
 Section pres_dom.
 
 Variable ftrans: fdef -> fdef.

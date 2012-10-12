@@ -14,6 +14,8 @@ Require Import dopsem.
 
 Export Opsem.
 
+(* The small-step interpreter, given a configuration and a program state, 
+   computes the next program state and a trace. *)
 Definition interInsn (cfg:Config) (state:@State DGVs) : option (State*trace) :=
 let '(mkCfg Sys TD Ps gl fs) := cfg in
 (* Check if the stack is empty. *)
@@ -225,6 +227,7 @@ match state with
   end
 end.
 
+(* The following proves the correctness of the interpreter. *)
 Ltac dos_rewrite :=
   match goal with
   | [ H : _ = true |- _ ] => rewrite H; simpl
@@ -235,6 +238,7 @@ Ltac dos_rewrite :=
 
 Ltac dos_simpl := simpl; repeat dgvs_instantiate_inv; repeat dos_rewrite.
 
+(* the small-step semantics implies the interpreter. *)
 Lemma dsInsn__implies__interInsn : forall cfg state state' tr,
   sInsn cfg state state' tr ->
   interInsn cfg state = Some (state', tr).
@@ -265,6 +269,7 @@ Proof.
     end.
 Qed.
 
+(* the interpreter implies the small-step semantics. *)
 Lemma interInsn__implies__dsInsn : forall cfg state state' tr,
   interInsn cfg state = Some (state', tr) ->
   sInsn cfg state state' tr.
@@ -514,6 +519,3 @@ Proof.
               unfold lookupExFdecViaPtr.
               rewrite <- HeqR4. simpl. rewrite <- HeqR1. eauto.
 Qed.
-
-
-
