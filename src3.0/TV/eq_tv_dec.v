@@ -12,6 +12,8 @@ Require Import infrastructure_props.
 Require Import CoqListFacts.
 Require Import symexe_def.
 
+(* This file proves the decidability of symbolic terms used by eq_tv. *)
+
 Export SimpleSE.
 
 Definition sterm_dec_prop (st1:sterm) := forall st2, {st1=st2} + {~st1=st2}.

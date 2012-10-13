@@ -42,8 +42,7 @@ destruct cmd as [i0 b s0 v v0|i0 f0 f1 v v0|i0 t v l2|i0 t v t0 v0 l2|
                  i0 t t0 v t1|i0 e t v t0|i0 c t v t0|i0 c t v v0|
                  i0 f0 f1 v v0|i0 v t v0 v1|i0 n c t v p].
 
-(* cmd2sbs *)
-
+(* Properties of cmd2sbs *)
 Lemma cmds2sbs_nil_inv : forall cs,
   cmds2sbs cs = (nil, nil) ->
   cs = nil.
@@ -346,16 +345,6 @@ Proof.
         inversion H.
 Qed.
 
-
-Lemma cmds2nbranchs__nbranchs2cmds : forall cs nbs,
-  cmds2nbranchs cs = Some nbs ->
-  nbranchs2cmds nbs = cs.
-Proof.
-  intros.
-  apply cmds2nbs__nbranchs2cmds.
-  apply cmds2nbranchs__cmds2nbs; auto.
-Qed.
-
 Lemma cmds2sbs_inv : forall cs sbs nbs,
   cmds2sbs cs = (sbs, nbs) ->
   exists cs1, exists cs2,
@@ -474,6 +463,16 @@ Proof.
       inversion H; subst.
 Qed.
 
+(* Properties of cmds2nbranchs *)
+Lemma cmds2nbranchs__nbranchs2cmds : forall cs nbs,
+  cmds2nbranchs cs = Some nbs ->
+  nbranchs2cmds nbs = cs.
+Proof.
+  intros.
+  apply cmds2nbs__nbranchs2cmds.
+  apply cmds2nbranchs__cmds2nbs; auto.
+Qed.
+
 Lemma nbranchs2cmds_app : forall nbs1 nbs2,
   nbranchs2cmds (nbs1++nbs2) = nbranchs2cmds nbs1 ++ nbranchs2cmds nbs2.
 Proof.
@@ -506,7 +505,7 @@ Proof.
     exists notcall0. auto.
 Qed.
 
-(* wf *)
+(* Properties of well-formedness *)
 Lemma wf_nbranchs__decomposes__app : forall nbs1 nbs2,
   wf_nbranchs (nbs1++nbs2) ->
   wf_nbranchs nbs1 /\ wf_nbranchs nbs2.
@@ -641,7 +640,7 @@ Proof.
     destruct fh. inversion H; auto.
 Qed.
 
-(* Properties of se *)
+(* Properties of se_cmds *)
 Lemma se_cmd_uniq : forall smap0 sm0 sf0 se0 c,
   uniq smap0 ->
   uniq (STerms (se_cmd (mkSstate smap0 sm0 sf0 se0) c)).
@@ -754,7 +753,6 @@ Proof.
 Qed.
 
 (* props of lookupSmap *)
-
 Lemma lookupSmap_in : forall sm id0 st0,
   uniq sm ->
   binds id0 st0 sm ->
@@ -770,14 +768,6 @@ Proof.
       analyze_binds_uniq H0; auto.
 Qed.
 
-Lemma id2Sterm_in : forall sm id0 st0,
-  uniq sm ->
-  binds id0 st0 sm ->
-  value2Sterm sm (value_id id0) = st0.
-Proof.
-  intros. simpl. apply lookupSmap_in; auto.
-Qed.
-
 Lemma lookupSmap_notin : forall sm id0,
   uniq sm ->
   id0 `notin` dom sm ->
@@ -789,20 +779,6 @@ Proof.
     inversion H; subst.
     destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id0 a); subst; simpl;
       analyze_binds_uniq H0; auto.
-Qed.
-
-Lemma id2Sterm_notin : forall sm id0,
-  uniq sm ->
-  id0 `notin` dom sm ->
-  value2Sterm sm (value_id id0) = sterm_val (value_id id0).
-Proof.
-  intros. simpl. apply lookupSmap_notin; auto.
-Qed.
-
-Lemma const2Sterm : forall sm c,
-  value2Sterm sm (value_const c) = sterm_val (value_const c).
-Proof.
-  intros. auto.
 Qed.
 
 Lemma lookupSmap_in_lookupAL : forall m id0,
@@ -883,6 +859,48 @@ Proof.
     destruct v; simpl; try solve [inversion nc].
 Qed.
 
+Lemma lookupSmap_inv : forall m id0 st0,
+  lookupSmap m id0 = st0 ->
+  (id0 `in` dom m /\ binds id0 st0 m) \/
+  (id0 `notin` dom m /\ st0 = sterm_val (value_id id0)).
+Proof.
+  induction m; intros id0 st0 HlkSmap; simpl in *.
+    right. auto.
+
+    destruct a.
+    destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id0 a); subst.
+      left. auto.
+
+      remember (lookupSmap m id0) as st0.
+      symmetry in Heqst0.
+      apply IHm in Heqst0.
+      destruct Heqst0 as [[id0in binds_id0_st0] | [id0notin EQ]]; subst; auto.
+Qed.
+
+(* props of value2Sterm *)
+Lemma id2Sterm_in : forall sm id0 st0,
+  uniq sm ->
+  binds id0 st0 sm ->
+  value2Sterm sm (value_id id0) = st0.
+Proof.
+  intros. simpl. apply lookupSmap_in; auto.
+Qed.
+
+Lemma id2Sterm_notin : forall sm id0,
+  uniq sm ->
+  id0 `notin` dom sm ->
+  value2Sterm sm (value_id id0) = sterm_val (value_id id0).
+Proof.
+  intros. simpl. apply lookupSmap_notin; auto.
+Qed.
+
+Lemma const2Sterm : forall sm c,
+  value2Sterm sm (value_const c) = sterm_val (value_const c).
+Proof.
+  intros. auto.
+Qed.
+
+(* props of xxx_denotes_xxx *)
 Lemma init_denotes_id : forall TD lc gl als Mem0,
   sstate_denotes_state TD lc gl als Mem0 sstate_init lc als Mem0 E0.
 Proof.
@@ -894,8 +912,6 @@ Proof.
       destruct id'_in_lc as [gv' id'_gv'_in_lc].
       exists gv'. split; auto.
 Qed.
-
-(* props of denotes *)
 
 Lemma id_denotes_gv : forall id0 TD Mem0 gl lc,
   id0 `in` dom lc ->
@@ -920,8 +936,17 @@ Proof.
       fsetdec.
 Qed.
 
-(* The denotational rules are determinastic. *)
+Lemma sterm_val_denotes_in : forall TD lc gl Mem0 id0 gv,
+  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_val (value_id id0)) gv ->
+  id0 `in` dom lc.
+Proof.
+  intros TD lc gl Mem0 id0 gv Hdenotes.
+  inversion Hdenotes; subst.
+  simpl in H4.
+  apply lookupAL_Some_indom in H4; auto.
+Qed.
 
+(* The denotational rules are determinastic. *)
 Definition sterm_denotes_genericvalue_det_prop TD lc gl Mem0 st0 gv1
   (sd:sterm_denotes_genericvalue TD lc gl Mem0 st0 gv1) :=
   forall gv2,
@@ -1128,35 +1153,6 @@ Proof.
   inversion H0; subst; auto.
 Qed.
 
-Lemma lookupSmap_inv : forall m id0 st0,
-  lookupSmap m id0 = st0 ->
-  (id0 `in` dom m /\ binds id0 st0 m) \/
-  (id0 `notin` dom m /\ st0 = sterm_val (value_id id0)).
-Proof.
-  induction m; intros id0 st0 HlkSmap; simpl in *.
-    right. auto.
-
-    destruct a.
-    destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id0 a); subst.
-      left. auto.
-
-      remember (lookupSmap m id0) as st0.
-      symmetry in Heqst0.
-      apply IHm in Heqst0.
-      destruct Heqst0 as [[id0in binds_id0_st0] | [id0notin EQ]]; subst; auto.
-Qed.
-
-
-Lemma sterm_val_denotes_in : forall TD lc gl Mem0 id0 gv,
-  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_val (value_id id0)) gv ->
-  id0 `in` dom lc.
-Proof.
-  intros TD lc gl Mem0 id0 gv Hdenotes.
-  inversion Hdenotes; subst.
-  simpl in H4.
-  apply lookupAL_Some_indom in H4; auto.
-Qed.
-
 Lemma smap_denotes_gvmap_det : forall TD lc gl Mem0 smap0 lc1 lc2,
   uniq smap0 ->
   smap_denotes_gvmap TD lc gl Mem0 smap0 lc1 ->
@@ -1228,23 +1224,7 @@ Proof.
   apply smap_denotes_gvmap_det with (lc2:=lc2) in J11; auto.
 Qed.
 
-Lemma smap_denotes_gvmap_eqEnv : forall TD lc gl Mem0 smap0 lc1 lc2,
-  smap_denotes_gvmap TD lc gl Mem0 smap0 lc1 ->
-  eqAL _ lc1 lc2 ->
-  smap_denotes_gvmap TD lc gl Mem0 smap0 lc2.
-Proof.
-  intros TD lc gl Mem0 smap0 lc1 lc2 [H1 H2] H3.
-  split; intros.
-    apply H1 in H.
-    destruct H as [gv' [st'_denotes_gv' id'_gv'_is_env1]].
-    exists gv'. rewrite <- H3.
-    split; auto.
-
-    rewrite <- H3 in H.
-    apply H2 in H; auto.
-Qed.
-
-(* p&p *)
+(* preservation of uniqueness *)
 Lemma se_dbCmd_preservation : forall TD lc als gl Mem0 c lc' als' Mem' tr,
   dbCmd TD gl lc als Mem0 c lc' als' Mem' tr ->
   uniq lc ->
@@ -1523,6 +1503,22 @@ Proof.
 Qed.
 
 (* eqEnv *)
+Lemma smap_denotes_gvmap_eqEnv : forall TD lc gl Mem0 smap0 lc1 lc2,
+  smap_denotes_gvmap TD lc gl Mem0 smap0 lc1 ->
+  eqAL _ lc1 lc2 ->
+  smap_denotes_gvmap TD lc gl Mem0 smap0 lc2.
+Proof.
+  intros TD lc gl Mem0 smap0 lc1 lc2 [H1 H2] H3.
+  split; intros.
+    apply H1 in H.
+    destruct H as [gv' [st'_denotes_gv' id'_gv'_is_env1]].
+    exists gv'. rewrite <- H3.
+    split; auto.
+
+    rewrite <- H3 in H.
+    apply H2 in H; auto.
+Qed.
+
 Lemma dbCmd_eqEnv : forall TD c lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1',
   dbCmd TD gl lc1 als1 Mem1 c lc2 als2 Mem2 tr ->
   eqAL _ lc1 lc1' ->

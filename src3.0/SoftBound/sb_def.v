@@ -1,19 +1,26 @@
 Require Import vellvm.
 
+(* This file defines the specification of Softbound.*)
+
 Module SBspecAux.
 
+(* A metadata of a pointer records the start (md_blk, md_bofs) and the end 
+   (md_blk, md_eofs) of the valid memory range of the pointer. *)
 Record metadata : Type := mkMD {
   md_blk : Values.block; md_bofs : int32; md_eofs : int32
 }.
 
+(* a metadata map from variable names to metadata. *)
 Definition rmetadata := list (id*metadata).
 
+(* Compute the metadata of n objects with size s. *)
 Definition bound2MD (b:mblock) (s:sz) n : metadata :=
 mkMD b (Int.zero 31) (Int.repr 31 ((Size.to_Z s)*n)).
 
 Definition i8 := typ_int Size.Eight.
 Definition p8 := typ_pointer i8.
 
+(* Compute metadata for constants. *)
 Fixpoint get_const_metadata (c:const) : option (const*const) :=
 match c with
 | const_gid t gid =>
@@ -30,8 +37,10 @@ match c with
 | _ => None
 end.
 
+(* Metadata for NULL pointers. *)
 Definition null_md := mkMD Mem.nullptr (Int.zero 31) (Int.zero 31).
 
+(* Compute the metadata of a value v. *)
 Definition get_reg_metadata TD gl (rm:rmetadata) (v:value) : option metadata :=
   match v with
   | value_id pid =>
@@ -53,6 +62,7 @@ Definition get_reg_metadata TD gl (rm:rmetadata) (v:value) : option metadata :=
       end
   end.
 
+(* Check if a pointer ptr of type t* is valid in terms of its metadata md.*)
 Definition assert_mptr (TD:TargetData) (t:typ) (ptr:GenericValue) (md:metadata)
   : bool :=
   let 'mkMD bb bofs eofs := md in
@@ -65,8 +75,10 @@ Definition assert_mptr (TD:TargetData) (t:typ) (ptr:GenericValue) (md:metadata)
   | _ => false
   end.
 
+(* mmetadata b ofs returns the metadata of the pointer stored at b.ofs. *)
 Definition mmetadata := Values.block -> int32 -> option metadata.
 
+(* Return the metadata for a pointer stored at the location gv. *)
 Definition get_mem_metadata TD MM (gv:GenericValue) : metadata :=
   match (GV2ptr TD (getPointerSize TD) gv) with
   | Some (Vptr b ofs) =>
@@ -77,6 +89,7 @@ Definition get_mem_metadata TD MM (gv:GenericValue) : metadata :=
   | _ => null_md
   end.
 
+(* Set the metadata for a pointer stored at the location gv. *)
 Definition set_mem_metadata TD MM (gv:GenericValue) (md:metadata)
   : mmetadata :=
   match (GV2ptr TD (getPointerSize TD) gv) with
@@ -110,24 +123,32 @@ Notation "$ gv # t $" := (GVsSig.(gv2gvs) gv t) (at level 41).
 Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss)
   (at level 43, right associativity).
 
+(* The frame of the SoftBound operational semantics. The difference from
+   the standard semantics is that it uses a Rmap to record the metadata of
+   local pointers. *)
 Record ExecutionContext : Type := mkEC {
 CurFunction : fdef;
 CurBB       : block;
 CurCmds     : cmds;                  (* cmds to run within CurBB *)
 Terminator  : terminator;
 Locals      : GVsMap;                (* LLVM values used in this invocation *)
-Rmap        : rmetadata;
+Rmap        : rmetadata; 
 Allocas     : list mblock            (* Track memory allocated by alloca *)
 }.
 
+(* Stacks *)
 Definition ECStack := list ExecutionContext.
 
+(* Program states. The difference from the standard semantics is that it stores
+   metadata of pointers stored at memory by a seperate map Mmap. *)
 Record State : Type := mkState {
 ECS                : ECStack;
 Mem                : mem;
 Mmap               : mmetadata
 }.
 
+(* Extend the helper functions for operational semantics by considering metadata.
+ *)
 Fixpoint getIncomingValuesForBlockFromPHINodes (TD:TargetData)
   (PNs:list phinode) (b:block) (gl:GVMap) (lc:GVsMap) (rm:rmetadata) :
   option (list (id * GVs * option metadata)) :=
@@ -293,6 +314,10 @@ Definition initLocals TD (la:args) (lg:list (GVs*option metadata))
   : option (GVsMap * rmetadata) :=
 _initializeFrameValues TD la lg nil nil.
 
+(* Because the only difference between the standard and the operational semantics
+   of SoftBound is how to manage metadata, we define the extended part by 
+   sInsn_delta, and then define Softbound's small-step rules by merging 
+   sInsn_delta, and the standard small-step rules. *)
 Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
 | sReturn : forall S TD Ps F B rid RetTy Result lc rm gl fs F' B' c' cs' tmn'
     lc' rm' EC Mem MM Mem' als als' lc'' rm'',
@@ -623,6 +648,7 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
     Opsem.sInsn cfg (sbState__State S1) (sbState__State S2) tr ->
     sInsn cfg S1 S2 tr.
 
+(* Convergence and divergence *)
 Inductive sop_star : Config -> State -> State -> trace -> Prop :=
 | sop_star_nil : forall cfg state, sop_star cfg state state E0
 | sop_star_cons : forall cfg state1 state2 state3 tr1 tr2,

@@ -18,6 +18,8 @@ Require Import sb_ds_trans.
 
 Import SB_ds_pass.
 
+(* This file defines the specification of external functions used by SoftBound. 
+ *)
 Definition sb_fnattrs := fnattrs_intro linkage_external visibility_default
   callconv_ccc nil nil.
 

@@ -9,9 +9,14 @@ Require Import Coq.Bool.Sumbool.
 
 Export SimpleSE.
 
+(* This file defines the translation validator. *) 
+
+(* Two lists of nbranchs equal if their symbolic execution results equal. *)
 Definition tv_cmds (nbs1 nbs2 : list nbranch) :=
 sumbool2bool _ _ (sstate_dec (se_cmds sstate_init nbs1) (se_cmds sstate_init nbs2)).
 
+(* Two subblocks equal if the lists of nbranchs equal and the call commands at 
+   the end equal. *)
 Definition tv_subblock (sb1 sb2:subblock) :=
 match (sb1, sb2) with
 | (mkSB nbs1 call1 iscall1, mkSB nbs2 call2 iscall2) =>
@@ -21,6 +26,9 @@ match (sb1, sb2) with
    (sumbool2bool _ _ (cmd_dec call1 call2))
 end.
 
+(* Other components of programs equal syntactically. *)
+
+(* Equivalence of two lists of subblocks. *)
 Fixpoint tv_subblocks (sbs1 sbs2:list subblock) :=
 match (sbs1, sbs2) with
 | (nil, nil) => true
@@ -29,6 +37,7 @@ match (sbs1, sbs2) with
 | _ => false
 end.
 
+(* Equivalence of two phinodes. *)
 Fixpoint tv_phinodes (ps1 ps2:phinodes) :=
 match (ps1, ps2) with
 | (nil, nil) => true
@@ -37,6 +46,7 @@ match (ps1, ps2) with
 | _ => false
 end.
 
+(* Equivalence of two blocks. *)
 Definition tv_block (b1 b2:block) :=
 match (b1, b2) with
 | ((l1, stmts_intro ps1 cs1 tmn1), (l2, stmts_intro ps2 cs2 tmn2)) =>
@@ -50,6 +60,7 @@ match (b1, b2) with
   end
 end.
 
+(* Equivalence of two lists of blocks. *)
 Fixpoint tv_blocks (bs1 bs2:blocks):=
 match (bs1, bs2) with
 | (nil, nil) => true
@@ -57,6 +68,7 @@ match (bs1, bs2) with
 | _ => false
 end.
 
+(* Equivalence of two functions. *)
 Definition tv_fdef (f1 f2:fdef) :=
 match (f1, f2) with
 | (fdef_intro fh1 lb1, fdef_intro fh2 lb2) =>
@@ -64,6 +76,7 @@ match (f1, f2) with
   tv_blocks lb1 lb2
 end.
 
+(* Equivalence of two products. *)
 Fixpoint tv_products (Ps1 Ps2:products):=
 match (Ps1, Ps2) with
 | (nil, nil) => true
@@ -78,6 +91,7 @@ match (Ps1, Ps2) with
 | _ => false
 end.
 
+(* Equivalence of two modules. *)
 Definition tv_module (m1 m2:module) :=
 match (m1, m2) with
 | (module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2) =>
@@ -86,6 +100,7 @@ match (m1, m2) with
   tv_products Ps1 Ps2
 end.
 
+(* Equivalence of two systems. *)
 Fixpoint tv_system (S1 S2:system) :=
 match (S1, S2) with
 | (nil, nil) => true

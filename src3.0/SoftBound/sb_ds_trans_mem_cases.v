@@ -22,6 +22,9 @@ Require Import sb_ds_trans_tactics.
 Import SB_ds_pass.
 Export SBspec.
 
+(* This file proves the memory instruction cases for proving the simulation 
+   relations between the SoftBound transformed programs and its original 
+   program. *)
 Definition base2GV := blk2GV.
 Definition bound2GV (TD:TargetData) (b:mblock) (s:sz) n : GenericValue :=
 ((Vptr b (Int.repr 31 ((Size.to_Z s)*n)), AST.Mint 31)::nil).

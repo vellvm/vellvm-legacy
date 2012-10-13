@@ -22,6 +22,9 @@ Require Import sb_ds_trans_tactics.
 Import SB_ds_pass.
 Export SBspec.
 
+(* This file proves the non-memory instruction cases for proving the simulation 
+   relations between the SoftBound transformed programs and its original 
+   program. *)
 Lemma SBpass_is_correct__dsBop : forall (mi : MoreMem.meminj)(mgb : Values.block)
   (St : Opsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : DGVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)

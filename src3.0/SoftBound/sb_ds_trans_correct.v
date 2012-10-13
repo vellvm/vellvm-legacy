@@ -23,6 +23,9 @@ Require Import sb_ds_trans_tactics.
 Import SB_ds_pass.
 Export SBspec.
 
+(* This file proves the simulation relations between the SoftBound transformed 
+   programs and its original program. *)
+
 Lemma SBpass_is_correct__dsCall : forall (mi : MoreMem.meminj)
   (mgb : Values.block)
   (St : Opsem.State) (S : system) (TD : TargetData) (Ps : list product)

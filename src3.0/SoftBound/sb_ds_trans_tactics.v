@@ -21,6 +21,9 @@ Require Import sb_ds_trans_lib.
 Import SB_ds_pass.
 Export SBspec.
 
+(* This file proves the tactics for proving the simulation relations
+   between the SoftBound transformed programs and its original program. *)
+
 Ltac destruct_ctx_br :=
 match goal with
 | [Hsim : sbState_simulates_State _ _

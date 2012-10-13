@@ -3,6 +3,9 @@ Require Import genericvalues.
 Require Import sb_def.
 Require Import sb_metadata.
 
+(* Prove the results that are similar to opsem_wf for the
+   SoftBound specification. The difference is that SoftBound's 
+   undefined_states do not include spatial memory violation. *)
 Module SBspecPP.
 
 Export OpsemPP.

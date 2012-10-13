@@ -19,6 +19,7 @@ Export LLVMgv.
 (* Symbolic execuction is complete:
    Any concrete execution of a subblock satisfies its symbolic execution. *)
 
+(* value2Sterm is complete. *)
 Lemma genericvalue__implies__value2Sterm_denotes : forall TD lc0 Mem0 smap1 lc gl
     v gv,
   uniq smap1 ->
@@ -58,6 +59,7 @@ Proof.
     apply sterms_cons_denote; eauto using genericvalue__implies__value2Sterm_denotes.
 Qed.
 
+(* se_cmd is complete. *)
 Lemma se_cmd__denotes__op_cmd__case0 : forall X sm id0 st0 id1 D,
   uniq sm ->
   id1 `in` dom (updateAddAL X sm id0 st0) `union` D ->
@@ -549,6 +551,7 @@ Proof.
       apply se_cmd_uniq_aux; auto.
 Qed.
 
+(* The main result: se_cmds is complete. *)
 Lemma op_cmds__satisfy__se_cmds : forall TD nbs lc als gl Mem lc' als' Mem' tr,
   uniq lc ->
   dbCmds TD gl lc als Mem (nbranchs2cmds nbs) lc' als' Mem' tr ->

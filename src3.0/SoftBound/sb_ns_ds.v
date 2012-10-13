@@ -2,6 +2,8 @@ Require Import vellvm.
 Require Import opsem_inst.
 Require Import sb_def.
 
+(* Prove the results that are similar to opsem_inst for the
+   SoftBound specification. *)
 Module SBspecInstantiation.
 
 Export OpsemInstantiation.

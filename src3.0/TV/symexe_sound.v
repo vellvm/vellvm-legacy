@@ -21,6 +21,7 @@ Export SimpleSE.
    denote some concrete states w.r.t the initial state, it is possible to
    execute the subblock to completion from this initial state. *)
 
+(* value2Sterm is sound. *)
 Lemma value2Sterm_denotes__implies__genericvalue : forall TD lc0 Mem0 smap1 lc
     gl v gv,
   uniq smap1 ->
@@ -75,6 +76,7 @@ Proof.
     erewrite IHl0; eauto.
 Qed.
 
+(* se_cmd is sound. *)
 Lemma aux__se_cmd__denotes__exists_op_cmd : forall TD c nc lc als gl Mem1 lc'
     als' Mem2 lc0 als0 Mem0 sstate1 tr1 tr2,
   uniq sstate1.(STerms) ->
@@ -356,6 +358,7 @@ Proof.
     apply init_denotes_id; auto.
 Qed.
 
+(* se_cmds is sound. *)
 Lemma binds_se_cmd : forall c nc i0 i1 st0 smap1 smem1 sframe1 seffects1,
   binds i0 st0 smap1 ->
   getCmdLoc c = i1 ->
@@ -2368,6 +2371,7 @@ Proof.
     split; eauto using eqAL_trans, eqAL_sym.
 Qed.
 
+(* The main result *)
 Lemma se_cmds__denote__op_cmds : forall TD nbs lc1 gl als1 Mem1 lc2 als2 Mem2 tr,
   uniq lc1 ->
   uniq lc2 ->

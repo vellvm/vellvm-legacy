@@ -26,26 +26,9 @@ Ltac repeat_bsplit :=
 
 Export SimpleSE.
 
-(* Correctness of the cmds validator *)
+(* The correctness of the translation validator. *)
 
-Lemma tv_cmds__is__correct : forall TD nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 tr,
-  uniq lc1 ->
-  wf_nbranchs nbs' ->
-  tv_cmds nbs nbs' ->
-  dbCmds TD gl lc1 als1 Mem1 (nbranchs2cmds nbs) lc2 als2 Mem2 tr ->
-  exists slc,
-    dbCmds TD gl lc1 als1 Mem1 (nbranchs2cmds nbs') slc als2 Mem2 tr /\
-    eqAL _ slc lc2.
-Proof.
-  intros TD nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 tr Huniqc Wf Htv_cmds HdbCmds.
-  assert (Uniqs:=HdbCmds).
-  apply se_dbCmds_preservation in Uniqs; auto.
-  apply op_cmds__satisfy__se_cmds in HdbCmds; auto.
-  sumbool_simpl.
-  rewrite Htv_cmds in HdbCmds.
-  apply se_cmds__denote__op_cmds; auto.
-Qed.
-
+(* Properties of tv_blocks *)
 Lemma lookup_tv_blocks__tv_block : forall lb1 lb2 l0 B1,
   uniqBlocks lb1 ->
   uniqBlocks lb2 ->
@@ -185,70 +168,7 @@ Proof.
   erewrite tv_getIncomingValuesForBlockFromPHINodes; simpl; eauto.
 Qed.
 
-Lemma tv_terminator__is__correct : forall TD M fh1 lb1 fh2 lb2 B1 B2 lc gl tmn
-    B1' lc' tr,
-  uniqFdef (fdef_intro fh1 lb1) ->
-  uniqFdef (fdef_intro fh2 lb2) ->
-  tv_fdef (fdef_intro fh1 lb1) (fdef_intro fh2 lb2) ->
-  tv_block B1 B2 ->
-  dbTerminator TD M (fdef_intro fh1 lb1) gl B1 lc tmn B1' lc' tr ->
-  exists B2', exists n,
-    tv_block B1' B2' /\
-    nth_error lb1 n = Some B1' /\
-    nth_error lb2 n = Some B2' /\
-    dbTerminator TD M (fdef_intro fh2 lb2) gl B2 lc tmn B2' lc' tr.
-Proof.
-  intros TD M fh1 lb1 fh2 lb2 B1 B2 lc gl tmn B1' lc' tr HuniqF1 HuniqF2 Htv_fdef
-    Htv_block HdbTerminator.
-  assert (uniqBlocks lb1) as Huniqlb1. destruct fh1. inversion HuniqF1; auto.
-  assert (uniqBlocks lb2) as Huniqlb2. destruct fh2. inversion HuniqF2; auto.
-  inversion HdbTerminator; subst.
-    remember (isGVZero TD c) as R.
-    destruct R; subst.
-      assert (exists B2', exists n, tv_block (l2, stmts_intro ps' sbs' tmn') (l2, B2') /\
-                                  nth_error lb1 n = Some (l2, stmts_intro ps' sbs' tmn') /\
-                                  nth_error lb2 n = Some (l2, B2') /\
-                                  lookupBlockViaLabelFromFdef (fdef_intro fh2 lb2) l2 = 
-                                    Some B2') as J.
-        eapply lookup_tv_fdef__tv_block; eauto.
-      destruct J as [B2' [n [J1 [J2 [J3 J4]]]]].
-      exists (if isGVZero TD c then l2 else l1, B2'). exists n. 
-      split. rewrite <- HeqR. auto.
-      split; auto. 
-      split. rewrite <- HeqR. auto.
-        destruct B2' as [ps2' sbs2' tmn2'].
-        eapply dbBranch; eauto.
-          rewrite <- HeqR. auto.
-          rewrite <- HeqR. erewrite <- tv_switchToNewBasicBlock; eauto.
-
-      assert (exists B2', exists n, tv_block (l1, stmts_intro ps' sbs' tmn') (l1, B2') /\
-                                  nth_error lb1 n = Some (l1, stmts_intro ps' sbs' tmn') /\
-                                  nth_error lb2 n = Some (l1, B2') /\
-                                  lookupBlockViaLabelFromFdef (fdef_intro fh2 lb2) l1 = 
-                                    Some B2') as J.
-        eapply lookup_tv_fdef__tv_block; eauto.
-      destruct J as [B2' [n [J1 [J2 [J3 J4]]]]].
-      exists (if isGVZero TD c then l2 else l1, B2'). exists n. 
-      split. rewrite <- HeqR. auto.
-      split; auto. 
-      split. rewrite <- HeqR. auto.
-        destruct B2' as [ps2' sbs2' tmn2'].
-        eapply dbBranch; eauto.
-          rewrite <- HeqR. auto.
-          rewrite <- HeqR. erewrite <- tv_switchToNewBasicBlock; eauto.
-
-    assert (exists B2', exists n, tv_block (l0, stmts_intro ps' sbs' tmn') (l0, B2') /\
-                                  nth_error lb1 n = Some (l0, stmts_intro ps' sbs' tmn') /\
-                                  nth_error lb2 n = Some (l0, B2') /\
-                                  lookupBlockViaLabelFromFdef (fdef_intro fh2 lb2) l0 = Some B2') as J.
-      eapply lookup_tv_fdef__tv_block; eauto.
-    destruct J as [B2' [n [J1 [J2 [J3 J4]]]]].
-    exists (l0, B2'). exists n. split; auto. split; auto. split; auto.
-    destruct B2' as [ps2' sbs2' tmn2'].
-    apply dbBranch_uncond; auto.
-      erewrite <- tv_switchToNewBasicBlock; eauto.
-Qed.
-
+(* Properties of tv_products *)
 Lemma tv_products__lookupFdefViaIDFromProducts :
   forall Ps1 Ps2 fid fa rt la va lb1,
   tv_products Ps1 Ps2 ->
@@ -424,7 +344,8 @@ Proof.
     apply tv_products__lookupFdecViaIDFromProducts; auto.
 Qed.
 
-Lemma productInSystemModuleB_nth_error__blockInSystemModuleFdef : 
+(* Properties of infrastructure *)
+Lemma productInSystemModuleB_nth_error__blockInSystemModuleFdef' : 
   forall fh lb S los nts Ps n B,
   productInSystemModuleB (product_fdef (fdef_intro fh lb)) S 
     (module_intro los nts Ps) ->
@@ -432,13 +353,96 @@ Lemma productInSystemModuleB_nth_error__blockInSystemModuleFdef :
   blockInSystemModuleFdef B S (module_intro los nts Ps) (fdef_intro fh lb).
 Proof.
   intros.
-  apply productInSystemModuleB_inv in H.
-  destruct H.
-  apply blockInSystemModuleFdef_intro; auto.
-  unfold blockInFdefB.
-  eapply nth_error__InBlocksB; eauto.
+  eapply productInSystemModuleB_nth_error__blockInSystemModuleFdef; 
+    eauto using nth_error_In.
 Qed.
 
+(* Correctness of the cmds validator *)
+
+Lemma tv_cmds__is__correct : forall TD nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 tr,
+  uniq lc1 ->
+  wf_nbranchs nbs' ->
+  tv_cmds nbs nbs' ->
+  dbCmds TD gl lc1 als1 Mem1 (nbranchs2cmds nbs) lc2 als2 Mem2 tr ->
+  exists slc,
+    dbCmds TD gl lc1 als1 Mem1 (nbranchs2cmds nbs') slc als2 Mem2 tr /\
+    eqAL _ slc lc2.
+Proof.
+  intros TD nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 tr Huniqc Wf Htv_cmds HdbCmds.
+  assert (Uniqs:=HdbCmds).
+  apply se_dbCmds_preservation in Uniqs; auto.
+  apply op_cmds__satisfy__se_cmds in HdbCmds; auto.
+  sumbool_simpl.
+  rewrite Htv_cmds in HdbCmds.
+  apply se_cmds__denote__op_cmds; auto.
+Qed.
+
+(* Correctness of the terminator validator *)
+Lemma tv_terminator__is__correct : forall TD M fh1 lb1 fh2 lb2 B1 B2 lc gl tmn
+    B1' lc' tr,
+  uniqFdef (fdef_intro fh1 lb1) ->
+  uniqFdef (fdef_intro fh2 lb2) ->
+  tv_fdef (fdef_intro fh1 lb1) (fdef_intro fh2 lb2) ->
+  tv_block B1 B2 ->
+  dbTerminator TD M (fdef_intro fh1 lb1) gl B1 lc tmn B1' lc' tr ->
+  exists B2', exists n,
+    tv_block B1' B2' /\
+    nth_error lb1 n = Some B1' /\
+    nth_error lb2 n = Some B2' /\
+    dbTerminator TD M (fdef_intro fh2 lb2) gl B2 lc tmn B2' lc' tr.
+Proof.
+  intros TD M fh1 lb1 fh2 lb2 B1 B2 lc gl tmn B1' lc' tr HuniqF1 HuniqF2 Htv_fdef
+    Htv_block HdbTerminator.
+  assert (uniqBlocks lb1) as Huniqlb1. destruct fh1. inversion HuniqF1; auto.
+  assert (uniqBlocks lb2) as Huniqlb2. destruct fh2. inversion HuniqF2; auto.
+  inversion HdbTerminator; subst.
+    remember (isGVZero TD c) as R.
+    destruct R; subst.
+      assert (exists B2', exists n, tv_block (l2, stmts_intro ps' sbs' tmn') (l2, B2') /\
+                                  nth_error lb1 n = Some (l2, stmts_intro ps' sbs' tmn') /\
+                                  nth_error lb2 n = Some (l2, B2') /\
+                                  lookupBlockViaLabelFromFdef (fdef_intro fh2 lb2) l2 = 
+                                    Some B2') as J.
+        eapply lookup_tv_fdef__tv_block; eauto.
+      destruct J as [B2' [n [J1 [J2 [J3 J4]]]]].
+      exists (if isGVZero TD c then l2 else l1, B2'). exists n. 
+      split. rewrite <- HeqR. auto.
+      split; auto. 
+      split. rewrite <- HeqR. auto.
+        destruct B2' as [ps2' sbs2' tmn2'].
+        eapply dbBranch; eauto.
+          rewrite <- HeqR. auto.
+          rewrite <- HeqR. erewrite <- tv_switchToNewBasicBlock; eauto.
+
+      assert (exists B2', exists n, tv_block (l1, stmts_intro ps' sbs' tmn') (l1, B2') /\
+                                  nth_error lb1 n = Some (l1, stmts_intro ps' sbs' tmn') /\
+                                  nth_error lb2 n = Some (l1, B2') /\
+                                  lookupBlockViaLabelFromFdef (fdef_intro fh2 lb2) l1 = 
+                                    Some B2') as J.
+        eapply lookup_tv_fdef__tv_block; eauto.
+      destruct J as [B2' [n [J1 [J2 [J3 J4]]]]].
+      exists (if isGVZero TD c then l2 else l1, B2'). exists n. 
+      split. rewrite <- HeqR. auto.
+      split; auto. 
+      split. rewrite <- HeqR. auto.
+        destruct B2' as [ps2' sbs2' tmn2'].
+        eapply dbBranch; eauto.
+          rewrite <- HeqR. auto.
+          rewrite <- HeqR. erewrite <- tv_switchToNewBasicBlock; eauto.
+
+    assert (exists B2', exists n, tv_block (l0, stmts_intro ps' sbs' tmn') (l0, B2') /\
+                                  nth_error lb1 n = Some (l0, stmts_intro ps' sbs' tmn') /\
+                                  nth_error lb2 n = Some (l0, B2') /\
+                                  lookupBlockViaLabelFromFdef (fdef_intro fh2 lb2) l0 = Some B2') as J.
+      eapply lookup_tv_fdef__tv_block; eauto.
+    destruct J as [B2' [n [J1 [J2 [J3 J4]]]]].
+    exists (l0, B2'). exists n. split; auto. split; auto. split; auto.
+    destruct B2' as [ps2' sbs2' tmn2'].
+    apply dbBranch_uncond; auto.
+      erewrite <- tv_switchToNewBasicBlock; eauto.
+Qed.
+
+(* Correctness of the validator *)
 Definition tv_dbCall__is__correct_prop S1 TD Ps1 fs gl lc Mem0 call0 lc' Mem' tr
   (db:dbCall S1 TD Ps1 fs gl lc Mem0 call0 lc' Mem' tr) :=
   forall S2 Ps2 los nts,
@@ -799,7 +803,7 @@ Case "dbBlocks_cons".
     destruct B' as [l3 [ps3 cs3 tmn3]].
     assert (uniq lc4) as Uniqc4.
       apply se_dbBlock_preservation in d;
-        eauto using productInSystemModuleB_nth_error__blockInSystemModuleFdef.
+        eauto using productInSystemModuleB_nth_error__blockInSystemModuleFdef'.
       destruct d as [L _]; auto.
     eapply H0 with (S2:=S0)(Ps2:=Ps2)(fh2:=fh1)(fh3:=fh2)(n:=n')(tmn1:=tmn3) (lc:=lc4)
       (l1:=l3)(ps1:=ps3)(cs1:=cs3)(ps1'0:=ps1')(l1'0:=l1')(als:=als3)(lc'0:=lc')
@@ -886,7 +890,7 @@ Case "dbFdef_func".
       assert (uniq lc1) as Uniqc1.
         apply se_dbBlocks_preservation in d; auto.
           destruct d as [U1 _]; auto.
-          apply productInSystemModuleB_nth_error__blockInSystemModuleFdef with (n:=0);
+          apply productInSystemModuleB_nth_error__blockInSystemModuleFdef' with (n:=0);
             eauto using lookupFdefViaPtrInSystem.
       assert (wf_subblocks sbs2 /\ wf_nbranchs nbs2) as J.
         apply uniqCmds___wf_subblocks_wf_nbranchs with (cs:=cs41++cs42); auto.
@@ -901,7 +905,7 @@ Case "dbFdef_func".
           destruct J2 as [n J2].
           apply uniqFdef__uniqBlock' with (n:=n)(l1:=l2')(ps1:=ps2')(cs1:=cs41++cs42)(tmn1:=insn_return rid rt Result) in J5; auto.
 
-          eapply productInSystemModuleB_nth_error__blockInSystemModuleFdef;
+          eapply productInSystemModuleB_nth_error__blockInSystemModuleFdef';
             eauto using lookupFdefViaPtrInSystem.
       destruct J as [wf_sbs2 wf_nbs2].
       eapply H0 with (S2:=S2)(Ps2:=Ps2)(cs2:=cs41) in Htv_subblocks; eauto.
@@ -994,7 +998,7 @@ Case "dbFdef_proc".
       assert (uniq lc1) as Uniqc1.
         apply se_dbBlocks_preservation in d; auto.
           destruct d as [U1 _]; auto.
-          apply productInSystemModuleB_nth_error__blockInSystemModuleFdef with (n:=0);
+          apply productInSystemModuleB_nth_error__blockInSystemModuleFdef' with (n:=0);
             eauto using lookupFdefViaPtrInSystem.
       assert (wf_subblocks sbs2 /\ wf_nbranchs nbs2) as J.
         apply uniqCmds___wf_subblocks_wf_nbranchs with (cs:=cs41++cs42); auto.
@@ -1009,7 +1013,7 @@ Case "dbFdef_proc".
           destruct J2 as [n J2].
           apply uniqFdef__uniqBlock' with (n:=n)(l1:=l2')(ps1:=ps2')(cs1:=cs41++cs42)(tmn1:=insn_return_void rid) in J5; auto.
 
-          eapply productInSystemModuleB_nth_error__blockInSystemModuleFdef;
+          eapply productInSystemModuleB_nth_error__blockInSystemModuleFdef';
             eauto using lookupFdefViaPtrInSystem.
       destruct J as [wf_sbs2 wf_nbs2].
       eapply H0 with (S2:=S2)(Ps2:=Ps2)(cs2:=cs41) in Htv_subblocks; eauto.

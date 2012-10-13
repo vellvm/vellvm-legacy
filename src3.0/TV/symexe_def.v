@@ -7,7 +7,7 @@ Require Import CoqListFacts.
 Require Import Coqlib.
 
 (***************************************************************)
-(* Syntax easy to be proved with symbolic execution. *)
+(* This file defines the semantics easy to prove symbolic execution. *)
 
 Module SimpleSE.
 
@@ -17,25 +17,28 @@ Definition DGVMap := @GVsMap DGVs.
 Hint Unfold DGVMap.
 
 (***************************************************************)
-(* deterministic big-step for this new syntax with subblocks. *)
+(* The symbolic execution computes programs intraprocedually in terms of 
+   subblocks that are separated by function calls. We define deterministic 
+   big-step w.r.t subblocks and function calls to match symbolic execution. *)
 
+(* Frames *)
 Record ExecutionContext : Type := mkEC {
 CurBB       : block;
 Locals      : DGVMap;                (* LLVM values used in this invocation *)
 Allocas     : list mblock            (* Track memory allocated by alloca *)
 }.
-
+(* Stacks *)
 Record State : Type := mkState {
 Frame          : ExecutionContext;
 Mem            : mem
 }.
-
+(* Check if i is a call command. *)
 Definition isCall (i:cmd) : bool :=
 match i with
 | insn_call _ _ _ _ _ _ _ => true
 | _ => false
 end.
-
+(* Rules for non-call commands. *)
 Inductive dbCmd : TargetData -> GVMap ->
                   DGVMap -> list mblock -> mem ->
                   cmd ->
@@ -170,7 +173,7 @@ Inductive dbCmd : TargetData -> GVMap ->
      else updateAddAL _ lc id gv1) als Mem
     E0
 .
-
+(* Rules for terminators. *)
 Inductive dbTerminator :
   TargetData -> mem -> fdef -> GVMap ->
   block -> (@GVsMap DGVs) ->
@@ -201,7 +204,7 @@ Inductive dbTerminator :
     (l, stmts_intro ps' sbs' tmn') lc'
     E0
 .
-
+(* Rules for a list of commands. *)
 Inductive dbCmds : TargetData -> GVMap ->
                    DGVMap -> list mblock -> mem ->
                    cmds ->
@@ -215,6 +218,8 @@ Inductive dbCmds : TargetData -> GVMap ->
     dbCmds TD gl lc2 als2 Mem2 cs lc3 als3 Mem3 t2 ->
     dbCmds TD gl lc1 als1 Mem1 (c::cs) lc3 als3 Mem3 (Eapp t1 t2).
 
+(* Rules for call commands, subblocks, 
+   blocks (label phinodes subblock* terminator), and functions. *)
 Inductive dbCall : system -> TargetData -> list product -> GVMap ->
                    GVMap -> DGVMap -> mem ->
                    cmd ->
@@ -375,13 +380,14 @@ Hint Constructors dbCmd dbCmds dbTerminator dbCall
                   dbSubblock dbSubblocks dbBlock dbBlocks dbFdef.
 
 (***************************************************************)
-(** LLVM.syntax -> Symexe.syntax *)
+(** Define the syntax for subblocks *)
 
+(* Commands that are not calls. *)
 Record nbranch := mkNB
 { nbranching_cmd:cmd;
   notcall:isCall nbranching_cmd = false
 }.
-
+(* subblock ::= nbranch* call *)
 Record subblock := mkSB
 {
   NBs : list nbranch;
@@ -389,6 +395,7 @@ Record subblock := mkSB
   call_cmd_isCall : isCall call_cmd = true
 }.
 
+(* Convert a list of commnds to (subblock* nbranch* ) *)
 Lemma isCall_dec : forall c,
   {isCall c = false} + {isCall c = true}.
 Proof.
@@ -412,19 +419,33 @@ match cs with
     end
   end
 end.
-
+(* Convert a list of nbranches to a list of commands. *)
 Fixpoint nbranchs2cmds (nbs:list nbranch) : list cmd :=
 match nbs with
 | nil => nil
 | (mkNB c nc)::nbs' =>c::nbranchs2cmds nbs'
 end.
-
+(* Convert a command to a nbranch if it is not a call. *)
 Definition cmd2nbranch (c:cmd) : option nbranch :=
 match (isCall_dec c) with
 | left H => Some (mkNB c H)
 | right _ => None
 end.
 
+(* Convert commands to nbranchs if they are not calls. 
+   This may not work sometimes. This function creates a proof
+   that a cmd is not a call, which can only be proved to equal to
+   the same proof in the context by proof-irrevelance axiom. *)
+Fixpoint cmds2nbranchs (cs:list cmd) : option (list nbranch) :=
+match cs with
+| nil => Some nil
+| c::cs' =>
+  match (cmd2nbranch c, cmds2nbranchs cs') with
+  | (Some nb, Some nbs') => Some (nb::nbs')
+  | _ => None
+  end
+end.
+(* Inversion of dbCmd and dbCmds: they only work for nbranches. *)
 Lemma dbCmd_isNotCallInst : forall TD lc als gl Mem1 c lc' als' Mem2 tr,
   dbCmd TD gl lc als Mem1 c lc' als' Mem2 tr ->
   isCall c = false.
@@ -445,19 +466,6 @@ Proof.
     rewrite H in e. inversion e.
 Qed.
 
-(* This may not work sometimes. This function creates a proof
-   that a cmd is not a call, which can only be proved to eual to
-   the same proof in the context by proof-irrevelance axiom. *)
-Fixpoint cmds2nbranchs (cs:list cmd) : option (list nbranch) :=
-match cs with
-| nil => Some nil
-| c::cs' =>
-  match (cmd2nbranch c, cmds2nbranchs cs') with
-  | (Some nb, Some nbs') => Some (nb::nbs')
-  | _ => None
-  end
-end.
-
 Definition dbCmds2nbranchs : forall cs TD lc als gl Mem1 lc' als' Mem2 tr,
   dbCmds TD gl lc als Mem1 cs lc' als' Mem2 tr ->
   exists nbs, cmds2nbranchs cs = Some nbs.
@@ -476,13 +484,13 @@ Proof.
     rewrite J2.
     auto.
 Qed.
-
+(* well-formed nbranches must be unique. *)
 Inductive wf_nbranchs : list nbranch -> Prop :=
 | wf_nbranchs_intro : forall cs nbs,
   cmds2sbs cs = (nil, nbs) ->
   NoDup (getCmdsLocs cs) ->
   wf_nbranchs nbs.
-
+(* well-formed subblocks and blocks *)
 Inductive wf_subblock : subblock -> Prop :=
 | wf_subblock_intro : forall nbs call0 iscall0,
   wf_nbranchs nbs ->
@@ -505,7 +513,8 @@ Inductive wf_block : block -> Prop :=
 Hint Constructors wf_subblocks.
 
 (***************************************************************)
-(** symbolic terms and memories. *)
+(** symbolic nbranch: sterm,     symbolic nbranches: sterms
+    symbolic memories: smem,     symbolic frame: sframe *)
 
 Inductive sterm : Set :=
 | sterm_val : value -> sterm
@@ -559,6 +568,7 @@ Definition se_mutrec P1 P2 P3 P4 P5:=
             (@smem_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
       (@sframe_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28)).
 
+(* List operations: map, make, unmake, nth, app *)
 Fixpoint map_list_sterm (A:Set) (f:sz->sterm->A) (l0:list_sterm) {struct l0}
   : list A :=
   match l0 with
@@ -631,6 +641,7 @@ Fixpoint app_list_sterm_l (l0 m:list_sterm_l) {struct l0} : list_sterm_l :=
       Cons_list_sterm_l h0 h1 (app_list_sterm_l tl_ m)
   end.
 
+(* symbolic terminators *)
 Inductive sterminator : Set :=
 | stmn_return : id -> typ -> sterm -> sterminator
 | stmn_return_void : id -> sterminator
@@ -639,8 +650,10 @@ Inductive sterminator : Set :=
 | stmn_unreachable : id -> sterminator
 .
 
+(* symbolic locals *)
 Definition smap := list (atom*sterm).
 
+(* symbolic program states *)
 Record sstate : Set := mkSstate
 {
   STerms : smap;
@@ -649,8 +662,10 @@ Record sstate : Set := mkSstate
   SEffects : list sterm
 }.
 
+(* symbolic initial program states *)
 Definition sstate_init := mkSstate nil smem_init sframe_init nil.
 
+(* Convert values to sterms *)
 Fixpoint lookupSmap (sm:smap) (i0:id) : sterm :=
 match sm with
 | nil => (sterm_val (value_id i0))
@@ -664,6 +679,7 @@ match v with
 | value_id i0 => lookupSmap sm i0
 end.
 
+(* Convert parameters to sterms *)
 Fixpoint list_param__list_typ_subst_sterm (list_param1:params) (sm:smap)
   : list (typ*attributes*sterm) :=
 match list_param1 with
@@ -672,7 +688,7 @@ match list_param1 with
     ((t, attr), (value2Sterm sm v))::
       (list_param__list_typ_subst_sterm list_param1' sm)
 end.
-
+(* Interprete calls *)
 Definition se_call : forall i id0 noret0 tailc0 rt1 va1 fv lp,
   i=insn_call id0 noret0 tailc0 rt1 va1 fv lp ->
   isCall i = false ->
@@ -681,7 +697,7 @@ Proof.
   intros; subst. simpl in H0.
   destruct fv; inversion H0.
 Defined.
-
+(* Interprete non-call commands *)
 Definition se_cmd (st : sstate) (c:nbranch) : sstate :=
 match c with
 | mkNB i notcall =>
@@ -821,6 +837,7 @@ match c with
   end) (@refl_equal _ i)
 end.
 
+(* Interprete non-call phinodes *)
 Fixpoint _se_phinodes (st st0: sstate) (ps:list phinode) : sstate :=
 match ps with
 | nil => st
@@ -847,12 +864,14 @@ end.
 
 Fixpoint se_phinodes (st: sstate) (ps:list phinode) := _se_phinodes st st ps.
 
+(* Interprete a list of nbranches *)
 Fixpoint se_cmds (st : sstate) (cs:list nbranch) : sstate :=
 match cs with
 | nil => st
 | c::cs' => se_cmds (se_cmd st c) cs'
 end.
 
+(* Interprete terminators *)
 Definition se_terminator (st : sstate) (i:terminator) : sterminator :=
 match i with
 | insn_return id0 t0 v0 => stmn_return id0 t0 (value2Sterm st.(STerms) v0)
@@ -863,8 +882,8 @@ match i with
 end.
 
 (***************************************************************)
-(* Denotational semantics of symbolic exe *)
 
+(* Symbolic sterm and smem denote generic values and memory states. *)
 Inductive sterm_denotes_genericvalue :
    TargetData ->            (* CurTatgetData *)
    DGVMap ->                (* local registers *)
@@ -997,6 +1016,7 @@ with smem_denotes_mem :
   smem_denotes_mem TD lc gl Mem0 (smem_store sm0 t0 st1 st2 align0) Mem2
 .
 
+(* Symbolic frames denote frames. *)
 Inductive sframe_denotes_frame :
    TargetData ->            (* CurTatgetData *)
    DGVMap ->                (* local registers *)
@@ -1017,6 +1037,7 @@ Inductive sframe_denotes_frame :
   sframe_denotes_frame TD lc gl als0 Mem0 (sframe_alloca sm0 sf0 t0 st0 align0) (mb::als1)
 .
 
+(* Symbolic effects denote traces. *)
 Inductive seffects_denote_trace :
    list sterm ->            (* symbolic effects *)
    trace ->                 (* trace that denotes seffects *)
@@ -1036,6 +1057,7 @@ Combined Scheme sd_mutind from sterm_denotes_genericvalue_ind2,
                                sterms_denote_genericvalues_ind2,
                                smem_denotes_mem_ind2.
 
+(* Symbolic locals denote real locals. *)
 Definition smap_denotes_gvmap TD lc gl Mem smap' lc' :=
 (forall id',
   id' `in` dom smap' `union` dom lc ->
@@ -1047,6 +1069,7 @@ Definition smap_denotes_gvmap TD lc gl Mem smap' lc' :=
   sterm_denotes_genericvalue TD lc gl Mem (lookupSmap smap' id') gv'
 ).
 
+(* Symbolic states denote real states. *)
 Definition sstate_denotes_state TD lc gl als Mem sstate' lc' als' mem' tr :=
 smap_denotes_gvmap TD lc gl Mem sstate'.(STerms) lc' /\
 smem_denotes_mem TD lc gl Mem sstate'.(SMem) mem' /\

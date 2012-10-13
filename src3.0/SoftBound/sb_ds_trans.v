@@ -12,6 +12,7 @@ Require Import Metatheory.
 Require Import Znumtheory.
 Require Import sb_def.
 
+(* This file implements the SoftBound pass. *)
 Module SB_ds_pass.
 
 Import LLVMsyntax.
@@ -19,8 +20,6 @@ Import LLVMinfra.
 Import LLVMgv.
 Export SBspecAux.
 
-(********************************************)
-(** syntax *)
 Definition i32 := typ_int Size.ThirtyTwo.
 Definition i1 := typ_int Size.One.
 Definition pp8 := typ_pointer p8.
@@ -33,6 +32,7 @@ Definition vnullp32 := value_const (const_null p32).
 Definition int0 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 0%Z false).
 Definition vint0 := value_const int0.
 
+(* We first define the signatures of external functions that Softbound uses. *)
 Parameter assert_fid : id.
 Parameter fake_id : id.
 Parameter gmb_fid : id.
@@ -53,6 +53,8 @@ Definition assert_typ : typ := typ_void.
         (Cons_list_typ i32
         (Cons_list_typ i32 Nil_list_typ))))) None. *)
 
+(* assert_fn b e p sz _ checks if p with type size sz is within 
+     the memory raneg [b, e). *)
 Definition assert_fn : value :=
   value_const (const_gid assert_typ assert_fid).
 
@@ -63,6 +65,7 @@ Definition gmb_typ : typ := p8.
         (Cons_list_typ i32
         (Cons_list_typ p32 Nil_list_typ)))) None. *)
 
+(* gmb_fn p returns the base of pointer stored at p. *)
 Definition gmb_fn : value :=
   value_const (const_gid gmb_typ gmb_fid).
 
@@ -73,6 +76,7 @@ Definition gme_typ : typ := p8.
         (Cons_list_typ i32
         (Cons_list_typ p32 Nil_list_typ)))) None. *)
 
+(* gme_fn p returns the bound of pointer stored at p. *)
 Definition gme_fn : value :=
   value_const (const_gid gme_typ gme_fid).
 
@@ -85,6 +89,7 @@ Definition smmd_typ : typ := typ_void.
         (Cons_list_typ i32
         (Cons_list_typ i32 Nil_list_typ)))))) None. *)
 
+(* smmd_fn p b e sets [b, e) as metadata for the pointer stored at p. *)
 Definition smmd_fn : value :=
   value_const (const_gid smmd_typ smmd_fid).
 
@@ -93,6 +98,7 @@ Definition ssb_typ : typ := typ_void.
         (Cons_list_typ p8
         (Cons_list_typ i32 Nil_list_typ)) None. *)
 
+(* ssb_fn b idx sets b as the base of the idx-th parameter of a function. *)
 Definition ssb_fn : value :=
   value_const (const_gid ssb_typ ssb_fid).
 
@@ -101,30 +107,36 @@ Definition sse_typ : typ := typ_void.
         (Cons_list_typ p8
         (Cons_list_typ i32 Nil_list_typ)) None. *)
 
+(* sse_fn e idx sets e as the bound of the idx-th parameter of a function. *)
 Definition sse_fn : value :=
   value_const (const_gid sse_typ sse_fid).
 
 Definition gsb_typ : typ := p8.
  (* typ_function p8 (Cons_list_typ i32 Nil_list_typ) None. *)
 
+(* gsb_fn idx returns the base of the idx-th parameter of a function. *)
 Definition gsb_fn : value :=
   value_const (const_gid gsb_typ gsb_fid).
 
 Definition gse_typ  : typ := p8.
  (* typ_function p8 (Cons_list_typ i32 Nil_list_typ) None. *)
 
+(* gse_fn idx returns the bound of the idx-th parameter of a function. *)
 Definition gse_fn : value :=
   value_const (const_gid gse_typ gse_fid).
 
 Definition astk_typ : typ := typ_void.
  (* typ_function typ_void (Cons_list_typ i32 Nil_list_typ) None. *)
 
+(* astk_fn sz allocates argument metadata space in terms of sz---the number of 
+   a call's inputs. *)
 Definition astk_fn : value :=
   value_const (const_gid astk_typ astk_fid).
 
 Definition dstk_typ : typ := typ_void.
  (* typ_function typ_void Nil_list_typ None. *)
 
+(* dstk_fn deallocates metadata space for arguments. *)
 Definition dstk_fn : value :=
   value_const (const_gid dstk_typ dstk_fid).
 

@@ -30,9 +30,8 @@ Import LLVMinfra.
 Import LLVMtypings.
 Import SB_ds_pass.
 
-(* Simulation *)
-
-Definition DGVMap := @Opsem.GVsMap DGVs.
+(* This file defines the simulation relations between an original program
+   and its transformed program. *)
 
 Definition reg_simulation (mi:MoreMem.meminj) TD gl (F:fdef)
   (rm1:SBspecAux.rmetadata) (rm2:rmap) (lc1 lc2:DGVMap) : Prop :=

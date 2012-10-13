@@ -2,6 +2,7 @@ Require Import vellvm.
 Require Import genericvalues.
 Require Import sb_def.
 
+(* This file proves the properties of metadata. *)
 Module SBspecMetadata.
 
 Export SBspec.
@@ -11,7 +12,7 @@ Section SBspecMetadata.
 Context {GVsSig : GenericValues}.
 
 (*****************************************)
-(* misc *)
+(* Properties of updateValuesForNewBlock *)
 
 Lemma updateValuesForNewBlock_spec4 : forall rvs lc x rm lc' rm' md,
   lookupAL _ rm x = None ->
@@ -65,32 +66,6 @@ Proof.
      eapply IHrvs in HeqR; eauto.
      destruct HeqR as [J1 | [id1 [gv1 HeqR]]]; auto.
        right. exists id1. exists gv1. auto.
-Qed.
-
-Lemma getIncomingValuesForBlockFromPHINodes_spec : forall ps TD b gl lc id1
-    rm re gv1 opmd1,
-  Some re = @getIncomingValuesForBlockFromPHINodes GVsSig TD ps b gl lc rm ->
-  In (id1, gv1, opmd1) re ->
-  In id1 (getPhiNodesIDs ps).
-Proof.
-  induction ps; intros; simpl in *.
-    inv H. inversion H0.
-
-    destruct a as [? t l0].
-    destruct (getValueViaBlockFromValuels l0 b); try solve [inversion H].
-    destruct (getOperandValue TD v lc gl); try solve [inversion H].
-    remember (getIncomingValuesForBlockFromPHINodes TD ps b gl lc rm) as R.
-    destruct R; try solve [inv H].
-    simpl.
-    destruct (isPointerTypB t); inv H.
-      destruct (get_reg_metadata TD gl rm v) as [[md mt]|]; inv H2.
-      simpl in H0.
-      destruct H0 as [H0 | H0]; eauto.
-        inv H0; auto.
-
-      simpl in H0.
-      destruct H0 as [H0 | H0]; eauto.
-        inv H0; auto.
 Qed.
 
 Lemma updateValuesForNewBlock_spec1 : forall rvs lc x rm lc' rm' gv,
@@ -170,6 +145,34 @@ Proof.
         eapply IHrvs in HeqR; eauto.
 Qed.
 
+(* Properties of getIncomingValuesForBlockFromPHINodes *)
+Lemma getIncomingValuesForBlockFromPHINodes_spec : forall ps TD b gl lc id1
+    rm re gv1 opmd1,
+  Some re = @getIncomingValuesForBlockFromPHINodes GVsSig TD ps b gl lc rm ->
+  In (id1, gv1, opmd1) re ->
+  In id1 (getPhiNodesIDs ps).
+Proof.
+  induction ps; intros; simpl in *.
+    inv H. inversion H0.
+
+    destruct a as [? t l0].
+    destruct (getValueViaBlockFromValuels l0 b); try solve [inversion H].
+    destruct (getOperandValue TD v lc gl); try solve [inversion H].
+    remember (getIncomingValuesForBlockFromPHINodes TD ps b gl lc rm) as R.
+    destruct R; try solve [inv H].
+    simpl.
+    destruct (isPointerTypB t); inv H.
+      destruct (get_reg_metadata TD gl rm v) as [[md mt]|]; inv H2.
+      simpl in H0.
+      destruct H0 as [H0 | H0]; eauto.
+        inv H0; auto.
+
+      simpl in H0.
+      destruct H0 as [H0 | H0]; eauto.
+        inv H0; auto.
+Qed.
+
+(* Properties of initializeFrameValues *)
 Lemma initializeFrameValues_spec1 : forall TD la lc1 rm1 x md lc2 rm2,
   lookupAL _ rm1 x = Some md ->
   Some (lc2, rm2) = @_initializeFrameValues GVsSig TD la nil lc1 rm1 ->
@@ -344,8 +347,10 @@ Proof.
 Qed.
 
 (*****************************************)
-(* wf_data *)
-
+(* well-formedness of metadata: the memory range indicates by metadata must be 
+   valid. Note that SoftBound only ensures spatial safety, but not temporal 
+   safety. So, the metadata only needs to ensure that a range has been 
+   allocated, although the range can be destructed when being accessed. *)
 Definition blk_temporal_safe M b : Prop :=
 let (lo, _) := Mem.bounds M b in
 Mem.perm M b lo Nonempty.
