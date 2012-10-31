@@ -2441,12 +2441,12 @@ Qed.
 (*************************************)
 (* find_init_stld and find_next_stld *)
 
-Lemma find_init_stld_inr_spec: forall pinfo v cs cs0 dones
- (H: ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones),
+Lemma find_init_stld_inr_spec: forall pid v cs cs0 dones
+ (H: ret inr (v, cs) = find_init_stld cs0 pid dones),
  exists cs1, exists ty, exists num, exists al,
    v = value_const (const_undef ty) /\
    cs0 = cs1 ++
-          insn_alloca (PI_id pinfo) ty num al :: cs.
+          insn_alloca pid ty num al :: cs.
 Proof.
   induction cs0; simpl; intros.
     congruence.
@@ -2473,11 +2473,11 @@ end.
       repeat (destruct_if; try solve [find_init_stld_inr_spec_tac]).
 Qed.
 
-Lemma find_init_stld_inl_spec: forall pinfo i0 v cs cs0 dones
- (H: ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones),
+Lemma find_init_stld_inl_spec: forall pid i0 v cs cs0 dones
+ (H: ret inl (i0, v, cs) = find_init_stld cs0 pid dones),
  exists cs1, exists ty, exists al,
    cs0 = cs1 ++
-         insn_store i0 ty v (value_id (PI_id pinfo)) al :: cs.
+         insn_store i0 ty v (value_id pid) al :: cs.
 Proof.
   induction cs0; simpl; intros.
     congruence.
@@ -2517,12 +2517,12 @@ match goal with
   end
 end.
 
-Lemma find_next_stld_inl_spec: forall pinfo i1 cs
- (H: ret inl i1 = find_next_stld cs (PI_id pinfo)),
+Lemma find_next_stld_inl_spec: forall pid i1 cs
+ (H: ret inl i1 = find_next_stld cs pid),
  exists cs1, exists cs2, exists ty, exists al,
    cs = cs1 ++
-          insn_load i1 ty (value_id (PI_id pinfo)) al :: cs2 /\
-   store_in_cmds (PI_id pinfo) cs1 = false.
+          insn_load i1 ty (value_id pid) al :: cs2 /\
+   store_in_cmds pid cs1 = false.
 Proof.
   induction cs; simpl; intros.
     congruence.
@@ -2547,12 +2547,12 @@ Proof.
             destruct_dec. 
 Qed.
 
-Lemma find_next_stld_inr_spec: forall pinfo i1 v0 cs
- (H: ret inr (i1, v0) = find_next_stld cs (PI_id pinfo)),
+Lemma find_next_stld_inr_spec: forall pid i1 v0 cs
+ (H: ret inr (i1, v0) = find_next_stld cs pid),
  exists cs1, exists cs2, exists ty, exists al,
    cs = cs1 ++
-          insn_store i1 ty v0 (value_id (PI_id pinfo)) al :: cs2 /\
-   load_in_cmds (PI_id pinfo) cs1 = false.
+          insn_store i1 ty v0 (value_id pid) al :: cs2 /\
+   load_in_cmds pid cs1 = false.
 Proof.
   induction cs; simpl; intros.
     congruence.
@@ -2576,4 +2576,3 @@ Proof.
       exists nil. exists cs. exists typ5. exists align5.
       split; auto.
 Qed.
-

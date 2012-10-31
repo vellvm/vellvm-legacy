@@ -525,7 +525,7 @@ Proof.
   unfold wf_alloca_GVs in *.
   destruct H as [J4 [[mb [J11 [J12 [J13 J14]]]] [J2 J3]]]; subst.
   assert (~ In mb als) as Hnotin.
-    eapply alist.NoDup_disjoint; eauto.
+    eapply NoDup_disjoint; eauto.
   split.
     eapply free_allocas_preserves_encode_decode_ident; eauto.
   split.
@@ -3332,4 +3332,3 @@ Proof.
 Qed.
 
 End Promotability.
-

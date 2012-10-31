@@ -537,6 +537,37 @@ match f with
 end.
 
 (**************************************************************)
+(* Check if there exists id' that is an alloca                *)
+Definition alloca_in_cmd (id':id) (c:cmd) : bool :=
+match c with
+| insn_alloca qid _ _ _ => id_dec id' qid
+| _ => false
+end.
+
+Definition alloca_in_cmds (id':id) (cs:cmds) : bool :=
+(List.fold_left (fun re c => re || alloca_in_cmd id' c) cs false).
+
+(***************************************************************)
+
+Lemma subst_pres_getCmdLoc: forall id' v' c,
+  getCmdLoc c = getCmdLoc (subst_cmd id' v' c).
+Proof.
+  destruct c; simpl; auto.
+Qed.
+
+(**************************************************************)
+Lemma alloca_in_cmds_merge: forall i0 cs1 cs2,
+  alloca_in_cmds i0 cs1 = false /\ alloca_in_cmds i0 cs2 = false ->
+  alloca_in_cmds i0 (cs1++cs2) = false.
+Proof.
+  unfold alloca_in_cmds.
+  intros.
+  rewrite fold_left_app.
+  destruct H as [H1 H2].
+  rewrite H1. auto.
+Qed.
+
+(**************************************************************)
 Lemma fdef_sim__lookupAL_stmts : forall f l0 bs sts sts',
   lookupAL _ bs l0 = Some sts ->
   lookupAL _ (List.map (trans_block f) bs) l0 = Some sts' ->
@@ -602,6 +633,80 @@ Proof.
   rewrite fold_left_app.
   destruct H as [H1 H2].
   rewrite H1. auto.
+Qed.
+
+Lemma store_in_cmds_false_cons_inv: forall pid c cs
+  (H: store_in_cmds pid (c::cs) = false),
+  store_in_cmd pid c = false /\ store_in_cmds pid cs = false.
+Proof.
+  unfold store_in_cmds. simpl.
+  intros.
+  apply fold_left_or_false in H.
+    tauto.
+    intros a b H0. apply orb_false_iff in H0. tauto.
+Qed.
+
+Lemma store_in_cmds_false_cons_intro: forall pid c cs
+  (Hst1: store_in_cmd pid c = false) (Hst2: store_in_cmds pid cs = false),
+  store_in_cmds pid (c::cs) = false.
+Proof.
+  unfold store_in_cmds. simpl.
+  intros. rewrite Hst1. auto.
+Qed.
+
+Lemma store_in_cmds_true_cons_intro: forall pid c cs
+  (Hst: store_in_cmd pid c = true \/ store_in_cmds pid cs = true),
+  store_in_cmds pid (c::cs) = true.
+Proof.
+  unfold store_in_cmds. simpl.
+  intros.
+  destruct (store_in_cmd pid c).
+    apply fold_left_or_spec.
+    intros a b H0. subst. auto.
+      
+    destruct Hst as [Hst | Hst]; try congruence.
+Qed.
+
+Lemma filter_pres_store_in_cmds_false: forall check pid cs
+  (Hnld: store_in_cmds pid cs = false),
+  store_in_cmds pid (filter check cs) = false.
+Proof.
+  induction cs as [|c cs]; simpl; intros; auto.
+    apply store_in_cmds_false_cons_inv in Hnld. destruct Hnld.
+    destruct_if.
+      apply store_in_cmds_false_cons_intro; auto.
+Qed.
+
+Lemma in__store_in_cmds: forall id1 t2 v1 al2 pid cs
+  (Hin: In (insn_store id1 t2 v1 (value_id pid) al2) cs),
+  store_in_cmds pid cs = true.
+Proof.
+  induction cs as [|c cs]; simpl; intros.
+    tauto.
+
+    apply store_in_cmds_true_cons_intro.
+    destruct Hin as [Hin | Hin]; subst; auto.
+      left. simpl. destruct_dec.
+Qed.
+
+Lemma subst_pres_store_in_cmd: forall id' v' pid c
+  (Hnused: used_in_value pid v' = false) (Hneq: id' <> pid),
+  store_in_cmd pid c = store_in_cmd pid (subst_cmd id' v' c).
+Proof.
+  intros.
+  destruct c; simpl; auto.
+  destruct value2; simpl; auto.
+  destruct_if. destruct_dec.
+Qed.
+
+Lemma subst_pres_store_in_cmds: forall id' v' pid 
+  (Hnused: used_in_value pid v' = false) (Hneq: id' <> pid) cs,
+  store_in_cmds pid cs = store_in_cmds pid (List.map (subst_cmd id' v') cs).
+Proof.
+  unfold store_in_cmds.
+  intros. generalize false. 
+  induction cs; simpl; auto.
+    rewrite <- subst_pres_store_in_cmd; auto.
 Qed.
 
 (**************************************************************)
@@ -694,6 +799,70 @@ Proof.
         destruct J; auto.
 Qed.
 
+Lemma load_in_cmds_false_cons_inv: forall pid c cs
+  (H: load_in_cmds pid (c::cs) = false),
+  load_in_cmd pid c = false /\ load_in_cmds pid cs = false.
+Proof.
+  unfold load_in_cmds. simpl.
+  intros.
+  apply fold_left_or_false in H.
+    tauto.
+    intros a b H0. apply orb_false_iff in H0. tauto.
+Qed.
+
+Lemma load_in_cmds_false_cons_intro: forall pid c cs
+  (Hld1: load_in_cmd pid c = false) (Hld2: load_in_cmds pid cs = false),
+  load_in_cmds pid (c::cs) = false.
+Proof.
+  unfold load_in_cmds. simpl.
+  intros. rewrite Hld1. auto.
+Qed.
+
+Lemma load_in_cmds_true_cons_intro: forall pid c cs
+  (Hst: load_in_cmd pid c = true \/ load_in_cmds pid cs = true),
+  load_in_cmds pid (c::cs) = true.
+Proof.
+  unfold load_in_cmds. simpl.
+  intros.
+  destruct (load_in_cmd pid c).
+    apply fold_left_or_spec.
+    intros a b H0. subst. auto.
+      
+    destruct Hst as [Hst | Hst]; try congruence.
+Qed.
+
+Lemma filter_pres_load_in_cmds_false: forall check pid cs
+  (Hnld: load_in_cmds pid cs = false),
+  load_in_cmds pid (filter check cs) = false.
+Proof.
+  induction cs as [|c cs]; simpl; intros; auto.
+    apply load_in_cmds_false_cons_inv in Hnld. destruct Hnld.
+    destruct_if.
+      apply load_in_cmds_false_cons_intro; auto.
+Qed.
+
+Lemma in__load_in_cmds: forall id1 t2 al2 pid cs
+  (Hin: In (insn_load id1 t2 (value_id pid) al2) cs),
+  load_in_cmds pid cs = true.
+Proof.
+  induction cs as [|c cs]; simpl; intros.
+    tauto.
+
+    apply load_in_cmds_true_cons_intro.
+    destruct Hin as [Hin | Hin]; subst; auto.
+      left. simpl. destruct_dec.
+Qed.
+
+Lemma subst_pres_load_in_cmd: forall id' v' pid c
+  (Hnused: used_in_value pid v' = false) (Hneq: id' <> pid),
+  load_in_cmd pid c = load_in_cmd pid (subst_cmd id' v' c).
+Proof.
+  intros.
+  destruct c; simpl; auto.
+  destruct value1; simpl; auto.
+  destruct_if. destruct_dec.
+Qed.
+
 (**************************************************************)
 Lemma remove_phinodes_stable: forall id' ps 
   (Hnotin: ~ In id' (getPhiNodesIDs ps)), ps = remove_phinodes id' ps.
@@ -702,6 +871,46 @@ Proof.
     destruct_dec.
       contradict Hnotin. auto.
       simpl. rewrite <- IHps; auto.
+Qed.
+
+Lemma remove_subst_phinodes__commute: forall i1 i0 v0 ps, 
+  remove_phinodes i1 (List.map (subst_phi i0 v0) ps) = 
+    List.map (subst_phi i0 v0) (remove_phinodes i1 ps).
+Proof.
+  induction ps as [|[] ps]; simpl; auto.
+    destruct_if; simpl; f_equal; auto.
+Qed.
+
+Lemma remove_subst_cmds__commute: forall i1 i0 v0 cs, 
+  remove_cmds i1 (List.map (subst_cmd i0 v0) cs) = 
+    List.map (subst_cmd i0 v0) (remove_cmds i1 cs).
+Proof.
+  induction cs as [|c cs]; simpl; auto.
+    destruct c; simpl; destruct_if; simpl; f_equal; auto.
+Qed.
+
+Lemma remove_subst_fdef__commute: forall i1 i0 v0 f, 
+  remove_fdef i1 (subst_fdef i0 v0 f) = subst_fdef i0 v0 (remove_fdef i1 f).
+Proof.
+  destruct f as [fh bs]. simpl.
+  f_equal.
+  induction bs as [|[l1 [ps1 cs1 tmn1]] bs]; simpl; auto.
+    f_equal; auto.
+    rewrite remove_subst_phinodes__commute.
+    rewrite remove_subst_cmds__commute.
+    f_equal.
+Qed.
+
+Lemma remove_cmds_middle: forall (id' : atom) (cs01 : list cmd) (c0 : cmd)
+  (cs02 : list cmd) (Hneq : getCmdLoc c0 <> id'),
+  remove_cmds id' (cs01 ++ c0 :: cs02) =
+    remove_cmds id' cs01 ++ c0 :: remove_cmds id' cs02.
+Proof.
+  intros.
+  unfold remove_cmds.
+  simpl; rewrite filter_app; simpl.
+  destruct (id_dec (getCmdLoc c0) id'); subst; try congruence.
+  simpl. auto.
 Qed.
 
 (**************************************************************)

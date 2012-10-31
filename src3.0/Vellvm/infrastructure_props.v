@@ -4256,6 +4256,18 @@ Lemma in__cmdInBlockB: forall c l1 ps1 cs1 tmn1,
 Proof. simpl. intros. solve_in_list. Qed.
 
 (* Locs *)
+Lemma NoDup_cmds_split_middle': forall (cs2 cs2' : list cmd) (c c': cmd) 
+  (cs1 cs1' : list cmd)  (Hnodup: NoDup (getCmdsLocs (cs1 ++ c :: cs2)))
+  (Heq: getCmdLoc c = getCmdLoc c'),
+  cs1 ++ c :: cs2 = cs1' ++ c' :: cs2' -> cs1 = cs1' /\ cs2 = cs2'.
+Proof.
+  intros.
+  eapply getCmdsLocs_uniq in Heq; eauto.
+    subst. eapply NoDup_cmds_split_middle; eauto.
+    xsolve_in_list.
+    rewrite H. xsolve_in_list.
+Qed.
+
 Lemma In_getCmdsIDs__getCmdID_eq_getCmdLoc: forall c cs 
   (Huniq: NoDup (getCmdsLocs cs)),
   In (getCmdLoc c) (getCmdsIDs cs) ->

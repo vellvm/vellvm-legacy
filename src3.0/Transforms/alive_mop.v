@@ -302,7 +302,7 @@ Proof.
   eapply H in Hlkpa'; eauto.
   destruct Hlkpa' as [J1 J2].
   destruct J1 as [_ [[mb [J1 [J3 J4]]] _]]; subst.
-  eapply alist.NoDup_disjoint in H1; eauto.
+  eapply NoDup_disjoint in H1; eauto.
   eapply free_allocas_preserves_mload; eauto.
 Qed.
 

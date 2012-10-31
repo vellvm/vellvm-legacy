@@ -1,3 +1,4 @@
+Require Import ListSet.
 Require Import vellvm_tactics.
 Require Import Coq.Lists.List.
 Require Import CoqListFacts.
@@ -100,7 +101,65 @@ Proof.
   simpl. rewrite H. rewrite IHl. trivial.
 Qed.
 
+Lemma map_cons_inv: forall A (x y2:list A) a' f (Heq: List.map f x = a' :: y2),
+  exists a, exists x2, x = a :: x2 /\ List.map f x2 = y2 /\ f a = a'.
+Proof.
+  intros.
+  destruct x as [|a x]; inv Heq.
+    eauto.
+Qed.
+
+Lemma In_fst__in_dom: forall X (A:list (atom*X)) i0,
+  In i0 (List.map fst A) <-> i0 `in` dom A.
+Proof.
+  induction A as [|[] A]; simpl; intros; auto.
+    split; intro J.
+      inv J. fsetdec.
+
+    split; intro J.
+      destruct J as [J | J]; subst; auto.
+        apply IHA in J; auto.
+
+      apply AtomSetFacts.add_iff in J.
+      destruct J as [J | J]; subst; auto.
+        apply IHA in J; auto.
+Qed.
+
 (* list *) 
+Lemma in_dom__iff__in_rev_dom: forall i0 X (A:list (atom*X)),
+  i0 `in` dom A <-> i0 `in` dom (rev A).
+Proof.
+  induction A as [|[] A]; simpl.
+    split; auto.
+
+    rewrite dom_app. simpl.
+    fsetdec.
+Qed.
+
+Lemma app_split: forall A (x y z u:list A) a (Heq: x ++ y = z ++ a :: u),
+  (exists u1, exists u2, x = z ++ a :: u1 /\ y = u2 /\ u = u1 ++ u2) \/
+  (exists z1, exists z2, x = z1 /\ y = z2 ++ a :: u /\ z = z1 ++ z2).
+Proof.
+  induction x as [|x1 x]; simpl; intros; subst.
+    right. exists nil. eauto.
+
+    destruct z as [|z1 z].
+      inv Heq. simpl. left. exists x. eauto.
+
+      inv Heq.
+      apply_clear IHx in H1.
+      destruct H1 as [[u1 [u2 [J1 [J2 J3]]]]|[z1' [z2 [J1 [J2 J3]]]]]; subst.
+        left. exists u1. exists u2. eauto.
+        right. exists (z1::z1'). eauto.
+Qed.
+
+Lemma Forall_app: forall A P (x y:list A) (Hx: Forall P x) (Hy: Forall P y),
+  Forall P (x++y).
+Proof.
+  induction 1; intros; auto.
+    constructor; auto.
+Qed.
+
 Lemma rev_non_nil: forall A (ls1:list A),
   ls1 <> nil <-> rev ls1 <> nil.
 Proof.
@@ -286,6 +345,14 @@ Proof.
     rewrite Heq. congruence.
 Qed.
 
+Lemma filter_app: forall A (check: A -> bool) (l1 l2:list A),
+  filter check (l1++l2) = filter check l1 ++ filter check l2.
+Proof.
+  induction l1; simpl; intros; auto.
+    destruct_if.
+    rewrite IHl1. simpl_env. auto.
+Qed.
+
 (* fold *)
 Lemma fold_left_eq : forall B f (J:forall a b, f a b = false -> a = false),
   forall (l1:list B) a, List.fold_left f l1 a = false -> a = false.
@@ -451,20 +518,15 @@ Proof.
       apply H1; simpl; auto.
 Qed.
 
-Lemma NoDup_disjoint : forall l1 l2 (i0:atom),
-  NoDup (l1++l2) ->
-  In i0 l2 ->
-  ~ In i0 l1.
+Lemma NoDup_disjoint : forall X (l2 l1 : list X) (i0 : X),
+  NoDup (l1 ++ l2) -> In i0 l2 -> ~ In i0 l1.
 Proof.
-  induction l1; intros.
-    intro J. inversion J.
-
-    simpl. simpl_env in H.
-    inv H.
-    eapply IHl1 in H4; eauto.
-    destruct (eq_atom_dec i0 a); subst.
-      intro J. apply H3. apply in_or_app; auto.
-      intro J. destruct J; auto.
+  induction l1; simpl; intros; auto.
+    inversion H; subst.
+    intro J.
+    destruct J as [J | J]; subst.
+      apply H3. apply in_or_app. auto.
+      eapply IHl1 in H4; eauto.
 Qed.
 
 Ltac solve_NoDup_disjoint :=
@@ -579,6 +641,41 @@ Proof.
       apply H1 in Hin. auto.
 Qed.
 
+Lemma NoDup_fst__uniq: forall X (A:list (atom*X)) (Huniq: NoDup (List.map fst A)), 
+  uniq A.
+Proof.
+  induction A as [|[] A]; simpl; intros; auto.
+    inv Huniq.
+    apply uniq_cons; auto.
+      intro J. apply H1. apply In_fst__in_dom; auto.
+Qed.
+
+(* uniq *) 
+Lemma uniq__iff__uniq_rev: forall X (A:list (atom*X)),
+  uniq A <-> uniq (rev A).
+Proof.
+  induction A as [|[] A]; simpl.
+    split; auto.
+
+    split; intro J.
+      inv J. 
+      apply uniq_app_iff.
+      split. apply IHA; auto.
+      split. apply uniq_cons; auto.
+        apply disjoint_one_r. 
+        intro J. apply H3.
+        eapply in_dom__iff__in_rev_dom; eauto.
+
+      apply uniq_app_iff in J.
+      destruct J as [J1 [J2 J3]].
+      apply uniq_cons; auto.
+        apply IHA; auto.
+
+        apply disjoint_one_r in J3. 
+        intro J. apply J3.
+        apply in_dom__iff__in_rev_dom in J; auto.
+Qed.
+
 (* nth_err *)
 
 Lemma nil_nth_error_Some__False : forall X n (v:X),
@@ -642,3 +739,62 @@ Proof.
     apply remove_in_length; auto with datatypes v62.
   omega.
 Qed.
+
+(* atom set *)
+Section MoreAtomSet.
+
+Variable A:Type.
+Variable Hdec: forall x y : atom*A, {x = y} + {x <> y}.
+
+Lemma set_remove_spec3 : forall n n' s (Huniq: uniq s),
+  In n' (set_remove Hdec n s) -> n' <> n.
+Proof.
+  induction 1; intros; simpl in *; auto.
+    destruct (Hdec n (x, a)) as [J1 | J2]; subst; simpl in *; auto.
+      intro EQ. subst.
+      apply binds_dom_contradiction in H0; auto.
+
+      destruct H0 as [H0 | H0]; subst; eauto.
+Qed.
+
+Lemma set_remove_notin_doms : forall x n E (Hnotin: x `notin` dom E),
+  x `notin` dom (set_remove Hdec n E).
+Proof.
+  induction E as [|[] E]; simpl; intros; auto.
+    destruct_if. 
+Qed.
+
+Lemma set_remove_uniq: forall n s (Huniq: uniq s), 
+  uniq (set_remove Hdec n s).
+Proof.
+  induction 1; simpl.
+    constructor. 
+  
+    destruct_if. simpl_env.
+    constructor; auto. 
+      apply set_remove_notin_doms; auto.
+Qed.
+
+Lemma set_remove__seq_eq: forall actions2 actions1 (Huniq1 : uniq actions1)
+  (x : AtomSetImpl.elt) (a : A) (H2 : x `notin` dom actions2)
+  (Heq : AtomSet.set_eq actions1 ((x, a) :: actions2)),
+  AtomSet.set_eq (set_remove Hdec (x, a) actions1) actions2.
+Proof.
+  intros.
+  destruct Heq as [Hincl1 Hincl2].
+  split.
+    intros y Hiny.
+    assert (y <> (x,a)) as Hneq.
+      eapply set_remove_spec3 in Hiny; eauto.
+    apply AtomSet.set_remove_spec2 in Hiny.
+    apply Hincl1 in Hiny.
+    destruct_in Hiny; try congruence.
+
+    intros y Hiny.
+    apply AtomSet.set_remove_spec1.
+      apply Hincl2. simpl. auto.
+      intro EQ. subst.
+      apply binds_dom_contradiction in Hiny; auto.
+Qed.
+
+End MoreAtomSet.

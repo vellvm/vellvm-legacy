@@ -1954,6 +1954,12 @@ Proof.
   destruct J. simpl. congruence.
 Qed.
 
+Lemma inscope_of_cmd__total: forall f b c0, inscope_of_cmd f b c0 <> None.
+Proof.
+  intros. 
+  apply inscope_of_id__total.
+Qed.
+
 Lemma inscope_of_id__append_cmds: forall l0 ps0 cs1 c2 cs3 c4 cs5 tmn0 l2 l4 f
   (Huniq: NoDup 
            (getStmtsLocs 
