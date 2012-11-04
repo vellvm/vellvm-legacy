@@ -798,3 +798,19 @@ Proof.
 Qed.
 
 End MoreAtomSet.
+
+(* disjoint *)
+Lemma disj__disjoint: forall X (A2 B2:list (atom*X)) A1 B1
+  (Hdisj1: forall i, In i A1 -> ~ In i B1)
+  (Hinca: forall a, a `in` dom A2 -> In a A1)
+  (Hincb: forall b, b `in` dom B2 -> In b B1),
+  disjoint A2 B2.
+Proof.
+  intros. unfold disjoint.
+  unfold AtomSetImpl.Subset. intros a Hina.
+  apply AtomSetFacts.inter_iff in Hina.
+  destruct Hina as [Hina1 Hina2].
+  apply Hinca in Hina1.
+  apply Hincb in Hina2.
+  apply Hdisj1 in Hina1. tauto.
+Qed.

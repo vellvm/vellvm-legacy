@@ -10,8 +10,32 @@ Require Import iter_pass.
 Require Import pass_combinators.
 Require Import vmem2reg.
 
-(************************************************)
+(* 
+The algorithm of vmem2reg is designed with verification in mind, but it is not
+efficient in practice: On average vmem2reg is 300>= times slower than mem2reg in 
+terms of compile-time. Such an inefficient design is aimed at streamlining the 
+presentation of the proof techniques we developed for SSA, such that our research 
+can focus on the crucial part of the problem---understanding how the proofs should 
+go. 
 
+The costs of vmem2reg include (1) the pessimistic phi-node insertion algorithm,
+which introduces unnecessary phinode nodes that lead to more inserted
+load's and store's to remove; and (2) the pipelined strategy that requires much
+more passes than necessary. Given a CFG with N nodes and I instructions and
+a promotable alloca, vmem2reg, in the worst case, first inserts N
+phinode nodes and N ``Load After Store'' or ``Load After Alloca'' pairs,
+then takes N passes to promote the loads and stores, and
+finally takes at most N passes to remove AH phinode-nodes. Therefore,
+the complexity of vmem2reg is O(N * I).
+
+To address the compilation overhead, we define the vmem2reg-O1 that composes the
+pipelined elimination passes into a single pass. 
+
+On average vmem2reg-O1 is 20>= times slower than mem2reg in terms of compile-time. *)
+
+(************************************************)
+(* For each element in l1,
+   if cond holds, then apply f, otherwise delete the element. *)
 Fixpoint map_filter (A:Type) (cond: A -> bool) (f: A -> A) (l1: list A) 
   : list A :=
 match l1 with
@@ -22,6 +46,7 @@ end.
 
 Implicit Arguments map_filter [A].
 
+(* remove the definition of id', and substitute all uses of id' by v'. *)
 Definition subst_remove_block id' v' (b:block) :=
 let '(l0, stmts_intro ps0 cs0 tmn0) := b in
 (l0, stmts_intro
@@ -36,19 +61,29 @@ let '(fdef_intro fh bs) := f in
 fdef_intro fh (List.map (subst_remove_block id' v') bs).
 
 (************************************************)
-
+(* we use stld_state to keep track of the search state: 
+   o STLD_init is the initial state;
+   o STLD_alloca typ records the element type of the memory value stored
+     at the latest promotable allocation
+   o STLD_store id value records the the value stored by the latest store
+     (with name id) to the promotable allocation. *)
 Inductive stld_state : Set :=
 | STLD_init : stld_state
 | STLD_store : id -> value -> stld_state
 | STLD_alloca : typ -> stld_state
 .
 
+(* action describes micro eliminations. 
+   (id, AC_remove) is for SAS of a store with id
+   (id, AC_vsubst v) is for LAS with a store of v and a load of id
+   (id, AC_tsubst t) is for LAA with an alloca of type t and a load of id *)
 Inductive action : Set :=
 | AC_remove: action
 | AC_vsubst: value -> action
 | AC_tsubst: typ -> action
 .
 
+(* Apply one elimination elt for f. *)
 Definition apply_action (f:fdef) (elt:id * action): fdef :=
 let '(id1, ac1) := elt in
 match ac1 with
@@ -58,6 +93,7 @@ match ac1 with
 | AC_remove => remove_fdef id1 f
 end.
 
+(* If ac is LAS or LAA, the function returns the value to substitute. *)
 Definition action2value (ac:action) : option value :=
 match ac with
 | AC_vsubst v1 => Some v1
@@ -72,7 +108,7 @@ match ac with
 end.
 
 (************************************************)
-
+(* A signature of map *)
 Module Type XMap.
 
 Variable t : Type -> Type.
@@ -91,6 +127,7 @@ Implicit Arguments fold [A B].
 
 End XMap. 
 
+(* A map implmented by AVL-trees *)
 Module AVLMap <: XMap. 
 
 Definition t := AtomFMapAVL.t.
@@ -109,6 +146,7 @@ Implicit Arguments fold [A B].
 
 End AVLMap.
 
+(* A map implmented by lists *)
 Module ListMap <: XMap.
 
 Definition t := AssocList.
@@ -129,8 +167,10 @@ Implicit Arguments fold [A B].
 
 End ListMap.
 
+(* A module of composed pass parameterized by a map *)
 Module ComposedPass (M:XMap).
 
+(* apply all the LAA/LAS of actions. *)
 Definition substs_value (mp:M.t action) (v:value) : value :=
 match v with
 | value_id id1 => 
@@ -220,20 +260,22 @@ match f with
 | fdef_intro fh bs => fdef_intro fh (List.map (substs_block mp) bs)
 end.
 
+(* Return true iff the id is not in mp. *)
 Definition filters_phinode (mp:M.t action) :=
 fun p => match M.find (getPhiNodeID p) mp with
          | Some _ => false
          | None => true
          end.
 
-Definition removes_phinodes (mp:M.t action) (ps:phinodes) : phinodes :=
-  List.filter (filters_phinode mp) ps.
-
 Definition filters_cmd (mp:M.t action) :=
 fun c => match M.find (getCmdLoc c) mp with
          | Some _ => false
          | None => true
          end.
+
+(* Remove definitions in mp. *)
+Definition removes_phinodes (mp:M.t action) (ps:phinodes) : phinodes :=
+  List.filter (filters_phinode mp) ps.
 
 Definition removes_cmds (mp:M.t action) (cs:cmds) : cmds :=
   List.filter (filters_cmd mp) cs.
@@ -249,6 +291,8 @@ match f with
 | fdef_intro fh bs => fdef_intro fh (List.map (removes_block mp) bs)
 end.
 
+(* Apply a map of actions mp: substitute all uses, and then remove the 
+   definitions. *)
 Definition substs_removes_block (mp:M.t action) (b:block) :=
 let '(l0, stmts_intro ps0 cs0 tmn0) := b in
 (l0, stmts_intro
@@ -260,7 +304,8 @@ Definition substs_removes_fdef (mp:M.t action) f :=
 let '(fdef_intro fh bs) := f in
 fdef_intro fh (List.map (substs_removes_block mp) bs).
 
-(* If subst_actions calls subst_action directly, but not the unfolded 
+(* For any action in pair, if the action uses id0, replace id0 by ac0.
+   If subst_actions calls subst_action directly, but not the unfolded 
    version, the extractable will have a heisenbug. *)
 Definition subst_actions (id0:id) (ac0:action) (pairs: M.t action) :
   M.t action :=
@@ -274,6 +319,8 @@ match action2value ac0 with
            end) pairs
 end.
 
+(* If mac mapps ac1 to an action, return the action,
+   otherwise return ac1. *)
 Definition find_parent_action (ac1:action) (mac: M.t action) : action :=
 match ac1 with 
 | AC_vsubst (value_id id1) =>
@@ -288,6 +335,10 @@ match ac1 with
 | _ => ac1
 end.
 
+(* Given a list of actions "pairs", return a map of flattened actions.  
+   "flatten" means all paths in the map are of length one. 
+   It has the invariant that the trees of its intermediate forest are 
+   flattened. *)
 Fixpoint compose_actions (pairs: AssocList action) : M.t action :=
 match pairs with 
 | nil => M.empty
@@ -297,16 +348,25 @@ match pairs with
   M.add id1 ac2' (subst_actions id1 ac2' acc)
 end.
 
+(* Compose all LAS/LAA/SAS pairs, then apply them to f. *)
 Definition run (pairs: AssocList action) (f:fdef) : fdef :=
 let mp := compose_actions pairs in
 substs_removes_fdef mp f.
 
+(****************************)
 Lemma filters_phinode__substs_phi: forall actions p,
   filters_phinode actions p = filters_phinode actions (substs_phi actions p).
 Proof.
   destruct p; unfold filters_phinode; simpl; auto.
 Qed.
 
+Lemma filters_cmd__substs_cmd: forall actions c,
+  filters_cmd actions c = filters_cmd actions (substs_cmd actions c).
+Proof.
+  destruct c; unfold filters_cmd; simpl; auto.
+Qed.
+
+(****************************)
 Lemma substs_removes_phinodes__commute: 
   forall actions ps,
   map_filter (filters_phinode actions) (substs_phi actions) ps =
@@ -314,12 +374,6 @@ Lemma substs_removes_phinodes__commute:
 Proof.
   induction ps as [|p ps]; simpl; auto.
     rewrite IHps. rewrite filters_phinode__substs_phi; auto.
-Qed.
-
-Lemma filters_cmd__substs_cmd: forall actions c,
-  filters_cmd actions c = filters_cmd actions (substs_cmd actions c).
-Proof.
-  destruct c; unfold filters_cmd; simpl; auto.
 Qed.
 
 Lemma substs_removes_cmds__commute: forall actions cs,
@@ -341,6 +395,7 @@ Proof.
       apply substs_removes_cmds__commute.
 Qed.
 
+(****************************)
 Lemma find_parent_action_inv: forall ac1 mac ac2 
   (Hfind: find_parent_action ac1 mac = ac2),
   ac1 = ac2 \/ 
@@ -363,7 +418,16 @@ Module AVLComposedPass := ComposedPass (AVLMap).
 Module ListComposedPass := ComposedPass (ListMap).
 
 (************************************************)
-
+(* To find all initial elimination pairs, elim_stld_fdef 
+traverses the list of blocks of a function, finds elimination pairs for each
+block (by find_stld_pairs_bloc}), and then concatenates them. At
+each block, we use stld_state to keep track of the search state (by
+find_stld_pairs_cmd): ST_init is the initial state;
+ST_AL typ records the element type of the memory value stored
+at the latest promotable allocation; ST_st value records the
+the value stored by the latest store to the promotable
+allocation. When find_stld_pairs_cmd meets a load}, it
+generates an action in terms of the current state. *)
 Definition find_stld_pair_cmd (pid:id) (acc:stld_state * AssocList action) 
   (c:cmd) : stld_state * AssocList action :=
 let '(st, actions) := acc in
@@ -418,7 +482,7 @@ AVLComposedPass.run pairs f.
    successors [succs] and predecessors [preds]. Do the following in sequence
    1) find a promotable alloca
    2) insert phinodes
-   3) las/laa/sas
+   3) composed las/laa/sas
    4) dse
    5) dae
    [dones] tracks the allocas checked and seen
@@ -463,6 +527,7 @@ let '(f1, changed1, dones1) :=
 if changed1 then inr _ (f1, dones1) else inl _ (f1, dones1).
 
 (************************************************)
+(* Composed phinode elimination *)
 
 Definition elim_phi_phi (f:fdef) acc (pn:phinode): AssocList action :=
 let '(insn_phi pid _ vls) := pn in 
@@ -507,13 +572,7 @@ match elim_phi_fdef f with
 end.
 
 (************************************************)
-(* The two kinds of mem2reg algorithm for each function
-   1) when does_macro_m2r tt = true
-      A pipelined algorithm based on a group of primitives, which is
-      fully verified.
-   2) when does_macro_m2r tt = false
-      A algorithm based on dom-tree traversal, and not verified
-*)
+(* The mem2reg pass for functions *)
 Definition mem2reg_fdef (f:fdef) : fdef :=
 match getEntryBlock f, reachablity_analysis f with
 | Some (root, stmts_intro _ cs _), Some rd =>
@@ -530,7 +589,7 @@ match getEntryBlock f, reachablity_analysis f with
 | _, _ => f
 end.
 
-(* the top entry *)
+(* The mem2reg pass for modules *)
 Definition run (m:module) : module :=
 let '(module_intro los nts ps) := m in
 module_intro los nts

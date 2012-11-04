@@ -6,7 +6,6 @@ Require Import vmem2reg.
 Require Import vmem2reg_opt.
 
 (***************************************************************)
-
 Lemma lookupAL_map_iff: forall A f m id0 ac0,
   lookupAL A (ListMap.map f m) id0 = Some ac0 <->
     exists ac1, ac0 = f ac1 /\ lookupAL A m id0 = Some ac1.
@@ -29,7 +28,7 @@ Lemma id_action_dec: forall (ia1 ia2: id*action), {ia1 = ia2} + {ia1 <> ia2}.
 Proof. decide equality; auto using id_dec, action_dec. Qed.
 
 (***************************************************************)
-
+(* Properties of ListComposedPass.subst_actions *)
 Lemma list_subst_actions__uniq: forall id0 ac0 actions (Huniq: uniq actions),
   uniq (ListComposedPass.subst_actions id0 ac0 actions).
 Proof.
@@ -65,8 +64,56 @@ Proof.
   apply map_app.
 Qed.
 
-(***************************************************************)
+Lemma list_subst_actions_app_inv: forall id0 ac0 acs acs1' acs2'
+  (Heq: ListComposedPass.subst_actions id0 ac0 acs = acs1' ++ acs2'),
+  exists acs1, exists acs2,
+    acs = acs1 ++ acs2 /\ 
+    ListComposedPass.subst_actions id0 ac0 acs1 = acs1' /\
+    ListComposedPass.subst_actions id0 ac0 acs2 = acs2'.
+Proof.
+  unfold ListComposedPass.subst_actions.
+  intros.
+  destruct (action2value ac0).
+    apply map_app_inv; auto.
+    subst. eauto.
+Qed.
 
+(* If ac contains (fst elt), replace it by (snd elt). *)
+Definition subst_action_action (ac:action) (elt:id * action): action :=
+let '(id1, ac1) := elt in
+match action2value ac1 with
+| Some v1 => subst_action id1 v1 ac
+| _ => ac
+end.
+
+Lemma list_subst_actions_cons_inv: forall id0 ac0 acs id1 ac1' acs2'
+  (Heq: ListComposedPass.subst_actions id0 ac0 acs = (id1, ac1') :: acs2'),
+  exists ac1, exists acs2,
+    acs = (id1, ac1) :: acs2 /\ 
+    subst_action_action ac1 (id0, ac0)= ac1' /\
+    ListComposedPass.subst_actions id0 ac0 acs2 = acs2'.
+Proof.
+  unfold ListComposedPass.subst_actions.
+  intros.
+  case_eq (action2value ac0).
+    intros v Heqv. rewrite Heqv in Heq.
+    unfold ListMap.map in *.
+    apply map_cons_inv in Heq; auto.
+    destruct Heq as [[] [x2 [EQ [J1 J2]]]]; subst.
+    inv J2.
+    exists a0. exists x2.
+    split; auto.
+    split; auto.
+      unfold subst_action_action, subst_action.
+      rewrite Heqv. auto.
+
+    intros Heqv. rewrite Heqv in Heq.
+    subst. 
+    unfold subst_action_action. rewrite Heqv. eauto.
+Qed.
+
+(***************************************************************)
+(* Substitute actions from left to right. *)
 Program Fixpoint substs_actions (pairs: AssocList action) 
   {measure (length pairs)} : AssocList action :=
 match pairs with 
@@ -86,7 +133,7 @@ match goal with
 end.
 
 (***************************************************************)
-
+(* Properties of find_stld_pairs_cmds *)
 Definition ids_in_stld_state (st:stld_state) : list id :=
 match st with
 | STLD_store i1 _ => [i1]
@@ -132,33 +179,6 @@ Proof.
   apply find_stld_pairs_cmds_aux__uniq; simpl_env; auto.
 Qed.
 
-Lemma find_stld_pairs_block__uniq: forall pid rd b actions
-  (Huniq: NoDup (getStmtsLocs (snd b)))
-  (Hfind: actions = find_stld_pairs_block pid rd b),
-  uniq actions.
-Proof.
-  destruct b as [? []]. simpl.
-  intros.
-  destruct_if; auto.
-    split_NoDup.
-    eapply find_stld_pairs_cmds__uniq; eauto.
-Qed.
-
-Lemma disj__disjoint: forall X (A2 B2:list (id*X)) A1 B1
-  (Hdisj1: forall i, In i A1 -> ~ In i B1)
-  (Hinca: forall a, a `in` dom A2 -> In a A1)
-  (Hincb: forall b, b `in` dom B2 -> In b B1),
-  disjoint A2 B2.
-Proof.
-  intros. unfold disjoint.
-  unfold AtomSetImpl.Subset. intros a Hina.
-  apply AtomSetFacts.inter_iff in Hina.
-  destruct Hina as [Hina1 Hina2].
-  apply Hinca in Hina1.
-  apply Hincb in Hina2.
-  apply Hdisj1 in Hina1. tauto.
-Qed.
-
 Definition id_in_stld_state (i0:id) (st:stld_state) : Prop :=
 match st with
 | STLD_store i1 _ => i0 = i1
@@ -196,6 +216,19 @@ Proof.
   simpl in Hin. 
   destruct Hin as [Hin | [Hin | Hin]]; auto.
     fsetdec. tauto.
+Qed.
+
+(* Properties of find_stld_pairs_blocks *)
+Lemma find_stld_pairs_block__uniq: forall pid rd b actions
+  (Huniq: NoDup (getStmtsLocs (snd b)))
+  (Hfind: actions = find_stld_pairs_block pid rd b),
+  uniq actions.
+Proof.
+  destruct b as [? []]. simpl.
+  intros.
+  destruct_if; auto.
+    split_NoDup.
+    eapply find_stld_pairs_cmds__uniq; eauto.
 Qed.
 
 Lemma find_stld_pairs_block__incl: forall pid rd b,
@@ -245,8 +278,118 @@ Proof.
         apply find_stld_pairs_blocks__incl; auto.
 Qed.
 
-(***************************************************************)
+Lemma find_stld_pairs_blocks__split: forall pid rd bs acs1 ac acs2
+  (Hmap: flat_map (find_stld_pairs_block pid rd) bs = acs1 ++ ac :: acs2),
+  exists b, exists bs1, exists bs2,
+  exists acs11, exists acs12, exists acs21, exists acs22,
+    bs = bs1 ++ b :: bs2 /\
+    acs1 = acs11 ++ acs12 /\
+    acs2 = acs21 ++ acs22 /\
+    find_stld_pairs_block pid rd b = acs12 ++ ac :: acs21 /\
+    flat_map (find_stld_pairs_block pid rd) bs1 = acs11 /\
+    flat_map (find_stld_pairs_block pid rd) bs2 = acs22.
+Proof.
+  induction bs as [|b bs]; simpl; intros.
+    symmetry in Hmap. contradict Hmap. apply app_cons_not_nil.
 
+    apply app_split in Hmap.
+    destruct Hmap as [[u1 [u2 [J1 [J2 J3]]]]|[z1 [z2 [J1 [J2 J3]]]]].
+      exists b. exists nil. exists bs. exists nil. exists acs1. 
+      exists u1. exists u2. simpl. eauto 10.
+
+      apply_clear IHbs in J2.
+      destruct J2 as 
+        [b0 [bs1 [bs2 [acs11 [acs12 [acs21 [acs22 [J2 
+          [J7 [J4 [J5 [J6 J8]]]]]]]]]]]]; subst.
+      exists b0. exists (b::bs1). exists bs2.
+      exists (find_stld_pairs_block pid rd b ++ 
+              flat_map (find_stld_pairs_block pid rd) bs1).
+      exists acs12. exists acs21.
+      exists (flat_map (find_stld_pairs_block pid rd) bs2).
+      simpl_env. split; auto.
+Qed.
+
+Lemma find_stld_pairs_block__reach: forall pid rd l0 sts0
+  acs1 ac acs2
+  (Hfind: find_stld_pairs_block pid rd (l0, sts0) =
+            acs1 ++ ac :: acs2),
+  In l0 rd.
+Proof.
+  simpl. intros.
+  destruct_if; auto.
+    symmetry in H0. contradict H0. destruct sts0. apply app_cons_not_nil.
+Qed.
+
+Lemma find_stld_pairs_block__reach': forall (fh : fheader) (bs : blocks)
+  (HuniqF : uniqFdef (fdef_intro fh bs)) (pid : id) (rd : list l) (id0 : atom)
+  (Hin : id0 `in` dom (flat_map (find_stld_pairs_block pid rd) bs)),
+  exists l0 : l, exists sts0 : stmts,
+    blockInFdefB (l0, sts0) (fdef_intro fh bs) /\
+    In id0 (getStmtsLocs sts0) /\
+    In l0 rd.
+Proof.
+  intros.
+  apply binds_In_inv in Hin.
+  destruct Hin as [a Hin].
+  unfold binds in Hin.
+  apply in_flat_map in Hin.
+  destruct Hin as [b [Hin1 Hin2]].
+  assert (J:=Hin2).
+  apply binds_In in J.
+  apply find_stld_pairs_block__incl in J.
+  destruct b as [l0 sts0].
+  exists l0. exists sts0.
+  split. simpl. solve_in_list.
+  split; auto.
+    apply in_split in Hin2.
+    destruct Hin2 as [l1 [l2 Hfind]].   
+    apply find_stld_pairs_block__reach in Hfind; auto.
+Qed.
+
+Lemma find_stld_pairs_block__reach'': forall (fh : fheader) (bs : blocks)
+  (HuniqF : uniqFdef (fdef_intro fh bs)) (pid : id) (rd : list l) (id0 : atom)
+  (l0 : l) (sts0 : stmts)
+  (H : lookupBlockViaIDFromFdef (fdef_intro fh bs) id0 = ret (l0, sts0))
+  (Hin : id0 `in` dom (flat_map (find_stld_pairs_block pid rd) bs)),
+  In l0 rd.
+Proof.
+  intros.
+  eapply find_stld_pairs_block__reach' in Hin; eauto.
+  destruct Hin as [l1 [sts1 [J1 [J2 J3]]]].
+  assert (J':=H).
+  apply lookupBlockViaIDFromBlocks__InGetBlockIDs in J'.
+  apply in_getStmtsIDs__in_getStmtsLocs in J'.
+  assert ((l1, sts1) = (l0, sts0)) as EQ.
+    eapply block_eq2; eauto 1.
+      solve_blockInFdefB.
+  inv EQ. auto.
+Qed.
+
+(***************************************************************)
+(* Properties of find_next_stld *)
+Lemma find_next_stld_strengthen: forall cs2 pid cs1 
+  (Hnst: store_in_cmds pid cs1 = false)
+  (Hnld: load_in_cmds pid cs1 = false),
+  find_next_stld cs2 pid = find_next_stld (cs1++cs2) pid.
+Proof.
+  induction cs1 as [|c cs1]; simpl; intros; auto.
+    apply store_in_cmds_false_cons_inv in Hnst.
+    destruct Hnst as [Hnst1 Hnst2].
+    apply load_in_cmds_false_cons_inv in Hnld.
+    destruct Hnld as [Hnld1 Hnld2].
+    destruct c; auto.
+      destruct value1; auto.
+      destruct_if.
+      simpl in Hnld1.
+      destruct (id_dec id0 id0); simpl in Hnld1; try congruence.
+
+      destruct value2; auto.
+      destruct_if.
+      simpl in Hnst1.
+      destruct (id_dec id0 id0); simpl in Hnst1; try congruence.   
+Qed.
+
+(* Properties of find_next_stld_inl *)
 Lemma find_init_stld_inl_remove_neq_spec: forall dones id' pid cs1 v2 id2 cs2
   (Hneq: id2 <> id')
   (Hst : Some (inl (id2, v2, cs2)) = find_init_stld cs1 pid dones),
@@ -278,32 +421,6 @@ Proof.
         destruct_if; auto.
 Qed.
 
-Lemma find_next_stld_inr_remove_neq_spec: forall id' pid cs1 v3 id3
-  (Hneq: id3 <> id')
-  (Hst : Some (inr (id3, v3)) = find_next_stld cs1 pid),
-  Some (inr (id3, v3)) = find_next_stld (remove_cmds id' cs1) pid.
-Proof.
-  induction cs1 as [|c cs1]; simpl; intros; auto.
-    destruct (id_dec (getCmdLoc c) id'); subst; simpl.
-    Case "1".
-      destruct c; auto.
-      SCase "1.1".
-        destruct value1; auto.
-        destruct_if; auto.
-      SCase "1.2".
-        destruct value2; auto.
-        destruct_if; auto.
-          simpl in Hneq. congruence.
-    Case "2".
-      destruct c; auto.
-      SCase "2.1".
-        destruct value1; auto.
-        destruct_if; auto.
-      SCase "2.2".
-        destruct value2; auto.
-        destruct_if; auto.
-Qed.
-
 Lemma find_init_stld_inl_in: forall (cs5 : cmds) (id' : atom) (v0 : value)
   (cs0 : cmds) (dones : list id) pinfo
   (Hfind : ret inl (id', v0, cs0) = find_init_stld cs5 (PI_id pinfo) dones),
@@ -314,90 +431,6 @@ Proof.
   destruct Hfind as [cs1 [ty1 [al1 Hst]]]; subst.
   rewrite getCmdsLocs_app. simpl. xsolve_in_list.
 Qed.
-
-Lemma find_next_stld_inr_in: forall (cs5 : cmds) (id' : atom) (v0 : value)
-  pinfo
-  (Hfind : ret inr (id', v0) = find_next_stld cs5 (PI_id pinfo)),
-  In id' (getCmdsLocs cs5).
-Proof.
-  intros.
-  apply find_next_stld_inr_spec in Hfind.
-  destruct Hfind as [cs1 [cs2 [ty1 [al1 [J1 J2]]]]]; subst.
-  rewrite getCmdsLocs_app. simpl. xsolve_in_list.
-Qed.
-
-Lemma find_st_ld__sas_in: forall cs0 i0 v cs dones pinfo
-  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones) v0
-  (i1 : id) (Hld : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo)),
-  In i1 (getCmdsLocs cs0).
-Proof.
-  intros.
-  apply find_init_stld_inl_spec in Hst.
-  destruct Hst as [cs1 [ty1 [al1 Hst]]]; subst.
-  apply find_next_stld_inr_in in Hld.
-  rewrite getCmdsLocs_app. simpl. xsolve_in_list.
-Qed.
-
-Lemma find_next_stld_inr_spec': forall pinfo i1 v0 cs
- (H: ret inr (i1, v0) = find_next_stld cs (PI_id pinfo)),
- exists cs1, exists cs2, exists ty, exists al,
-   cs = cs1 ++
-          insn_store i1 ty v0 (value_id (PI_id pinfo)) al :: cs2 /\
-   load_in_cmds (PI_id pinfo) cs1 = false /\
-   store_in_cmds (PI_id pinfo) cs1 = false.
-Proof.
-  induction cs; simpl; intros.
-    congruence.
-
-    destruct a; try find_next_stld_spec_tac.
-      destruct value1; try solve [find_next_stld_spec_tac].
-      destruct_if.
-        find_next_stld_spec_tac.
-        destruct H2.
-        split; auto. 
-        split.
-          simpl_env.
-          apply load_in_cmds_merge.
-          split; auto. 
-            unfold load_in_cmds. simpl.
-            destruct (id_dec id0 (PI_id pinfo)); try solve [auto | congruence].
-
-          simpl_env.
-          apply store_in_cmds_merge.
-          split; auto. 
-
-      destruct value2; try solve [find_next_stld_spec_tac].
-      repeat (destruct_if; try solve [find_next_stld_spec_tac]).
-      exists nil. exists cs. exists typ5. exists align5.
-      split; auto.
-
-      find_next_stld_spec_tac.
-      destruct H2.      
-      repeat split; auto.
-        unfold store_in_cmds. simpl.
-        destruct (id_dec id0 (PI_id pinfo)); try solve [auto | congruence].
-Qed.
-
-Lemma find_st_ld__sas_spec: forall cs0 i0 v cs dones pinfo
-  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones) v0
-  (i1 : id) (Hld : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo)),
-  exists cs1 : list cmd, exists ty0 : typ, exists al0 : align,
-    cs0 = cs1 ++ insn_store i0 ty0 v (value_id (PI_id pinfo)) al0 :: cs /\
-  exists cs2 : list cmd, exists cs3 : list cmd,
-    exists ty1 : typ, exists al1 : align,
-    cs = cs2 ++ insn_store i1 ty1 v0 (value_id (PI_id pinfo)) al1 :: cs3 /\
-    load_in_cmds (PI_id pinfo) cs2 = false /\
-    store_in_cmds (PI_id pinfo) cs2 = false.
-Proof.
-  intros.
-  apply find_init_stld_inl_spec in Hst.
-  destruct Hst as [cs1 [ty1 [al1 Hst]]]; subst.
-  apply find_next_stld_inr_spec' in Hld.
-  destruct Hld as [cs2 [cs3 [ty2 [al2 [Hld [J1 J2]]]]]]; subst.
-  eauto 11.
-Qed.
-
-Require Import trans_tactic.
 
 Lemma find_next_stld_inl_spec': forall pid i1 cs
  (H: ret inl i1 = find_next_stld cs pid),
@@ -436,24 +469,6 @@ Proof.
           apply load_in_cmds_false_cons_intro; auto.
 Qed.
 
-Lemma find_st_ld__las_spec: forall cs0 i0 v cs dones pinfo
-  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones) 
-  (i1 : id) (Hld : ret (inl i1) = find_next_stld cs (PI_id pinfo)),
-  exists cs1 : list cmd, exists ty0 : typ, exists al0 : align,
-    cs0 = cs1 ++ insn_store i0 ty0 v (value_id (PI_id pinfo)) al0 :: cs /\
-  exists cs2, exists cs3, exists ty1, exists al1,
-    cs = cs2 ++ insn_load i1 ty1 (value_id (PI_id pinfo)) al1 :: cs3 /\
-    store_in_cmds (PI_id pinfo) cs2 = false /\
-    load_in_cmds (PI_id pinfo) cs2 = false.
-Proof.
-  intros.
-  apply find_init_stld_inl_spec in Hst.
-  destruct Hst as [cs1 [ty1 [al1 Hst]]]; subst.
-  apply find_next_stld_inl_spec' in Hld.
-  destruct Hld as [cs2 [cs3 [ty2 [al2 [Hld [J1 J2]]]]]]; subst.
-  eauto 11.
-Qed.
-
 Lemma find_next_stld_inl_remove_neq_spec: forall id' pid cs1 id3
   (Hneq: id3 <> id')
   (Hst : Some (inl id3) = find_next_stld cs1 pid),
@@ -480,37 +495,6 @@ Proof.
         destruct_if; auto.
 Qed.
 
-Lemma find_init_stld_inr_remove_neq_spec: forall dones id' pid cs1 v2 cs2
-  (Hneq: pid <> id')
-  (Hst : Some (inr (v2, cs2)) = find_init_stld cs1 pid dones),
-  Some (inr (v2, remove_cmds id' cs2)) =
-             find_init_stld (remove_cmds id' cs1) pid dones.
-Proof.
-  induction cs1 as [|c cs1]; simpl; intros.
-    congruence.
-
-    destruct (id_dec (getCmdLoc c) id'); subst; simpl.
-    Case "1".
-      destruct c; auto.
-      SCase "1.1".
-        destruct_if; auto.
-        destruct_if; auto.
-          simpl in Hneq. congruence.
-      SCase "1.2".
-        destruct value2; auto.
-        destruct_if; auto.
-        destruct_if; auto.
-    Case "2".
-      destruct c; auto.
-      SCase "1.1".
-        destruct_if; auto.
-        destruct_if; auto.
-      SCase "1.2".
-        destruct value2; auto.
-        destruct_if; auto.
-        destruct_if; auto.
-Qed.
-        
 Lemma find_init_stld_inl_subst_spec: forall dones id' v' pid cs1 v2 id2 cs2
   (Hnused: used_in_value pid v' = false) (Hneq: id' <> pid) 
   (Hst : Some (inl (id2, v2, cs2)) = find_init_stld cs1 pid dones),
@@ -528,42 +512,6 @@ Proof.
       destruct value2; simpl; auto.
       destruct_if; auto.
       destruct_if; auto.
-      destruct (id_dec id0 id'); subst.
-        destruct v'.
-          simpl in Hnused.
-          destruct_if. 
-            destruct_if; auto. congruence.
-            destruct_if; auto. 
-              destruct (id_dec id0 id0); simpl in Hnused; try congruence.
-
-          destruct_if; auto. 
-            congruence.
-           
-        destruct_if; auto.
-Qed.
-
-Lemma find_next_stld_inr_subst_spec: forall id' v' pid cs1 v3 id3
-  (Hnused: used_in_value pid v' = false) (Hneq: id' <> pid) 
-  (Hst : Some (inr (id3, v3)) = find_next_stld cs1 pid),
-  Some (inr (id3, v3 {[v' // id']})) = 
-    find_next_stld (List.map (subst_cmd id' v') cs1) pid.
-Proof.
-  induction cs1 as [|c cs1]; simpl; intros.
-    congruence.
-
-    destruct c; simpl; auto.
-    Case "1.1".
-      destruct value1; simpl; auto.
-      destruct_if; auto.
-      destruct (id_dec id0 id'); subst.
-        destruct v'; auto.
-          simpl in Hnused.
-          destruct_if; auto. 
-            destruct (id_dec id0 id0); simpl in Hnused; try congruence.
-
-        destruct_if; auto. congruence.
-    Case "1.2".
-      destruct value2; simpl; auto.
       destruct (id_dec id0 id'); subst.
         destruct v'.
           simpl in Hnused.
@@ -610,36 +558,6 @@ Proof.
         destruct_if; auto.
 Qed.
 
-Lemma find_init_stld_inr_subst_spec: forall dones id' v' pid cs1 v2 cs2
-  (Hnused: used_in_value pid v' = false)
-  (Hst : Some (inr (v2, cs2)) = find_init_stld cs1 pid dones),
-  Some (inr (subst_value id' v' v2, List.map (subst_cmd id' v') cs2)) =
-             find_init_stld (List.map (subst_cmd id' v') cs1) pid dones.
-Proof.
-  induction cs1 as [|c cs1]; simpl; intros.
-    congruence.
-
-    destruct c; simpl; auto.
-    Case "1.1".
-      destruct_if; auto.
-      destruct_if; auto.
-    Case "1.2".
-      destruct value2; simpl; auto.
-      destruct (id_dec id0 id'); subst.
-        destruct v'.
-          simpl in Hnused.
-          destruct_if; auto.
-          destruct_if; auto. 
-          destruct_if; auto. 
-            destruct (id_dec id0 id0); simpl in Hnused; try congruence.
-
-          destruct_if; auto. 
-          destruct_if; auto. 
-           
-        destruct_if; auto.
-        destruct_if; auto.
-Qed.
-
 Lemma find_init_stld_inl_doesnt_use_pid: forall pinfo l5 ps5 cs5 tmn5 dones
   (Hwfpi: WF_PhiInfo pinfo)
   (Huniq : uniqFdef (PI_f pinfo)) s m (HwfF: wf_fdef s m (PI_f pinfo))
@@ -656,54 +574,6 @@ Proof.
     apply WF_PhiInfo_spec4 with (v0:=v') in HBinF; auto.
 
     apply WF_PhiInfo_spec10 in HBinF; auto.
-Qed.
-
-Lemma find_st_ld_las_doesnt_use_pid: forall pinfo l5 ps5 cs5 tmn5 dones
-  (Hwfpi: WF_PhiInfo pinfo)
-  (Huniq : uniqFdef (PI_f pinfo)) s m (HwfF: wf_fdef s m (PI_f pinfo))
-  (HBinF : blockInFdefB (l5, stmts_intro ps5 cs5 tmn5) (PI_f pinfo) = true)
-  id' v' cs0 id0
-  (Hst: Some (inl (id0, v', cs0)) = find_init_stld cs5 (PI_id pinfo) dones)
-  (Hld: ret inl id' = find_next_stld cs0 (PI_id pinfo)),
-  used_in_value (PI_id pinfo) v' = false /\ id' <> (PI_id pinfo).
-Proof.
-  intros.
-  eapply find_st_ld__las_spec in Hst; eauto.
-  destruct Hst as [cs1 [ty [al [EQ [cs2 [cs3 [ty1 [al1 [EQ1 [J1 J2]]]]]]]]]]; 
-    subst.
-  split.
-    eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in HBinF; eauto 1 using in_middle.
-    apply WF_PhiInfo_spec4 with (v0:=v') in HBinF; auto.
-
-    match goal with
-    | H: context [?A ++ ?b :: ?C ++ ?d :: ?E] |- _ =>
-      rewrite_env ((A++b::C)++d::E) in H;
-      apply WF_PhiInfo_spec10 in H; auto
-    end.
-Qed.
-
-Lemma find_st_ld_laa_doesnt_use_pid: forall pinfo l5 ps5 cs5 tmn5 dones
-  (Hwfpi: WF_PhiInfo pinfo)
-  (Huniq : uniqFdef (PI_f pinfo)) s m (HwfF: wf_fdef s m (PI_f pinfo))
-  (HBinF : blockInFdefB (l5, stmts_intro ps5 cs5 tmn5) (PI_f pinfo) = true)
-  id' v' cs0
-  (Hst: Some (inr (v', cs0)) = find_init_stld cs5 (PI_id pinfo) dones)
-  (Hld: ret inl id' = find_next_stld cs0 (PI_id pinfo)),
-  used_in_value (PI_id pinfo) v' = false /\ id' <> (PI_id pinfo).
-Proof.
-  intros.
-  apply find_init_stld_inr_spec in Hst.
-  destruct Hst as [cs1 [ty1 [num1 [al1 [EQ Hst]]]]]; subst.
-  apply find_next_stld_inl_spec' in Hld.
-  destruct Hld as [cs2 [cs3 [ty2 [al2 [Hld [J1 J2]]]]]]; subst.
-  split.
-    simpl. auto.
-
-    match goal with
-    | H: context [?A ++ ?b :: ?C ++ ?d :: ?E] |- _ =>
-      rewrite_env ((A++b::C)++d::E) in H;
-      apply WF_PhiInfo_spec10 in H; auto
-    end.
 Qed.
 
 Lemma find_init_stld_inl_intro_aux: forall id0 v cs4 ty0 al0 pid dones cs3
@@ -745,6 +615,209 @@ Proof.
   apply find_init_stld_inl_intro_aux; auto with datatypes v62.
 Qed.
 
+Lemma find_init_stld_inl_in': forall (cs5 : cmds) (id' : atom) (v0 : value)
+  (dones : list id) pinfo cs01 c0 cs02
+  (Hfind : ret inl (id', v0, cs01 ++ c0 :: cs02) = 
+             find_init_stld cs5 (PI_id pinfo) dones),
+  In c0 cs5.
+Proof.
+  intros.
+  apply find_init_stld_inl_spec in Hfind.
+  destruct Hfind as [cs1 [ty1 [al1 Hst]]]; subst.
+  xsolve_in_list.
+Qed.
+
+Lemma find_next_stld_inl_intro: forall c0 cs01 pid cs02
+  (Hnst : store_in_cmds pid cs01 = false)
+  (Hld : load_in_cmd pid c0 = true) (Hnld : load_in_cmds pid cs01 = false),
+  ret inl (getCmdLoc c0) = find_next_stld (cs01 ++ c0 :: cs02) pid.
+Proof.
+  intros.
+  rewrite <- find_next_stld_strengthen; auto.
+  destruct c0; tinv Hld.
+  destruct value1; tinv Hld.
+  simpl in Hld. simpl.
+  destruct (id_dec id0 pid); subst; tinv Hld.
+  destruct_if; eauto.
+    congruence.
+Qed.
+
+(* Properties of find_next_stld_inr *)
+Lemma find_next_stld_inr_remove_neq_spec: forall id' pid cs1 v3 id3
+  (Hneq: id3 <> id')
+  (Hst : Some (inr (id3, v3)) = find_next_stld cs1 pid),
+  Some (inr (id3, v3)) = find_next_stld (remove_cmds id' cs1) pid.
+Proof.
+  induction cs1 as [|c cs1]; simpl; intros; auto.
+    destruct (id_dec (getCmdLoc c) id'); subst; simpl.
+    Case "1".
+      destruct c; auto.
+      SCase "1.1".
+        destruct value1; auto.
+        destruct_if; auto.
+      SCase "1.2".
+        destruct value2; auto.
+        destruct_if; auto.
+          simpl in Hneq. congruence.
+    Case "2".
+      destruct c; auto.
+      SCase "2.1".
+        destruct value1; auto.
+        destruct_if; auto.
+      SCase "2.2".
+        destruct value2; auto.
+        destruct_if; auto.
+Qed.
+
+Lemma find_next_stld_inr_in: forall (cs5 : cmds) (id' : atom) (v0 : value)
+  pinfo
+  (Hfind : ret inr (id', v0) = find_next_stld cs5 (PI_id pinfo)),
+  In id' (getCmdsLocs cs5).
+Proof.
+  intros.
+  apply find_next_stld_inr_spec in Hfind.
+  destruct Hfind as [cs1 [cs2 [ty1 [al1 [J1 J2]]]]]; subst.
+  rewrite getCmdsLocs_app. simpl. xsolve_in_list.
+Qed.
+
+Lemma find_next_stld_inr_spec': forall pinfo i1 v0 cs
+ (H: ret inr (i1, v0) = find_next_stld cs (PI_id pinfo)),
+ exists cs1, exists cs2, exists ty, exists al,
+   cs = cs1 ++
+          insn_store i1 ty v0 (value_id (PI_id pinfo)) al :: cs2 /\
+   load_in_cmds (PI_id pinfo) cs1 = false /\
+   store_in_cmds (PI_id pinfo) cs1 = false.
+Proof.
+  induction cs; simpl; intros.
+    congruence.
+
+    destruct a; try find_next_stld_spec_tac.
+      destruct value1; try solve [find_next_stld_spec_tac].
+      destruct_if.
+        find_next_stld_spec_tac.
+        destruct H2.
+        split; auto. 
+        split.
+          simpl_env.
+          apply load_in_cmds_merge.
+          split; auto. 
+            unfold load_in_cmds. simpl.
+            destruct (id_dec id0 (PI_id pinfo)); try solve [auto | congruence].
+
+          simpl_env.
+          apply store_in_cmds_merge.
+          split; auto. 
+
+      destruct value2; try solve [find_next_stld_spec_tac].
+      repeat (destruct_if; try solve [find_next_stld_spec_tac]).
+      exists nil. exists cs. exists typ5. exists align5.
+      split; auto.
+
+      find_next_stld_spec_tac.
+      destruct H2.      
+      repeat split; auto.
+        unfold store_in_cmds. simpl.
+        destruct (id_dec id0 (PI_id pinfo)); try solve [auto | congruence].
+Qed.
+
+
+Lemma find_init_stld_inr_subst_spec: forall dones id' v' pid cs1 v2 cs2
+  (Hnused: used_in_value pid v' = false)
+  (Hst : Some (inr (v2, cs2)) = find_init_stld cs1 pid dones),
+  Some (inr (subst_value id' v' v2, List.map (subst_cmd id' v') cs2)) =
+             find_init_stld (List.map (subst_cmd id' v') cs1) pid dones.
+Proof.
+  induction cs1 as [|c cs1]; simpl; intros.
+    congruence.
+
+    destruct c; simpl; auto.
+    Case "1.1".
+      destruct_if; auto.
+      destruct_if; auto.
+    Case "1.2".
+      destruct value2; simpl; auto.
+      destruct (id_dec id0 id'); subst.
+        destruct v'.
+          simpl in Hnused.
+          destruct_if; auto.
+          destruct_if; auto. 
+          destruct_if; auto. 
+            destruct (id_dec id0 id0); simpl in Hnused; try congruence.
+
+          destruct_if; auto. 
+          destruct_if; auto. 
+           
+        destruct_if; auto.
+        destruct_if; auto.
+Qed.
+
+Lemma find_init_stld_inr_remove_neq_spec: forall dones id' pid cs1 v2 cs2
+  (Hneq: pid <> id')
+  (Hst : Some (inr (v2, cs2)) = find_init_stld cs1 pid dones),
+  Some (inr (v2, remove_cmds id' cs2)) =
+             find_init_stld (remove_cmds id' cs1) pid dones.
+Proof.
+  induction cs1 as [|c cs1]; simpl; intros.
+    congruence.
+
+    destruct (id_dec (getCmdLoc c) id'); subst; simpl.
+    Case "1".
+      destruct c; auto.
+      SCase "1.1".
+        destruct_if; auto.
+        destruct_if; auto.
+          simpl in Hneq. congruence.
+      SCase "1.2".
+        destruct value2; auto.
+        destruct_if; auto.
+        destruct_if; auto.
+    Case "2".
+      destruct c; auto.
+      SCase "1.1".
+        destruct_if; auto.
+        destruct_if; auto.
+      SCase "1.2".
+        destruct value2; auto.
+        destruct_if; auto.
+        destruct_if; auto.
+Qed.
+        
+Lemma find_next_stld_inr_subst_spec: forall id' v' pid cs1 v3 id3
+  (Hnused: used_in_value pid v' = false) (Hneq: id' <> pid) 
+  (Hst : Some (inr (id3, v3)) = find_next_stld cs1 pid),
+  Some (inr (id3, v3 {[v' // id']})) = 
+    find_next_stld (List.map (subst_cmd id' v') cs1) pid.
+Proof.
+  induction cs1 as [|c cs1]; simpl; intros.
+    congruence.
+
+    destruct c; simpl; auto.
+    Case "1.1".
+      destruct value1; simpl; auto.
+      destruct_if; auto.
+      destruct (id_dec id0 id'); subst.
+        destruct v'; auto.
+          simpl in Hnused.
+          destruct_if; auto. 
+            destruct (id_dec id0 id0); simpl in Hnused; try congruence.
+
+        destruct_if; auto. congruence.
+    Case "1.2".
+      destruct value2; simpl; auto.
+      destruct (id_dec id0 id'); subst.
+        destruct v'.
+          simpl in Hnused.
+          destruct_if. 
+            destruct_if; auto. congruence.
+            destruct_if; auto. 
+              destruct (id_dec id0 id0); simpl in Hnused; try congruence.
+
+          destruct_if; auto. 
+            congruence.
+           
+        destruct_if; auto.
+Qed.
+
 Lemma find_init_stld_inr_intro_aux: forall cs4 t num0 al0 pid dones cs3
   (Hinc: incl (getCmdsLocs cs3) dones) 
   (Huniq: NoDup (dones ++ pid :: getCmdsLocs cs4)),
@@ -784,40 +857,6 @@ Proof.
   apply find_init_stld_inr_intro_aux; auto with datatypes v62.
 Qed.
 
-Lemma find_next_stld_strengthen: forall cs2 pid cs1 
-  (Hnst: store_in_cmds pid cs1 = false)
-  (Hnld: load_in_cmds pid cs1 = false),
-  find_next_stld cs2 pid = find_next_stld (cs1++cs2) pid.
-Proof.
-  induction cs1 as [|c cs1]; simpl; intros; auto.
-    apply store_in_cmds_false_cons_inv in Hnst.
-    destruct Hnst as [Hnst1 Hnst2].
-    apply load_in_cmds_false_cons_inv in Hnld.
-    destruct Hnld as [Hnld1 Hnld2].
-    destruct c; auto.
-      destruct value1; auto.
-      destruct_if.
-      simpl in Hnld1.
-      destruct (id_dec id0 id0); simpl in Hnld1; try congruence.
-
-      destruct value2; auto.
-      destruct_if.
-      simpl in Hnst1.
-      destruct (id_dec id0 id0); simpl in Hnst1; try congruence.   
-Qed.
-
-Lemma find_init_stld_inl_in': forall (cs5 : cmds) (id' : atom) (v0 : value)
-  (dones : list id) pinfo cs01 c0 cs02
-  (Hfind : ret inl (id', v0, cs01 ++ c0 :: cs02) = 
-             find_init_stld cs5 (PI_id pinfo) dones),
-  In c0 cs5.
-Proof.
-  intros.
-  apply find_init_stld_inl_spec in Hfind.
-  destruct Hfind as [cs1 [ty1 [al1 Hst]]]; subst.
-  xsolve_in_list.
-Qed.
-
 Lemma find_next_stld_inr_intro: forall c0 cs01 pid cs02
   (Hnst : store_in_cmds pid cs01 = false)
   (Hst : store_in_cmd pid c0 = true) (Hnld : load_in_cmds pid cs01 = false),
@@ -834,33 +873,106 @@ Proof.
     congruence.
 Qed.
 
-Lemma find_next_stld_inl_intro: forall c0 cs01 pid cs02
-  (Hnst : store_in_cmds pid cs01 = false)
-  (Hld : load_in_cmd pid c0 = true) (Hnld : load_in_cmds pid cs01 = false),
-  ret inl (getCmdLoc c0) = find_next_stld (cs01 ++ c0 :: cs02) pid.
+(* Properties of finding SAS. *)
+Lemma find_st_ld__sas_in: forall cs0 i0 v cs dones pinfo
+  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones) v0
+  (i1 : id) (Hld : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo)),
+  In i1 (getCmdsLocs cs0).
 Proof.
   intros.
-  rewrite <- find_next_stld_strengthen; auto.
-  destruct c0; tinv Hld.
-  destruct value1; tinv Hld.
-  simpl in Hld. simpl.
-  destruct (id_dec id0 pid); subst; tinv Hld.
-  destruct_if; eauto.
-    congruence.
+  apply find_init_stld_inl_spec in Hst.
+  destruct Hst as [cs1 [ty1 [al1 Hst]]]; subst.
+  apply find_next_stld_inr_in in Hld.
+  rewrite getCmdsLocs_app. simpl. xsolve_in_list.
 Qed.
 
-Lemma list_subst_actions_app_inv: forall id0 ac0 acs acs1' acs2'
-  (Heq: ListComposedPass.subst_actions id0 ac0 acs = acs1' ++ acs2'),
-  exists acs1, exists acs2,
-    acs = acs1 ++ acs2 /\ 
-    ListComposedPass.subst_actions id0 ac0 acs1 = acs1' /\
-    ListComposedPass.subst_actions id0 ac0 acs2 = acs2'.
+Lemma find_st_ld__sas_spec: forall cs0 i0 v cs dones pinfo
+  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones) v0
+  (i1 : id) (Hld : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo)),
+  exists cs1 : list cmd, exists ty0 : typ, exists al0 : align,
+    cs0 = cs1 ++ insn_store i0 ty0 v (value_id (PI_id pinfo)) al0 :: cs /\
+  exists cs2 : list cmd, exists cs3 : list cmd,
+    exists ty1 : typ, exists al1 : align,
+    cs = cs2 ++ insn_store i1 ty1 v0 (value_id (PI_id pinfo)) al1 :: cs3 /\
+    load_in_cmds (PI_id pinfo) cs2 = false /\
+    store_in_cmds (PI_id pinfo) cs2 = false.
 Proof.
-  unfold ListComposedPass.subst_actions.
   intros.
-  destruct (action2value ac0).
-    apply map_app_inv; auto.
-    subst. eauto.
+  apply find_init_stld_inl_spec in Hst.
+  destruct Hst as [cs1 [ty1 [al1 Hst]]]; subst.
+  apply find_next_stld_inr_spec' in Hld.
+  destruct Hld as [cs2 [cs3 [ty2 [al2 [Hld [J1 J2]]]]]]; subst.
+  eauto 11.
+Qed.
+
+(* Properties of finding LAS. *)
+Require Import trans_tactic.
+
+Lemma find_st_ld__las_spec: forall cs0 i0 v cs dones pinfo
+  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones) 
+  (i1 : id) (Hld : ret (inl i1) = find_next_stld cs (PI_id pinfo)),
+  exists cs1 : list cmd, exists ty0 : typ, exists al0 : align,
+    cs0 = cs1 ++ insn_store i0 ty0 v (value_id (PI_id pinfo)) al0 :: cs /\
+  exists cs2, exists cs3, exists ty1, exists al1,
+    cs = cs2 ++ insn_load i1 ty1 (value_id (PI_id pinfo)) al1 :: cs3 /\
+    store_in_cmds (PI_id pinfo) cs2 = false /\
+    load_in_cmds (PI_id pinfo) cs2 = false.
+Proof.
+  intros.
+  apply find_init_stld_inl_spec in Hst.
+  destruct Hst as [cs1 [ty1 [al1 Hst]]]; subst.
+  apply find_next_stld_inl_spec' in Hld.
+  destruct Hld as [cs2 [cs3 [ty2 [al2 [Hld [J1 J2]]]]]]; subst.
+  eauto 11.
+Qed.
+
+Lemma find_st_ld_las_doesnt_use_pid: forall pinfo l5 ps5 cs5 tmn5 dones
+  (Hwfpi: WF_PhiInfo pinfo)
+  (Huniq : uniqFdef (PI_f pinfo)) s m (HwfF: wf_fdef s m (PI_f pinfo))
+  (HBinF : blockInFdefB (l5, stmts_intro ps5 cs5 tmn5) (PI_f pinfo) = true)
+  id' v' cs0 id0
+  (Hst: Some (inl (id0, v', cs0)) = find_init_stld cs5 (PI_id pinfo) dones)
+  (Hld: ret inl id' = find_next_stld cs0 (PI_id pinfo)),
+  used_in_value (PI_id pinfo) v' = false /\ id' <> (PI_id pinfo).
+Proof.
+  intros.
+  eapply find_st_ld__las_spec in Hst; eauto.
+  destruct Hst as [cs1 [ty [al [EQ [cs2 [cs3 [ty1 [al1 [EQ1 [J1 J2]]]]]]]]]]; 
+    subst.
+  split.
+    eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in HBinF; eauto 1 using in_middle.
+    apply WF_PhiInfo_spec4 with (v0:=v') in HBinF; auto.
+
+    match goal with
+    | H: context [?A ++ ?b :: ?C ++ ?d :: ?E] |- _ =>
+      rewrite_env ((A++b::C)++d::E) in H;
+      apply WF_PhiInfo_spec10 in H; auto
+    end.
+Qed.
+
+(* Properties of finding LAA. *)
+Lemma find_st_ld_laa_doesnt_use_pid: forall pinfo l5 ps5 cs5 tmn5 dones
+  (Hwfpi: WF_PhiInfo pinfo)
+  (Huniq : uniqFdef (PI_f pinfo)) s m (HwfF: wf_fdef s m (PI_f pinfo))
+  (HBinF : blockInFdefB (l5, stmts_intro ps5 cs5 tmn5) (PI_f pinfo) = true)
+  id' v' cs0
+  (Hst: Some (inr (v', cs0)) = find_init_stld cs5 (PI_id pinfo) dones)
+  (Hld: ret inl id' = find_next_stld cs0 (PI_id pinfo)),
+  used_in_value (PI_id pinfo) v' = false /\ id' <> (PI_id pinfo).
+Proof.
+  intros.
+  apply find_init_stld_inr_spec in Hst.
+  destruct Hst as [cs1 [ty1 [num1 [al1 [EQ Hst]]]]]; subst.
+  apply find_next_stld_inl_spec' in Hld.
+  destruct Hld as [cs2 [cs3 [ty2 [al2 [Hld [J1 J2]]]]]]; subst.
+  split.
+    simpl. auto.
+
+    match goal with
+    | H: context [?A ++ ?b :: ?C ++ ?d :: ?E] |- _ =>
+      rewrite_env ((A++b::C)++d::E) in H;
+      apply WF_PhiInfo_spec10 in H; auto
+    end.
 Qed.
 
 (***************************************************************)
@@ -991,7 +1103,11 @@ Proof.
 Qed.
 
 (***************************************************************)
+(* cs: a list of commands in a block
+   pid: the promotable id 
+   elt: an elimination action 
 
+   elt is well-formed if the micro step is found in cs. *)
 Definition wf_cs_action (cs:cmds) (pid:id) (elt:id * action): Prop :=
 let '(id', ac') := elt in
 match ac' with
@@ -1011,7 +1127,16 @@ match ac' with
 end.
 
 (***************************************************************)
-
+(* The elimination pairs found from the original program are not 
+   well-formed. For example, 
+     store x p
+     y = load p
+     z = load p
+   find_xxx_stld can find the LAS (z, x) only after y is removed.
+   To address the issue, we define the following weakened well-formedness. 
+   For any pair elt=(c1, c2) in the list cs=(cs1, c1, cs2, c2, cs2), 
+   cs2 only contains the loads that can be removed by the actions cs2 before
+   elt. *)
 Definition wf_cs_action_pre (acs: AssocList action) (cs:cmds) (pid:id) 
   (elt:id * action): Prop :=
 let '(id', ac') := elt in
@@ -1034,6 +1159,7 @@ match ac' with
       load_in_cmd pid c0 = true /\ loads_must_be_in_pre acs pid cs01
 end.
 
+(* Properties of wf_cs_action_pre *)
 Lemma wf_cs_action_nil__wf_cs_action: forall cs pid elt
   (Hwf: wf_cs_action_pre nil cs pid elt), wf_cs_action cs pid elt.
 Proof.
@@ -1092,6 +1218,7 @@ Proof.
 Qed.
 
 (***************************************************************)
+(* The non-accumerator find_stld_pair_cmd *)
 Definition find_stld_pair_cmd' (pid:id) (acc:stld_state * AssocList action) 
   (c:cmd) : stld_state * option (id * action) :=
 let '(st, actions) := acc in
@@ -1163,8 +1290,101 @@ Proof.
     apply find_stld_pair_cmd__find_stld_pair_cmd'.
 Qed.
 
-(***************************************************************)
+Local Opaque find_stld_pair_cmd' find_stld_pair_cmd.
 
+Lemma find_stld_pairs_cmds_cons_inv: forall pid cs s acs s' acs'
+  (Heq: fold_left (find_stld_pair_cmd pid) cs (s, acs) = (s', acs')),
+  exists acs0, acs' = acs0 ++ acs.
+Proof.
+  induction cs as [|c cs]; simpl; intros.
+    uniq_result. exists nil. auto.
+
+    rewrite find_stld_pair_cmd__find_stld_pair_cmd' in Heq.
+    case_eq (find_stld_pair_cmd' pid (s, acs) c).
+    intros s0 o Heq'.
+    rewrite Heq' in Heq.
+    destruct o as [ac'|]; simpl in Heq. 
+      apply IHcs in Heq.
+      destruct Heq as [acs0 Heq]; subst.
+      exists (acs0 ++ [ac']). simpl_env. auto.
+    
+      apply IHcs in Heq; auto.
+Qed.
+
+Lemma find_stld_pairs_cmds__split_aux: forall pid cs acs1 ac acs2 s0 acs0 s2
+  (Heq: fold_left (find_stld_pair_cmd pid) cs (s0, acs0) = 
+          (s2, acs2 ++ ac :: acs1 ++ acs0)),
+  exists cs1, exists c, exists cs2, exists s1, exists s,
+    cs = cs1 ++ c :: cs2 /\
+    fold_left (find_stld_pair_cmd pid) cs1 (s0, acs0) = (s1, acs1 ++ acs0) /\
+    find_stld_pair_cmd' pid (s1, acs1 ++ acs0) c = (s, Some ac) /\    
+    fold_left (find_stld_pair_cmd pid) cs2 (s, ac::acs1 ++ acs0) = 
+      (s2, acs2 ++ ac :: acs1 ++ acs0).
+Proof.
+  induction cs as [|c cs]; simpl; intros; subst.
+  Case "base".
+    inversion Heq. anti_simpl_env.  
+  Case "ind".
+    rewrite find_stld_pair_cmd__find_stld_pair_cmd' in Heq.
+    case_eq (find_stld_pair_cmd' pid (s0, acs0) c).
+    intros s o Heq'.
+    rewrite Heq' in Heq.
+    destruct o as [ac'|]; simpl in Heq. 
+    SCase "1".
+      assert (J:=Heq).
+      apply find_stld_pairs_cmds_cons_inv in J. destruct J as [acs3 J].
+      anti_simpl_env.
+      destruct acs1 as [|ac1 acs1].
+      SSCase "1.1".
+        anti_simpl_env.
+        exists nil. exists c. exists cs. exists s0. exists s. 
+        split; auto.
+      SSCase "1.2".
+        destruct (cons_last _ ac1 acs1) as [pre [last EQ]].
+        rewrite EQ in J, Heq.
+        anti_simpl_env. 
+        rewrite_env (acs2 ++ ac :: pre ++ (ac' :: acs0)) in Heq.
+        apply IHcs in Heq; auto.
+        destruct Heq as [cs1 [c' [cs2 [s1 [s3 [J1 [J2 [J3 J4]]]]]]]].
+        exists (c::cs1). exists c'. exists cs2. exists s1. exists s3. 
+        split.
+          simpl. subst. auto.
+        split.
+          simpl. rewrite find_stld_pair_cmd__find_stld_pair_cmd'. rewrite Heq'.      
+          rewrite_env (([ac1] ++ acs1) ++ acs0). rewrite EQ. simpl_env. auto.
+        split.
+          rewrite_env (([ac1] ++ acs1) ++ acs0). rewrite EQ. simpl_env. auto.
+          rewrite_env (([ac1] ++ acs1) ++ acs0). rewrite EQ. simpl_env. auto.
+
+    SCase "2".
+      apply IHcs in Heq; auto.
+      destruct Heq as [cs1 [c' [cs2 [s1 [s3 [J1 [J2 [J3 J4]]]]]]]].
+      exists (c::cs1). exists c'. exists cs2. exists s1. exists s3.
+      simpl. rewrite find_stld_pair_cmd__find_stld_pair_cmd'. rewrite Heq'.      
+      subst; split; auto.
+Qed.
+
+Lemma find_stld_pairs_cmds__split: forall pid cs acs1 ac acs2 s2
+  (Heq: fold_left (find_stld_pair_cmd pid) cs (STLD_init, nil) = 
+          (s2, acs2 ++ ac :: acs1)),
+  exists cs1, exists c, exists cs2, exists s1, exists s, 
+    cs = cs1 ++ c :: cs2 /\
+    fold_left (find_stld_pair_cmd pid) cs1 (STLD_init, nil) = (s1, acs1) /\
+    find_stld_pair_cmd' pid (s1, acs1) c = (s, Some ac) /\    
+    fold_left (find_stld_pair_cmd pid) cs2 (s, ac::acs1) = 
+      (s2, acs2 ++ ac :: acs1).
+Proof.
+  intros.
+  replace acs1 with (acs1++nil) in Heq; auto.
+  apply find_stld_pairs_cmds__split_aux in Heq.
+  simpl_env in *. auto.
+Qed.
+
+Transparent find_stld_pair_cmd' find_stld_pair_cmd.
+
+(***************************************************************)
+(* A list of acs is well-formed in terms of cs and pid if any action in acs
+   is well-formed. *)
 Definition wf_cs_actions (acs: AssocList action) (cs:cmds) (pid:id) : Prop :=
 forall acs1 ac acs2 (Heq: acs = acs1 ++ ac :: acs2),
   wf_cs_action_pre acs1 cs pid ac.
@@ -1176,14 +1396,16 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* A list of acs is well-formed in terms of block if acs
+   is well-formed w.r.t commands of the block. *)
 Definition wf_block_action (acs: AssocList action) (b:block) (pid:id) 
   : Prop :=
 let '(_, stmts_intro _ cs _) := b in
 wf_cs_actions acs cs pid.
 
 (***************************************************************)
-
+(* A list of acs is well-formed in terms of blocks bs if any action in acs
+   is well-formed w.r.t commands of a block in bs. *)
 Definition wf_actions (bs:blocks) (pid:id) (rd:list l) (acs: AssocList action) 
   : Prop :=
 forall acs1 ac acs2 (Heq: acs = acs1 ++ ac :: acs2),
@@ -1191,8 +1413,29 @@ forall acs1 ac acs2 (Heq: acs = acs1 ++ ac :: acs2),
     In (l0, stmts_intro ps0 cs0 tmn0) bs /\ In l0 rd /\
     wf_cs_action_pre acs1 cs0 pid ac.
 
-(***************************************************************)
+Require Import Program.Tactics.
 
+Lemma wf_actions__in: forall bs pid rd acs ac
+  (Hwfa: wf_actions bs pid rd acs) (Hin: In ac acs),
+  exists acs1, exists acs2,
+  exists l0, exists ps0, exists cs0, exists tmn0,
+    acs = acs1 ++ ac :: acs2 /\
+    In (l0, stmts_intro ps0 cs0 tmn0) bs /\ In l0 rd /\
+    wf_cs_action_pre acs1 cs0 pid ac.
+Proof.
+  intros.
+  apply in_split in Hin.
+  destruct Hin as [acs1 [acs2 Hin]].
+  assert (J:=Hin).
+  apply Hwfa in J. destruct_conjs. eauto 10.
+Qed.
+
+(***************************************************************)
+(* The invariant that stld_state and actions found should preserve. 
+   cs is the processed commands;
+   pid is the promotable id;
+   elt is the state and current found actions.
+   *)
 Definition wf_stld_state (cs:cmds) (pid:id) (elt :stld_state * AssocList action)
   : Prop :=
 let '(s, acs) := elt in
@@ -1244,8 +1487,6 @@ Qed.
 Ltac wf_stld_state_append_tac :=
   try solve 
     [apply wf_stld_state_append; simpl; try solve [auto | destruct_dec]].
-
-(***************************************************************)
 
 Lemma find_stld_pair_cmd__wf_stld_state: forall (pid : id) cs c st
   (Hwfst: wf_stld_state cs pid st),
@@ -1341,6 +1582,7 @@ Proof.
   simpl. unfold alloca_in_cmds, store_in_cmds. auto.
 Qed.
 
+
 Lemma find_stld_pair_cmd'__wf_cs_action_pre: forall cs cs1 c cs2 st1 st2 pid 
   (Heq: cs = cs1 ++ c :: cs2)
   (Huniq: NoDup (getCmdsLocs cs))
@@ -1405,98 +1647,7 @@ Ltac find_stld_pair_cmd'__wf_cs_action_pre_tac :=
       destruct_dec.
 Qed.
 
-Local Opaque find_stld_pair_cmd' find_stld_pair_cmd.
-
-Lemma find_stld_pairs_cmds_cons_inv: forall pid cs s acs s' acs'
-  (Heq: fold_left (find_stld_pair_cmd pid) cs (s, acs) = (s', acs')),
-  exists acs0, acs' = acs0 ++ acs.
-Proof.
-  induction cs as [|c cs]; simpl; intros.
-    uniq_result. exists nil. auto.
-
-    rewrite find_stld_pair_cmd__find_stld_pair_cmd' in Heq.
-    case_eq (find_stld_pair_cmd' pid (s, acs) c).
-    intros s0 o Heq'.
-    rewrite Heq' in Heq.
-    destruct o as [ac'|]; simpl in Heq. 
-      apply IHcs in Heq.
-      destruct Heq as [acs0 Heq]; subst.
-      exists (acs0 ++ [ac']). simpl_env. auto.
-    
-      apply IHcs in Heq; auto.
-Qed.
-
-Lemma find_stld_pairs_cmds__split_aux: forall pid cs acs1 ac acs2 s0 acs0 s2
-  (Heq: fold_left (find_stld_pair_cmd pid) cs (s0, acs0) = 
-          (s2, acs2 ++ ac :: acs1 ++ acs0)),
-  exists cs1, exists c, exists cs2, exists s1, exists s,
-    cs = cs1 ++ c :: cs2 /\
-    fold_left (find_stld_pair_cmd pid) cs1 (s0, acs0) = (s1, acs1 ++ acs0) /\
-    find_stld_pair_cmd' pid (s1, acs1 ++ acs0) c = (s, Some ac) /\    
-    fold_left (find_stld_pair_cmd pid) cs2 (s, ac::acs1 ++ acs0) = 
-      (s2, acs2 ++ ac :: acs1 ++ acs0).
-Proof.
-  induction cs as [|c cs]; simpl; intros; subst.
-  Case "base".
-    inversion Heq. anti_simpl_env.  
-  Case "ind".
-    rewrite find_stld_pair_cmd__find_stld_pair_cmd' in Heq.
-    case_eq (find_stld_pair_cmd' pid (s0, acs0) c).
-    intros s o Heq'.
-    rewrite Heq' in Heq.
-    destruct o as [ac'|]; simpl in Heq. 
-    SCase "1".
-      assert (J:=Heq).
-      apply find_stld_pairs_cmds_cons_inv in J. destruct J as [acs3 J].
-      anti_simpl_env.
-      destruct acs1 as [|ac1 acs1].
-      SSCase "1.1".
-        anti_simpl_env.
-        exists nil. exists c. exists cs. exists s0. exists s. 
-        split; auto.
-      SSCase "1.2".
-        destruct (cons_last _ ac1 acs1) as [pre [last EQ]].
-        rewrite EQ in J, Heq.
-        anti_simpl_env. 
-        rewrite_env (acs2 ++ ac :: pre ++ (ac' :: acs0)) in Heq.
-        apply IHcs in Heq; auto.
-        destruct Heq as [cs1 [c' [cs2 [s1 [s3 [J1 [J2 [J3 J4]]]]]]]].
-        exists (c::cs1). exists c'. exists cs2. exists s1. exists s3. 
-        split.
-          simpl. subst. auto.
-        split.
-          simpl. rewrite find_stld_pair_cmd__find_stld_pair_cmd'. rewrite Heq'.      
-          rewrite_env (([ac1] ++ acs1) ++ acs0). rewrite EQ. simpl_env. auto.
-        split.
-          rewrite_env (([ac1] ++ acs1) ++ acs0). rewrite EQ. simpl_env. auto.
-          rewrite_env (([ac1] ++ acs1) ++ acs0). rewrite EQ. simpl_env. auto.
-
-    SCase "2".
-      apply IHcs in Heq; auto.
-      destruct Heq as [cs1 [c' [cs2 [s1 [s3 [J1 [J2 [J3 J4]]]]]]]].
-      exists (c::cs1). exists c'. exists cs2. exists s1. exists s3.
-      simpl. rewrite find_stld_pair_cmd__find_stld_pair_cmd'. rewrite Heq'.      
-      subst; split; auto.
-Qed.
-
-Lemma find_stld_pairs_cmds__split: forall pid cs acs1 ac acs2 s2
-  (Heq: fold_left (find_stld_pair_cmd pid) cs (STLD_init, nil) = 
-          (s2, acs2 ++ ac :: acs1)),
-  exists cs1, exists c, exists cs2, exists s1, exists s, 
-    cs = cs1 ++ c :: cs2 /\
-    fold_left (find_stld_pair_cmd pid) cs1 (STLD_init, nil) = (s1, acs1) /\
-    find_stld_pair_cmd' pid (s1, acs1) c = (s, Some ac) /\    
-    fold_left (find_stld_pair_cmd pid) cs2 (s, ac::acs1) = 
-      (s2, acs2 ++ ac :: acs1).
-Proof.
-  intros.
-  replace acs1 with (acs1++nil) in Heq; auto.
-  apply find_stld_pairs_cmds__split_aux in Heq.
-  simpl_env in *. auto.
-Qed.
-
-Transparent find_stld_pair_cmd' find_stld_pair_cmd.
-
+(* Properties of wf_cs_actions *)
 Lemma find_stld_pairs_cmds__wf_cs_actions: forall pid cs 
   (Huniq: NoDup (getCmdsLocs cs)),
   wf_cs_actions (find_stld_pairs_cmds cs pid) cs pid.
@@ -1529,48 +1680,6 @@ Proof.
   apply find_stld_pairs_cmds__wf_cs_actions; auto.
 Qed.
 
-Lemma find_stld_pairs_blocks__split: forall pid rd bs acs1 ac acs2
-  (Hmap: flat_map (find_stld_pairs_block pid rd) bs = acs1 ++ ac :: acs2),
-  exists b, exists bs1, exists bs2,
-  exists acs11, exists acs12, exists acs21, exists acs22,
-    bs = bs1 ++ b :: bs2 /\
-    acs1 = acs11 ++ acs12 /\
-    acs2 = acs21 ++ acs22 /\
-    find_stld_pairs_block pid rd b = acs12 ++ ac :: acs21 /\
-    flat_map (find_stld_pairs_block pid rd) bs1 = acs11 /\
-    flat_map (find_stld_pairs_block pid rd) bs2 = acs22.
-Proof.
-  induction bs as [|b bs]; simpl; intros.
-    symmetry in Hmap. contradict Hmap. apply app_cons_not_nil.
-
-    apply app_split in Hmap.
-    destruct Hmap as [[u1 [u2 [J1 [J2 J3]]]]|[z1 [z2 [J1 [J2 J3]]]]].
-      exists b. exists nil. exists bs. exists nil. exists acs1. 
-      exists u1. exists u2. simpl. eauto 10.
-
-      apply_clear IHbs in J2.
-      destruct J2 as 
-        [b0 [bs1 [bs2 [acs11 [acs12 [acs21 [acs22 [J2 
-          [J7 [J4 [J5 [J6 J8]]]]]]]]]]]]; subst.
-      exists b0. exists (b::bs1). exists bs2.
-      exists (find_stld_pairs_block pid rd b ++ 
-              flat_map (find_stld_pairs_block pid rd) bs1).
-      exists acs12. exists acs21.
-      exists (flat_map (find_stld_pairs_block pid rd) bs2).
-      simpl_env. split; auto.
-Qed.
-
-Lemma find_stld_pairs_block__reach: forall pid rd l0 sts0
-  acs1 ac acs2
-  (Hfind: find_stld_pairs_block pid rd (l0, sts0) =
-            acs1 ++ ac :: acs2),
-  In l0 rd.
-Proof.
-  simpl. intros.
-  destruct_if; auto.
-    symmetry in H0. contradict H0. destruct sts0. apply app_cons_not_nil.
-Qed.
-
 Lemma find_stld_pairs_blocks__wf_actions: forall pid rd bs actions
   (Huniq: NoDup (getBlocksLocs bs))
   (Hfind: actions = flat_map (find_stld_pairs_block pid rd) bs),
@@ -1599,49 +1708,16 @@ Proof.
 Qed.
 
 (***************************************************************)
-
-Definition subst_action_action (ac:action) (elt:id * action): action :=
-let '(id1, ac1) := elt in
-match action2value ac1 with
-| Some v1 => subst_action id1 v1 ac
-| _ => ac
-end.
-
-Lemma list_subst_actions_cons_inv: forall id0 ac0 acs id1 ac1' acs2'
-  (Heq: ListComposedPass.subst_actions id0 ac0 acs = (id1, ac1') :: acs2'),
-  exists ac1, exists acs2,
-    acs = (id1, ac1) :: acs2 /\ 
-    subst_action_action ac1 (id0, ac0)= ac1' /\
-    ListComposedPass.subst_actions id0 ac0 acs2 = acs2'.
-Proof.
-  unfold ListComposedPass.subst_actions.
-  intros.
-  case_eq (action2value ac0).
-    intros v Heqv. rewrite Heqv in Heq.
-    unfold ListMap.map in *.
-    apply map_cons_inv in Heq; auto.
-    destruct Heq as [[] [x2 [EQ [J1 J2]]]]; subst.
-    inv J2.
-    exists a0. exists x2.
-    split; auto.
-    split; auto.
-      unfold subst_action_action, subst_action.
-      rewrite Heqv. auto.
-
-    intros Heqv. rewrite Heqv in Heq.
-    subst. 
-    unfold subst_action_action. rewrite Heqv. eauto.
-Qed.
-
-(***************************************************************)
-
+(* Apply actions to ac *)
 Definition pipelined_actions_action (actions: list (id*action)) (ac:action) 
   : action :=
 List.fold_left subst_action_action actions ac.
 
+(* First fold pairs from left to right, then apply the result list to f. *)
 Definition pipelined_actions (pairs: AssocList action) (f:fdef) : fdef :=
 List.fold_left apply_action (substs_actions pairs) f.
 
+(* Substitute actions from right to left. *)
 Fixpoint pipelined_actions__composed_actions (actions: list (id*action))
   : list (id*action) :=
 match actions with
@@ -1651,12 +1727,15 @@ match actions with
       pipelined_actions__composed_actions actions'
 end.
 
+(* First substitute actions from left to right,
+   then substitute actions from right to left,
+   then apply the actions to f. *)
 Definition composed_pipelined_actions (pairs: AssocList action) (f:fdef): fdef :=
 ListComposedPass.substs_fdef 
   (pipelined_actions__composed_actions (substs_actions pairs)) f.
 
 (***************************************************************)
-
+(* The graphs formed by actions are cyclic. *)
 Require Import Paths.
 
 Section ActionGraph.
@@ -1788,68 +1867,6 @@ Proof.
           apply ListSet.set_diff_elim1 in J4; auto.
           apply ListSet.set_diff_elim1 in J1; auto.
 *)
-Qed.
-
-Require Import Program.Tactics.
-
-Lemma wf_actions__in: forall bs pid rd acs ac
-  (Hwfa: wf_actions bs pid rd acs) (Hin: In ac acs),
-  exists acs1, exists acs2,
-  exists l0, exists ps0, exists cs0, exists tmn0,
-    acs = acs1 ++ ac :: acs2 /\
-    In (l0, stmts_intro ps0 cs0 tmn0) bs /\ In l0 rd /\
-    wf_cs_action_pre acs1 cs0 pid ac.
-Proof.
-  intros.
-  apply in_split in Hin.
-  destruct Hin as [acs1 [acs2 Hin]].
-  assert (J:=Hin).
-  apply Hwfa in J. destruct_conjs. eauto 10.
-Qed.
-
-Lemma find_stld_pairs_block__reach': forall (fh : fheader) (bs : blocks)
-  (HuniqF : uniqFdef (fdef_intro fh bs)) (pid : id) (rd : list l) (id0 : atom)
-  (Hin : id0 `in` dom (flat_map (find_stld_pairs_block pid rd) bs)),
-  exists l0 : l, exists sts0 : stmts,
-    blockInFdefB (l0, sts0) (fdef_intro fh bs) /\
-    In id0 (getStmtsLocs sts0) /\
-    In l0 rd.
-Proof.
-  intros.
-  apply binds_In_inv in Hin.
-  destruct Hin as [a Hin].
-  unfold binds in Hin.
-  apply in_flat_map in Hin.
-  destruct Hin as [b [Hin1 Hin2]].
-  assert (J:=Hin2).
-  apply binds_In in J.
-  apply find_stld_pairs_block__incl in J.
-  destruct b as [l0 sts0].
-  exists l0. exists sts0.
-  split. simpl. solve_in_list.
-  split; auto.
-    apply in_split in Hin2.
-    destruct Hin2 as [l1 [l2 Hfind]].   
-    apply find_stld_pairs_block__reach in Hfind; auto.
-Qed.
-
-Lemma find_stld_pairs_block__reach'': forall (fh : fheader) (bs : blocks)
-  (HuniqF : uniqFdef (fdef_intro fh bs)) (pid : id) (rd : list l) (id0 : atom)
-  (l0 : l) (sts0 : stmts)
-  (H : lookupBlockViaIDFromFdef (fdef_intro fh bs) id0 = ret (l0, sts0))
-  (Hin : id0 `in` dom (flat_map (find_stld_pairs_block pid rd) bs)),
-  In l0 rd.
-Proof.
-  intros.
-  eapply find_stld_pairs_block__reach' in Hin; eauto.
-  destruct Hin as [l1 [sts1 [J1 [J2 J3]]]].
-  assert (J':=H).
-  apply lookupBlockViaIDFromBlocks__InGetBlockIDs in J'.
-  apply in_getStmtsIDs__in_getStmtsLocs in J'.
-  assert ((l1, sts1) = (l0, sts0)) as EQ.
-    eapply block_eq2; eauto 1.
-      solve_blockInFdefB.
-  inv EQ. auto.
 Qed.
 
 Lemma find_stld_pairs_block__isReachableFromEntry: forall s m fh bs 
@@ -2039,10 +2056,9 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* Given acyclic and unique actions, the two composed passes are equivalent. *)
 Lemma list_compose_actions__list_composed_substs: forall actions 
   (Hacyclic: acyclic_actions actions) (Huniq: uniq actions) f,
   ListComposedPass.substs_fdef (ListComposedPass.compose_actions actions) f =
   composed_pipelined_actions actions f.
 Admitted.
-

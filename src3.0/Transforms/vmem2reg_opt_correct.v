@@ -34,10 +34,11 @@ Require Import vmem2reg_opt.
 Require Import vmem2reg_opt_compose_props.
 
 (***************************************************************)
-
+(* Remove the definition of elt from f *)
 Definition apply_remove_action (f:fdef) (elt:id * action): fdef :=
 let '(id1, ac1) := elt in remove_fdef id1 f.
 
+(* Substitute the definition of elt in f *)
 Definition apply_subst_action (f:fdef) (elt:id * action): fdef :=
 let '(id1, ac1) := elt in
 match action2value ac1 with
@@ -45,6 +46,8 @@ match action2value ac1 with
 | _ => f
 end.
 
+(***************************************************************)
+(* apply_remove_action and apply_subst_action are commutable. *)
 Lemma apply_remove_subst_action__commute: forall f ac1 ac2,
   apply_remove_action (apply_subst_action f ac1) ac2 = 
     apply_subst_action (apply_remove_action f ac2) ac1.
@@ -62,6 +65,9 @@ Proof.
     rewrite apply_remove_subst_action__commute; auto.
 Qed.
 
+(***************************************************************)
+(* composing apply_remove_action and apply_subst_action equals to 
+   applying the list of actions. *)
 Lemma apply_remove_subst_action__apply_action: forall f ac,
   apply_remove_action (apply_subst_action f ac) ac = apply_action f ac.
 Proof. destruct ac as [? []]; simpl; auto. Qed.
@@ -79,7 +85,7 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* Properties of filters. *)
 Lemma filters_phinode_true_elim1: forall id0 ac0 p actions
   (Hin: In (id0, ac0) actions)
   (Hfilter: ListComposedPass.filters_phinode actions p = true),
@@ -235,7 +241,7 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* Properties of substs_actions *)
 Definition list_substs_actions__dom_prop (n:nat) := forall actions
   (Hlen: (length actions = n)%nat),
   dom actions [=] dom (substs_actions actions).
@@ -317,7 +323,7 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* Properties of ListComposedPass.removes_xxx *)
 Lemma list_composed_removes_phis__empty: forall ps,
   ListComposedPass.removes_phinodes (empty_set (atom * action)) ps = ps.
 Proof.
@@ -342,8 +348,6 @@ Proof.
     apply list_composed_removes_phis__empty; auto.
     apply list_composed_removes_cmds__empty; auto.
 Qed.
-
-(***************************************************************)
 
 Lemma list_composed_removes_phis__commute: forall actions id0 ac0
   (Hin : In (id0, ac0) actions) ps,
@@ -451,7 +455,7 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* More AVL map facts. *)
 Lemma AVLFacts_in_find_some: forall (elt : Type) (m : AtomFMapAVL.t elt)
   (x : AtomFMapAVL.key) (Hin: AtomFMapAVL.In (elt:=elt) x m),
   exists e, AtomFMapAVL.find (elt:=elt) x m = Some e.
@@ -470,7 +474,7 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* Substituting actions does not change definitions to remove. *)
 Lemma avl_subst_actions__remove_spec: forall id0 id1 ac1 actions,
   AtomFMapAVL.MapsTo id0 AC_remove actions <-> 
     AtomFMapAVL.MapsTo id0 AC_remove 
@@ -583,7 +587,7 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* Substituting actions does not change definitions to substitute. *)
 Lemma avl_subst_actions__in_spec: forall id0 id1 ac1 actions,
   AtomFMapAVL.In id0 (AVLComposedPass.subst_actions id1 ac1 actions) <->
     AtomFMapAVL.In id0 actions.
@@ -641,7 +645,7 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* AVL-based removal equals list-based removal. *)
 Definition avl_actions__iff_dom__list_actions 
   A (actions1:AVLMap.t A) (actions2:ListMap.t A): Prop :=
 forall id0, 
@@ -756,7 +760,7 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* Properties of ListComposedPass.substs_xxx nil *)
 Lemma list_composed_substs_value_nil: forall v,
   ListComposedPass.substs_value nil v = v.
 Proof.
@@ -835,7 +839,7 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* Actions to remove do not affect substitution. *)
 Lemma list_composed_substs_value_doesnt_use_AC_remove: forall id0 
   actions (Hnotin: id0 `notin` dom actions) v,
   ListComposedPass.substs_value ((id0, AC_remove) :: actions) v =
@@ -942,18 +946,19 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* If v uses (fst elt), replace is by the value of (snd elt). *)
 Definition subst_action_value (v:value) (elt:id * action): value :=
 let '(id1, ac1) := elt in
 match action2value ac1 with
 | Some v1 => subst_value id1 v1 v 
 | _ => v
 end.
-
+(* Apply actions to v. *)
 Definition pipelined_actions_value (actions: list (id*action)) (v:value) 
   : value :=
 List.fold_left subst_action_value actions v.
 
+(* Properties of pipelined_actions_action *)
 Lemma pipelined_actions_action_tail: forall id0 actions2 actions1
   (Hnotin: id0 `notin` dom actions1),
   pipelined_actions_action (actions1++actions2) (AC_vsubst (value_id id0)) =
@@ -1147,7 +1152,7 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* Composed substitution equals to pipelined substitution. *)
 Lemma list_composed_substs_value__commute: forall actions (Huniq : uniq actions)
   id0 v0 ac0 (Heq : action2value ac0 = ret v0) v,
   ListComposedPass.substs_value
@@ -1352,7 +1357,7 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* AVL-based maps equal to list-based maps. *)
 Definition avl_actions__iff_mapsto__list_actions 
   A (actions1:AVLMap.t A) (actions2:ListMap.t A): Prop :=
 forall id0 ac0, 
@@ -1568,7 +1573,7 @@ Proof.
 Qed.
 
 (***************************************************************)
-
+(* AVL-based composing equals to list-based composing. *)
 Lemma acl_compose_actions__list_compose_actions: forall actions f,
   AVLComposedPass.substs_fdef (AVLComposedPass.compose_actions actions) f =
     ListComposedPass.substs_fdef (ListComposedPass.compose_actions actions) f.
@@ -1577,8 +1582,6 @@ Proof.
   apply avl_substs_fdef__iff_mapsto__list_substs_fdef.
   apply avl_compose_actions__iff_mapsto__list_compose_actions.
 Qed.
-
-(***************************************************************)
 
 Lemma avl_substs_fdef__list_substs_fdef: forall actions (Huniq: uniq actions) 
   (Hacyclic: acyclic_actions actions) f,
@@ -1593,6 +1596,7 @@ Proof.
   rewrite <- acl_compose_actions__list_compose_actions; auto.
 Qed.
 
+(***************************************************************)
 Definition apply_action_block (b : block) (elt : id * action) : block :=
 match elt with
 | (id1, AC_remove) => remove_block id1 b
@@ -1609,6 +1613,8 @@ Proof.
   destruct a; simpl; intros; inv Heq; repeat (apply in_map; auto).
 Qed.
 
+(***************************************************************)
+(* Micro passes preserve well-formed actions *)
 Ltac destruct_sasinfo :=
 match goal with
 | sasinfo: sas.SASInfo _ |- _ =>
@@ -1644,7 +1650,6 @@ Ltac die__wf_actions_tac id' cs01 c0 cs02 dones' :=
   repeat (split; eauto using remove_pres_loads_must_be_in_pre,
                        filter_pres_store_in_cmds_false,
                        filter_pres_store_in_cmds_false).
-
 
 Lemma sas__wf_cd_action_pre: forall l5 ps5 cs5 tmn5 id' v0 cs0 id1 v1 fh actions
   bs1 fh' bs1' dones pinfo (Hwfpi: WF_PhiInfo pinfo) id2 ac2
@@ -2076,6 +2081,7 @@ Proof.
     eapply las__wf_cs_action_pre; simpl; eauto.
 Qed.
 
+(* Composed substitution preserves well-formedness of actions. *)
 Lemma list_subst_actions__wf_cs_action_pre: forall (id' : id) (ac' : action)
   (id2 : atom) (acs3 : list (atom * action)) (ac2 : action) (l0 : l)
   (ps0 : phinodes) (cs : cmds) (tmn0 : terminator)
@@ -2120,6 +2126,7 @@ Local Opaque wf_cs_action_pre.
 Transparent wf_cs_action_pre.
 Qed.
 
+(* Pipelined transformations of LAS/LAA/SAS preserve semantics. *)
 Lemma wf_actions_cons_inv: forall fh bs fh' bs' id0 ac0 
   pinfo (Hwfpi: WF_PhiInfo pinfo) (Huniq: uniqFdef (PI_f pinfo)) actions
   (Heqpi: PI_f pinfo = fdef_intro fh bs) (Huniq': uniq actions)
