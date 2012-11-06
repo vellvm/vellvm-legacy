@@ -2829,6 +2829,141 @@ Proof.
           apply ListSet.set_diff_elim1 in J1; auto.
 Qed.
 
+Lemma idDominates_trans: forall s m f (HwfF:wf_fdef s m f)
+  (HuniqF: uniqFdef f) id1 id2 id3
+  (Hdom1: idDominates f id1 id2) (Hdom2: idDominates f id2 id3)
+  (Hreach: (forall b, lookupBlockViaIDFromFdef f id3 = Some b ->
+                      isReachableFromEntry f b)),
+  idDominates f id1 id3.
+Proof.
+  unfold idDominates, inscope_of_id.
+  intros.
+  inv_mbind.
+  symmetry_ctx.
+  assert (blockInFdefB (l3,s1) f = true) as HBinF0.
+    solve_blockInFdefB.
+  assert (blockInFdefB (l1,s0) f = true) as HBinF1.
+    solve_blockInFdefB.
+  destruct s1 as [ps2 cs2 tmn2].
+  destruct s0 as [ps3 cs3 tmn3].
+  apply fold_left__spec in HeqR2.
+  apply fold_left__spec in HeqR0.
+  destruct HeqR2 as [_ [_ HeqR2]].
+  destruct HeqR0 as [Hinit0 [HeqR3 HeqR0]].
+  apply_clear HeqR2 in Hdom1.
+  apply_clear HeqR0 in Hdom2.
+  assert (~ In id3 (getArgsIDsOfFdef f)) as Hnotin3.
+    solve_notin_getArgsIDs.
+  assert (~ In id2 (getArgsIDsOfFdef f)) as Hnotin2.
+    solve_notin_getArgsIDs.
+  assert (In id2 (getStmtsLocs (stmts_intro ps2 cs2 tmn2))) as Hin9.
+    solve_in_list.
+  assert (In id3 (getStmtsLocs (stmts_intro ps3 cs3 tmn3))) as Hin10.
+    solve_in_list.
+  destruct (In_dec id_dec id1 (getArgsIDsOfFdef f)) as [Hin1 | Hnotin1].
+  Case "id1 is in args".
+    apply Hinit0. 
+    apply in_getArgsIDsOfFdef__init_scope; auto.
+  Case "id1 isnt in args".
+    destruct Hdom1 as [Hdom1 | [sts1 [a1 [J1 [J2 J3]]]]].
+    SCase "id1 local".
+      unfold init_scope in Hdom1.
+      destruct_if; try tauto.
+      destruct Hdom2 as [Hdom2 | [sts2 [a2 [J4 [J5 J6]]]]].
+      SSCase "id2 local".
+        unfold init_scope in Hdom2.
+        destruct_if; try tauto.
+        assert ((l3, stmts_intro ps2 cs2 tmn2) =
+                (l1, stmts_intro ps3 cs3 tmn3)) as EQ.
+          eapply block_eq2 with (id1:=id2); eauto 1.
+            simpl.
+            solve_in_list.
+            apply cmds_dominates_cmd_spec in Hdom2.
+            solve_in_list.
+        inv EQ. 
+        assert (NoDup (getCmdsLocs cs3)) as Hnodup.
+          solve_NoDup.
+        assert (In id2 (cmds_dominates_cmd cs3 id3)) as Hin2.
+          apply in_app_or in Hdom2.
+          destruct Hdom2 as [Hdom2 | Hdom2]; try solve [contradict Hdom2; auto].
+          apply in_app_or in Hdom2.
+          destruct Hdom2 as [Hdom2 | Hdom2]; try solve [contradict Hdom2; auto].
+          auto.
+        apply Hinit0. 
+        unfold init_scope. 
+        destruct_if; try congruence.
+        assert (In id2 (getCmdsLocs cs3)) as Hin.
+          apply cmds_dominates_cmd_spec in Hin2.
+          solve_in_list.
+        eapply cmds_dominates_cmd_trans; eauto.
+          apply uniqFdef__uniqBlockLocs in HBinF0; auto.
+          simpl in HBinF0.
+          rewrite_env ((getPhiNodesIDs ps3 ++
+            getCmdsLocs cs3) ++ getTerminatorID tmn3 :: nil) in HBinF0.
+          apply NoDup_split in HBinF0. tauto.
+      
+          solve_in_list.        
+      SSCase "id2 remote".
+        assert ((a2, sts2) = (l3, stmts_intro ps2 cs2 tmn2)) as EQ.
+          eapply block_eq2 with (id1:=id2); eauto 1.
+            solve_blockInFdefB.
+            solve_in_list.
+        inv EQ.
+        apply HeqR3 in J5; auto.
+        apply J5.
+        simpl.
+        apply cmds_dominates_cmd_spec' with (id0:=id2); auto.
+        solve_in_list.
+    SCase "id1 remote".
+      destruct Hdom2 as [Hdom2 | [sts2 [a2 [J4 [J5 J6]]]]].
+      SSCase "id2 local".
+        unfold init_scope in Hdom2.
+        destruct_if; try tauto.
+        assert ((l3, stmts_intro ps2 cs2 tmn2) =
+                (l1, stmts_intro ps3 cs3 tmn3)) as EQ.
+          eapply block_eq2 with (id1:=id2); eauto 1.
+            simpl.
+            solve_in_list.
+            apply cmds_dominates_cmd_spec in Hdom2.
+            solve_in_list.
+        inv EQ.
+        apply HeqR3 in J2; auto.
+      SSCase "id2 remote".
+        assert ((a2, sts2) = (l3, stmts_intro ps2 cs2 tmn2)) as EQ.
+          eapply block_eq2 with (id1:=id2); eauto 1.
+            solve_blockInFdefB.
+            solve_in_list.
+        inv EQ.
+        apply lookupBlockViaLabelFromFdef_inv in J5; auto.
+        assert (HBinF:=J2).
+        apply lookupBlockViaLabelFromFdef_inv in HBinF; auto.        
+        assert (blockStrictDominates f (a1, sts1)
+                                       (l3, stmts_intro ps2 cs2 tmn2)) as Hdom.
+          simpl. apply ListSet.set_diff_elim1 in J1; auto.
+        assert (blockStrictDominates f (l3, stmts_intro ps2 cs2 tmn2)
+                                       (l1, stmts_intro ps3 cs3 tmn3)) as Hdom'.
+          simpl. apply ListSet.set_diff_elim1 in J4; auto.
+        assert (blockStrictDominates f (a1, sts1) 
+                                       (l1, stmts_intro ps3 cs3 tmn3)) as Hdom''.
+          eapply blockStrictDominates_trans 
+            with (b2:=(l3, stmts_intro ps2 cs2 tmn2)); eauto.
+        destruct (l_dec a1 l1); subst.
+        SSSCase "a1 = l1".
+          assert ((l1, sts1) = (l1, stmts_intro ps3 cs3 tmn3)) as EQ.
+            eapply blockInFdefB_uniq in HBinF1; eauto.
+            destruct HBinF1 as [Heq1 [Heq2 Heq3]]; subst. auto.
+          inv EQ.
+          assert (isReachableFromEntry f (l1, stmts_intro ps3 cs3 tmn3)) 
+            as Hreach' by auto.
+          eapply blockStrictDominates_isnt_refl in Hreach';
+            try solve [eauto | contradict Hdom''; auto].
+        SSSCase "a1 <> l1".        
+          simpl in Hdom''. 
+          apply HeqR3 in J2; auto.
+          apply ListSet.set_diff_intro; auto.
+            intro J. simpl in J. destruct J; auto.
+Qed.
+
 Lemma any_cmd_doesnt_use_following_operands: forall
   (F1 : fdef) (l3 : l) (ps1 : phinodes) (cs : list cmd)
   (tmn1 : terminator) (c : cmd)

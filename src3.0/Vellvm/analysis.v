@@ -609,31 +609,48 @@ Proof.
   apply cmds_dominates_cmd_spec' in H. auto.
 Qed.
 
-Lemma cmds_dominates_cmd_trans : forall id1 id2 R1 R2 cs1 c cs
-  (G: In id1 (getCmdsLocs (cs1 ++ c :: cs))),
-  NoDup (R1 ++ getCmdsLocs (cs1 ++ c :: cs)) ->
-  In id1 (R1 ++
-          cmds_dominates_cmd (cs1 ++ c :: cs) (getCmdLoc c)) ->
+Lemma cmds_dominates_cmd_spec''' : forall ids1 id2 cs id0 ids2,
+  In id2 (ids1 ++ cmds_dominates_cmd cs id0 ++ ids2) ->
+  In id2 (ids1 ++ getCmdsIDs cs ++ ids2).
+Proof.
+  intros.
+  solve_in_list.
+  eapply cmds_dominates_cmd_spec; eauto.
+Qed.
+
+Lemma cmds_dominates_cmd_trans : forall id1 id2 id3 R1 R2 cs
+  (G: In id1 (getCmdsLocs cs))
+  (H: NoDup (R1 ++ getCmdsLocs cs))
+  (H0: In id1 (R1 ++
+          cmds_dominates_cmd cs id3))
+  (H1: In id2 (R1 ++
+          cmds_dominates_cmd cs id1 ++ R2)),
   In id2 (R1 ++
-          cmds_dominates_cmd (cs1 ++ c :: cs) id1 ++ R2) ->
-  In id2 (R1 ++
-          cmds_dominates_cmd (cs1 ++ c :: cs) (getCmdLoc c) ++ R2).
+          cmds_dominates_cmd cs id3 ++ R2).
 Proof.
   intros.
   solve_in_list.
   apply in_app_or in H0.
   destruct H0 as [H0 | H0].
+  Case "1".
     eapply NoDup_disjoint' in H; eauto.
     apply cmds_dominates_cmd_inv in H1; auto.
     destruct H1 as [cs2 [c0 [cs3 [J1 [J2 J3]]]]]; subst.
-    rewrite J1 in H.
     contradict H. apply getCmdLoc_in_getCmdsLocs. apply in_middle.
-
-    apply NoDup_split in H. destruct H as [J1 J2].
-    rewrite cmds_dominates_cmd_spec3 in H0; auto.
-    rewrite cmds_dominates_cmd_spec2 with (cs:=cs1) in H1; auto.
-    rewrite cmds_dominates_cmd_spec3; auto.
-    apply cmds_dominates_cmd_spec in H1; auto.
+  Case "2".
+    apply NoDup_split in H. destruct H as [J4 J5].
+    destruct (In_dec id_dec id3 (getCmdsLocs cs)) as [Hin3 | Hnin3].
+    SCase "2.1".
+      apply in_getCmdsLocs_inv in Hin3.
+      destruct Hin3 as [cs1 [c [cs2 [EQ1 EQ2]]]]; subst.
+      rewrite cmds_dominates_cmd_spec3 in H0; auto.
+      rewrite cmds_dominates_cmd_spec2 with (cs:=cs1) in H1; auto.
+      rewrite cmds_dominates_cmd_spec3; auto.
+      apply cmds_dominates_cmd_spec in H1; auto.
+    SCase "2.2".
+      rewrite cmds_dominates_cmd_spec5 in H0; auto.
+      rewrite cmds_dominates_cmd_spec5; auto.
+      eapply cmds_dominates_cmd_spec; eauto.
 Qed.
 
 Lemma cmds_dominates_cmd_spec0 : forall ids1 id2 cs id0,
