@@ -36,6 +36,17 @@ Proof.
   intros. destruct (action2value ac0); auto.
 Qed.
 
+Lemma list_subst_actions__map_fst: forall id0 ac0 actions,
+  List.map fst (ListComposedPass.subst_actions id0 ac0 actions) = 
+    List.map fst actions.
+Proof.
+  unfold ListComposedPass.subst_actions.
+  intros. 
+  destruct (action2value ac0); try fsetdec.
+    induction actions; simpl; auto.
+      destruct a. simpl. congruence.
+Qed.
+
 Lemma list_subst_actions__dom: forall id0 ac0 actions,
   dom (ListComposedPass.subst_actions id0 ac0 actions) [=] dom actions.
 Proof.
@@ -131,6 +142,121 @@ match goal with
    unfold substs_actions;
    Program.Wf.WfExtensionality.unfold_sub substs_actions arg
 end.
+
+(***************************************************************)
+(* Properties of substs_actions *)
+Ltac solve_substs_actions_len :=
+try solve [
+  auto |
+  match goal with
+  | Hlen : length ((?id0, ?ac0) :: ?actions) = ?x |-
+    (length (ListComposedPass.subst_actions ?id0 ?ac0 ?actions) + 0 < ?x)%nat =>
+    subst x; simpl; rewrite <- list_subst_actions__length; omega
+  | Hlen : length ((?id0, ?ac0) :: ?actions) = ?x |-
+    (length (ListComposedPass.subst_actions ?id0 ?ac0 ?actions) < ?x)%nat =>
+    subst x; simpl; rewrite <- list_subst_actions__length; omega
+  | |- (length (ListComposedPass.subst_actions ?id0 ?ac0 ?actions) + 0 < 
+         length ((?id0, ?ac0) :: ?actions) )%nat =>
+    simpl; rewrite <- list_subst_actions__length; omega
+  end
+].
+
+Definition substs_actions__map_fst_prop (n:nat) := forall actions
+  (Hlen: (length actions = n)%nat),
+  List.map fst actions = List.map fst (substs_actions actions).
+
+Lemma substs_actions__map_fst_aux: forall n,
+  substs_actions__map_fst_prop n.
+Proof.
+  intro n.
+  elim n using (well_founded_induction lt_wf).
+  intros x Hrec.
+  unfold substs_actions__map_fst_prop in *; intros.
+  destruct actions as [|[id0 ac0] actions].
+    simpl; try fsetdec.
+
+    unfold_substs_actions.
+    simpl. 
+    rewrite <- Hrec with 
+      (y:=length (ListComposedPass.subst_actions id0 ac0 actions)); auto.
+      rewrite list_subst_actions__map_fst; fsetdec.
+      solve_substs_actions_len.
+Qed.
+
+Lemma substs_actions__map_fst: forall actions,
+  List.map fst actions = List.map fst (substs_actions actions).
+Proof.
+  intros.
+  assert (J:=@substs_actions__map_fst_aux (length actions)).
+  unfold substs_actions__map_fst_prop in J.
+  auto.
+Qed.
+
+Definition substs_actions__dom_prop (n:nat) := forall actions
+  (Hlen: (length actions = n)%nat),
+  dom actions [=] dom (substs_actions actions).
+
+Lemma substs_actions__dom_aux: forall n,
+  substs_actions__dom_prop n.
+Proof.
+  intro n.
+  elim n using (well_founded_induction lt_wf).
+  intros x Hrec.
+  unfold substs_actions__dom_prop in *; intros.
+  destruct actions as [|[id0 ac0] actions].
+    simpl; try fsetdec.
+
+    unfold_substs_actions.
+    simpl. 
+    rewrite <- Hrec; auto.
+      rewrite list_subst_actions__dom; fsetdec.
+      solve_substs_actions_len.
+Qed.
+
+Lemma substs_actions__dom: forall actions,
+  dom actions [=] dom (substs_actions actions).
+Proof.
+  intros.
+  assert (J:=@substs_actions__dom_aux (length actions)).
+  unfold substs_actions__dom_prop in J.
+  auto.
+Qed.
+
+Definition substs_actions__uniq_prop (n:nat) := forall actions
+  (Hlen: (length actions = n)%nat) (Huniq: uniq actions),
+  uniq (substs_actions actions).
+
+Lemma substs_actions__uniq_aux: forall n,
+  substs_actions__uniq_prop n.
+Proof.
+  intro n.
+  elim n using (well_founded_induction lt_wf).
+  intros x Hrec.
+  unfold substs_actions__uniq_prop in *; intros.
+  destruct actions as [|[id0 ac0] actions].
+    simpl; auto.
+
+    unfold_substs_actions.
+    simpl_env.
+    inv Huniq.
+    constructor.
+      eapply Hrec; eauto.
+        solve_substs_actions_len.
+
+        apply list_subst_actions__uniq; auto.
+
+        rewrite <- substs_actions__dom.
+        rewrite list_subst_actions__dom; auto.
+Qed.
+
+Lemma substs_actions__uniq: forall actions (Huniq: uniq actions),
+  uniq (substs_actions actions).
+Proof.
+  intros.
+  assert (J:=@substs_actions__uniq_aux (length actions)).
+  unfold substs_actions__uniq_prop in J.
+  auto.
+Qed.
 
 (***************************************************************)
 (* Properties of find_stld_pairs_cmds *)
@@ -1734,1012 +1860,3 @@ Definition composed_pipelined_actions (pairs: AssocList action) (f:fdef): fdef :
 ListComposedPass.substs_fdef 
   (pipelined_actions__composed_actions (substs_actions pairs)) f.
 
-(***************************************************************)
-(* The graphs formed by actions are cyclic. *)
-Require Import Dipaths.
-
-Section ActionGraph.
-
-Variable actions: AssocList action.
-
-Definition avertexes : @V_set value :=
-fun (v:Vertex) => 
-let '(index val) := v in 
-match val with
-| value_id n => 
-  n `in` dom actions 
-| _ => False 
-end \/ exists id0, In (id0, AC_vsubst val) actions.
-
-Definition aarcs : @A_set value :=
-fun (arc:Arc) =>
-match arc with
-| (A_ends (index (value_id id2)) (index v1)) => In (id2, AC_vsubst v1) actions
-| _ => False
-end.
-
-Definition acyclic_actions : Prop :=
-  forall (x:Vertex) (vl:V_list) (al:A_list) (Hcyc: D_walk avertexes aarcs x x vl al), 
-    vl = V_nil.
-
-End ActionGraph.
-
-Lemma find_stld_pairs_block__isReachableFromEntry: forall s m fh bs 
-  (HwfF:wf_fdef s m (fdef_intro fh bs))
-  (HuniqF: uniqFdef (fdef_intro fh bs)) pid rd actions
-  (Hreach: ret rd = reachablity_analysis (fdef_intro fh bs))
-  (Hfind: actions = flat_map (find_stld_pairs_block pid rd) bs),
-  forall id0 (a:avertexes actions (index (value_id id0))) (b : block),
-  lookupBlockViaIDFromFdef (fdef_intro fh bs) id0 = ret b ->
-  isReachableFromEntry (fdef_intro fh bs) b.
-Proof.
-  intros. destruct b as [l0 sts0].
-  eapply reachablity_analysis__reachable; eauto.
-  subst. 
-  destruct a as [Hin | Hin].
-  Case "1".
-    eapply find_stld_pairs_block__reach''; eauto.
-  Case "2".
-    destruct Hin as [id1 Hin].
-    assert (Hin':=Hin).
-    apply binds_In in Hin'.
-    eapply find_stld_pairs_block__reach' in Hin'; eauto.
-    destruct Hin' as [l1 [sts1 [J1 [J2 J3]]]].
-    assert (Huniq:=HuniqF).
-    apply uniqF__uniqBlocksLocs in Huniq.    
-    remember (flat_map (find_stld_pairs_block pid rd) bs) as acs.
-    apply find_stld_pairs_blocks__wf_actions in Heqacs; auto.
-    eapply wf_actions__in in Hin; eauto.
-    destruct Hin as 
-      [acs1 [acs2 [l2 [ps0 [cs0 [tmn0 [EQ [Hin1 [Hin2 Hwf]]]]]]]]]; subst.
-    simpl in Hwf.
-    destruct Hwf as [id2 [cs01 [c0 [cs02 [dones [J6 [J7 [J8 [J4 J5]]]]]]]]].
-    apply find_init_stld_inl_spec in J6.
-    destruct J6 as [cs1 [ty [al J6]]]; subst.
-    remember (insn_store id2 ty (value_id id0) (value_id pid) al) as c1.
-    remember (l2, stmts_intro ps0
-               (cs1 ++ c1 :: cs01 ++ c0 :: cs02) tmn0) as b.
-    remember (fdef_intro fh bs) as f.
-    assert (exists ids1, Some ids1 = inscope_of_cmd f b c1) as R1.
-      assert (J:=inscope_of_cmd__total f b c1).
-      destruct (inscope_of_cmd f b c1); eauto.
-      congruence.
-    destruct R1 as [ids1 R1].
-    assert (blockInFdefB b f = true) as HBInF.
-      subst f. simpl. solve_in_list.
-    assert (cmdInBlockB c1 b = true) as HC1InB.
-      subst. solve_in_list.
-    assert (isReachableFromEntry f b) as Hreach'.
-      subst b. simpl.
-      eapply reachablity_analysis__reachable; eauto.
-    assert (In id0 (getCmdOperands c1)) as Hinops.
-      subst c1. simpl. auto.
-    assert (J:=R1).
-    eapply cmd_operands__in_scope' with (id1:=id0) in J; eauto 1.
-    subst b. 
-    eapply inscope_of_cmd__id_in_reachable_block in R1; eauto.
-      apply R1 in H. simpl in H.
-      eapply reachable__reachablity_analysis; eauto.
-      
-      solve_in_list.
-Qed.
-
-Lemma find_stld_pairs_blocks__idDominates: forall s m fh bs 
-  (HwfF:wf_fdef s m (fdef_intro fh bs))
-  (HuniqF: uniqFdef (fdef_intro fh bs)) actions rd pid
-  (Hreach: ret rd = reachablity_analysis (fdef_intro fh bs))
-  (Hfind: actions = flat_map (find_stld_pairs_block pid rd) bs) id1 id2
-  (Hin: In (id1, AC_vsubst (value_id id2)) actions),
-  idDominates (fdef_intro fh bs) id2 id1.
-Proof.
-  intros.
-  assert (Huniq:=HuniqF).
-  apply uniqF__uniqBlocksLocs in Huniq.
-  assert (J:=Hfind).
-  apply find_stld_pairs_blocks__wf_actions in J; auto.
-  eapply wf_actions__in in J; eauto.
-  destruct J as 
-    [acs1 [acs2 [l0 [ps0 [cs0 [tmn0 [EQ [Hin1 [Hin2 Hwf]]]]]]]]]; subst.
-  simpl in Hwf.
-  destruct Hwf as [id0 [cs01 [c0 [cs02 [dones [J1 [J2 [J3 [J4 J5]]]]]]]]].
-  apply find_init_stld_inl_spec in J1.
-  destruct J1 as [cs1 [ty [al J1]]]; subst.
-  remember (l0, stmts_intro ps0
-             (cs1 ++
-              insn_store id0 ty (value_id id2) (value_id pid) al
-              :: cs01 ++ c0 :: cs02) tmn0) as b.
-  remember (insn_store id0 ty (value_id id2) (value_id pid) al) as c1.
-  remember (fdef_intro fh bs) as f.
-  assert (getCmdID c0 <> merror) as Hmerror.
-    destruct c0; inv J4. simpl. congruence.
-  assert (isReachableFromEntry f b) as Hreach'.
-    subst f.
-    eapply find_stld_pairs_block__isReachableFromEntry 
-      with (pid:=pid)(id0:=getCmdLoc c0); eauto 1.
-      simpl. left. simpl_env. eapply binds_In; eauto.
-
-      assert (insnInFdefBlockB (insn_cmd c0) (fdef_intro fh bs) b = true) 
-        as Hin'.
-        subst. simpl. apply andb_true_iff.
-        split; solve_in_list.
-      solve_lookupBlockViaIDFromFdef.
-  assert (blockInFdefB b f = true) as HBInF.
-    subst f. simpl. solve_in_list.
-  assert (cmdInBlockB c0 b = true) as HC0InB.
-    subst. solve_in_list.
-  assert (cmdInBlockB c1 b = true) as HC1InB.
-    subst. solve_in_list.
-  assert (exists ids1, Some ids1 = inscope_of_cmd f b c1) as R1.
-    assert (J:=inscope_of_cmd__total f b c1).
-    destruct (inscope_of_cmd f b c1); eauto.
-    congruence.
-  destruct R1 as [ids1 R1].
-  assert (exists ids0, Some ids0 = inscope_of_cmd f b c0) as R0.
-    assert (J:=inscope_of_cmd__total f b c0).
-    destruct (inscope_of_cmd f b c0); eauto.
-    congruence.
-  destruct R0 as [ids0 R0].
-  eapply inscope_of_cmd__idDominates; eauto 1.
-    assert (AtomSet.set_eq (ids1 ++ getCmdsIDs (c1::cs01)) ids0) as EQ'.
-      subst. unfold inscope_of_cmd in *.
-      eapply inscope_of_id__append_cmds; eauto.
-        solve_NoDup.
-    eapply cmd_operands__in_scope' with (id1:=id2) in R1; eauto 1.
-      apply EQ'. solve_in_list.
-      subst c1. simpl. auto.
-Qed.
-
-Lemma find_stld_pairs_blocks__valueDominates: forall s m fh bs 
-  (HwfF:wf_fdef s m (fdef_intro fh bs))
-  (HuniqF: uniqFdef (fdef_intro fh bs)) actions rd pid
-  (Hreach: ret rd = reachablity_analysis (fdef_intro fh bs))
-  (Hfind: actions = flat_map (find_stld_pairs_block pid rd) bs) id1 v2
-  (Hin: In (id1, AC_vsubst v2) actions),
-  valueDominates (fdef_intro fh bs) v2 (value_id id1).
-Proof.
-  intros.
-  destruct v2 as [id2|]; simpl; auto.
-  intros.
-  eapply find_stld_pairs_blocks__idDominates; eauto.
-Qed.
-
-(* go to typing_props.v *)
-Lemma idDominates_id_in_reachable_block: forall (s : system) (m : module)
-  (f : fdef) (HwfF : wf_fdef s m f) (HuniqF : uniqFdef f) (id2 : id) (id3 : id)
-  (Hreach : id_in_reachable_block f id3) (Hdom : idDominates f id2 id3),
-  id_in_reachable_block f id2.
-Proof.
-  intros.
-  unfold id_in_reachable_block in *.
-  intros.
-  unfold idDominates in *.
-  inv_mbind.
-  
-  unfold inscope_of_id in HeqR0.
-  destruct b as [l1 [ps1 cs1 tmn1]].
-  symmetry in HeqR0.
-  apply fold_left__spec in HeqR0.
-  destruct HeqR0 as [J1 [J2 J3]].
-  apply_clear J3 in Hdom.
-  assert (blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) f = true) as HBinF1.
-    symmetry in HeqR. solve_blockInFdefB. 
-  assert (blockInFdefB b2 f = true) as HBinF2 by solve_blockInFdefB.
-  assert (In id2 (getStmtsLocs (snd b2))) as Hin by solve_in_list.
-  destruct Hdom as [Hdom | [sts2 [l2 [J4 [J5 J3]]]]].
-    assert (~ In id2 (getArgsIDsOfFdef f)) as Hnotin2.
-      solve_notin_getArgsIDs.
-    unfold init_scope in Hdom.
-    destruct_if; try tauto.
-    apply Hreach.
-      f_equal.
-      apply block_eq2 with (id1:=id2)(f:=f); auto.
-        simpl. xsolve_in_list.
-        apply cmds_dominates_cmd_spec in Hdom; auto.
-        xsolve_in_list.
-  
-    assert (b2 = (l2, sts2)) as EQ.
-      apply block_eq2 with (id1:=id2)(f:=f); auto.
-        solve_blockInFdefB.
-        simpl. xsolve_in_list.
-    subst.
-    assert (Some (l1, stmts_intro ps1 cs1 tmn1) = 
-            Some (l1, stmts_intro ps1 cs1 tmn1)) as EQ by auto.
-    apply Hreach in EQ.
-    assert (strict_domination f l2 l1) as J.
-      eapply sdom_is_sound with (s3:=stmts_intro ps1 cs1 tmn1); eauto 1.
-        apply set_diff_elim1 in J4; auto.
-    apply DecDom.sdom_reachable in J; auto.
-Qed.
-
-(* go to typing_props.v *)
-Lemma valueDominates_trans: forall s m f (HwfF:wf_fdef s m f)
-  (HuniqF: uniqFdef f) v1 v2 v3
-  (Hdom1: valueDominates f v1 v2) (Hdom2: valueDominates f v2 v3),
-  valueDominates f v1 v3.
-Proof.
-  intros.
-  destruct v1 as [id1|]; auto.
-  destruct v2 as [id2|]; tinv Hdom1.
-  destruct v3 as [id3|]; tinv Hdom2.
-  simpl in *.
-  intro Hreach.
-  eapply idDominates_trans; eauto.
-    apply Hdom1.
-    assert (Hdom:=Hreach). apply Hdom2 in Hdom. 
-    eapply idDominates_id_in_reachable_block; eauto.
-Qed.
-
-Lemma D_walk_head_inv : forall acs v1 v2 vl al
-  (Hw: D_walk (avertexes acs) (aarcs acs) v1 v2 vl al),
-  (v1 = v2 /\ vl = V_nil /\ al = A_nil) \/ exists id1, v1 = index (value_id id1).
-Proof.
-  intros.
-  inv Hw; auto.
-  destruct v1 as [[]]; tinv H1; eauto.
-Qed.
-
-Lemma find_stld_pairs_blocks__walk_valueDominates: forall s m fh bs 
-  (HwfF:wf_fdef s m (fdef_intro fh bs))
-  (HuniqF: uniqFdef (fdef_intro fh bs)) actions rd pid
-  (Hreach: ret rd = reachablity_analysis (fdef_intro fh bs))
-  (Hfind: actions = flat_map (find_stld_pairs_block pid rd) bs)
-  id1 v2 vl al (Hnnil: vl <> V_nil)
-  (Hw: D_walk (avertexes actions) (aarcs actions) 
-         (index (value_id id1)) (index v2) vl al),
-  valueDominates (fdef_intro fh bs) v2 (value_id id1).
-Proof.
-  intros.
-  remember (avertexes actions) as V.
-  remember (aarcs actions) as A.
-  remember (index (value_id id1)) as x.
-  remember (index v2) as y.
-  generalize dependent id1.
-  generalize dependent v2.
-  induction Hw; intros; subst.
-  Case "1".
-    congruence.
-  Case "2".
-    destruct y as [v3].
-    match goal with
-    | H0: aarcs _ _ |- _ =>
-      eapply find_stld_pairs_blocks__valueDominates in H0; eauto 1
-    end.
-    destruct vl as [|v' vl]; inv Hw; auto.
-    match goal with
-    | H8 : aarcs _ (A_ends (index ?v3) _) |- _ =>
-      destruct v3 as [id3|]; tinv H8
-    end.
-    eapply valueDominates_trans; eauto 1.
-      apply IHHw; auto. 
-        intro J. inv J.
-Qed.
-
-Lemma find_stld_pairs_blocks_acyclic: forall s m fh bs 
-  (HwfF: wf_fdef s m (fdef_intro fh bs))
-  (HuniqF: uniqFdef (fdef_intro fh bs)) pid rd actions
-  (Hfind: actions = flat_map (find_stld_pairs_block pid rd) bs)
-  (Hreach: ret rd = reachablity_analysis (fdef_intro fh bs)),
-  acyclic_actions actions.
-Proof.
-  unfold acyclic_actions.
-  intros. subst.
-  assert (Hwfa:=HuniqF). 
-  apply uniqF__uniqBlocksLocs in Hwfa.
-  apply find_stld_pairs_blocks__wf_actions 
-    with (pid:=pid)(rd:=rd)(actions:=flat_map (find_stld_pairs_block pid rd) bs)
-    in Hwfa; auto.
-  destruct vl as [|v vl]; auto.
-  assert (Hin:=Hcyc). apply DW_endx_inv in Hin.
-  assert (J:=Hcyc).
-  apply D_walk_head_inv in J.
-  destruct J as [[EQ1 [EQ2 EQ3]]|[id0 EQ]]; subst; try congruence.
-  eapply find_stld_pairs_blocks__walk_valueDominates in Hcyc; eauto.
-  Case "1".
-    simpl in Hcyc.
-    assert (id_in_reachable_block (fdef_intro fh bs) id0) as Hreach'.
-      unfold id_in_reachable_block.
-      intros.
-      eapply find_stld_pairs_block__isReachableFromEntry in Hin; eauto.     
-    apply Hcyc in Hreach'.
-    eapply idDominates_acyclic in Hreach'; eauto.
-    SCase "1.1".
-      inv Hreach'.
-    SCase "1.2".
-      intros.
-      eapply find_stld_pairs_block__isReachableFromEntry in Hin; eauto.     
-  Case "2".
-    intro H. inv H.
-Qed.
-
-(***************************************************************)
-Definition used_in_action (id0:id) (ac:action) : bool :=
-match ac with
-| AC_vsubst v => used_in_value id0 v
-| _ => false
-end.
-
-Lemma nonused_in_value__subst_value: forall id0 v0 v
-  (Hnused: used_in_value id0 v = false),
-  v {[v0 // id0]} = v.
-Proof.
-  destruct v; simpl; intro; auto.
-  destruct_if. inv Hnused.
-Qed.
-
-Lemma nonused__in_subst_actions: forall id0 ac0 (acs:AssocList action) id1 ac1 
-  (Hin: In (id1, ac1) acs) (Hnuse: used_in_action id0 ac1 = false),
-  In (id1, ac1) (ListComposedPass.subst_actions id0 ac0 acs).
-Proof.
-  intros.
-  unfold ListComposedPass.subst_actions.
-  remember (action2value ac0) as ov.
-  destruct ov as [v0|]; auto.
-  induction acs as [|[ac acs]]; simpl in *; intros; auto.
-    destruct Hin as [Hin | Hin]; auto.
-      inv Hin. 
-      left.
-      destruct ac1; simpl in *; auto.
-         rewrite nonused_in_value__subst_value; auto.
-Qed.
-
-Definition nonused_in_Vertex (id0:id) (v:Vertex) : Prop :=
-  let 'index v' := v in used_in_value id0 v' = false.
-
-Definition nonused_in_V_list (id0:id) (vl:V_list) : Prop :=
-  Forall (nonused_in_Vertex id0) vl.
-
-Lemma nonused__subst_avertexex: forall id0 ac0 (acs:AssocList action) v
-  (Hnuse: nonused_in_Vertex id0 v) (Ha: avertexes acs v) acs' 
-  (Heq: acs' = (ListComposedPass.subst_actions id0 ac0 acs)),
-  avertexes acs' v.
-Proof.
-  unfold avertexes. 
-  intros. subst. 
-  destruct v as [v].
-  destruct Ha as [Ha | [id2 Ha]].
-    destruct v as [id1|cst1]; auto.
-      left.   
-      assert (J:=list_subst_actions__dom id0 ac0 acs).
-      fsetdec.
-
-    right. 
-    exists id2.
-    apply nonused__in_subst_actions; auto.
-Qed.
-
-Lemma Forall_inv' : forall A P (a:A) l, Forall P (a :: l) -> Forall P l.
-Proof.
-  intros. inv H; auto.
-Qed.
-
-Lemma nonused__subst_aarcs: forall id0 ac0 (acs:AssocList action) x y
-  (Hnusey: nonused_in_Vertex id0 y)
-  (Ha: aarcs acs (A_ends x y)) acs' 
-  (Heq: acs' = (ListComposedPass.subst_actions id0 ac0 acs)),
-  aarcs acs' (A_ends x y).
-Proof.
-  intros. 
-  destruct x as [[id1|cst1]]; tinv Ha.
-  destruct y as [y1]. simpl in *.
-  subst.
-  apply nonused__in_subst_actions; auto.
-Qed.
-
-Definition Vertex_in_action_dom (v:Vertex) (acs:AssocList action) : Prop :=
-match v with
-| index (value_id id0) => id0 `in` dom acs
-| _ => False
-end.
-
-Lemma dom__subst_avertexex: forall id0 ac0 (acs:AssocList action) v
-  (Hdom: Vertex_in_action_dom v acs) acs' 
-  (Heq: acs' = (ListComposedPass.subst_actions id0 ac0 acs)),
-  avertexes acs' v.
-Proof.
-  unfold avertexes. 
-  intros. subst. destruct v as [[id1|cst1]]; tinv Hdom.
-  left.  simpl in *.
-  assert (J:=list_subst_actions__dom id0 ac0 acs).
-  fsetdec.
-Qed.
-
-Lemma nonused__subst_actions_dwalk: forall id0 ac0 acs v1 v2 vl al
-  (Hw: D_walk (avertexes acs) (aarcs acs) v1 v2 vl al)
-  acs' (Heq: acs' = (ListComposedPass.subst_actions id0 ac0 acs))
-  (Hnuse: nonused_in_V_list id0 (v1::vl)),
-  D_walk (avertexes acs') (aarcs acs') v1 v2 vl al.
-Proof.
-  induction 1; simpl; intros.
-    constructor.
-    apply Forall_inv in Hnuse.
-    eapply nonused__subst_avertexex; eauto.
-     
-    assert (Hnuse':=Hnuse).
-    apply Forall_inv in Hnuse.
-    apply Forall_inv' in Hnuse'.
-    constructor; auto.
-      eapply nonused__subst_avertexex; eauto.
-
-      apply Forall_inv in Hnuse'.
-      eapply nonused__subst_aarcs; eauto.
-Qed.    
-
-Lemma nonused__subst_actions_dwalk': forall id0 ac0 acs v1 v2 vl al
-  (Hw: D_walk (avertexes acs) (aarcs acs) v1 v2 vl al)
-  acs' (Heq: acs' = (ListComposedPass.subst_actions id0 ac0 acs))
-  (Hnuse: nonused_in_V_list id0 vl) (Hhd: Vertex_in_action_dom v1 acs),
-  D_walk (avertexes acs') (aarcs acs') v1 v2 vl al.
-Proof.
-  intros.
-  destruct Hw.
-    constructor.
-    eapply dom__subst_avertexex; eauto.
-     
-    constructor.
-      eapply nonused__subst_actions_dwalk; eauto.
-      eapply dom__subst_avertexex; eauto.
-
-      apply Forall_inv in Hnuse.
-      eapply nonused__subst_aarcs; eauto.
-Qed.
-
-Lemma subst_actions_inv: forall id0 ac0 id1 ac1 acs
-  (H1: ~ In (id1, ac1) acs)
-  (H2: In (id1, ac1) (ListComposedPass.subst_actions id0 ac0 acs)),
-  In (id1, AC_vsubst (value_id id0)) acs.
-Proof.
-  intros.
-  destruct ac0;
-  induction acs as [|[id3 ac3] acs]; simpl in *; try solve [
-    auto |
-    destruct H2 as [H2 | H2]; try solve [
-      inv H2; try tauto;
-      destruct ac3 as [|[id3|]|]; try tauto;
-      simpl in *;
-      destruct_dec; tauto |
-
-      match goal with
-      | IHacs : _ -> _ |- _ => right; apply IHacs; auto
-      end ]
-    ].
-Qed.
-
-Definition end_of_actions (v:@Vertex value) (acs:AssocList action) : Prop :=
-let '(index v0) := v in
-match v0 with
-| value_id id0 => lookupAL _ acs id0 = None
-| _ => True
-end.
-
-Definition actions_end_imply (acs1 acs2:AssocList action) : Prop :=
-forall vl1 al1 v1 v2
-  (Hw: D_walk (avertexes acs1) (aarcs acs1) v1 v2 vl1 al1)
-  (Hend: end_of_actions v2 acs1),
-  exists vl2, exists al2, 
-    D_walk (avertexes acs2) (aarcs acs2) v1 v2 vl2 al2 /\
-    end_of_actions v2 acs2.
-
-Inductive dwalks : Set :=
-| DW_nil : dwalks
-| DW_single : @V_list value -> @A_list value -> dwalks
-| DW_more : 
-    @V_list value -> @Vertex value -> @A_list value ->
-    list (@V_list value * @Vertex value  * @A_list value) ->
-    @V_list value ->  @A_list value ->
-    dwalks.
-
-Definition V_list_doesnt_contain (v:@Vertex value) (vl:V_list) : Prop :=
-Forall (fun v' => v' <> v) vl.
-
-(*
-   There is a path from x0 to y0. We want to substitute z0 by v0.
-   We partition the path in the following.
-   o fine if the path is empty
-   o the path (except the end) does not contain z0
-   o otherwise
-      x0 .. v1 z0 v0 .. v1 z0 v0 ... ... ... z0 v0 ... y0
-*)
-Inductive wf_dwalks (v:V_set) (a:A_set) (vl: @V_list value) (al: @A_list value) 
-  (x0 y0 z0 v0:@Vertex value) : dwalks -> Prop :=
-| WDW_nil : 
-    x0 = y0 -> vl = V_nil -> al = A_nil ->
-    wf_dwalks v a vl al x0 y0 z0 v0 DW_nil
-| WDW_single :
-    D_walk v a x0 y0 vl al ->
-    vl <> V_nil ->
-    V_list_doesnt_contain z0 (removelast vl) ->
-    wf_dwalks v a vl al x0 y0 z0 v0 (DW_single vl al)
-| WDW_more : forall vl1 v1 al1 vals2 vl3 al3,
-    (* head *)
-    D_walk v a x0 v1 vl1 al1 ->
-    D_walk v a v1 z0 [z0] [A_ends v1 z0] ->
-    V_list_doesnt_contain z0 vl1 ->
-    (* middles *)
-    Forall (fun val2 => 
-            let '(vl2, v2, al2) := val2 in 
-            D_walk v a z0 v0 [v0] [A_ends z0 v0] /\
-            D_walk v a v0 v2 vl2 al2 /\
-            D_walk v a v2 z0 [z0] [A_ends v2 z0] /\
-            V_list_doesnt_contain z0 vl2) vals2 ->
-    (* end *)
-    D_walk v a z0 v0 [v0] [A_ends z0 v0] ->
-    D_walk v a v0 y0 vl3 al3 ->    
-    V_list_doesnt_contain z0 (removelast vl1) ->
-    (* sum *)
-    fold_left (fun acc val2 => 
-               let '(vl2, _, al2) := val2 in 
-               acc ++ v0 :: vl2 ++ [z0]) vals2 (vl1 ++ [z0]) ++ (v0::vl3) = vl ->
-    fold_left (fun acc val2 => 
-               let '(vl2, v2, al2) := val2 in 
-               acc ++ A_ends z0 v0 :: al2 ++ [A_ends v2 z0]) 
-      vals2 (al1 ++ [A_ends v1 z0]) ++ (A_ends z0 v0 ::al3) = al ->
-    wf_dwalks v a vl al x0 y0 z0 v0 (DW_more vl1 v1 al1 vals2 vl3 al3)
-.
-
-Lemma generate_connected_dwalks: forall acs x0 y0 vl al z0 v0,
-  uniq acs ->
-  D_walk (avertexes acs) (aarcs acs) x0 y0 vl al ->
-  exists wks, 
-    wf_dwalks (avertexes acs) (aarcs acs) vl al x0 y0 z0 v0 wks.
-Admitted.
-
-(*
-  Given a path
-      x0 .. v1 z0 v0 .. v1 z0 v0 ... ... ... z0 v0 ... y0
-  the new path after substitution is
-      x0 .. v1    v0 .. v1    v0 ... ... ...    v0 ... y0
-*)
-Definition dwalks_to_walk v0 (dw:dwalks): @V_list value * @A_list value :=
-match dw with
-| DW_nil => (V_nil, A_nil)
-| DW_single vl al => (vl, al)
-| DW_more vl1 v1 al1 vals2 vl3 al3 =>
-    (fold_left (fun acc val2 => 
-                let '(vl2, _, al2) := val2 in 
-                acc ++ v0 :: vl2) vals2 vl1 ++ (v0::vl3),
-     fold_left (fun acc val2 => 
-                let '(vl2, v2, al2) := val2 in 
-                acc ++ al2 ++ [A_ends v2 v0]) 
-       vals2 (al1 ++ [A_ends v1 v0]) ++ al3)
-end.
-
-Lemma subst_actions_end_imply: forall acs id0 ac0 (Huniq: uniq acs)
-  (Hin: In (id0, ac0) acs),
-  actions_end_imply acs (ListComposedPass.subst_actions id0 ac0 acs).
-Proof.
-  unfold actions_end_imply.
-  intros.
-  remember (action2value ac0) as ov.
-  destruct ov as [v|].
-  Case "ov=Some v".
-    apply generate_connected_dwalks 
-      with (z0:=index (value_id id0))(v0:=index v) in Hw; auto.
-    destruct Hw as [wks J].
-    destruct (dwalks_to_walk (index v) wks) as [vl' al'].
-    exists vl'. exists al'.
-    admit. (* by nonused__subst_actions_dwalk' *)
-  Case "ov=None".
-    unfold ListComposedPass.subst_actions.
-    rewrite <- Heqov. eauto.
-Qed.
-  
-Definition A_list__in__actions (al:A_list) (acs:AssocList action) : Prop :=
-forall id0 v (Hin: In (A_ends (index (value_id id0)) (index v)) al),
-  In (id0, AC_vsubst v) acs.
-
-(*
-   There is a path from x0 to y0, in which z0 was substituted by v0.
-   We partition the path in the following.
-   o fine if the path is empty
-   o the path (except the end) does not contain fresh (z0',v0).
-   o otherwise
-      x0 .. z0' v0 .. z1' v0 ... ... ... zn' v0 ... y0
-      where (z0', v0) is not in the original graph.
-*)
-Inductive wf_inv_dwalks (v:V_set) (a:A_set) (acs:AssocList action)
-  (vl: @V_list value) (al: @A_list value) 
-  (x0 y0 v0:@Vertex value) : dwalks -> Prop :=
-| WIDW_nil : 
-    x0 = y0 -> vl = V_nil -> al = A_nil ->
-    wf_inv_dwalks v a acs vl al x0 y0 v0 DW_nil
-| WIDW_single :
-    D_walk v a x0 y0 vl al ->
-    vl <> V_nil ->
-    A_list__in__actions al acs ->
-    wf_inv_dwalks v a acs vl al x0 y0 v0 (DW_single vl al)
-| WIDW_more : forall vl1 v1 al1 vals2 vl3 al3,
-    (* head *)
-    D_walk v a x0 v1 vl1 al1 ->
-    D_walk v a v1 v0 [v0] [A_ends v1 v0] ->
-    A_list__in__actions al1 acs ->
-    (* middles *)
-    Forall (fun val2 => 
-            let '(vl2, v2, al2) := val2 in 
-            D_walk v a v0 v2 vl2 al2 /\
-            D_walk v a v2 v0 [v0] [A_ends v2 v0] /\
-            A_list__in__actions al2 acs) vals2 ->
-    (* end *)
-    D_walk v a v0 y0 vl3 al3 ->    
-    A_list__in__actions al3 acs ->
-    (* sum *)
-    fold_left (fun acc val2 => 
-               let '(vl2, _, al2) := val2 in 
-               acc ++ vl2 ++ [v0]) vals2 (vl1 ++ [v0]) ++ vl3 = vl ->
-    fold_left (fun acc val2 => 
-               let '(vl2, v2, al2) := val2 in 
-               acc ++ al2 ++ [A_ends v2 v0]) 
-      vals2 (al1 ++ [A_ends v1 v0]) ++ al3 = al ->
-    wf_inv_dwalks v a acs vl al x0 y0 v0 (DW_more vl1 v1 al1 vals2 vl3 al3)
-.
-
-Lemma generate_connected_inv_dwalks: forall acs x0 y0 vl al id0 ac0 v0 acs'
-  (Hsome: Some v0 = action2value ac0)
-  (Heq: acs' = (ListComposedPass.subst_actions id0 ac0 acs)),
-  uniq acs ->
-  D_walk (avertexes acs') (aarcs acs') x0 y0 vl al ->
-  exists wks, 
-    wf_inv_dwalks (avertexes acs) (aarcs acs) acs vl al x0 y0 (index v0) wks.
-Admitted.
-
-(*
-  Given a path
-      x0 .. v1    v0 .. v1    v0 ... ... ...    v0 ... y0
-  the new path before substitution is
-      x0 .. v1 z0 v0 .. v1 z0 v0 ... ... ... z0 v0 ... y0
-*)
-Definition inv_dwalks_to_walk z0 v0 (dw:dwalks): @V_list value * @A_list value :=
-match dw with
-| DW_nil => (V_nil, A_nil)
-| DW_single vl al => (vl, al)
-| DW_more vl1 v1 al1 vals2 vl3 al3 =>
-    (fold_left (fun acc val2 => 
-                let '(vl2, _, al2) := val2 in 
-                acc ++ z0 :: v0 :: vl2) vals2 vl1 ++ (z0 :: v0::vl3),
-     fold_left (fun acc val2 => 
-                let '(vl2, v2, al2) := val2 in 
-                acc ++ al2 ++ A_ends v2 z0 :: [A_ends z0 v0]) 
-       vals2 (al1 ++ A_ends v1 z0 :: [A_ends z0 v0]) ++ al3)
-end.
-
-Definition actions_len_imply (acs1 acs2:AssocList action) : Prop :=
-forall vl1 al1 v1 v2
-  (Hw: D_walk (avertexes acs1) (aarcs acs1) v1 v2 vl1 al1),
-  exists vl2, exists al2, 
-    D_walk (avertexes acs2) (aarcs acs2) v1 v2 vl2 al2 /\
-    (length vl2 >= length vl1)%nat.
-
-Lemma subst_actions_len_imply_inv: forall acs id0 ac0 (Huniq: uniq acs)
-  (Hin: In (id0, ac0) acs),
-  actions_len_imply (ListComposedPass.subst_actions id0 ac0 acs) acs.
-Proof.
-  unfold actions_len_imply.
-  intros.
-  remember (action2value ac0) as ov.
-  destruct ov as [v0|].
-  Case "ov=Some v".
-    apply generate_connected_inv_dwalks
-      with (id0:=id0)(v0:=v0)(ac0:=ac0)(acs:=acs) in Hw; auto.
-    destruct Hw as [wks J].
-    destruct (inv_dwalks_to_walk (index (value_id id0)) (index v0) wks) 
-      as [vl' al'].
-    exists vl'. exists al'.
-    admit. (* subst_actions_inv *)
-  Case "ov=None".
-    unfold ListComposedPass.subst_actions in *.
-    rewrite <- Heqov in *. eauto.
-Qed.
-
-Lemma subst_actions_end_of_actions_inv: forall v2 id0 ac0 acs
-  (Hend: end_of_actions v2 (ListComposedPass.subst_actions id0 ac0 acs)),
-  end_of_actions v2 acs.
-Proof.
-  intros.
-  assert (J:=list_subst_actions__dom id0 ac0 acs).
-  unfold ListComposedPass.subst_actions in *.
-  intros.
-  remember (action2value ac0) as ov0.
-  destruct ov0 as [v0|]; auto.
-  unfold end_of_actions in *.
-  destruct v2 as [[vid|]]; auto.
-  apply lookupAL_None_notindom in Hend.
-  apply notin_lookupAL_None. fsetdec.
-Qed.
-
-Lemma subst_actions_inv_end_incl: forall acs id0 ac0 (Huniq: uniq acs)
-  (Hin: In (id0, ac0) acs),
-  actions_end_imply (ListComposedPass.subst_actions id0 ac0 acs) acs.
-Proof.
-  intros.
-  apply subst_actions_len_imply_inv in Hin; auto.
-  unfold actions_end_imply. unfold actions_len_imply in *.
-  intros.
-  apply Hin in Hw.
-  destruct Hw as [vl2 [al2 [Hw Hlen]]].
-  exists vl2. exists al2.
-  split; eauto using subst_actions_end_of_actions_inv.
-Qed.
-
-Definition actions_eq (acs1 acs2:AssocList action) : Prop :=
-actions_end_imply acs1 acs2 /\ actions_end_imply acs2 acs1.
-
-Lemma subst_actions_eq: forall acs id0 ac0 (Huniq: uniq acs)
-  (Hin: In (id0, ac0) acs),
-  actions_eq acs (ListComposedPass.subst_actions id0 ac0 acs).
-Proof.
-  intros.
-  split.
-    apply subst_actions_end_imply; auto.
-    apply subst_actions_inv_end_incl; auto.
-Qed.
-
-Lemma len_le_zero__nil: forall A (vl:@list A) (Hlen: (0 >= length vl)%nat),
-  vl = nil.
-Proof.
-  intros.
-  destruct vl; auto.
-    simpl in *. contradict Hlen. omega.
-Qed.
-
-Lemma subst_actions_acyclic: forall acs id0 ac0 (Huniq: uniq acs)
-  (Hin: In (id0, ac0) acs) (Hacyc: acyclic_actions acs),
-  acyclic_actions (ListComposedPass.subst_actions id0 ac0 acs).
-Proof.
-  unfold acyclic_actions.
-  intros. 
-  apply subst_actions_len_imply_inv in Hcyc; auto.
-  destruct Hcyc as [vl2 [al2 [Hw Hlen]]].
-  apply Hacyc in Hw. subst. 
-  eapply len_le_zero__nil; eauto.
-Qed.
-
-Definition in_codom_of_actions (id0:id) (acs:AssocList action) : Prop :=
-Exists (fun elt =>
-        let '(_, ac) := elt in
-        match action2value ac with
-        | Some v => used_in_value id0 v
-        | _ => False
-        end) acs.
-
-Definition notin_codom_of_actions (id0:id) (acs:AssocList action) : Prop :=
-Forall (fun elt =>
-        let '(_, ac) := elt in
-        match action2value ac with
-        | Some v => used_in_value id0 v = false
-        | _ => True
-        end) acs.
-
-Lemma nonused_in_action__notin_codom_of_actions: forall id0 ac0 acs v0
-  (Hnuse: used_in_action id0 ac0 = false) (Hsome: Some v0 = action2value ac0),
-  notin_codom_of_actions id0 (ListComposedPass.subst_actions id0 ac0 acs).
-Proof.
-  unfold ListComposedPass.subst_actions.
-  intros. rewrite <- Hsome.
-  unfold notin_codom_of_actions.
-  induction acs as [|[id1 ac1] acs]; simpl; auto.
-    constructor; auto.
-      destruct ac1; simpl; auto.
-      destruct v as [vid|]; simpl; auto.
-      destruct_if; simpl.
-        unfold used_in_action in Hnuse.
-        destruct ac0; inv Hsome; auto.     
-
-        destruct_dec.
-Qed.
-
-Definition actions_imply (acs1 acs2:AssocList action) : Prop :=
-forall vl1 al1 v1 v2
-  (Hw: D_walk (avertexes acs1) (aarcs acs1) v1 v2 vl1 al1),
-  exists vl2, exists al2, 
-    D_walk (avertexes acs2) (aarcs acs2) v1 v2 vl2 al2.
-
-Lemma D_walk_weakening: forall A x y vl al (v1 v2:@V_set A) (a1 a2:@A_set A)
-  (H1: forall z, In z (x::vl) -> v1 z)
-  (H2: forall z, In z al -> a1 z)
-  (J: @D_walk A v2 a2 x y vl al),
-  D_walk v1 a1 x y vl al.
-Proof.
-  intros.
-  induction J; constructor.
-    apply H1; simpl; auto.
-    apply IHJ.
-      intros. apply H1. simpl; auto.
-      intros. apply H2. simpl; auto.
-    apply H1; simpl; auto.
-    apply H2; simpl; auto.
-Qed.
-
-(*
-   There is a path from x0 to y0.
-   We partition the path by the edge (z0, v0) in the following.
-   o fine if the path is empty
-   o the path (except the end) does not contain (z0,v0).
-   o otherwise
-      x0 .. z0 v0 .. z0 v0 ... ... ... z0 v0 ... y0
-*)
-Inductive wf_edge_dwalks (v:V_set) (a:A_set) 
-  (vl: @V_list value) (al: @A_list value) (x0 y0 z0 v0:@Vertex value) 
-  : list (@V_list value * @A_list value) -> Prop :=
-| WEDW_nil : 
-    x0 = y0 -> vl = V_nil -> al = A_nil ->
-    wf_edge_dwalks v a vl al x0 y0 z0 v0 nil
-| WEDW_single :
-    D_walk v a x0 y0 vl al ->
-    vl <> V_nil ->
-    ~ In (A_ends z0 v0) al ->
-    wf_edge_dwalks v a vl al x0 y0 z0 v0 [(vl, al)]
-| WEDW_more : forall vl1 al1 vals2 vl3 al3,
-    (* head *)
-    D_walk v a x0 z0 vl1 al1 ->
-    D_walk v a z0 v0 [v0] [A_ends z0 v0] ->
-    ~ In (A_ends z0 v0) al1 ->
-    (* middles *)
-    Forall (fun val2 => 
-            let '(vl2, al2) := val2 in 
-            D_walk v a v0 z0 vl2 al2 /\
-            D_walk v a z0 v0 [v0] [A_ends z0 v0] /\
-           ~ In (A_ends z0 v0) al2) vals2 ->
-    (* end *)
-    D_walk v a v0 y0 vl3 al3 ->    
-    ~ In (A_ends z0 v0) al3 ->
-    (* sum *)
-    fold_left (fun acc val2 => 
-               let '(vl2, al2) := val2 in 
-               acc ++ vl2 ++ [v0]) vals2 (vl1 ++ [v0]) ++ vl3 = vl ->
-    fold_left (fun acc val2 => 
-               let '(vl2, al2) := val2 in 
-               acc ++ al2 ++ [A_ends z0 v0]) 
-      vals2 (al1 ++ [A_ends z0 v0]) ++ al3 = al ->
-    wf_edge_dwalks v a vl al x0 y0 z0 v0 
-      ((vl1, al1) :: vals2 ++ [(vl3, al3)])
-.
-
-Lemma generate_connected_edge_dwalks: forall acs x0 y0 vl al z0 v0,
-  D_walk (avertexes acs) (aarcs acs) x0 y0 vl al ->
-  exists wks, 
-    wf_edge_dwalks (avertexes acs) (aarcs acs) vl al x0 y0 z0 v0 wks.
-Admitted.
-
-Lemma actions_len_imply_weakening: forall acs1 acs2 
-  (Hinc: actions_len_imply acs1 acs2) acs, 
-  actions_len_imply (acs++acs1) (acs++acs2).
-Proof.
-  induction acs as [|[id0 ac0] acs]; auto.
-  unfold actions_len_imply in *.
-  intros. simpl_env in *.
-  remember (action2value ac0) as ov0.
-  destruct ov0 as [v0|].
-  Case "1".
-    apply generate_connected_edge_dwalks with (z0:=index (value_id id0))
-      (v0:=index v0) in Hw.
-    destruct Hw as [wks Hw].
-    admit.
-  Case "2".
-    admit.
-Qed.
-
-Lemma actions_eq_weakening: forall acs1 acs2 (Hinc: actions_eq acs1 acs2) acs
-  (Huniq1: uniq (acs++acs1)) (Huniq2: uniq (acs++acs2)), 
-  actions_eq (acs++acs1) (acs++acs2).
-(* similar to actions_len_imply_weakening *)
-Admitted.
-
-Lemma acyclic_actions_weakening: forall acs1 acs2 
-  (Hinc: actions_len_imply acs2 acs1) acs
-  (Hacyc: acyclic_actions (acs++acs1)), acyclic_actions (acs++acs2).
-Proof.
-  intros.
-  apply actions_len_imply_weakening with (acs:=acs) in Hinc.
-  unfold acyclic_actions. intros.
-  apply Hinc in Hcyc.
-  destruct Hcyc as [vl2 [al2 [Hw Hlen]]].
-  apply Hacyc in Hw.
-  subst.
-  eapply len_le_zero__nil; eauto.
-Qed.
-
-Lemma actions_eq_nil: actions_eq nil nil.
-Admitted.
-
-Lemma actions_eq_trans: forall acs1 acs2 acs3, 
-  actions_eq acs1 acs2 -> actions_eq acs2 acs3 -> actions_eq acs1 acs3.
-Admitted.
-
-Lemma actions_eq_strenthening: forall acs acs1 acs2,
-  actions_eq (acs++acs1) (acs++acs2) ->
-  actions_eq acs1 acs2.
-Admitted.
-
-Lemma acyclic_actions_strengthening: forall acs1 acs2,
-  acyclic_actions (acs1++acs2)->
-  acyclic_actions acs2.
-Admitted.
-
-Definition substs_actions_eq_prop (n:nat) := forall acs
-  (Hlen: (length acs = n)%nat) (Huniq: uniq acs) 
-  (Hacyc: acyclic_actions acs),
-  actions_eq acs (substs_actions acs).
-
-Lemma substs_actions_eq_aux: forall n,
-  substs_actions_eq_prop n.
-Proof.
-  intro n.
-  elim n using (well_founded_induction lt_wf).
-  intros x Hrec.
-  unfold substs_actions_eq_prop in *; intros.
-  destruct acs as [|[id0 ac0] acs].
-  Case "1".
-    unfold_substs_actions.
-    apply actions_eq_nil; auto.
-  Case "2".
-    unfold_substs_actions.
-    assert (Hacyc':=Hacyc).
-    apply subst_actions_acyclic with (id0:=id0)(ac0:=ac0) in Hacyc'; 
-      simpl; auto.
-    assert (Huniq':=Huniq).
-    assert (J:=Huniq').
-    apply subst_actions_eq with (id0:=id0)(ac0:=ac0) in J; simpl; auto.
-    simpl_env in *.
-    unfold ListComposedPass.subst_actions in *.
-    remember (action2value ac0) as ov0.
-    destruct ov0 as [v0|].
-    SCase "2.1".
-      simpl in *.
-      assert (match ac0 with
-              | AC_remove => ac0
-              | AC_vsubst v1 => AC_vsubst (v1 {[v0 // id0]})
-              | AC_tsubst _ => ac0
-              end = ac0) as EQ. admit.
-      rewrite EQ in *. 
-      simpl_env in *.
-      remember (ListMap.map
-                (fun ac : action =>
-                 match ac with
-                 | AC_remove => ac
-                 | AC_vsubst v1 => AC_vsubst (v1 {[v0 // id0]})
-                 | AC_tsubst _ => ac
-                 end) acs) as acs'.
-      assert (uniq ([(id0, ac0)] ++ acs')) as Huniq''.
-        admit.
-      assert (uniq ([(id0, ac0)] ++ substs_actions acs')) as Huniq'''.
-        admit.
-      apply actions_eq_trans with (acs2:=[(id0, ac0)] ++ acs').
-      SSCase "2.1.1".
-        apply actions_eq_weakening; auto.
-        apply actions_eq_strenthening in J; auto.
-      SSCase "2.1.2".
-        apply actions_eq_weakening; auto.
-        eapply Hrec; eauto.
-        SSSCase "2.1.2.1.1".
-          admit. (* length *)
-        SSSCase "2.1.2.1.2".
-          solve_uniq.
-        SSSCase "2.1.2.1.3".
-          apply acyclic_actions_strengthening in Hacyc'; auto.
-    SCase "2.2".
-      apply actions_eq_weakening; auto.
-      SSCase "2.2.1".
-        eapply Hrec; eauto.
-          admit. (* length *)
-          solve_uniq.
-          apply acyclic_actions_strengthening in Hacyc; auto.
-      SSCase "2.2.2".
-        admit. (* uniq *)
-Qed.
-
-Lemma substs_actions_eq: forall acs (Huniq: uniq acs) 
-  (Hacyc: acyclic_actions acs), 
-  actions_eq acs (substs_actions acs).
-Proof.
-  intros.
-  assert (J:=@substs_actions_eq_aux (length acs)).
-  unfold substs_actions_eq_prop in J.
-  auto.
-Qed.
-
-(***************************************************************)
-(* Given acyclic and unique actions, the two composed passes are equivalent. *)
-Lemma list_compose_actions__list_composed_substs: forall actions 
-  (Hacyclic: acyclic_actions actions) (Huniq: uniq actions) f,
-  ListComposedPass.substs_fdef (ListComposedPass.compose_actions actions) f =
-  composed_pipelined_actions actions f.
-Admitted.

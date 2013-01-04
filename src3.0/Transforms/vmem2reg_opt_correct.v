@@ -32,6 +32,7 @@ Require Import vmem2reg.
 Require Import vmem2reg_correct.
 Require Import vmem2reg_opt.
 Require Import vmem2reg_opt_compose_props.
+Require Import vmem2reg_opt_substs_eq.
 
 (***************************************************************)
 (* Remove the definition of elt from f *)
@@ -241,88 +242,6 @@ Proof.
 Qed.
 
 (***************************************************************)
-(* Properties of substs_actions *)
-Definition list_substs_actions__dom_prop (n:nat) := forall actions
-  (Hlen: (length actions = n)%nat),
-  dom actions [=] dom (substs_actions actions).
-
-Ltac solve_substs_actions_len :=
-try solve [
-  auto |
-  match goal with
-  | Hlen : length ((?id0, ?ac0) :: ?actions) = ?x |-
-    (length (ListComposedPass.subst_actions ?id0 ?ac0 ?actions) + 0 < ?x)%nat =>
-    subst x; simpl; rewrite <- list_subst_actions__length; omega
-  | |- (length (ListComposedPass.subst_actions ?id0 ?ac0 ?actions) + 0 < 
-         length ((?id0, ?ac0) :: ?actions) )%nat =>
-    simpl; rewrite <- list_subst_actions__length; omega
-  end
-].
-
-Lemma list_substs_actions__dom_aux: forall n,
-  list_substs_actions__dom_prop n.
-Proof.
-  intro n.
-  elim n using (well_founded_induction lt_wf).
-  intros x Hrec.
-  unfold list_substs_actions__dom_prop in *; intros.
-  destruct actions as [|[id0 ac0] actions].
-    simpl; try fsetdec.
-
-    unfold_substs_actions.
-    simpl. 
-    rewrite <- Hrec; auto.
-      rewrite list_subst_actions__dom; fsetdec.
-      solve_substs_actions_len.
-Qed.
-
-
-Lemma list_substs_actions__dom: forall actions,
-  dom actions [=] dom (substs_actions actions).
-Proof.
-  intros.
-  assert (J:=@list_substs_actions__dom_aux (length actions)).
-  unfold list_substs_actions__dom_prop in J.
-  auto.
-Qed.
-
-Definition list_substs_actions__uniq_prop (n:nat) := forall actions
-  (Hlen: (length actions = n)%nat) (Huniq: uniq actions),
-  uniq (substs_actions actions).
-
-Lemma list_substs_actions__uniq_aux: forall n,
-  list_substs_actions__uniq_prop n.
-Proof.
-  intro n.
-  elim n using (well_founded_induction lt_wf).
-  intros x Hrec.
-  unfold list_substs_actions__uniq_prop in *; intros.
-  destruct actions as [|[id0 ac0] actions].
-    simpl; auto.
-
-    unfold_substs_actions.
-    simpl_env.
-    inv Huniq.
-    constructor.
-      eapply Hrec; eauto.
-        solve_substs_actions_len.
-
-        apply list_subst_actions__uniq; auto.
-
-        rewrite <- list_substs_actions__dom.
-        rewrite list_subst_actions__dom; auto.
-Qed.
-
-Lemma list_substs_actions__uniq: forall actions (Huniq: uniq actions),
-  uniq (substs_actions actions).
-Proof.
-  intros.
-  assert (J:=@list_substs_actions__uniq_aux (length actions)).
-  unfold list_substs_actions__uniq_prop in J.
-  auto.
-Qed.
-
-(***************************************************************)
 (* Properties of ListComposedPass.removes_xxx *)
 Lemma list_composed_removes_phis__empty: forall ps,
   ListComposedPass.removes_phinodes (empty_set (atom * action)) ps = ps.
@@ -519,7 +438,7 @@ Proof.
       apply AVLFacts.add_mapsto_iff in J.
       destruct J as [[J1 J2] | [J1 J2]]; subst.
         apply AVLComposedPass.find_parent_action_inv in J2.
-        destruct J2 as [J2 | [id1 [J21 [J22 J23]]]]; subst; auto.
+        destruct J2 as [[J2 _]| [id1 [J21 [J22 J23]]]]; subst; auto.
         congruence.
 
         right.
@@ -545,18 +464,18 @@ Proof.
         right. tauto.
 Qed.
 
-Definition list_substs_actions__remove_spec_prop (n:nat) := forall id0 actions
+Definition substs_actions__remove_spec_prop (n:nat) := forall id0 actions
   (Hlen: (length actions = n)%nat),
   In (id0, AC_remove) actions <-> 
     In (id0, AC_remove) (substs_actions actions).
 
-Lemma list_substs_actions__remove_spec_aux: forall n,
-  list_substs_actions__remove_spec_prop n.
+Lemma substs_actions__remove_spec_aux: forall n,
+  substs_actions__remove_spec_prop n.
 Proof.
   intro n.
   elim n using (well_founded_induction lt_wf).
   intros x Hrec.
-  unfold list_substs_actions__remove_spec_prop in *; intros.
+  unfold substs_actions__remove_spec_prop in *; intros.
   destruct actions as [|[id1 ac1] actions].
     simpl; intros; try tauto.
 
@@ -576,13 +495,13 @@ Proof.
           solve_substs_actions_len.
 Qed.
 
-Lemma list_substs_actions__remove_spec: forall id0 actions,
+Lemma substs_actions__remove_spec: forall id0 actions,
   In (id0, AC_remove) actions <-> 
     In (id0, AC_remove) (substs_actions actions).
 Proof.
  intros.
-  assert (J:=@list_substs_actions__remove_spec_aux (length actions)).
-  unfold list_substs_actions__remove_spec_prop in J.
+  assert (J:=@substs_actions__remove_spec_aux (length actions)).
+  unfold substs_actions__remove_spec_prop in J.
   auto.
 Qed.
 
@@ -636,11 +555,11 @@ Proof.
   fsetdec.
 Qed.
 
-Lemma list_substs_actions__in_spec: forall id0 actions,
+Lemma substs_actions__in_spec: forall id0 actions,
   id0 `in` dom actions <-> id0 `in` dom (substs_actions actions).
 Proof.
   intros.
-  rewrite list_substs_actions__dom; auto.
+  rewrite substs_actions__dom; auto.
   fsetdec.
 Qed.
 
@@ -751,10 +670,10 @@ Lemma avl_removes_fdef__list_removes_fdef: forall actions
 Proof.
   intros.
   apply avl_removes_fdef__iff_dom__list_removes_fdef; 
-    auto using list_substs_actions__uniq.
+    auto using substs_actions__uniq.
   unfold avl_actions__iff_dom__list_actions.
   intros.
-  assert (J:=@list_substs_actions__in_spec id0 actions).
+  assert (J:=@substs_actions__in_spec id0 actions).
   assert (J':=@avl_compose_actions__in_spec id0 actions Huniq).
   tauto.
 Qed.
@@ -1584,13 +1503,13 @@ Proof.
 Qed.
 
 Lemma avl_substs_fdef__list_substs_fdef: forall actions (Huniq: uniq actions) 
-  (Hacyclic: acyclic_actions actions) f,
+  (Hwfrm: wf_AC_remove actions) (Hacyclic: acyclic_actions actions) f,
   AVLComposedPass.substs_fdef (AVLComposedPass.compose_actions actions) f = 
     ListMap.fold apply_subst_action (substs_actions actions) f.
 Proof.
   intros.
   rewrite <- list_composed_substs__list_pipelined_substs; 
-    auto using list_substs_actions__uniq.
+    auto using substs_actions__uniq.
   fold (composed_pipelined_actions actions f).
   rewrite <- list_compose_actions__list_composed_substs; auto.
   rewrite <- acl_compose_actions__list_compose_actions; auto.
@@ -2356,12 +2275,14 @@ Lemma find_stld_pairs_blocks_spec: forall s m fh bs
   (HuniqF: uniqFdef (fdef_intro fh bs))
   (Hfind: actions = flat_map (find_stld_pairs_block pid rd) bs)
   (Hreach: ret rd = reachablity_analysis (fdef_intro fh bs)),
-  uniq actions /\ acyclic_actions actions.
+  uniq actions /\ acyclic_actions actions /\ wf_AC_remove actions.
 Proof.
   intros.
   split.
     eapply find_stld_pairs_blocks__uniq; eauto using uniqF__uniqBlocksLocs.
+  split.
     eapply find_stld_pairs_blocks_acyclic; eauto.
+    eapply find_stld_pairs_blocks__wf_AC_remove; eauto.
 Qed.
 
 (***************************************************************)
@@ -2391,6 +2312,9 @@ match goal with
   let bs1 := fresh "bs1" in
   let actions := fresh "actions" in
   let Hwf := fresh "Hwf" in
+  let Huniq := fresh "Huniq" in
+  let Hacyc := fresh "Hacyc" in
+  let Hwfrm := fresh "Hwfrm" in
   unfold elim_stld_fdef in Hpass;
   destruct f1 as [fh bs1];
   remember (flat_map (find_stld_pairs_block pid rd) bs1)
@@ -2399,7 +2323,7 @@ match goal with
   | Heqactions: actions = _ |- _ =>
     assert (Hwf:=Heqactions);
     eapply find_stld_pairs_blocks_spec in Hwf; eauto;
-    destruct Hwf
+    destruct Hwf as [Huniq [Hacyc Hwfrm]]
   end 
 end.
 
@@ -2424,12 +2348,43 @@ Proof.
 Qed.
 
 (* Pipelined LAS/LAA preserves CFGs. *)
-Lemma pipelined_elim_stld_reachablity_successors: forall pid rd fh bs1 f2 actions
-  (Heqactions : actions = flat_map (find_stld_pairs_block pid rd) bs1)
-  (Hpass : pipelined_actions actions (fdef_intro fh bs1) = f2),
-  reachablity_analysis f2 = reachablity_analysis (fdef_intro fh bs1) /\
-    successors f2 = successors (fdef_intro fh bs1).
-Admitted.
+Lemma apply_actions_reachablity_successors: forall actions f1 f2 
+  (Hpass : fold_left apply_action actions f1 = f2),
+  reachablity_analysis f2 = reachablity_analysis f1 /\
+    successors f2 = successors f1.
+Proof.
+  induction actions as [|[id0 []] acs]; simpl; intros; subst; auto.
+  Case "1".
+    edestruct IHacs with (f1:=remove_fdef id0 f1) as [J1 J2]; eauto.
+    assert (J:=remove_reachablity_successors id0 f1).
+    destruct J as [J3 J4].
+    split; etransitivity; eauto.
+  Case "2".
+    edestruct IHacs with (f1:=remove_fdef id0 (subst_fdef id0 v f1)) 
+      as [J1 J2]; eauto.
+    assert (J:=remove_subst_reachablity_successors id0 id0 v f1).
+    destruct J as [J3 J4].
+    split; etransitivity; eauto.
+  Case "3".
+    edestruct IHacs with (f1:=remove_fdef id0 
+                                (subst_fdef id0 
+                                   (value_const (const_undef t)) f1)) 
+      as [J1 J2]; eauto.
+    assert (J:=remove_subst_reachablity_successors id0 id0 
+                 (value_const (const_undef t)) f1).
+    destruct J as [J3 J4].
+    split; etransitivity; eauto.
+Qed.
+
+Lemma pipelined_elim_stld_reachablity_successors: forall f1 f2 actions
+  (Hpass : pipelined_actions actions f1 = f2),
+  reachablity_analysis f2 = reachablity_analysis f1 /\
+    successors f2 = successors f1.
+Proof.
+  unfold pipelined_actions.
+  intros.
+  eapply apply_actions_reachablity_successors; eauto.
+Qed.
 
 (* Composed LAS/LAA preserves CFGs. *)
 Lemma elim_stld_reachablity_successors: forall pid rd f1 f2 S2 Ps1 los nts Ps2
@@ -2671,6 +2626,7 @@ Lemma elimphi_sim_wfS: forall f Ps1 Ps2 los nts main VarArgs
   (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
   program_sim S1 S2 main VarArgs /\ wf_system S1 /\
     defined_program S1 main VarArgs.
+(* The proofs are similar to elim_stld_sim_wfS_wfPI *)
 Admitted.
 
 (* vmem2reg O1 is correct for the function it transforms. *)

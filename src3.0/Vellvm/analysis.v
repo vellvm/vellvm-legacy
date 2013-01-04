@@ -721,6 +721,17 @@ Proof.
   destruct_if; try tauto.
 Qed.
 
+Lemma init_scope_spec3: forall f ps cs id2 id1
+  (J1 : In id1 (init_scope f ps cs id2)) 
+  (Hnotin2 : ~ In id1 (getArgsIDsOfFdef f)),
+  In id1 (getPhiNodesIDs ps ++ cmds_dominates_cmd cs id2).
+Proof.
+  unfold init_scope.
+  intros.
+  destruct_if; try tauto.
+     xsolve_in_list.
+Qed.
+
 Lemma init_scope_incl: forall F ps1 cs1 tmn1 id1,
   incl (init_scope F ps1 cs1 id1)
        (getStmtsIDs (stmts_intro ps1 cs1 tmn1) ++ getArgsIDsOfFdef F).
@@ -2024,6 +2035,99 @@ Proof.
     apply AtomSet.set_eq_app; auto using AtomSet.set_eq_refl.
     apply AtomSet.set_eq_app; auto using AtomSet.set_eq_refl.
     auto using AtomSet.set_eq_swap.
+Qed.
+
+Lemma inscope_of_id__lookupInsnViaIDFromFdef: forall f b0 id0 ids0
+  (HuniqF : uniqFdef f) (H : blockInFdefB b0 f = true) id1
+  (HeqR : ret ids0 = inscope_of_id f b0 id1)
+  (Hnargs : ~ In id0 (getArgsIDsOfFdef f))
+  (Hin : In id0 ids0),
+  exists instr, lookupInsnViaIDFromFdef f id0 = Some instr /\
+                getInsnID instr = Some id0.
+Proof.
+  intros.
+  destruct b0 as [l0 [ps0 cs0 t0]].
+    simpl in HeqR.
+    symmetry in HeqR.
+    apply fold_left__spec in HeqR.
+    destruct HeqR as [_ [_ HeqR]].
+    apply_clear HeqR in Hin.
+    destruct Hin as [Hin | Hin].
+    SCase "1.1".
+      apply init_scope_spec3 in Hin; auto.
+      apply in_app_or in Hin.
+      destruct Hin as [Hin | Hin].
+      SSCase "1.1.1".
+        apply in_getPhiNodesIDs_inv' in Hin.
+        destruct Hin as [p [Hin HgetID]].
+        assert (insnInFdefBlockB (insn_phinode p) f
+                  (l0, stmts_intro ps0 cs0 t0)) as H'.
+          apply insnInFdefBlockB_intro; auto.
+            simpl. solve_in_list.
+        apply IngetInsnsLocs__lookupInsnViaIDFromFdef in H'; auto.
+        simpl in H'. 
+        rewrite HgetID in H'.
+        subst. eauto.
+      SSCase "1.1.2".
+        apply cmds_dominates_cmd_spec in Hin.  
+        apply in_getCmdsIDs_inv' in Hin.
+        destruct Hin as [c [Hin HgetID]].
+        assert (insnInFdefBlockB (insn_cmd c) f
+                  (l0, stmts_intro ps0 cs0 t0)) as H'.
+          apply insnInFdefBlockB_intro; auto.
+            simpl. solve_in_list.
+        apply IngetInsnsLocs__lookupInsnViaIDFromFdef in H'; auto.
+        simpl in H'.
+        assert (HgetID' := HgetID).
+        apply getCmdID__getCmdLoc in HgetID.
+        rewrite HgetID in H'.
+        subst. eauto.
+    SCase "1.2".
+      destruct Hin as [sts1 [l1 [Hin [Hlk Hin']]]].
+      replace sts1 with (snd (l1, sts1)) in Hin'; auto.
+      apply In_getStmtsIDs__insnInBlockB in Hin'.
+      destruct Hin' as [instr' [J1 J5]].
+      assert (insnInFdefBlockB instr' f (l1, sts1) = true) as G.
+        apply insnInFdefBlockB_intro; auto.
+          solve_blockInFdefB.
+      apply IngetInsnsLocs__lookupInsnViaIDFromFdef in G; auto.
+      assert (J5'':=J5).
+      apply getInsnID__getInsnLoc in J5.    
+      rewrite J5 in G.
+      eauto.
+Qed.
+
+Lemma inscope_of_cmd__lookupInsnViaIDFromFdef: forall f b0 id0 ids0 c0
+  (HuniqF : uniqFdef f) (H : blockInFdefB b0 f = true)
+  (HeqR : ret ids0 = inscope_of_cmd f b0 c0)
+  (Hnargs : ~ In id0 (getArgsIDsOfFdef f))
+  (Hin : In id0 ids0),
+  exists instr, lookupInsnViaIDFromFdef f id0 = Some instr /\
+                getInsnID instr = Some id0.
+Proof.
+  intros.
+  destruct b0 as [l0 [ps0 cs0 t0]].
+  eapply inscope_of_id__lookupInsnViaIDFromFdef; eauto.
+Qed.
+
+Lemma cannot_use_fake_store_id: forall f st0 b0 id0 ids0 c0
+  (HuniqF : uniqFdef f) (H : blockInFdefB b0 f = true)
+  (HeqR : ret ids0 = inscope_of_cmd f b0 c0)
+  (Hin : In id0 ids0)
+  (Hist: match st0 with
+         | insn_store _ _ _ _ _ => True
+         | _ => False
+         end)
+  (HbInF0 : lookupInsnViaIDFromFdef f id0 = ret insn_cmd st0),
+  False.
+Proof.
+  intros.
+  destruct st0; tinv Hist. 
+  assert (~ In id0 (getArgsIDsOfFdef f)) as Hnotin.
+    solve_notin_getArgsIDs.
+  eapply inscope_of_cmd__lookupInsnViaIDFromFdef in H; eauto.
+  destruct H as [instr [H Hget]].
+  uniq_result. inv Hget.
 Qed.
 
 (* Properties of blockDominates *)

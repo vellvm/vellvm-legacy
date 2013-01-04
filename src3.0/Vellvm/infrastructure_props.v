@@ -1681,6 +1681,17 @@ Proof.
       exists (a::ps1). exists p1. exists ps2. split; auto.
 Qed.
 
+Lemma in_getPhiNodesIDs_inv': forall id1 ps1,
+  In id1 (getPhiNodesIDs ps1) ->
+  exists p1 : phinode, In p1 ps1 /\ getPhiNodeID p1 = id1.
+Proof.
+  intros id1 ps1 H.
+  apply in_getPhiNodesIDs_inv in H.
+  destruct H as [ps2 [p1 [ps3 [EQ1 EQ2]]]]; subst.
+  exists p1.
+  split; auto using in_middle.    
+Qed.
+
 Lemma InGetPhiNodesIDs_middle: forall ps1 p1 ps2,
   In (getPhiNodeID p1) (getPhiNodesIDs (ps1 ++ p1 :: ps2)).
 Proof.
@@ -1874,6 +1885,17 @@ Proof.
       apply IHcs in H.
       destruct H as [cs1 [c [cs2 [J1 J2]]]]; subst.
       exists (a::cs1). exists c. exists cs2. auto.
+Qed.
+
+Lemma in_getCmdsIDs_inv': forall id1 cs,
+  In id1 (getCmdsIDs cs) ->
+  exists c, In c cs /\ getCmdID c = Some id1.
+Proof.
+  intros id1 cs H.
+  apply in_getCmdsIDs_inv in H.
+  destruct H as [cs2 [c1 [cs3 [EQ1 EQ2]]]]; subst.
+  exists c1.
+  split; auto using in_middle.
 Qed.
 
 Lemma getCmdID_in_getCmdsIDs : forall cs i0 c,

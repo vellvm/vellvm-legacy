@@ -152,6 +152,17 @@ Section 5.4
  
   Lemma 28. mem2reg_run_sim_wfS in vmem2reg_correct.v
 
+Section 6
+
+  The optimized vmem2reg that fuses pipelined micro passes: 
+    Transforms/vmem2reg_opt.v
+  The correctness of the optimized vmem2reg:
+    Transforms/vmem2reg_opt_compose_props.v
+    Transforms/vmem2reg_opt_correct.v
+
+  The more optimized vmem2reg that places phinodes only at dominance frontiers:
+    Transforms/vmem2reg_opt2.v
+
 **************************************************************************
 Contents
 
@@ -218,4 +229,11 @@ Contents
   Transforms/vmem2reg_correct.v
 * Tactics
   Transforms/trans_tactic.v
+* Optimized vmem2reg
+  Transforms/vmem2reg_opt.v
+  Transforms/vmem2reg_opt2.v
+* Correctness of optimized vmem2reg
+  Transforms/vmem2reg_opt_compose_props.v
+  Transforms/vmem2reg_opt_substs_eq.v
+  Transforms/vmem2reg_opt_correct.v
 

@@ -3366,6 +3366,70 @@ Proof.
       apply ListSet.set_diff_elim1 in J1; auto.
 Qed.
 
+Lemma idDominates_id_in_reachable_block: forall (s : system) (m : module)
+  (f : fdef) (HwfF : wf_fdef s m f) (HuniqF : uniqFdef f) (id2 : id) (id3 : id)
+  (Hreach : id_in_reachable_block f id3) (Hdom : idDominates f id2 id3),
+  id_in_reachable_block f id2.
+Proof.
+  intros.
+  unfold id_in_reachable_block in *.
+  intros.
+  unfold idDominates in *.
+  inv_mbind.
+  
+  unfold inscope_of_id in HeqR0.
+  destruct b as [l1 [ps1 cs1 tmn1]].
+  symmetry in HeqR0.
+  apply fold_left__spec in HeqR0.
+  destruct HeqR0 as [J1 [J2 J3]].
+  apply_clear J3 in Hdom.
+  assert (blockInFdefB (l1, stmts_intro ps1 cs1 tmn1) f = true) as HBinF1.
+    symmetry in HeqR. solve_blockInFdefB. 
+  assert (blockInFdefB b2 f = true) as HBinF2 by solve_blockInFdefB.
+  assert (In id2 (getStmtsLocs (snd b2))) as Hin by solve_in_list.
+  destruct Hdom as [Hdom | [sts2 [l2 [J4 [J5 J3]]]]].
+    assert (~ In id2 (getArgsIDsOfFdef f)) as Hnotin2.
+      solve_notin_getArgsIDs.
+    unfold init_scope in Hdom.
+    destruct_if; try tauto.
+    apply Hreach.
+      f_equal.
+      apply block_eq2 with (id1:=id2)(f:=f); auto.
+        simpl. xsolve_in_list.
+        apply cmds_dominates_cmd_spec in Hdom; auto.
+        xsolve_in_list.
+  
+    assert (b2 = (l2, sts2)) as EQ.
+      apply block_eq2 with (id1:=id2)(f:=f); auto.
+        solve_blockInFdefB.
+        simpl. xsolve_in_list.
+    subst.
+    assert (Some (l1, stmts_intro ps1 cs1 tmn1) = 
+            Some (l1, stmts_intro ps1 cs1 tmn1)) as EQ by auto.
+    apply Hreach in EQ.
+    assert (strict_domination f l2 l1) as J.
+      eapply sdom_is_sound with (s3:=stmts_intro ps1 cs1 tmn1); eauto 1.
+        apply ListSet.set_diff_elim1 in J4; auto.
+    apply DecDom.sdom_reachable in J; auto.
+Qed.
+
+Lemma valueDominates_trans: forall s m f (HwfF:wf_fdef s m f)
+  (HuniqF: uniqFdef f) v1 v2 v3
+  (Hdom1: valueDominates f v1 v2) (Hdom2: valueDominates f v2 v3),
+  valueDominates f v1 v3.
+Proof.
+  intros.
+  destruct v1 as [id1|]; auto.
+  destruct v2 as [id2|]; tinv Hdom1.
+  destruct v3 as [id3|]; tinv Hdom2.
+  simpl in *.
+  intro Hreach.
+  eapply idDominates_trans; eauto.
+    apply Hdom1.
+    assert (Hdom:=Hreach). apply Hdom2 in Hdom. 
+    eapply idDominates_id_in_reachable_block; eauto.
+Qed.
+
 (* Properties of CFGs. *)
 Lemma successors_codom__uniq: forall s m f 
   (HwfF : wf_fdef s m f) l0, 

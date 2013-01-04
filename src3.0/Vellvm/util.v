@@ -4,6 +4,7 @@ Require Import Coq.Lists.List.
 Require Import CoqListFacts.
 Require Import Metatheory.
 Require Import Coqlib.
+Require Import alist.
 
 (* In *)
 
@@ -125,6 +126,148 @@ Proof.
         apply IHA in J; auto.
 Qed.
 
+Lemma eq_map_fst__eq_dom: forall A (acs1 acs2:list (atom*A))
+  (Heq: List.map fst acs1 = List.map fst acs2),
+  dom acs1 [=] dom acs2.
+Proof.
+  induction acs1 as [|[]]; destruct acs2 as [|[]]; intros; inv Heq.
+    fsetdec. 
+    simpl. apply IHacs1 in H1. fsetdec.
+Qed.
+
+Lemma map_fst_uniq: forall A (acs1:list (atom*A)) 
+  (Huniq: uniq acs1) (acs2:list (atom*A)) 
+  (Heq: List.map fst acs1 = List.map fst acs2),
+  uniq acs2.
+Proof.
+  induction 1; intros; destruct acs2 as [|[]]; inv Heq; 
+    simpl_env; constructor; auto.
+    apply eq_map_fst__eq_dom in H2. fsetdec.
+Qed. 
+
+Lemma app__map_fst: forall A (acs1 acs2 acs3 acs4: list (atom*A))
+  (Heq12: List.map fst acs1 = List.map fst acs2)
+  (Heq34: List.map fst acs3 = List.map fst acs4),
+  List.map fst (acs1++acs3) = List.map fst (acs2++acs4).
+Proof.
+  intros.
+  repeat (rewrite List.map_app).
+  congruence.
+Qed.
+
+Lemma map_fst__dom: forall A (l1:list (atom*A)) B (l2:list (atom*B))
+  (Heq: List.map fst l1 = List.map fst l2),
+  dom l1 [=] dom l2.
+Proof.
+  induction l1 as [|[]]; destruct l2 as [|[id2 ac2] l2]; simpl; intros.
+    fsetdec.
+    inv Heq.
+    inv Heq.
+
+    inv Heq. apply IHl1 in H1. fsetdec.
+Qed.
+
+Lemma map_fst__uniq: forall A (l1:list (atom*A)) (Huniq: uniq l1) 
+  B (l2:list (atom*B))
+  (Heq: List.map fst l1 = List.map fst l2),
+  uniq l2.
+Proof.
+  induction 1; destruct l2 as [|[id2 ac2] l2]; simpl; intros; auto.
+    inv Heq.
+
+    inv Heq.
+    simpl_env.
+    constructor; auto.
+      apply map_fst__dom in H2. fsetdec.
+Qed.
+
+(* incl *) 
+Lemma incl_insert: forall A (l1 l2:list A) a, incl (l1++l2) (l1++a::l2).
+Proof.
+  induction l1; simpl; intros; intros x J; simpl; auto.
+    simpl in J. destruct J as [J | J]; auto.
+    right. apply IHl1; auto.
+Qed.
+
+Lemma incl_app: forall A (l0 l1 l2:list A),
+  incl l1 l2 -> incl (l0++l1) (l0++l2).
+Proof.
+  intros. intros x J.
+  apply in_or_app. apply in_app_or in J.
+  destruct J as [J | J]; auto.
+Qed.
+
+Lemma incl_nil : forall A (d:list A), incl nil d.
+Proof. intros. intros x J. inv J. Qed.
+
+Lemma incl_cons : forall A l1 (x:A), incl l1 (x::l1).
+Proof.
+  intros. intros y J. simpl; auto.
+Qed.
+
+Lemma removelast_incl : forall A (l1:list A),
+  incl (removelast l1) l1.
+Proof.
+  intros.
+  destruct l1 as [|a l1].
+    apply incl_nil.
+
+    assert (a::l1 <> nil) as Hneq by congruence.
+    apply exists_last in Hneq.
+    destruct Hneq as [l' [a0 EQ]].
+    rewrite EQ.
+    rewrite removelast_app; try congruence.
+    simpl. simpl_env.
+    apply incl_appl. apply incl_refl.
+Qed.
+
+Lemma incl_split: forall A (l1 l2 l3:list A) (Hinc: incl (l1++l2) l3),
+  incl l1 l3 /\ incl l2 l3.
+Proof.
+  intros.
+  split; intros x Hin; apply Hinc; apply in_or_app; auto.
+Qed.
+
+Lemma incl_cons_split: forall A a (l2 l3:list A) (Hinc: incl (a::l2) l3),
+  In a l3 /\ incl l2 l3.
+Proof.
+  intros.
+  simpl_env in Hinc.
+  apply incl_split in Hinc.
+  destruct Hinc as [Hinc1 Hinc2].
+  split; auto.
+    apply Hinc1. simpl. auto.
+Qed.
+
+Lemma tl_incl: forall A (l1: list A), incl (tl l1) l1.
+Proof.
+  intros.
+  unfold tl.
+  destruct l1.
+    apply incl_refl.
+    apply incl_tl. apply incl_refl.
+Qed.
+
+Implicit Arguments tl_incl [A].
+
+Lemma incl_notin: forall A (acs2 acs1 : list (atom * A)) (id5 : atom)
+  (Hinc : incl acs2 acs1) (Hend : id5 `notin` dom acs1),
+  id5 `notin` dom acs2.
+Proof.
+  induction acs2 as [|[]]; intros; simpl.
+    fsetdec.
+
+    destruct (eq_atom_dec id5 a); subst.
+      contradict Hend.
+      apply In_InDom with (v1:=a0).
+      apply Hinc. simpl. auto.      
+
+      simpl_env in Hinc.
+      apply incl_split in Hinc.
+      destruct Hinc as [_ Hinc].
+      eapply IHacs2 in Hinc; eauto.
+Qed.
+
 (* list *) 
 Lemma in_dom__iff__in_rev_dom: forall i0 X (A:list (atom*X)),
   i0 `in` dom A <-> i0 `in` dom (rev A).
@@ -151,13 +294,6 @@ Proof.
       destruct H1 as [[u1 [u2 [J1 [J2 J3]]]]|[z1' [z2 [J1 [J2 J3]]]]]; subst.
         left. exists u1. exists u2. eauto.
         right. exists (z1::z1'). eauto.
-Qed.
-
-Lemma Forall_app: forall A P (x y:list A) (Hx: Forall P x) (Hy: Forall P y),
-  Forall P (x++y).
-Proof.
-  induction 1; intros; auto.
-    constructor; auto.
 Qed.
 
 Lemma rev_non_nil: forall A (ls1:list A),
@@ -330,6 +466,115 @@ Proof.
       exists (l3 ++ [a]). simpl_env. auto.
 Qed.
 
+Lemma cons_head: forall A pre (last:A), 
+  exists hd, exists tl, hd::tl = pre++[last].
+Proof.
+  induction pre; intros.
+    exists last. exists nil. auto.
+
+    destruct (IHpre last) as [hd [tl EQ]].
+    simpl_env. rewrite <- EQ. exists a. exists (hd::tl). auto.
+Qed.
+
+Lemma nnil_inv: forall A (l1:list A) (Hn: l1 <> nil), 
+  exists pre, exists last, l1 = pre++[last].
+Proof.
+  intros.
+  destruct l1; try congruence.
+  apply cons_last; auto.
+Qed.
+
+Lemma app_cons_not_nil': forall A (x y:list A) (a:A) (H: x ++ a :: y = nil), 
+  False.
+Proof.
+  intros.
+  contradict H. apply app_cons_not_nil.
+Qed.
+
+Lemma tl_nonempty_inv: forall A (z0:A) vl vl1 vl2
+  (Heq: tl vl = vl1 ++ z0 :: vl2),
+  exists v0, vl = v0 :: vl1 ++ z0 :: vl2.
+Proof.
+  unfold tl.
+  intros.
+  destruct vl.
+    symmetry in Heq. apply app_cons_not_nil' in Heq. tauto.
+    subst. eauto.  
+Qed.
+
+Lemma in_middle_split: forall A (a b:A) l1 l2 (HIna: In b (l1++a::l2)),
+  In b (l1++l2) \/ b = a.
+Proof.
+  intros.
+  apply in_app_or in HIna.
+  destruct HIna as [HIna | HIna].
+    left. apply in_or_app; auto.
+    simpl in HIna.
+    destruct HIna as [HIna | HIna]; auto.
+      left. apply in_or_app; auto.
+Qed.
+
+Lemma notin_tl: forall A (z0:A) vl1
+  (H: ~ In z0 vl1), ~ In z0 (tl vl1).
+Proof.
+  intros. 
+  assert (J:=tl_incl vl1). auto.
+Qed.
+
+(* Forall *)
+Lemma Forall_app: forall A P (x y:list A) (Hx: Forall P x) (Hy: Forall P y),
+  Forall P (x++y).
+Proof.
+  induction 1; intros; auto.
+    constructor; auto.
+Qed.
+
+Lemma Forall_inv' : forall A P (a:A) l, Forall P (a :: l) -> Forall P l.
+Proof.
+  intros. inv H; auto.
+Qed.
+
+Lemma Forall_tl : forall A P (l:list A), Forall P l -> Forall P (tl l).
+Proof.
+  induction 1; simpl; auto.
+Qed.
+
+Lemma Forall_split : forall A P (l1 l2:list A), Forall P (l1++l2) -> 
+  Forall P l1 /\ Forall P l2.
+Proof.
+  induction l1; intros; auto.
+    inv H.
+    apply IHl1 in H3.
+    destruct H3.
+    split; auto.
+Qed.
+
+Lemma Forall_tl_first : forall A P (l1 l2:list A), 
+  Forall P (l1 ++ l2) -> Forall P (tl l1++l2).
+Proof.
+  intros.
+  apply Forall_split in H. destruct H.
+  apply Forall_app; auto using Forall_tl.
+Qed.
+
+Lemma Forall_incl : forall A P (l1 l2:list A), 
+  Forall P l2 -> incl l1 l2 -> Forall P l1.
+Proof.
+  intros.
+  eapply Forall_forall.
+  intros.
+  apply H0 in H1.
+  eapply Forall_forall in H; eauto.
+Qed. 
+
+Lemma Forall_removelast : forall A P (l1:list A), 
+  Forall P l1 -> Forall P (removelast l1).
+Proof.
+  intros.
+  eapply Forall_incl; eauto.
+  apply removelast_incl.
+Qed. 
+
 (* filter *)
 Lemma filter_ext: forall (A:Type) (f g:A->bool)
   (Heq: forall a, f a = g a) (l0:list A), List.filter f l0 = List.filter g l0.
@@ -441,30 +686,6 @@ Proof.
     destruct R.
       eauto.
       apply IHl0 in H. destruct H as [x [J1 J2]]. eauto.
-Qed.
-
-(* incl *) 
-Lemma incl_insert: forall A (l1 l2:list A) a, incl (l1++l2) (l1++a::l2).
-Proof.
-  induction l1; simpl; intros; intros x J; simpl; auto.
-    simpl in J. destruct J as [J | J]; auto.
-    right. apply IHl1; auto.
-Qed.
-
-Lemma incl_app: forall A (l0 l1 l2:list A),
-  incl l1 l2 -> incl (l0++l1) (l0++l2).
-Proof.
-  intros. intros x J.
-  apply in_or_app. apply in_app_or in J.
-  destruct J as [J | J]; auto.
-Qed.
-
-Lemma incl_nil : forall A (d:list A), incl nil d.
-Proof. intros. intros x J. inv J. Qed.
-
-Lemma incl_cons : forall A l1 (x:A), incl l1 (x::l1).
-Proof.
-  intros. intros y J. simpl; auto.
 Qed.
 
 (* index *)
@@ -676,6 +897,40 @@ Proof.
         apply in_dom__iff__in_rev_dom in J; auto.
 Qed.
 
+Lemma In_uniq_eq: forall A (id0 : atom) (ac ac':A) acs1 acs2
+  (Huniq : uniq (acs1 ++ (id0, ac) :: acs2))
+  (Hin1 : In (id0, ac') (acs1 ++ (id0, ac) :: acs2)),
+  ac' = ac.
+Proof.
+  intros.
+  assert (J:=Hin1).
+  apply In_lookupAL in Hin1; auto.
+  rewrite In_lookupAL with (v1:=ac) in Hin1; auto.
+    inv Hin1. auto.
+    apply in_middle.
+Qed.
+
+Lemma uniq_split_middle: forall A (cs2:AssocList A) cs2' c cs1 cs1'
+  (H: uniq (cs1 ++ c :: cs2)) (H0: cs1 ++ c :: cs2 = cs1' ++ c :: cs2'),
+  cs1 = cs1' /\ cs2 = cs2'.
+Proof.
+  induction cs1; destruct cs1'; simpl; intros.
+    inv H0. auto.
+
+    inv H0.
+    inv H.
+    contradict H3. simpl_env. fsetdec.
+
+    inv H0.
+    inv H.
+    contradict H3. simpl_env. fsetdec.
+
+    inv H0.
+    inv H.
+    eapply IHcs1 in H2; eauto.
+    destruct H2 as [J1 J2]; subst; auto.
+Qed.
+
 (* nth_err *)
 
 Lemma nil_nth_error_Some__False : forall X n (v:X),
@@ -738,6 +993,14 @@ Proof.
   assert (length (List.remove eq_dec a l2) < length l2)%nat as Hle.
     apply remove_in_length; auto with datatypes v62.
   omega.
+Qed.
+
+Lemma len_le_zero__nil: forall A (vl:@list A) (Hlen: (0 >= length vl)%nat),
+  vl = nil.
+Proof.
+  intros.
+  destruct vl; auto.
+    simpl in *. contradict Hlen. omega.
 Qed.
 
 (* atom set *)
@@ -814,3 +1077,15 @@ Proof.
   apply Hincb in Hina2.
   apply Hdisj1 in Hina1. tauto.
 Qed.
+
+(* misc *)
+Lemma neq_symmetry: forall A (x y:A), x <> y -> y <> x.
+Proof. auto. Qed.
+
+Lemma eq_nil_dec: forall A (l1:list A),
+  l1 = nil \/ l1 <> nil.
+Proof.
+  destruct l1; auto.
+    right. congruence.
+Qed.
+

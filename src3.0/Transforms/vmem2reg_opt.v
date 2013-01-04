@@ -398,18 +398,70 @@ Qed.
 (****************************)
 Lemma find_parent_action_inv: forall ac1 mac ac2 
   (Hfind: find_parent_action ac1 mac = ac2),
-  ac1 = ac2 \/ 
+  (ac1 = ac2 /\ 
+   ((~ exists id1, ac1 = AC_vsubst (value_id id1)) \/
+    exists id1, ac1 = AC_vsubst (value_id id1) /\
+      (M.find id1 mac = None \/ 
+       M.find id1 mac = Some AC_remove)
+   ) 
+  ) \/ 
   exists id1, 
-    ac1 = AC_vsubst (value_id id1) /\ M.find id1 mac = Some ac2 /\ 
+    ac1 = AC_vsubst (value_id id1) /\ 
+    M.find id1 mac = Some ac2 /\ 
     ac2 <> AC_remove.
 Proof.
   intros. subst.
-  destruct ac1; auto.
-  destruct v; auto.
+  destruct ac1; simpl.
+  Case "1".
+    left. 
+    split; auto.
+      left. intros [id1 J]. inv J.
+  Case "2".
+    destruct v.
+    SCase "2.1".
+      case_eq (M.find id5 mac).
+      SSCase "2.1.1".
+        intros [] Hfind.
+        SSSCase "2.1.1.1".      
+          left. 
+          split; auto.
+            right. eauto. 
+        SSSCase "2.1.1.2".
+          right.
+          exists id5.
+          split; auto.
+          split; auto. 
+            congruence.
+        SSSCase "2.1.1.3".
+          right.
+          exists id5.
+          split; auto.
+          split; auto. 
+            congruence.
+      SSCase "2.1.2".
+        intro Hfind.
+        left. 
+        split; auto.
+          right. eauto.
+    SCase "2.2".
+      left.
+      split; auto.
+        left. intros [id1 J]. inv J.
+  Case "3".
+    left.
+    split; auto.
+      left. intros [id1 J]. inv J.
+Qed.
+
+Lemma find_parent_action_intro: forall id2 E
+  (H3 : M.find id2 E = merror \/
+        M.find id2 E = ret AC_remove),
+  find_parent_action (AC_vsubst (value_id id2)) E = 
+    (AC_vsubst (value_id id2)).
+Proof.
+  intros.
   simpl.
-  case_eq (M.find id5 mac); eauto.
-  intros [] Hfind; try solve 
-    [auto | right; exists id5; repeat split; auto; congruence].
+  destruct H3 as [H3 | H3]; rewrite H3; auto.
 Qed.
 
 End ComposedPass.
