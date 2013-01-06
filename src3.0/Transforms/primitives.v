@@ -913,6 +913,37 @@ Proof.
   simpl. auto.
 Qed.
 
+Lemma remove_fdef__blockInFdefB: forall id0 f b (HBinF: blockInFdefB b f = true),
+  blockInFdefB (remove_block id0 b) (remove_fdef id0 f) = true.
+Proof.
+  destruct f.
+  intros.
+  apply blockInFdefB__In in HBinF.
+  apply In__blockInFdef.
+  apply in_map; auto.
+Qed.
+
+Lemma subst_fdef__blockInFdefB: forall id0 v0 f b 
+  (HBinF: blockInFdefB b f = true),
+  blockInFdefB (subst_block id0 v0 b) (subst_fdef id0 v0 f) = true.
+Proof.
+  destruct f.
+  intros.
+  apply blockInFdefB__In in HBinF.
+  apply In__blockInFdef.
+  apply in_map; auto.
+Qed.
+
+Lemma remove_subst_fdef__blockInFdefB: forall id0 v0 f b id1 
+  (HBinF: blockInFdefB b f = true),
+  blockInFdefB (remove_block id1 (subst_block id0 v0 b))
+               (remove_fdef id1 (subst_fdef id0 v0 f)) = true.
+Proof.
+  intros.
+  apply remove_fdef__blockInFdefB.
+  apply subst_fdef__blockInFdefB; auto.
+Qed.
+
 (**************************************************************)
 (* properties of used_in_...                                  *)
 Lemma used_in_blocks_cons_inv : forall bs5 id0 b5,
@@ -1275,6 +1306,25 @@ Lemma noused_getPhiNodeOperands : forall id' p
   ~ In id' (getPhiNodeOperands p).
 Proof.
   destruct p; simpl; intros. auto using noused_values2ids.
+Qed.
+
+Lemma valueInPhiOperands__used_in_phi: forall id0 p1
+  (Hinops : valueInInsnOperands (value_id id0) (insn_phinode p1)),
+  used_in_phi id0 p1 = true.
+Proof.
+  destruct p1.
+  simpl.
+  induction l0 as [|[] l0']; intros.
+    inv Hinops.
+
+    simpl in Hinops.
+    destruct Hinops as [Hinops | Hinops].
+      subst. simpl. 
+      destruct_dec.
+
+      simpl.
+      apply orb_true_iff.
+      auto.
 Qed.
 
 Lemma noused_getCmdOperands : forall id' c
@@ -1911,6 +1961,237 @@ Qed.
 
 End SubstUnused.
 
+Section RemoveUnused.
+
+Variable (id1 id2:id).
+
+Lemma remove_unused_in_phinodes: forall ps
+  (H: fold_left (fun (re : bool) p0 => re || used_in_phi id1 p0)
+        ps false = false),
+  fold_left (fun (re : bool) p0 => re || used_in_phi id1 p0)
+     (remove_phinodes id2 ps) false = false.
+Proof.
+  induction ps as [|]; simpl; intros; auto.
+    apply fold_left_or_false in H; 
+      try solve [intros a0 b H0; eapply orb_false_iff in H0; tauto].
+    destruct H as [H1 H2].
+    apply IHps in H1.
+    destruct_dec; simpl; auto.
+      rewrite H2; auto.
+Qed.
+
+Lemma remove_unused_in_cmds: forall cs
+  (H: fold_left (fun (re : bool) (c0 : cmd) => re || used_in_cmd id1 c0)
+        cs false = false),
+  fold_left (fun (re : bool) (c0 : cmd) => re || used_in_cmd id1 c0)
+     (remove_cmds id2 cs) false = false.
+Proof.
+  induction cs as [|]; simpl; intros; auto.
+    apply fold_left_or_false in H; 
+      try solve [intros a0 b H0; eapply orb_false_iff in H0; tauto].
+    destruct H as [H1 H2].
+    apply IHcs in H1.
+    destruct_dec; simpl; auto.
+      rewrite H2; auto.
+Qed.
+
+Lemma remove_unused_in_block: forall b
+  (H: used_in_block id1 b = false),
+  used_in_block id1 (remove_block id2 b) = false.
+Proof.
+  destruct b as [? []]. simpl. intros.
+  apply orb_false_iff in H.
+  destruct H as [H J2].
+  apply orb_false_iff in H.
+  destruct H as [J1 J3]. 
+  rewrite remove_unused_in_phinodes; auto.
+  rewrite remove_unused_in_cmds; auto.
+Qed.
+
+Lemma remove_unused_in_fdef: forall f 
+  (Hnused: used_in_fdef id1 f = false),
+  used_in_fdef id1 (remove_fdef id2 f) = false.
+Proof.
+  destruct f as [fh bs]. simpl.
+  intros.
+  induction bs; simpl in *; auto.
+    apply fold_left_or_false in Hnused; 
+      try solve [intros a0 b H0; eapply orb_false_iff in H0; tauto].
+    destruct Hnused.
+    rewrite remove_unused_in_block; auto.
+Qed.
+
+End RemoveUnused.
+
+Section SubstUnused'.
+
+Variable (id1 id2:id) (v1:value).
+Hypothesis (Hnused': used_in_value id2 v1 = false).
+
+Lemma subst_unused_in_value': forall v
+  (Hnused: used_in_value id2 v = false),
+  used_in_value id2 (v {[v1 // id1]}) = false.
+Proof.
+  destruct v; simpl; intros; auto.
+    destruct_dec.
+Qed.
+
+Lemma subst_unused_in_vls': forall vls
+  (Hnused: used_in_list_value_l id2 vls = false),
+  used_in_list_value_l id2 (subst_list_value_l id1 v1 vls) = false.
+Proof.
+  induction vls as [|[v]]; simpl; intros; auto.
+    apply orb_false_iff in Hnused.
+    destruct Hnused.
+    apply orb_false_iff.
+    split; auto using subst_unused_in_value'.
+Qed.
+
+Lemma subst_unused_in_phinodes': forall ps
+  (H: fold_left (fun (re : bool) (p0 : phinode) => re || used_in_phi id2 p0)
+        ps false = false),
+  fold_left (fun (re : bool) (p0 : phinode) => re || used_in_phi id2 p0)
+     (List.map (subst_phi id1 v1) ps) false = false.
+Proof.
+  induction ps as [|[]]; simpl; intros; auto.
+    apply fold_left_or_false in H; 
+      try solve [intros a b H0; eapply orb_false_iff in H0; tauto].
+      destruct H.
+      rewrite subst_unused_in_vls'; auto.
+Qed.
+
+Lemma subst_unused_in_vs': forall vs
+  (Hnused: used_in_list_value id2 vs = false),
+  used_in_list_value id2 (subst_list_value id1 v1 vs) = false.
+Proof.
+  induction vs as [|[v]]; simpl; intros; auto.
+    apply orb_false_iff in Hnused.
+    destruct Hnused.
+    apply orb_false_iff.
+    split; auto using subst_unused_in_value'.
+Qed.
+
+Lemma subst_unused_in_cmd': forall c
+  (H: used_in_cmd id2 c = false),
+  used_in_cmd id2 (subst_cmd id1 v1 c) = false.
+Proof.
+  destruct c; simpl; intros; try solve [
+    auto using subst_unused_in_value' |
+    repeat (apply orb_false_iff;
+            apply orb_false_iff in H; destruct H;
+              split; auto using subst_unused_in_value', subst_unused_in_vs')
+  ].
+
+    apply orb_false_iff.
+    apply orb_false_iff in H; destruct H.
+    split; auto using subst_unused_in_value'.
+      induction params5 as [|[[]]]; simpl; auto.
+        assert (fold_left 
+                 (fun (acc : bool) (p : typ * attributes * value) =>
+                 let '(_, v) := p in used_in_value id2 v || acc) params5
+                 false = false /\ used_in_value id2 v = false) as J.
+          simpl in H0.
+          apply fold_left_or_false in H0.
+            destruct H0.
+            split; auto.
+              apply orb_false_iff in H1. tauto.
+            intros a0 [] H1. eapply orb_false_iff in H1; tauto.
+        destruct J.
+        rewrite subst_unused_in_value'; auto.
+Qed.
+
+Lemma subst_unused_in_cmds': forall cs
+  (H: fold_left (fun (re : bool) (c0 : cmd) => re || used_in_cmd id2 c0)
+        cs false = false),
+  fold_left (fun (re : bool) (c0 : cmd) => re || used_in_cmd id2 c0)
+     (List.map (subst_cmd id1 v1) cs) false = false.
+Proof.
+  induction cs; simpl; intros; auto.
+    apply fold_left_or_false in H; 
+      try solve [intros a0 b H0; eapply orb_false_iff in H0; tauto].
+      destruct H.
+      rewrite subst_unused_in_cmd'; auto.
+Qed.
+
+Lemma subst_unused_in_tmn': forall t (H: used_in_tmn id2 t = false),
+  used_in_tmn id2 (subst_tmn id1 v1 t) = false.
+Proof.
+  destruct t; simpl; auto using subst_unused_in_value'.
+Qed.
+
+Lemma subst_unused_in_block': forall b
+  (H: used_in_block id2 b = false),
+  used_in_block id2 (subst_block id1 v1 b) = false.
+Proof.
+  destruct b as [? []]. simpl. intros.
+  apply orb_false_iff in H.
+  destruct H as [H J2].
+  apply orb_false_iff in H.
+  destruct H as [J1 J3]. 
+  rewrite subst_unused_in_phinodes'; auto.
+  rewrite subst_unused_in_cmds'; auto.
+  rewrite subst_unused_in_tmn'; auto.
+Qed.
+
+Lemma subst_unused_in_fdef': forall f 
+  (Hnused: used_in_fdef id2 f = false),
+  used_in_fdef id2 (subst_fdef id1 v1 f) = false.
+Proof.
+  destruct f as [fh bs]. simpl.
+  intros.
+  induction bs; simpl in *; auto.
+    apply fold_left_or_false in Hnused; 
+      try solve [intros a0 b H0; eapply orb_false_iff in H0; tauto].
+    destruct Hnused.
+    rewrite subst_unused_in_block'; auto.
+Qed.
+
+End SubstUnused'.
+
+Lemma subst_phi__getPhiNodeID: forall id0 v0 p0,
+  getPhiNodeID (subst_phi id0 v0 p0) = getPhiNodeID p0.
+Proof.
+  destruct p0; auto.
+Qed.
+
+Lemma subst_list_value_l__In: forall vls v l2 (Hin' : In (v, l2) vls) id0 v0,
+  In (v {[v0 // id0]}, l2) (subst_list_value_l id0 v0 vls).
+Proof.
+  induction vls as [|[]]; simpl; intros; auto.
+    destruct Hin' as [Hin' | Hin']; subst; simpl; auto.
+    inv Hin'. auto.   
+Qed.
+
+Lemma subst_list_value_l__In': forall vls v2 l2 id0 v0
+  (Hin' : In (v2, l2) (subst_list_value_l id0 v0 vls)) ,
+  exists v, 
+     v2 = v {[v0 // id0]} /\ In (v, l2) vls.
+Proof.
+  induction vls as [|[]]; simpl; intros.
+    inv Hin'.
+
+    destruct Hin' as [Hin' | Hin'].
+      inv Hin'; eauto.
+
+      apply IHvls in Hin'.
+      destruct Hin' as [v' [EQ Hin]]; subst.
+      exists v'. auto.
+Qed.
+
+Lemma subst_phi__remove_subst_phis: forall ps0 p0 (Hin : In p0 ps0)
+  (v0 : value) id1 (Hneq : id1 <> getPhiNodeID p0),
+  In (subst_phi id1 v0 p0)
+     (remove_phinodes id1
+        (List.map (subst_phi id1 v0) ps0)).
+Proof.
+  intros.
+  apply filter_In.
+  split.
+    apply in_map; auto.
+    rewrite subst_phi__getPhiNodeID.
+    destruct_dec.
+Qed.
+
 Lemma used_in_phi_fun_spec: forall pid (a0 : bool) (b : phinode),
   a0 || used_in_phi pid b = false -> a0 = false.
 Proof.
@@ -2103,6 +2384,35 @@ Proof.
     apply orb_true_iff in J1.
     destruct J1 as [J1 | J1]; auto.
       apply phinodeEqB_inv in J1. subst. auto.
+Qed.
+
+Lemma used_in_fdef__used_in_phi : forall id0 l3 ps1 cs p tmn1 F1,
+  used_in_fdef id0 F1 = false ->
+  blockInFdefB (l3, stmts_intro ps1 cs tmn1) F1 = true ->
+  In p ps1 ->
+  used_in_phi id0 p = false.
+Proof.
+  destruct F1. intros.
+  simpl in H.
+  eapply used_in_blocks__used_in_block in H0; eauto 2.
+  binvf H0 as J3 J4. binvf J3 as J1 J2.
+  eapply unused_in_phis__unused_in_phi' with (p0:=p) in J1; eauto 2.
+    solve_in_list.
+Qed.
+
+Lemma used_in_fdef__used_in_phi_value : forall id0 l3 ps1 cs p v tmn1 F1,
+  used_in_fdef id0 F1 = false ->
+  blockInFdefB (l3, stmts_intro ps1 cs tmn1) F1 = true ->
+  valueInInsnOperands v (insn_phinode p) -> In p ps1 ->
+  used_in_value id0 v = false.
+Proof.
+  intros.
+  eapply used_in_fdef__used_in_phi in H0; eauto 1.
+    apply noused_getPhiNodeOperands in H0.
+    destruct v; simpl; auto.
+    destruct_dec.
+    contradict H0.
+    eapply valueInInsnOperands__InOps in H1; eauto.
 Qed.
 
 Lemma unused_in_cmds__unused_in_cmd': forall (pid id0 : id) (cs : cmds)

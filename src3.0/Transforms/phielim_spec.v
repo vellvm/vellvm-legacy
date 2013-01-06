@@ -226,6 +226,15 @@ Inductive assigned_phi (v:value): phinode -> Prop :=
     assigned_phi v (insn_phi vid ty vls)
 .
 
+Lemma assigned_phi__valueInInsnOperands: forall v0 p1 (Hassign1 : assigned_phi v0 p1),
+  valueInInsnOperands v0 (insn_phinode p1).
+Proof.
+  intros.
+  inv Hassign1.
+  destruct Hex as [l3 Hin'].
+  eapply In__In_list_prj1; eauto.
+Qed.
+
 Lemma assigned_phi_unreachable_vid__selfrefl_phi: forall l0 ps0 cs0 tmn0 f ty 
   vls vid (HBinF: blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true) id0
   (Hin: In (insn_phi id0 ty vls) ps0) (Hreach: reachable f l0)

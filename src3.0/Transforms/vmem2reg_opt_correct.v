@@ -3,6 +3,7 @@ Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
+Require Import Dipaths.
 Require Import opsem_props.
 Require Import program_sim.
 Require Import promotable_props.
@@ -15,6 +16,7 @@ Require Import dse_top.
 Require Import dse_wfS.
 Require Import dae_top.
 Require Import dae_wfS.
+Require Import die_top.
 Require Import die_wfS.
 Require Import sas_top.
 Require Import sas_wfS.
@@ -27,6 +29,7 @@ Require Import phiplacement_bsim_top.
 Require Import iter_pass.
 Require Import iter_pass_correct.
 Require Import pass_combinators.
+Require Import phielim_spec.
 Require Import phielim_top.
 Require Import vmem2reg.
 Require Import vmem2reg_correct.
@@ -2093,8 +2096,8 @@ Proof.
         rewrite Heqpi. simpl. solve_in_list.
 Qed.
 
-Lemma apply_action_sim_wfS_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
-  (pinfo : PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
+Lemma apply_cs_action_sim_wfS_wfPI: forall (los : layouts) (nts : namedts) 
+  (fh : fheader) (pinfo : PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) id' ac'
   (Hwf: wf_cs_action cs0 (PI_id pinfo) (id', ac')) (Hinrd: In l0 (PI_rd pinfo))
@@ -2197,7 +2200,7 @@ Local Opaque apply_action.
     destruct Hin as [bs11 [bs21 EQ]]; subst bs1.
     subst S2.
     assert (Hok':=Hok).
-    eapply apply_action_sim_wfS_wfPI with (S1:=
+    eapply apply_cs_action_sim_wfS_wfPI with (S1:=
         [module_intro los nts 
           (Ps1 ++ product_fdef (apply_action f1 (id', ac')) :: Ps2)]) 
         in Hok'; try solve [eauto | subst f1; eauto].
@@ -2347,36 +2350,41 @@ Proof.
   eapply pipelined_elim_stld_sim_wfS_wfPI; eauto.
 Qed.
 
-(* Pipelined LAS/LAA preserves CFGs. *)
-Lemma apply_actions_reachablity_successors: forall actions f1 f2 
-  (Hpass : fold_left apply_action actions f1 = f2),
+(* The pipelined pass preserves CFGs. *)
+Lemma apply_action_reachablity_successors: forall elt f1 f2 
+  (Hpass : apply_action f1 elt = f2),
   reachablity_analysis f2 = reachablity_analysis f1 /\
     successors f2 = successors f1.
 Proof.
-  induction actions as [|[id0 []] acs]; simpl; intros; subst; auto.
+  destruct elt as [id0 []]; simpl; intros; subst.
   Case "1".
-    edestruct IHacs with (f1:=remove_fdef id0 f1) as [J1 J2]; eauto.
     assert (J:=remove_reachablity_successors id0 f1).
     destruct J as [J3 J4].
     split; etransitivity; eauto.
   Case "2".
-    edestruct IHacs with (f1:=remove_fdef id0 (subst_fdef id0 v f1)) 
-      as [J1 J2]; eauto.
     assert (J:=remove_subst_reachablity_successors id0 id0 v f1).
     destruct J as [J3 J4].
     split; etransitivity; eauto.
   Case "3".
-    edestruct IHacs with (f1:=remove_fdef id0 
-                                (subst_fdef id0 
-                                   (value_const (const_undef t)) f1)) 
-      as [J1 J2]; eauto.
     assert (J:=remove_subst_reachablity_successors id0 id0 
                  (value_const (const_undef t)) f1).
     destruct J as [J3 J4].
     split; etransitivity; eauto.
 Qed.
 
-Lemma pipelined_elim_stld_reachablity_successors: forall f1 f2 actions
+Lemma apply_actions_reachablity_successors: forall actions f1 f2 
+  (Hpass : fold_left apply_action actions f1 = f2),
+  reachablity_analysis f2 = reachablity_analysis f1 /\
+    successors f2 = successors f1.
+Proof.
+  induction actions as [|elt acs]; simpl; intros; subst; auto.
+    edestruct IHacs with (f1:=apply_action f1 elt) as [J1 J2]; eauto.
+    assert (J:=apply_action_reachablity_successors elt f1).
+    edestruct J as [J3 J4]; eauto.
+    split; etransitivity; eauto.
+Qed.
+
+Lemma pipelined_actions_reachablity_successors: forall f1 f2 actions
   (Hpass : pipelined_actions actions f1 = f2),
   reachablity_analysis f2 = reachablity_analysis f1 /\
     successors f2 = successors f1.
@@ -2397,12 +2405,979 @@ Proof.
   intros. 
   unfold_elim_stld_fdef_tac.
   avl_to_list_tac.
-  eapply pipelined_elim_stld_reachablity_successors; eauto.
+  eapply pipelined_actions_reachablity_successors; eauto.
 Qed.
 
 Hint Unfold keep_pinfo.
 
-(* LAS/LAA is correct. *)
+(***************************************************************)
+(* well-formed actions for fused phinode elimination *)
+Definition wf_phi_action f rd (elt:id*action) : Prop := 
+let '(id0, ac0) := elt in
+match ac0 with
+| AC_remove =>
+    exists l0, exists ps0, exists cs0, exists tmn0, exists p0,
+      In l0 rd /\
+      blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true /\
+      In p0 ps0 /\
+      id0 = getPhiNodeID p0 /\
+      used_in_fdef (getPhiNodeID p0) f = false
+| AC_vsubst v0 =>
+    exists l0, exists ps0, exists cs0, exists tmn0, exists p0,
+      In l0 rd /\
+      blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f = true /\
+      In p0 ps0 /\
+      id0 = getPhiNodeID p0 /\
+      assigned_phi v0 p0
+| _ => False
+end.
+
+Definition wf_phi_actions f rd (acs:AssocList action) : Prop := 
+Forall (wf_phi_action f rd) acs.
+
+(***************************************************************)
+(* The properties of elim_phi_step *)
+Lemma elim_phi_step_inl_spec: forall f1 f2 rd (H: elim_phi_step rd f1 = inl f2),
+  elim_phi_fdef rd f1 = nil /\ f2 = f1.
+Proof.
+  unfold elim_phi_step.
+  intros f0 f2 rd.
+  destruct (elim_phi_fdef rd f0); intros H; inv H; auto.
+Qed.
+
+Lemma elim_phi_step_inr_spec: forall f1 f2 rd (H: elim_phi_step rd f1 = inr f2),
+  elim_phi_fdef rd f1 <> nil /\ f2 = AVLComposedPass.run (elim_phi_fdef rd f1) f1.
+Proof.
+  unfold elim_phi_step.
+  intros f0 f2 rd.
+  destruct (elim_phi_fdef rd f0); intros H; inv H.
+    split; auto.
+      congruence.
+Qed.
+
+(* This is similiar to eliminate_phi_true_spec, could be merged? *)
+Lemma elim_phi_phi_spec: forall S M f b p 
+  (Hwf: wf_fdef S M f) (Huniq: uniqFdef f) acs rd
+  (Hreach : reachablity_analysis f = ret rd) (Hrd: In (getBlockLabel b) rd) 
+  (HPinF: phinodeInFdefBlockB p f b = true) elt
+  (Helim: (elt::acs) = elim_phi_phi f acs p),
+  wf_phi_action f rd elt.
+Proof.
+  destruct p as [pid pty pvls].
+  unfold elim_phi_phi.
+  intros. 
+  bdestruct HPinF as HPinB HBinF.
+  destruct b as [l0 [ps0 cs0 tmn0]].
+  simpl in HPinB. apply InPhiNodesB_In in HPinB.
+  remember (vmem2reg.remove_redundancy nil 
+             (value_id pid :: List.map fst pvls)) as vs.
+  apply remove_redundancy_spec in Heqvs.
+  destruct Heqvs as [Hinc Hnodup].
+  rewrite <- fst_split__map_fst in Hinc.
+  assert (Hreach':=Hreach).
+  eapply reachablity_analysis__reachable in Hreach'; eauto.
+  destruct vs as [|v1 vs'].
+  Case "1".
+    repeat destruct_if; try cons_self__False_tac.
+      simpl. exists l0. exists ps0. exists cs0. exists tmn0. 
+      exists (insn_phi pid pty pvls).
+      split; auto.
+  Case "2".
+    destruct v1 as [vid1 | vc1].
+    SCase "2.1".
+      destruct vs' as [|v2].
+      SSCase "2.1.1: pid = phi pid ... pid".
+        elimtype False.
+        eapply identity_phi_cannot_be_in_reachable_blocks; eauto 1.
+        constructor.
+          intros v1 l1 Hin.
+          apply in_split_l in Hin. simpl in Hin.
+          assert (pid = vid1) as EQ.
+            assert (In (value_id pid) (value_id vid1 :: nil)) as Hin1.
+              apply Hinc; simpl; auto.
+              destruct_in Hin1; try tauto. 
+            congruence.
+          subst.
+          assert (In v1 (value_id vid1 :: fst (split pvls))) as Hin'.
+            simpl. auto.
+          apply Hinc in Hin'.
+          destruct_in Hin'; try tauto. 
+         
+      SSCase "2.1.2".
+        destruct vs' as [|].
+        SSSCase "2.1.2.1: pid = phi v2 .. v2 . pid".
+          destruct_dec; inv Helim.
+          SSSSCase "pid=vid1".
+            simpl. exists l0. exists ps0. exists cs0. exists tmn0. 
+            exists (insn_phi vid1 pty pvls).
+            repeat (split; auto).
+            SSSSSCase "2.1.2.1.1".
+                apply split_l_in; auto.
+                assert (In v2 (value_id vid1 :: v2 :: nil)) as Hin.
+                  simpl; auto.
+                apply Hinc in Hin.
+                destruct_in Hin.
+                  simpl in Hnodup. inv Hnodup. simpl in H1. tauto.
+            SSSSSCase "2.1.2.1.2".
+                intros v1 l1 Hin.  
+                apply in_split_l in Hin. simpl in Hin.
+                assert (In v1 (value_id vid1 :: fst (split pvls))) as Hin'.
+                  simpl. auto.
+                apply Hinc in Hin'.
+                destruct_in Hin'; auto.
+                destruct Hin'; subst; tauto.    
+          SSSSCase "pid<>vid1".
+            simpl. exists l0. exists ps0. exists cs0. exists tmn0. 
+            exists (insn_phi pid pty pvls).
+            repeat (split; auto).
+            SSSSSCase "2.1.2.1.1".
+                apply split_l_in; auto.
+                assert (In (value_id vid1) (value_id vid1 :: v2 :: nil)) as Hin.
+                  simpl; auto.
+                apply Hinc in Hin.
+                destruct_in Hin. 
+                  congruence.
+            SSSSSCase "2.1.2.1.2".    
+                assert (v2 = value_id pid) as EQ.         
+                  assert (In (value_id pid) (value_id pid :: fst (split pvls))) 
+                    as Hin0.
+                    simpl; auto.
+                  apply Hinc in Hin0.
+                  destruct_in Hin0.
+                    congruence.
+                subst.
+                intros v1 l1 Hin.  
+                apply in_split_l in Hin. simpl in Hin.
+                assert (In v1 (value_id pid :: fst (split pvls))) as Hin'.
+                  simpl. auto.
+                apply Hinc in Hin'.
+                destruct_in Hin'; auto.
+                destruct Hin'; subst; tauto.
+        SSSCase "2.1.2.2".
+          repeat destruct_if; try cons_self__False_tac.
+          simpl. exists l0. exists ps0. exists cs0. exists tmn0. 
+          exists (insn_phi pid pty pvls).
+          split; auto.
+    
+    SCase "2.2".
+      destruct vs' as [|? vs'].
+      SSCase "2.2.1: pid = vc".
+        assert (In (value_id pid) (value_id pid :: fst (split pvls))) as Hin.
+          simpl; auto.
+        apply Hinc in Hin.
+        destruct_in Hin.
+          congruence.
+    
+      SSCase "2.2.2".
+        destruct vs' as [|? vs'].
+        SSSCase "2.2.2.1: pid = phi pid c .. c . pid".
+          inv Helim. 
+          assert (v = value_id pid) as EQ.         
+            assert (In (value_id pid) (value_id pid :: fst (split pvls))) 
+              as Hin0.
+              simpl; auto.
+            apply Hinc in Hin0.
+            destruct_in Hin0.
+              congruence.
+          subst.
+          simpl. exists l0. exists ps0. exists cs0. exists tmn0. 
+          exists (insn_phi pid pty pvls).
+          repeat (split; auto).
+          SSSSSCase "2.2.2.1.1".
+            apply split_l_in; auto.
+            assert (In (value_const vc1) (value_const vc1 :: value_id pid :: nil))  
+              as Hin.
+              simpl; auto.
+            apply Hinc in Hin.
+            destruct_in Hin. 
+              congruence.
+          SSSSSCase "2.2.2.1.2".    
+            intros v1 l1 Hin.  
+            apply in_split_l in Hin. simpl in Hin.
+            assert (In v1 (value_id pid :: fst (split pvls))) as Hin'.
+              simpl. auto.
+            apply Hinc in Hin'.
+            destruct_in Hin'; auto.
+            destruct Hin'; subst; tauto.
+
+        SSSCase "2.2.2.2".
+          repeat destruct_if; try cons_self__False_tac.
+          simpl. exists l0. exists ps0. exists cs0. exists tmn0. 
+          exists (insn_phi pid pty pvls).
+          repeat split; auto.
+Qed.
+
+Lemma elim_phi_phi__eq_spec: forall init f p0,
+  elim_phi_phi f init p0 = init \/ 
+  exists elt, elim_phi_phi f init p0 = elt :: init.
+Proof.
+  unfold elim_phi_phi.
+  destruct p0 as [a b c].
+  destruct (remove_redundancy nil (value_id a :: List.map fst c)) as [|v l0].
+    destruct_if; auto.
+    destruct_if; eauto.
+
+    destruct v.
+      destruct l0 as [|v l0]; eauto.
+      destruct l0 as [|v' l0].
+        destruct_dec; eauto.
+        destruct_if; eauto.
+        destruct_if; eauto.
+
+      destruct l0 as [|v l0]; eauto.
+      destruct l0 as [|v' l0]; eauto.
+        destruct_if; eauto.
+        destruct_if; eauto.
+Qed.
+
+Lemma elim_phi_phi__in_spec: forall init f p0 elt
+  (Hin: In elt (elim_phi_phi f init p0)) (Hnin: ~ In elt init),
+  elim_phi_phi f init p0 = elt :: init.
+Proof.
+  intros.
+  destruct (elim_phi_phi__eq_spec init f p0) as [H | [elt' H]].
+  Case "1".
+    rewrite <- H in Hnin. tauto.
+  Case "2".
+    rewrite H in Hin.
+    simpl in Hin.
+    destruct Hin; subst; auto.
+      tauto.
+Qed.
+
+Lemma fold_left_elim_phi_phi__elim_phi_phi: forall 
+  (f : fdef) (ps0 : list phinode) (elt : atom * action) init,
+  In elt (fold_left (elim_phi_phi f) ps0 init) ->
+  In elt init \/
+  exists p0 : phinode,
+    exists acs : AssocList action,
+      In p0 ps0 /\ elim_phi_phi f acs p0 = elt :: acs.
+Proof.
+  induction ps0 as [|p0 ps0]; simpl; intros; auto.
+    apply IHps0 in H.
+    destruct H as [H | [p1 [acs [Hin EQ]]]].
+    Case "1".
+      destruct (In_dec id_action_dec elt init); auto.
+      right.
+      apply elim_phi_phi__in_spec in H; auto.
+      exists p0. exists init. auto.
+    Case "2".
+      right.
+      exists p1. exists acs. auto.
+Qed.
+
+Lemma elim_phi_phis__elim_phi_phi: forall elt f ps0
+  (Hin : In elt (elim_phi_phis f ps0)),
+  exists p0, exists acs, In p0 ps0 /\ elim_phi_phi f acs p0 = elt :: acs.
+Proof.
+  unfold elim_phi_phis.
+  intros.
+  apply fold_left_elim_phi_phi__elim_phi_phi in Hin.
+  destruct Hin as [Hin | Hin]; auto.
+    inv Hin.
+Qed.
+
+(* well-formed *)
+Lemma elim_phi_fdef__wf_actions: forall s m f rd actions
+  (Hwf: wf_fdef s m f) (Huniq: uniqFdef f)
+  (Hreach : reachablity_analysis f = ret rd)
+  (Hfind: actions = elim_phi_fdef rd f),
+  wf_phi_actions f rd actions.
+Proof.
+  destruct f as [fh bs]. 
+  intros.
+  simpl in Hfind.
+  apply Forall_forall.
+  intros elt Hin.
+  subst.
+  apply in_flat_map in Hin.
+  destruct Hin as [[l0 [ps0 cs0 tmn0]] [Hin1 Hin2]].
+  simpl in Hin2.
+  destruct_if.
+  apply elim_phi_phis__elim_phi_phi in Hin2.
+  destruct Hin2 as [p0 [acs [Hin Heim]]].
+  eapply elim_phi_phi_spec with (b:=(l0, stmts_intro ps0 cs0 tmn0)); eauto 1. 
+    apply andb_true_iff; simpl.
+    split; solve_in_list.
+Qed.
+
+Lemma elim_phi_phi_spec': forall f id0 ac0 p acs
+  (Helim: ((id0, ac0)::acs) = elim_phi_phi f acs p),
+  id0 = getPhiNodeID p.
+Proof.
+  destruct p as [pid pty pvls].
+  unfold elim_phi_phi.
+  intros. 
+  destruct (vmem2reg.remove_redundancy nil 
+              (value_id pid :: List.map fst pvls)).
+    destruct_if; try cons_self__False_tac.
+    destruct_if; try cons_self__False_tac; auto.
+
+    destruct v.
+      destruct l0.
+        inv Helim; auto.
+        destruct l0.
+          destruct_dec; inv Helim; auto.
+          destruct_if; try cons_self__False_tac.
+          destruct_if; try cons_self__False_tac; auto.
+      destruct l0.
+        inv Helim; auto.
+        destruct l0.
+          inv Helim; auto.
+          destruct_if; try cons_self__False_tac.
+          destruct_if; try cons_self__False_tac; auto.
+Qed.
+
+(* inclusion *)
+Lemma elim_phi_block__incl: forall rd f b,
+  forall (a : atom) (Hin: a `in` dom (elim_phi_block rd f b)), 
+  In a (getStmtsLocs (snd b)).
+Proof.
+  destruct b as [? []]. simpl.
+  destruct_if; intros.
+    apply indom_lookupAL_Some in Hin.
+    destruct Hin as [gv0 Hin].
+    apply lookupAL_in in Hin.
+    apply elim_phi_phis__elim_phi_phi in Hin.
+    destruct Hin as [p0 [acs [Hin EQ]]].
+    symmetry in EQ.
+    apply elim_phi_phi_spec' in EQ; subst.
+    xsolve_in_list.
+
+    simpl in Hin. fsetdec.
+Qed.
+
+Lemma elim_phi_blocks__incl: forall rd f bs,
+  forall a : atom,
+  a `in` dom (flat_map (elim_phi_block rd f) bs) -> 
+  In a (getBlocksLocs bs).
+Proof.
+  induction bs as [|b bs]; simpl; intros; subst.
+    fsetdec.
+    
+    apply in_or_app.
+    rewrite dom_app in H.
+    apply AtomSetFacts.union_iff in H.
+    destruct H as [H | H]; eauto using elim_phi_block__incl.
+Qed.
+
+(* uniqueness *)
+Lemma fold_elim_phi_phi__uniq: forall f ps acc
+  (Huniq: NoDup (getPhiNodesIDs ps++List.map fst acc)),
+  uniq (fold_left (elim_phi_phi f) ps acc).
+Proof.
+  induction ps as [|p ps]; simpl; intros; subst.
+    apply NoDup_fst__uniq; auto.
+ 
+    destruct (elim_phi_phi__eq_spec acc f p) as [H | [[id0 ac0] H]]; rewrite H.
+      apply IHps.
+      inversion Huniq; auto.
+
+      symmetry in H.
+      apply elim_phi_phi_spec' in H.
+      subst id0. 
+      apply IHps.
+      simpl.
+      rewrite_env ((getPhiNodesIDs ps ++ [getPhiNodeID p]) ++ List.map fst acc).
+      rewrite_env ((getPhiNodeID p :: getPhiNodesIDs ps) ++ List.map fst acc) 
+        in Huniq.
+      apply NoDup_split' in Huniq.
+      destruct Huniq as [J1 [J2 J3]].
+      apply NoDup_app; auto.
+        apply NoDup_commut; auto.
+
+        intros a Hin.
+        apply J3.
+        apply in_app_or in Hin.
+        simpl in *.
+        tauto.
+Qed.
+
+Lemma elim_phi_phis__uniq: forall f ps
+  (Huniq: NoDup (getPhiNodesIDs ps)),
+  uniq (elim_phi_phis f ps).
+Proof.
+  unfold elim_phi_phis.
+  intros.
+  apply fold_elim_phi_phi__uniq; simpl; simpl_env; auto.
+Qed.
+
+Lemma elim_phi_block__uniq: forall rd f b
+  (Huniq: NoDup (getStmtsLocs (snd b))),
+  uniq (elim_phi_block rd f b).
+Proof.
+  destruct b as [? []]. simpl.
+  intros.
+  destruct_if; auto.
+    split_NoDup.
+    eapply elim_phi_phis__uniq; eauto.
+Qed.
+
+Lemma elim_phi_blocks__uniq: forall rd f bs (Huniq: NoDup (getBlocksLocs bs)),
+  uniq (flat_map (elim_phi_block rd f) bs).
+Proof.
+  induction bs as [|b bs]; simpl; intros; subst.
+    constructor.
+
+    apply uniq_app_iff.
+    assert (J:=Huniq).
+    apply NoDup_split in J. destruct J as [J1 J2].
+    split.
+      eapply elim_phi_block__uniq; eauto.
+    split; auto.
+      apply disj__disjoint with (A1:=getStmtsLocs (snd b)) (B1:=getBlocksLocs bs); 
+        auto.
+        intros. eapply NoDup_disjoint'; eauto.
+        apply elim_phi_block__incl; auto.
+        apply elim_phi_blocks__incl; auto.
+Qed.
+
+Lemma elim_phi_fdef__uniq: forall rd f (HuniqF: uniqFdef f),
+  uniq (elim_phi_fdef rd f).
+Proof.
+  destruct f as [[] bs].
+  simpl.
+  intros.
+  destruct HuniqF.
+  split_NoDup.
+  apply elim_phi_blocks__uniq; auto.
+Qed.
+
+(* reachablity *)
+Lemma elim_phi_block__reach: forall rd f l0 sts0 acs1 ac acs2
+  (Hfind: elim_phi_block rd f (l0, sts0) = acs1 ++ ac :: acs2),
+  In l0 rd.
+Proof.
+  simpl. intros.
+  destruct_if; auto.
+    symmetry in H0. contradict H0. destruct sts0. apply app_cons_not_nil.
+Qed.
+
+Lemma elim_phi_blocks__reach': forall fh bs
+  (HuniqF : uniqFdef (fdef_intro fh bs)) (pid : id) (rd : list l) (id0 : atom)
+  (Hin : id0 `in` dom (List.flat_map (elim_phi_block rd (fdef_intro fh bs)) bs)),
+  exists l0 : l, exists sts0 : stmts,
+    blockInFdefB (l0, sts0) (fdef_intro fh bs) /\
+    In id0 (getStmtsLocs sts0) /\
+    In l0 rd.
+Proof.
+  intros.
+  apply binds_In_inv in Hin.
+  destruct Hin as [a Hin].
+  unfold binds in Hin.
+  apply in_flat_map in Hin.
+  destruct Hin as [b [Hin1 Hin2]].
+  assert (J:=Hin2).
+  apply binds_In in J.
+  apply elim_phi_block__incl in J.
+  destruct b as [l0 sts0].
+  exists l0. exists sts0.
+  split. simpl. solve_in_list.
+  split; auto.
+    apply in_split in Hin2.
+    destruct Hin2 as [l1 [l2 Hfind]].   
+    apply elim_phi_block__reach in Hfind; auto.
+Qed.
+
+Lemma elim_phi_blocks__reach'': forall (fh : fheader) (bs : blocks)
+  (HuniqF : uniqFdef (fdef_intro fh bs)) (pid : id) (rd : list l) (id0 : atom)
+  (l0 : l) (sts0 : stmts)
+  (H : lookupBlockViaIDFromFdef (fdef_intro fh bs) id0 = ret (l0, sts0))
+  (Hin : id0 `in` dom (flat_map (elim_phi_block rd (fdef_intro fh bs)) bs)),
+  In l0 rd.
+Proof.
+  intros.
+  eapply elim_phi_blocks__reach' in Hin; eauto.
+  destruct Hin as [l1 [sts1 [J1 [J2 J3]]]].
+  assert (J':=H).
+  apply lookupBlockViaIDFromBlocks__InGetBlockIDs in J'.
+  apply in_getStmtsIDs__in_getStmtsLocs in J'.
+  assert ((l1, sts1) = (l0, sts0)) as EQ.
+    eapply block_eq2; eauto 1.
+      solve_blockInFdefB.
+  inv EQ. auto.
+Qed.
+
+Lemma elim_phi_fdef__isReachableFromEntry: forall s m f
+  (HwfF: wf_fdef s m f)
+  (HuniqF: uniqFdef f) rd actions
+  (Hreach: ret rd = reachablity_analysis f)
+  (Hfind: actions = elim_phi_fdef rd f),
+  forall id0 (a:avertexes actions (index (value_id id0))) (b : block),
+  lookupBlockViaIDFromFdef f id0 = ret b ->
+  isReachableFromEntry f b.
+Proof.
+  intros. 
+  destruct f as [fh bs]. 
+  destruct b as [l0 sts0].
+  eapply reachablity_analysis__reachable; eauto.
+  subst. 
+  destruct a as [Hin | Hin].
+  Case "1".
+    eapply elim_phi_blocks__reach''; eauto.
+  Case "2".
+    destruct Hin as [id1 [ac1 [Hin Ha2v]]].
+    apply action2id__inv in Ha2v; subst ac1.
+    assert (Hin':=Hin).
+    apply binds_In in Hin'.
+    simpl in Hin'.
+    eapply elim_phi_blocks__reach' in Hin'; eauto.
+    destruct Hin' as [l1 [sts1 [J1 [J2 J3]]]].
+    assert (Huniq:=HuniqF).
+    apply uniqF__uniqBlocksLocs in Huniq.    
+    remember (elim_phi_fdef rd (fdef_intro fh bs)) as acs.
+    eapply elim_phi_fdef__wf_actions in Heqacs; eauto.
+    eapply Forall_forall in Hin; eauto.
+    destruct Hin as 
+      [l2 [ps0 [cs0 [tmn0 [p0 [Hrd [HBinF [Hinps [EQ Hassign]]]]]]]]]; subst.
+    eapply assigned_phi__domination in Hassign; eauto.
+    simpl in Hassign.
+    assert (id_in_reachable_block (fdef_intro fh bs) (getPhiNodeID p0)) as Hinrd.
+      intros b0 Hlk.
+      assert (lookupBlockViaIDFromFdef (fdef_intro fh bs) (getPhiNodeID p0) =
+                Some (l2, stmts_intro ps0 cs0 tmn0)) as Hlk'.
+        eapply inGetBlockIDs__lookupBlockViaIDFromFdef; eauto.
+        simpl. xsolve_in_list.
+      uniq_result.
+      eapply reachablity_analysis__reachable; eauto.
+    eapply idDominates_id_in_reachable_block in Hinrd; eauto.
+    apply Hinrd in H.
+    eapply reachable__reachablity_analysis; eauto.
+Qed.
+
+(* acyclicity *)
+Lemma elim_phi_fdef__valueDominates: forall s m f
+  (HwfF:wf_fdef s m f)
+  (HuniqF: uniqFdef f) actions rd 
+  (Hreach: ret rd = reachablity_analysis f)
+  (Hfind: actions = elim_phi_fdef rd f) id1 v2
+  (Hin: In (id1, AC_vsubst v2) actions),
+  valueDominates f v2 (value_id id1).
+Proof.
+  intros.
+  assert (Hwfa:=HwfF). 
+  eapply elim_phi_fdef__wf_actions in Hwfa; eauto. 
+  eapply Forall_forall in Hin; eauto.
+  simpl in Hin.
+  destruct Hin as 
+    [l0 [ps0 [cs0 [tmn0 [p0 [Hrd [HBInF [Hinps [EQ Hassign]]]]]]]]]; subst.
+  eapply assigned_phi__domination; eauto.
+Qed.
+
+Lemma elim_phi_fdef__walk_valueDominates: forall s m f
+  (HwfF:wf_fdef s m f)
+  (HuniqF: uniqFdef f) actions rd
+  (Hreach: ret rd = reachablity_analysis f)
+  (Hfind: actions = elim_phi_fdef rd f)
+  id1 v2 vl al (Hnnil: vl <> V_nil)
+  (Hw: D_walk (avertexes actions) (aarcs actions) 
+         (index (value_id id1)) (index v2) vl al),
+  valueDominates f (value_id id1) v2.
+Proof.
+  intros.
+  remember (avertexes actions) as V.
+  remember (aarcs actions) as A.
+  remember (index (value_id id1)) as x.
+  remember (index v2) as y.
+  generalize dependent id1.
+  generalize dependent v2.
+  induction Hw; intros; subst.
+  Case "1".
+    congruence.
+  Case "2".
+    destruct y as [[id3|]]; tinv H0.
+    match goal with
+    | H0: aarcs _ _ |- _ =>
+      apply aarcs__In in H0;
+      eapply elim_phi_fdef__valueDominates in H0; eauto 1
+    end.
+    destruct vl as [|v' vl]; inv Hw; auto.
+    eapply valueDominates_trans; eauto 1.
+      apply IHHw; auto. 
+        intro J. inv J.
+Qed.
+
+Lemma elim_phi_fdef__acyclic: forall s m f rd
+  (HwfF: wf_fdef s m f) (HuniqF: uniqFdef f)
+  (Hreach: ret rd = reachablity_analysis f),
+  acyclic_actions (elim_phi_fdef rd f).
+Proof.
+  unfold acyclic_actions. intros. 
+  assert (Hwfa:=HwfF). 
+  eapply elim_phi_fdef__wf_actions in Hwfa; eauto. 
+  destruct vl as [|v vl]; auto.
+  assert (Hin:=Hcyc). apply DW_endx_inv in Hin.
+  assert (J:=Hcyc).
+  apply D_walk_head_inv in J.
+  destruct J as [[EQ1 [EQ2 EQ3]]|[id0 EQ]]; subst; try congruence.
+  eapply elim_phi_fdef__walk_valueDominates in Hcyc; eauto.
+  Case "1".
+    simpl in Hcyc.
+    assert (id_in_reachable_block f id0) as Hreach'.
+      unfold id_in_reachable_block.
+      intros.
+      eapply elim_phi_fdef__isReachableFromEntry in Hin; eauto.
+    apply Hcyc in Hreach'.
+    eapply idDominates_acyclic in Hreach'; eauto.
+    SCase "1.1".
+      inv Hreach'.
+    SCase "1.2".
+      intros.
+      eapply elim_phi_fdef__isReachableFromEntry in Hin; eauto.     
+  Case "2".
+    intro H. inv H.
+Qed.
+
+(* AC_remove *)
+Lemma elim_phi_fdef__wf_AC_remove: forall s m f rd
+  (HwfF: wf_fdef s m f) (HuniqF: uniqFdef f)
+  (Hreach : reachablity_analysis f = ret rd),
+  wf_AC_remove (elim_phi_fdef rd f).
+Proof.
+  intros.
+  eapply elim_phi_fdef__wf_actions in HwfF; eauto.
+  apply Forall_forall.
+  intros [id0 []] Hin; auto.
+  eapply Forall_forall in Hin; eauto.
+  intros [id1 [ac1 [Hin' Ha2v]]].
+  apply action2id__inv in Ha2v; subst ac1.
+  eapply Forall_forall in Hin'; eauto.
+  simpl in *.
+  destruct Hin as 
+    [l0 [ps0 [cs0 [tmn0 [p0 [Hrd0 [HBinF0 [Hinps0 [EQ Hnnused]]]]]]]]]; subst.
+  destruct Hin' as 
+    [l1 [ps1 [cs1 [tmn1 [p1 [Hrd1 [HBinF1 [Hinps1 [EQ Hassign]]]]]]]]]; subst.
+  assert (used_in_phi (getPhiNodeID p0) p1 = true) as Huse.
+    apply assigned_phi__valueInInsnOperands in Hassign.
+    apply valueInPhiOperands__used_in_phi; auto.
+  eapply used_in_fdef__used_in_phi in HBinF1; eauto.  
+  congruence.
+Qed.
+
+Lemma elim_phi_fdef_spec: forall s m f rd
+  (HwfF: wf_fdef s m f) actions
+  (HuniqF: uniqFdef f)
+  (Hreach : reachablity_analysis f = ret rd)
+  (Hfind: actions = elim_phi_fdef rd f),
+  uniq actions /\ acyclic_actions actions /\ wf_AC_remove actions.
+Proof.
+  intros; subst.
+  split.
+    eapply elim_phi_fdef__uniq; eauto.
+  split.
+    eapply elim_phi_fdef__acyclic; eauto.
+    eapply elim_phi_fdef__wf_AC_remove; eauto.
+Qed.
+
+Lemma elim_phi_fdef__wf_actions_uniq: forall s m f rd actions
+  (Hwf: wf_fdef s m f) (Huniq: uniqFdef f)
+  (Hreach : reachablity_analysis f = ret rd)
+  (Hfind: actions = elim_phi_fdef rd f),
+  wf_phi_actions f rd actions /\ uniq actions.
+Proof.
+  intros; subst.
+  split.
+    eapply elim_phi_fdef__wf_actions; eauto.
+    eapply elim_phi_fdef__uniq; eauto.
+Qed.
+
+(* Properties of wf_phi_actions *)
+Lemma subst_non_remove__wf_phi_action: forall f rd id0 ac0 id1 ac1 
+  (Hwf: wf_phi_action f rd (id1, ac1)) v0 (Ha2v: action2value ac0 = Some v0)
+  (Hwf': wf_phi_action f rd (id0, ac0)) (Hneq: id0 <> id1),
+  wf_phi_action (apply_action f (id0, ac0)) rd (id1, subst_action id0 v0 ac1).
+Proof.
+  simpl.
+  intros.
+  destruct ac0 as [|v0'|]; tinv Hwf'; inv Ha2v.
+  destruct Hwf' as 
+    [l1 [ps1 [cs1 [tmn1 [p1 [Hrd1 [HBinF1 [Hin1 [EQ1 Hassign1]]]]]]]]]; subst.
+  destruct ac1; simpl; auto.
+  Case "1".
+    destruct Hwf as 
+      [l0 [ps0 [cs0 [tmn0 [p0 [Hrd [HBinF [Hin [EQ Hnnuse]]]]]]]]]; subst.
+    exists l0. 
+    exists (remove_phinodes (getPhiNodeID p1) 
+             (List.map (subst_phi (getPhiNodeID p1) v0) ps0)).
+    exists (remove_cmds (getPhiNodeID p1)
+             (List.map (subst_cmd (getPhiNodeID p1) v0) cs0)).
+    exists (subst_tmn (getPhiNodeID p1) v0 tmn0).
+    exists (subst_phi (getPhiNodeID p1) v0 p0).
+    split; auto.
+    split. 
+      eapply remove_subst_fdef__blockInFdefB with (id0:=getPhiNodeID p1)
+        (id1:=getPhiNodeID p1)(v0:=v0)
+        in HBinF; eauto 1.
+    split. apply subst_phi__remove_subst_phis; auto.
+    split. rewrite subst_phi__getPhiNodeID; auto.
+       
+      rewrite subst_phi__getPhiNodeID.
+      apply remove_unused_in_fdef.
+      apply subst_unused_in_fdef'; auto.
+        eapply used_in_fdef__used_in_phi_value; eauto.
+          apply assigned_phi__valueInInsnOperands; auto.
+
+  Case "2".
+    destruct Hwf as 
+      [l0 [ps0 [cs0 [tmn0 [p0 [Hrd [HBinF [Hin [EQ Hassign0]]]]]]]]]; subst.
+    exists l0. 
+    exists (remove_phinodes (getPhiNodeID p1) 
+             (List.map (subst_phi (getPhiNodeID p1) v0) ps0)).
+    exists (remove_cmds (getPhiNodeID p1)
+             (List.map (subst_cmd (getPhiNodeID p1) v0) cs0)).
+    exists (subst_tmn (getPhiNodeID p1) v0 tmn0).
+    exists (subst_phi (getPhiNodeID p1) v0 p0).
+    split; auto.
+    split. 
+      eapply remove_subst_fdef__blockInFdefB with (id0:=getPhiNodeID p1)
+        (id1:=getPhiNodeID p1)(v0:=v0)
+        in HBinF; eauto 1.
+    split. apply subst_phi__remove_subst_phis; auto.
+    split. 
+      rewrite subst_phi__getPhiNodeID; auto.
+
+      inv Hassign0.
+      constructor.
+        destruct Hex as [l2 Hin'].
+        exists l2. 
+        apply subst_list_value_l__In; auto.
+
+        intros v1 l2 Hin'.
+        simpl in Hneq.
+        apply subst_list_value_l__In' in Hin'.
+        destruct Hin' as [v' [EQ Hin']]; subst.
+        apply Hassign in Hin'.
+        destruct Hin' as [EQ | EQ]; subst; auto.
+        simpl. destruct_dec.
+Qed.
+
+Lemma subst_remove__wf_phi_action: forall f rd id0 id1 ac1 
+  (Hwf: wf_phi_action f rd (id1, ac1))
+  (Hneq: id0 <> id1),
+  wf_phi_action (apply_action f (id0, AC_remove)) rd (id1, ac1).
+Proof.
+  simpl.  
+  intros.
+  destruct ac1; simpl; auto.
+    destruct Hwf as 
+      [l0 [ps0 [cs0 [tmn0 [p0 [Hrd [HBinF [Hin [EQ Hnnuse]]]]]]]]]; subst.
+    exists l0. 
+    exists (remove_phinodes id0 ps0).
+    exists (remove_cmds id0 cs0).
+    exists tmn0.
+    exists p0.
+    split; auto.
+    split. apply remove_fdef__blockInFdefB with (id0:=id0) in HBinF; auto.
+    split. 
+      apply filter_In.
+      split; auto.
+        destruct_dec.
+    split; auto.
+      apply remove_unused_in_fdef; auto.
+
+    destruct Hwf as 
+      [l0 [ps0 [cs0 [tmn0 [p0 [Hrd [HBinF [Hin [EQ Hassign]]]]]]]]]; subst.
+    exists l0. 
+    exists (remove_phinodes id0 ps0).
+    exists (remove_cmds id0 cs0).
+    exists tmn0.
+    exists p0.
+    split; auto.
+    split. apply remove_fdef__blockInFdefB with (id0:=id0) in HBinF; auto.
+    split. 
+      apply filter_In.
+      split; auto.
+        destruct_dec.
+    split; auto.
+Qed.
+
+Lemma list_subst_non_remove__wf_phi_actions: forall id0 ac0 acs f rd
+  (Hwf : wf_phi_actions f rd acs) (Hnotin : id0 `notin` dom acs) v
+  (Hwf': wf_phi_action f rd (id0, ac0)) (HeqR : ret v = action2value ac0),
+  wf_phi_actions (apply_action f (id0, ac0)) rd
+    (ListMap.map (subst_action id0 v) acs).
+Proof.
+  induction acs as [|[] acs]; simpl; intros.
+    constructor.
+
+    inv Hwf.
+    constructor.
+      apply subst_non_remove__wf_phi_action; auto.
+      apply IHacs; auto.
+Qed.
+
+Lemma list_subst_remove__wf_phi_actions: forall id0 ac0 f rd acs
+  (Hwf : wf_phi_actions f rd acs) (Hnotin : id0 `notin` dom acs)
+  (HeqR : merror = action2value ac0),
+  wf_phi_actions (apply_action f (id0, ac0)) rd acs.
+Proof.
+  intros.
+  destruct ac0; inv HeqR.
+  generalize dependent f.
+  induction acs as [|[] acs]; simpl; intros.
+    constructor.
+  
+    inv Hwf.
+    constructor.
+      apply subst_remove__wf_phi_action; auto.
+      apply IHacs; auto.
+Qed.
+
+Lemma list_subst_actions__wf_phi_actions: forall id0 ac0 f rd
+  acs (Hwf: wf_phi_actions f rd acs) (Hnotin: id0 `notin` dom acs)
+  (Hwf': wf_phi_action f rd (id0, ac0)),
+  wf_phi_actions (apply_action f (id0, ac0)) rd
+    (ListComposedPass.subst_actions id0 ac0 acs).
+Proof.
+  unfold ListComposedPass.subst_actions.
+  intros.
+  remember (action2value ac0) as R.
+  destruct R.
+    apply list_subst_non_remove__wf_phi_actions; auto.
+    apply list_subst_remove__wf_phi_actions; auto.
+Qed.
+
+Lemma wf_phi_actions_cons_inv: forall f f' rd id0 ac0 
+  actions (Huniq': uniq actions)
+  (Hnotin: id0 `notin` dom actions) s m (HwfF: wf_fdef s m f) 
+  (Heq: apply_action f (id0, ac0) = f')
+  (Hwf: wf_phi_actions f rd ((id0, ac0) :: actions)),
+  wf_phi_action f rd (id0, ac0) /\
+  wf_phi_actions (apply_action f (id0, ac0)) rd
+                 (ListComposedPass.subst_actions id0 ac0 actions).
+Proof.
+  intros.
+  inv Hwf.
+  split; auto.
+    apply list_subst_actions__wf_phi_actions; auto.
+Qed.
+
+(* pipelined phinode elimination is correct. *)
+Lemma apply_phi_action_sim_wfS: forall (los : layouts) (nts : namedts)
+  (main : id) (VarArgs : list (GVsT DGVs))
+  (Ps1 : list product) (Ps2 : list product) id' ac' f1 f2 rd
+  (Hreach: reachablity_analysis f2 = ret rd)
+  (Hwf: wf_phi_action f2 rd (id', ac'))
+  (Heqf1: f1 = apply_action f2 (id', ac'))
+  S2 S1 (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
+  (Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
+  (Hok: defined_program S2 main VarArgs)
+  (HwfS : wf_system S2),
+  program_sim S1 S2 main VarArgs /\
+    wf_system S1 /\ defined_program S1 main VarArgs.
+Proof.
+  intros.
+  destruct ac' as [|v'|t']; simpl in *; subst; try tauto.
+  Case "remove".
+    destruct Hwf as 
+      [l0 [ps0 [cs0 [tmn0 [p0 [Hrd [HBinF [Hin [EQ Hnnuse]]]]]]]]]; subst.
+    eapply eliminate_nonused_phis_sim_wfS; eauto 1.
+  Case "vsubst".
+    destruct Hwf as 
+      [l0 [ps0 [cs0 [tmn0 [p0 [Hrd [HBinF [Hin [EQ Hassign]]]]]]]]]; subst.
+    eapply eliminate_assigned_phis_sim_wfS; eauto 1.
+Qed.
+
+Definition pipelined_elim_phi_sim_wfS_prop Ps1 Ps2 los nts main
+  VarArgs (n:nat) := forall actions
+  (Hlen: (length actions = n)%nat) f1 f2 rd
+  (Hrd: reachablity_analysis f1 = ret rd)
+  (Heqactions : wf_phi_actions f1 rd actions) (Huniq: uniq actions)
+  (Hpass : pipelined_actions actions f1 = f2) S1 S2
+  (Heq3 : S1 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
+  (Heq4 : S2 = [module_intro los nts
+                 (Ps1 ++ product_fdef f1 :: Ps2)])
+  (HwfS : wf_system S2) (Hok : defined_program S2 main VarArgs),
+  program_sim S1 S2 main VarArgs /\
+    wf_system S1 /\ defined_program S1 main VarArgs.
+
+Lemma pipelined_elim_phi_sim_wfS_aux: forall Ps1 Ps2 los nts main
+  VarArgs n, pipelined_elim_phi_sim_wfS_prop  
+  Ps1 Ps2 los nts main VarArgs n.
+Proof.
+  intros until n.
+  elim n using (well_founded_induction lt_wf).
+  intros x Hrec.
+  unfold pipelined_elim_phi_sim_wfS_prop, pipelined_actions in *.
+  destruct actions as [|[id' ac'] actions].
+  Case "base".
+    intros.
+    simpl in Hpass.
+    repeat subst.
+    split; auto using program_sim_refl.
+  Case "ind".
+Local Opaque apply_action.
+    unfold_substs_actions. simpl. 
+    intros. subst x. 
+    inversion Huniq as [|A B C Huniq' Hnotin]; subst A B C.
+    assert (Hwf:
+      wf_fdef [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]
+              (module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)) 
+              f1 /\
+      uniqFdef f1).
+      apply wf_single_system__wf_uniq_fdef; subst; auto.
+    destruct Hwf as [HwfF HuniqF].
+    assert (HuniqF':=HuniqF). 
+    remember (apply_action f1 (id', ac')) as f1'.
+    symmetry in Heqf1'.
+    assert (J:=Heqf1').
+    eapply wf_phi_actions_cons_inv in J; eauto.
+    destruct J as [Hwfaction Hwf_actions].
+    subst S2.
+    assert (Hok':=Hok).
+    eapply apply_phi_action_sim_wfS with (S1:=
+        [module_intro los nts 
+          (Ps1 ++ product_fdef (apply_action f1 (id', ac')) :: Ps2)]) 
+        in Hok'; try solve [eauto | subst f1; eauto].
+    SCase "1". 
+      destruct Hok' as [Hsim [Hwf Hok']].
+      eapply Hrec with (S2:=
+        [module_intro los nts
+          (Ps1 ++ product_fdef (apply_action f1 (id', ac')) :: Ps2)]) 
+        in Hwf_actions; 
+        try solve [eauto 2 | 
+                   congruence |
+                   apply list_subst_actions__uniq; auto |
+                   rewrite <- list_subst_actions__length; auto].
+      SSCase "1.1".
+        apply program_sim_wfS_trans with (P2:=
+          [module_intro los nts
+              (Ps1 ++ product_fdef (apply_action f1 (id', ac')) :: Ps2)]); 
+          subst; auto.
+      SSCase "1.2". 
+        edestruct (apply_action_reachablity_successors (id',ac') f1); eauto.
+        congruence.
+Transparent apply_action.
+Qed.
+
+Lemma pipelined_elim_phi_sim_wfS: forall rd f1 f2 Ps1 Ps2 los nts main
+  VarArgs (actions : list (atom * action))
+  (Heqactions : actions = elim_phi_fdef rd f1)
+  (Hrd: reachablity_analysis f1 = ret rd)
+  (Hpass : pipelined_actions actions f1 = f2) S1 S2
+  (Heq3 : S1 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
+  (Heq4 : S2 = [module_intro los nts
+                 (Ps1 ++ product_fdef f1 :: Ps2)])
+  (HwfS : wf_system S2) (Hok : defined_program S2 main VarArgs),
+  (program_sim S1 S2 main VarArgs /\
+    wf_system S1 /\ defined_program S1 main VarArgs).
+Proof.
+  intros.
+  assert (J:=pipelined_elim_phi_sim_wfS_aux Ps1 Ps2 los nts main
+    VarArgs (length actions)).
+  unfold pipelined_elim_phi_sim_wfS_prop in J.
+  assert (wf_fdef [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]
+                  (module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2))
+                  f1 /\ uniqFdef f1) as G.
+    subst.
+    apply wf_single_system__wf_uniq_fdef in HwfS; auto.
+  destruct G as [Hwf Huniq].
+  eapply elim_phi_fdef__wf_actions_uniq in Heqactions; eauto.
+  destruct Heqactions.
+  eapply J; eauto.
+Qed.
+
+(* The correctness of fused passes. *)
 Section Macro_mem2reg_fdef_sim_wfS.
 
 Variable (Ps1 Ps2:products) (los:layouts) (nts:namedts) (main:id) 
@@ -2426,6 +3401,7 @@ Definition Pmm2r :=
 Lemma Pmm2r'_Pmm2r: forall f ds, Pmm2r' f -> Pmm2r (f, ds).
 Proof. simpl. auto. Qed.
 
+(* LAS/LAA/SAS is correct. *)
 Lemma macro_mem2reg_fdef_sim_wfS: forall rd dones1 f2 dones2 
   (Hreach: ret rd = reachablity_analysis f1) S1 S2
   (Heq1: S1 = [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)])
@@ -2615,19 +3591,86 @@ Proof.
           apply remove_successors; auto.
 Qed.
 
-End Macro_mem2reg_fdef_sim_wfS.
-
 (* phinodes elimination is correct. *)
-Lemma elimphi_sim_wfS: forall f Ps1 Ps2 los nts main VarArgs
+Lemma Pmm2r'__elim_phi_fdef_spec: forall rd f 
+  (Hreach: ret rd = reachablity_analysis f1) 
+  (Hp : Pmm2r' f),
+  uniq (elim_phi_fdef rd f) /\
+  acyclic_actions (elim_phi_fdef rd f) /\ wf_AC_remove (elim_phi_fdef rd f).
+Proof.
+  intros.
+  destruct Hp as [[J1 [J2 J3]] [J4 J5]].
+  apply wf_single_system__wf_uniq_fdef in J2; auto.
+  destruct J2.
+  eapply elim_phi_fdef_spec; eauto.
+    congruence.
+Qed.
+
+Lemma pipelined_elim_phi_fdef__Pmm2r': forall rd
+  (Hrd: reachablity_analysis f1 = ret rd)
+  (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
+  (Hdef: defined_program [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)] 
+           main VarArgs) f (Hp : Pmm2r' f),
+  Pmm2r' (ListMap.fold apply_action (substs_actions (elim_phi_fdef rd f)) f).
+Proof.
+  intros.
+  destruct Hp as [[J11 [J12 J13]] [J21 J22]].
+  split.
+  Case "1".
+    apply program_sim_wfS_trans with (P2:=
+      [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]); auto.
+      intros.
+      assert (Hpass : pipelined_actions (elim_phi_fdef rd f) f = 
+                      pipelined_actions (elim_phi_fdef rd f) f). auto.
+      eapply pipelined_elim_phi_sim_wfS in Hpass; eauto.
+        congruence.
+  Case "2".
+    destruct (pipelined_actions_reachablity_successors
+                f (pipelined_actions (elim_phi_fdef rd f) f) (elim_phi_fdef rd f))
+      as [J31 J32]; auto.
+    split; etransitivity; eauto.
+Qed.
+
+Lemma elim_phi_sim_wfS: forall
   S1 S2 (HwfS : wf_system S2) (Hok: defined_program S2 main VarArgs) rd
-  (Hrd: reachablity_analysis f = Some rd)
+  (Hrd: reachablity_analysis f1 = Some rd)
   (Heq1: S1 = [module_intro los nts 
-      (Ps1 ++ product_fdef (SafePrimIter.iterate _ elim_phi_step f) :: Ps2)])
-  (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
+      (Ps1 ++ product_fdef (SafePrimIter.iterate _ (elim_phi_step rd) f1) :: Ps2)])
+  (Heq2: S2 = [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]),
   program_sim S1 S2 main VarArgs /\ wf_system S1 /\
     defined_program S1 main VarArgs.
-(* The proofs are similar to elim_stld_sim_wfS_wfPI *)
-Admitted.
+Proof.
+  intros. subst.
+  remember (SafePrimIter.iterate _ (elim_phi_step rd) f1) as f'.
+  symmetry in Heqf'.
+  apply SafePrimIter.iterate_prop with (P:=Pmm2r') in Heqf'.
+  Case "1". 
+    unfold Pmm2r' in Heqf'. tauto.
+  Case "2". 
+    intros f Hp.
+    remember (elim_phi_step rd f) as R.
+    symmetry in HeqR.
+    destruct R as [f0|f0].
+    SCase "2.1".
+      apply elim_phi_step_inl_spec in HeqR.
+      destruct HeqR as [EQ1 EQ2]; subst; auto.
+    SCase "2.2".
+      apply elim_phi_step_inr_spec in HeqR.
+      destruct HeqR as [Hnnil EQ]; subst.
+      remember (AVLComposedPass.run (elim_phi_fdef rd f) f) as f0.
+      symmetry in Heqf0.
+      assert (J:=Hp).
+      apply Pmm2r'__elim_phi_fdef_spec with (rd:=rd) in J; auto.
+      destruct J as [Huniq [Hacyc Hwfrm]].
+      avl_to_list_tac.
+      subst.
+      apply pipelined_elim_phi_fdef__Pmm2r'; auto.
+  Case "3".
+    unfold Pmm2r'.
+    split; auto using program_sim_refl.
+Qed.
+
+End Macro_mem2reg_fdef_sim_wfS.
 
 (* vmem2reg O1 is correct for the function it transforms. *)
 Lemma mem2reg_fdef_sim_wfS: forall (main : id) (VarArgs : list (GVsT DGVs))
@@ -2658,7 +3701,7 @@ Proof.
       apply program_sim_wfS_trans with (P2:=
         [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]); auto; intros.
       SSCase "1.1.1".
-        eapply elimphi_sim_wfS with (f:=f1)(rd:=rd); eauto.
+        eapply elim_phi_sim_wfS with (f1:=f1)(rd:=rd); eauto.
           eapply macro_mem2reg_fdef_sim_wfS with (f1:=f) in HwfS; eauto.
           destruct HwfS as [_ [Hreach _]]. congruence.
       SSCase "1.1.2".

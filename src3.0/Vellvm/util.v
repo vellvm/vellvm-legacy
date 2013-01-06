@@ -102,7 +102,15 @@ Proof.
   simpl. rewrite H. rewrite IHl. trivial.
 Qed.
 
-Lemma map_cons_inv: forall A (x y2:list A) a' f (Heq: List.map f x = a' :: y2),
+Lemma map_nil_inv: forall A B (f:A->B) l1 (Heq : nil = List.map f l1),
+  l1 = nil.
+Proof.
+  intros.
+  destruct l1 as [|a x]; inv Heq; auto.
+Qed.
+
+Lemma map_cons_inv: forall A B (x:list A) y2 (a':B) f 
+  (Heq: List.map f x = a' :: y2),
   exists a, exists x2, x = a :: x2 /\ List.map f x2 = y2 /\ f a = a'.
 Proof.
   intros.
@@ -521,6 +529,16 @@ Proof.
   assert (J:=tl_incl vl1). auto.
 Qed.
 
+Lemma cons_self__False: forall A (a:A) l1 (Heq: a::l1 = l1), False.
+Proof.
+  induction l1; intros; congruence.
+Qed.
+
+Ltac cons_self__False_tac :=
+match goal with
+| H: _::?acs=?acs |- _ => apply cons_self__False in H; inv H
+end.
+
 (* Forall *)
 Lemma Forall_app: forall A P (x y:list A) (Hx: Forall P x) (Hy: Forall P y),
   Forall P (x++y).
@@ -871,6 +889,43 @@ Proof.
       intro J. apply H1. apply In_fst__in_dom; auto.
 Qed.
 
+(* sublist *) 
+Lemma sublist__dom: forall A (l1 l2:list (atom*A)) 
+  (Hinc : sublist (List.map fst l1) (List.map fst l2)),
+  dom l1 [<=] dom l2.
+Proof.
+  intros.
+  remember (List.map fst l1) as d1.
+  remember (List.map fst l2) as d2.
+  generalize dependent l1.
+  generalize dependent l2.
+  induction Hinc; intros; subst.
+    apply map_nil_inv in Heqd1.
+    subst.
+    fsetdec.
+
+    symmetry in Heqd1.
+    apply map_cons_inv in Heqd1.
+    destruct Heqd1 as [[] [x2 [EQ1 [EQ2 EQ3]]]]; subst.
+    symmetry in Heqd2.
+    apply map_cons_inv in Heqd2.
+    destruct Heqd2 as [[] [x2' [EQ1' [EQ2' EQ3']]]]; subst.
+    simpl in EQ3'. 
+    inv EQ3'.
+    simpl. 
+    assert (dom x2 [<=] dom x2') as Hsub.
+      eapply IHHinc; eauto.
+    fsetdec.
+
+    symmetry in Heqd2.
+    apply map_cons_inv in Heqd2.
+    destruct Heqd2 as [[] [x2' [EQ1' [EQ2' EQ3']]]]; subst.
+    simpl. 
+    assert (dom l3 [<=] dom x2') as Hsub.
+      eapply IHHinc; eauto.
+    fsetdec.
+Qed.
+
 (* uniq *) 
 Lemma uniq__iff__uniq_rev: forall X (A:list (atom*X)),
   uniq A <-> uniq (rev A).
@@ -929,6 +984,41 @@ Proof.
     inv H.
     eapply IHcs1 in H2; eauto.
     destruct H2 as [J1 J2]; subst; auto.
+Qed.
+
+Lemma uniq__sublist: forall A (l1 l2:list (atom*A)) 
+  (Hinc: sublist (List.map fst l1) (List.map fst l2)) (Huniq: uniq l2), 
+  uniq l1.
+Proof.
+  intros.
+  remember (List.map fst l1) as d1.
+  remember (List.map fst l2) as d2.
+  generalize dependent l1.
+  generalize dependent l2.
+  induction Hinc; intros; subst.
+    apply map_nil_inv in Heqd1.
+    subst.
+    constructor.
+
+    symmetry in Heqd1.
+    apply map_cons_inv in Heqd1.
+    destruct Heqd1 as [[] [x2 [EQ1 [EQ2 EQ3]]]]; subst.
+    symmetry in Heqd2.
+    apply map_cons_inv in Heqd2.
+    destruct Heqd2 as [[] [x2' [EQ1' [EQ2' EQ3']]]]; subst.
+    simpl in EQ3'. 
+    inv EQ3'.
+    simpl_env. 
+    inv Huniq.
+    constructor.
+      eapply IHHinc; eauto.
+      apply sublist__dom in Hinc. fsetdec.
+
+    symmetry in Heqd2.
+    apply map_cons_inv in Heqd2.
+    destruct Heqd2 as [[] [x2' [EQ1' [EQ2' EQ3']]]]; subst.
+    inv Huniq.
+    eauto.
 Qed.
 
 (* nth_err *)

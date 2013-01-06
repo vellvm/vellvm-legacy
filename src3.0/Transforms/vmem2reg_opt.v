@@ -609,16 +609,16 @@ end.
 Definition elim_phi_phis f ps : AssocList action :=
 List.fold_left (elim_phi_phi f) ps nil.
 
-Definition elim_phi_block f (b:block) :=
+Definition elim_phi_block (rd: list l) f (b:block) : AssocList action :=
 let '(l5, stmts_intro ps cmds5 terminator5) := b in
-elim_phi_phis f ps.
+if (in_dec id_dec l5 rd) then elim_phi_phis f ps else nil.
 
-Definition elim_phi_fdef f :=
+Definition elim_phi_fdef (rd: list l) f : AssocList action :=
 let '(fdef_intro fh bs) := f in
-List.flat_map (elim_phi_block f) bs.
+List.flat_map (elim_phi_block rd f) bs.
 
-Definition elim_phi_step f :=
-match elim_phi_fdef f with
+Definition elim_phi_step (rd: list l) (f:fdef) : fdef + fdef :=
+match elim_phi_fdef rd f with
 | nil => inl f
 | pairs => inr (AVLComposedPass.run pairs f)
 end.
@@ -636,7 +636,7 @@ match getEntryBlock f, reachablity_analysis f with
         (macro_mem2reg_fdef_step rd succs preds) (f, nil) 
     in
     if does_phi_elim tt 
-    then SafePrimIter.iterate _ elim_phi_step f1 else f1
+    then SafePrimIter.iterate _ (elim_phi_step rd) f1 else f1
   else f
 | _, _ => f
 end.

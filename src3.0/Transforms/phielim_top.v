@@ -147,14 +147,14 @@ Proof.
 Qed.
 
 (* phinode elimination is correct. *)
-Lemma eliminate_phis_sim_wfS: forall los nts Ps1 Ps2 rd,
- forall (fh : fheader) (efs : list id) (f1 : fdef) 
+Lemma eliminate_nonused_phis_sim_wfS: forall los nts Ps1 Ps2,
+ forall (efs : list id) (f1 : fdef) 
    (efs0 : list id) (main0 : id) (VarArgs0 : list (GVsT DGVs))
-   (bs1 : list block) l0 ps0 cs0 tmn0 (bs2 : list block) f0
- (Heqf0: f0 = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
- (Hinrd: In l0 rd)
- (Helim: (f1, true) = eliminate_phis f0 ps0) (S0 S3 : list module)
- (Hreach: reachablity_analysis f0 = ret rd)
+   l0 ps0 cs0 tmn0 f0
+ (HBinF: blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f0 = true)
+ (p : phinode) (Hin : In p ps0)
+ (Hnuse : used_in_fdef (getPhiNodeID p) f0 = false)
+ (Helim: f1 = remove_fdef (getPhiNodeID p) f0) (S0 S3 : list module)
  (HeqS1: S0 = [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
  (HeqS2: S3 = [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)])
  (HwfS2: wf_system S3) (Hok: defined_program S3 main0 VarArgs0),
@@ -162,19 +162,12 @@ Lemma eliminate_phis_sim_wfS: forall los nts Ps1 Ps2 rd,
  wf_system S0 /\ defined_program S0 main0 VarArgs0.
 Proof.
   intros.
-  assert (blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f0 = true)
-    as HBinF.
-    rewrite Heqf0. simpl. apply InBlocksB_middle.
   assert (wf_fdef [module_intro los nts (Ps1++product_fdef f0::Ps2)]
           (module_intro los nts (Ps1++product_fdef f0::Ps2)) 
           f0 /\ uniqFdef f0) as J.
     subst.
     apply wf_single_system__wf_uniq_fdef; auto.
   destruct J as [HwfF HuniqF].
-  eapply reachablity_analysis__reachable in Hreach; eauto.
-  eapply eliminate_phis_true_spec in Helim; eauto 1.
-  destruct Helim as [p [Hin [[Hnuse Heq] | [v [Hspec Heq]]]]]; subst f1.
-  Case "dead phinode".
   assert (Hpure: forall (instr : insn)
             (Hlkup: lookupInsnViaIDFromFdef f0 (getPhiNodeID p) = ret instr),
             die.pure_insn instr).
@@ -188,8 +181,35 @@ Proof.
   split.
     eapply die_wfS with (diinfo:=dinfo); eauto.
     eapply program_sim__preserves__defined_program in Hok; eauto.
+Qed.
 
-  Case "redundant phinode".
+Lemma eliminate_assigned_phis_sim_wfS: forall los nts Ps1 Ps2,
+ forall (efs : list id) (f1 : fdef) 
+   (efs0 : list id) (main0 : id) (VarArgs0 : list (GVsT DGVs))
+   l0 ps0 cs0 tmn0 f0 rd
+ (Hreach : reachablity_analysis f0 = ret rd) (Hin: In l0 rd)
+ (HBinF: blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f0 = true)
+ (p : phinode) (Hin : In p ps0) v
+ (Hspec : assigned_phi v p)
+ (Helim: f1 = remove_fdef (getPhiNodeID p) (subst_fdef (getPhiNodeID p) v f0)) 
+ (S0 S3 : list module)
+ (HeqS1: S0 = [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
+ (HeqS2: S3 = [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)])
+ (HwfS2: wf_system S3) (Hok: defined_program S3 main0 VarArgs0),
+ program_sim S0 S3 main0 VarArgs0 /\
+ wf_system S0 /\ defined_program S0 main0 VarArgs0.
+Proof.
+  intros.
+  assert (Heqf0 := HBinF).
+  apply blockInFdefB_split in Heqf0.
+  destruct Heqf0 as [fh [bs1 [bs2 Heqf0]]].
+  assert (wf_fdef [module_intro los nts (Ps1++product_fdef f0::Ps2)]
+          (module_intro los nts (Ps1++product_fdef f0::Ps2)) 
+          f0 /\ uniqFdef f0) as J.
+    subst.
+    apply wf_single_system__wf_uniq_fdef; auto.
+  destruct J as [HwfF HuniqF].
+  eapply reachablity_analysis__reachable in Hreach; eauto.
   assert (Hspec':=Hspec).
   eapply assigned_phi__domination in Hspec'; eauto.
   assert (Hpure: forall (instr : insn)
@@ -228,6 +248,40 @@ Proof.
     split.
       eapply subst_phi_wfS; eauto.
       eapply program_sim__preserves__defined_program; eauto using subst_phi_sim.
+Qed.
+
+Lemma eliminate_phis_sim_wfS: forall los nts Ps1 Ps2 rd,
+ forall (fh : fheader) (efs : list id) (f1 : fdef) 
+   (efs0 : list id) (main0 : id) (VarArgs0 : list (GVsT DGVs))
+   (bs1 : list block) l0 ps0 cs0 tmn0 (bs2 : list block) f0
+ (Heqf0: f0 = fdef_intro fh (bs1 ++ (l0, stmts_intro ps0 cs0 tmn0) :: bs2))
+ (Hinrd: In l0 rd)
+ (Helim: (f1, true) = eliminate_phis f0 ps0) (S0 S3 : list module)
+ (Hreach: reachablity_analysis f0 = ret rd)
+ (HeqS1: S0 = [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
+ (HeqS2: S3 = [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)])
+ (HwfS2: wf_system S3) (Hok: defined_program S3 main0 VarArgs0),
+ program_sim S0 S3 main0 VarArgs0 /\
+ wf_system S0 /\ defined_program S0 main0 VarArgs0.
+Proof.
+  intros.
+  assert (blockInFdefB (l0, stmts_intro ps0 cs0 tmn0) f0 = true)
+    as HBinF.
+    rewrite Heqf0. simpl. apply InBlocksB_middle.
+  assert (wf_fdef [module_intro los nts (Ps1++product_fdef f0::Ps2)]
+          (module_intro los nts (Ps1++product_fdef f0::Ps2)) 
+          f0 /\ uniqFdef f0) as J.
+    subst.
+    apply wf_single_system__wf_uniq_fdef; auto.
+  destruct J as [HwfF HuniqF].
+  assert (Hreach':=Hreach).
+  eapply reachablity_analysis__reachable in Hreach; eauto.
+  eapply eliminate_phis_true_spec in Helim; eauto 1.
+  destruct Helim as [p [Hin [[Hnuse Heq] | [v [Hspec Heq]]]]]; subst f1.
+  Case "dead phinode".
+    eapply eliminate_nonused_phis_sim_wfS; eauto.
+  Case "redundant phinode".
+    eapply eliminate_assigned_phis_sim_wfS; eauto.
 Qed.
 
 Ltac elimphi_tac :=

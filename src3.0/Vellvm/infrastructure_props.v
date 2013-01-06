@@ -761,6 +761,18 @@ Proof.
   simpl. intros. apply InBlocksB__In; auto.
 Qed.
 
+Lemma blockInFdefB_split: forall f2 l0 sts0
+  (HBinF: blockInFdefB (l0, sts0) f2 = true),
+  exists fh, exists bs1, exists bs2,
+    f2 = fdef_intro fh (bs1 ++ (l0, sts0) :: bs2).
+Proof.
+  destruct f2 as [fh ?].
+  simpl. intros.
+  apply InBlocksB__In in HBinF.
+  apply in_split in HBinF.
+  destruct HBinF as [bs1 [bs2 EQ]]; subst; eauto.
+Qed.
+
 Lemma In__blockInFdef : forall fh lb b (H: In b lb),
   blockInFdefB b (fdef_intro fh lb).
 Proof.
@@ -3376,6 +3388,15 @@ Proof.
   unfold valueInListValue.
   induction l0 as [|[v]]; simpl in *; intros; auto.
 Qed.      
+
+Lemma In__In_list_prj1: forall A B (v0 : A) (vls : list (A * B)) (l3 : B)
+  (Hin' : In (v0, l3) vls), In v0 (list_prj1 A B vls).
+Proof.
+  induction vls as [|[]]; simpl; intros; auto.
+    simpl in Hin'.
+    destruct Hin' as [Hin' | Hin']; eauto.
+      inv Hin'; auto.
+Qed.
 
 Lemma InOps__in_list_prj1: forall v0 l0
   (Hin0 : In v0
