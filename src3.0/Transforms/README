@@ -1,5 +1,5 @@
 **************************************************************************
-The file shows the mapping between the definitions and lemmas in the POPL13
+The file shows the mapping between the definitions and lemmas in the PLDI13
 submission and the Coq developement.
 
 Section 2.
@@ -154,14 +154,12 @@ Section 5.4
 
 Section 6
 
-  The optimized vmem2reg that fuses pipelined micro passes: 
-    Transforms/vmem2reg_opt.v
-  The correctness of the optimized vmem2reg:
-    Transforms/vmem2reg_opt_compose_props.v
-    Transforms/vmem2reg_opt_correct.v
+  The algorithm of vmem2reg-O: vmem2reg_opt.v
 
-  The more optimized vmem2reg that places phinodes only at dominance frontiers:
-    Transforms/vmem2reg_opt2.v
+  Lemma 29. 
+    avl_to_list_tac and unfold_elim_stld_fdef_tac in vmem2reg_opt_correct.v
+
+  Theorem 30. mem2reg_run_sim_wfS in vmem2reg_opt_correct.v
 
 **************************************************************************
 Contents

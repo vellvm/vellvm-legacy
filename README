@@ -4,11 +4,6 @@
 
 This is the formalized LLVM IR.
 
-    * Formalism (the Coq code):
-        http://www.cis.upenn.edu/~jianzhou/Vellvm/release.tgz
-    * LLVM 3.0 with extended OCaml-LLVM bindings:
-        http://www.cis.upenn.edu/~jianzhou/Vellvm/llvm-3.0.src.tgz
-
 ===========================================================================
                               CONTENTS
 ===========================================================================
@@ -19,9 +14,7 @@ VOL = $(WHERE_RELEASE_IS)/vol
 
 in $(WHERE_RELEASE_IS)
 
-theory/metatheory_8.3 :
-  The Penn Metatheory library, which can also be downloaded from
-  * http://www.cis.upenn.edu/~jianzhou/Vellvm/metatheory.tgz
+theory/metatheory_8.3 : The Penn Metatheory library
 
 vol/extralibs : Coq plug-ins -- Float and Equations
 
@@ -90,7 +83,6 @@ vol/src3.0/Extraction  : Coq extractions.
 
 * The Penn Metatheory library:
   * $WHERE_RELEASE_IS$/theory/metatheory_8.3
-  * or download from http://www.cis.upenn.edu/~jianzhou/Vellvm/metatheory.tgz
 
 * libffi
   http://sourceware.org/libffi/
@@ -101,9 +93,8 @@ vol/src3.0/Extraction  : Coq extractions.
   If you install libffi after installing LLVM, you need re-configure and
   recompile the LLVM.
 
-* The modified LLVM 3.0
-    * Download the http://www.cis.upenn.edu/~jianzhou/Vellvm/ssa/llvm-3.0.src.tgz
-    * tar zfxv llvm-3.0.src.tgz
+* The modified LLVM 3.0 (at $(VOL)/src3.0/llvm-3.0.src)
+    * cd $(VOL)/src3.0
     * mkdir llvm-3.0-obj
     * mkdir $WHERE_TO_INSTALL
     * cd llvm-3.0-obj
