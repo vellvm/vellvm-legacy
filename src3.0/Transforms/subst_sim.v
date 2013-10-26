@@ -1164,8 +1164,6 @@ Focus.
     exists (if isGVZero (los, nts) c0 then l2 else l1). 
     exists ps'0. exists nil. auto.
 
-Unfocus.
-
 Case "sBranch_uncond".
 Focus.
 
@@ -1214,8 +1212,6 @@ Focus.
   repeat (split; auto).
     exists l0. exists ps'. exists nil. auto.
     exists l0. exists ps'0. exists nil. auto.
-
-Unfocus.
 
 Case "sBop". abstract subst_is_sim_tac.
 Case "sFBop". abstract subst_is_sim_tac.

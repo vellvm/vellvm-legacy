@@ -1330,7 +1330,6 @@ Case "wfconst_array". Focus.
       eapply make_list_const_spec2; eauto.
     rewrite <- EQ in HeqR. subst.
     apply J1 in HeqR; eauto using make_list_const_spec4.
-Unfocus.
 
 Case "wfconst_struct". Focus.
   simpl_split lsdc lt.
@@ -1349,7 +1348,6 @@ Case "wfconst_struct". Focus.
   end.
   destruct g; inv H9; eauto.
     split; auto using gv_inject_uninits.
-Unfocus.
 
 Case "wfconst_gid".
   inv_mbind. eauto using global_gv_inject_refl.
@@ -1430,7 +1428,6 @@ Case "wfconst_gep". Focus.
       split; eauto using gv_inject_gundef.
     inv_mbind. symmetry_ctx. uniq_result. 
     split; eauto using gv_inject_gundef.
-Unfocus.
 
 Case "wfconst_select".
   inv_mbind. 

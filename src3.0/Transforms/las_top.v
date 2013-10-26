@@ -126,6 +126,7 @@ Proof.
     exists maxb. exists stinfo. exists Hp.
     repeat (split; auto).
       eapply las__alive_store__vev; eauto; try tauto.
+Grab Existential Variables. assumption. assumption.
 Qed.
 
 Lemma las_sim: forall (los : layouts) (nts : namedts) (fh : fheader)

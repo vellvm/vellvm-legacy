@@ -1169,8 +1169,6 @@ Focus.
       try solve [get_wf_value_for_simop'; eauto].
       eapply conditional_used_in_fdef__used_in_tmn_value; eauto; simpl; auto.
 
-Unfocus.
-
 SCase "sReturnVoid".
 Focus.
   destruct_ctx_return.
@@ -1184,8 +1182,6 @@ Focus.
   eapply free_allocas_return_void_sim in Hmsim; eauto.
   exists mi.
   repeat_solve.
-
-Unfocus.
 
 SCase "sBranch".
 Focus.
@@ -1245,7 +1241,6 @@ Focus.
       intro J4. apply J.
       simpl.
       eapply switchToNewBasicBlock_isnt_alloca_in_ECs; eauto; simpl; eauto.
-Unfocus.
 
 SCase "sBranch_uncond".
 Focus.
@@ -1287,7 +1282,6 @@ Focus.
       apply J2.
       intro J4. apply J. simpl.
       eapply switchToNewBasicBlock_isnt_alloca_in_ECs; eauto; simpl; eauto.
-Unfocus.
 
 SCase "sBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sFBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
@@ -1399,6 +1393,11 @@ SCase "sSelect".
                      eauto using in_middle; simpl; auto|
                    get_wf_value_for_simop; eauto]
       ].
+    eapply simulation__getOperandValue;
+        eauto using mem_simulation__wf_sb_sim;
+        try solve [eapply conditional_used_in_fdef__used_in_cmd_value;
+                     eauto using in_middle; simpl; auto|
+                   get_wf_value_for_simop; eauto].
     destruct (isGVZero (los,nts) c);
       eapply mem_simulation__update_non_palloca; eauto; simpl; eauto.
 
@@ -1530,3 +1529,5 @@ SCase "sExCall".
 Transparent inscope_of_tmn inscope_of_cmd.
 
 Qed.
+
+

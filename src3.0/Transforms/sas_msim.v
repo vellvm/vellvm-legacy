@@ -622,7 +622,7 @@ Proof.
         inv H7.
         constructor; auto.
           destruct H11 as [H11 | [H11 [H13 | H13]]]; auto.
-          rewrite encode_val_length in z. rewrite <- size_chunk_conv in z.
+          rewrite encode_val_length in g. rewrite <- size_chunk_conv in g.
           contradict H13; omega.
       eapply mi_memval0 in Higns; eauto.
 
@@ -813,8 +813,11 @@ Proof.
   exploit free_result; eauto. 
   intro FREE. inversion H. constructor.
 (* access *)
-  intros. exploit mi_access0; eauto with mem. 
-  intros [RG AL]. split; auto.
+  intros. 
+
+  assert (valid_access m2 chunk b3 (ofs + delta0) p) as [RG AL] 
+  by (exploit mi_access0; eauto with mem).
+  split; auto.
   red; intros. eapply perm_free_1; eauto. 
   destruct (zeq b3 b2); auto. 
     subst b2. right.
@@ -823,13 +826,14 @@ Proof.
     destruct (@MoreMem.meminj_no_overlap_spec f b0 b3 delta0 b1 delta J H3 H2)
       as [G1 G2]; subst.
     assert (lo <= ofs0 - delta < hi) as J1.
-      clear - z z0. auto with zarith.
+      clear - g g0. auto with zarith.
     assert (ofs <= ofs0 - delta < ofs + size_chunk chunk) as J2.
       clear - H5. auto with zarith.
     destruct H4 as [H41 H42].
     apply H41 in J2.
-    eapply perm_free_2 with (p:=p) in J1; eauto.
+    eapply perm_free_2 with (p:=p) in J1; intuition eauto.
     congruence.
+
 (* mem_contents *)
   intros. rewrite FREE; simpl.
   assert (FREE':=H0). apply free_result in FREE'.

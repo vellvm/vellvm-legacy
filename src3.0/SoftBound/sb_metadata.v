@@ -1499,7 +1499,8 @@ Proof.
   rewrite_env (nil++ogvs) in H1.
   eapply initializeFrameValues__wf_rmetadata with (lc1:=nil)(rm1:=nil)(lc:=nil)
     (rm:=nil)(ogvs1:=nil)(la1:=nil) in H1; eauto.
-    eapply params2GVs__wf_rmetadata; eauto.
+    eapply params2GVs__wf_rmetadata; eauto. 
+    rewrite !app_nil_l. rewrite !app_nil_r. eauto.
     intros x blk bofs eofs J. inv J.
 Qed.
 

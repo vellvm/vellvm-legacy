@@ -1585,7 +1585,6 @@ Focus.
       eauto using wf_system__wf_fdef.
     clear - H26 Hmsim H0 H1 Heq3' Hinscope1' HwfF Hwfpi EQ.
     eapply mem_simulation__return; eauto.
-Unfocus.
 
 SCase "sReturnVoid".
 Focus.
@@ -1595,7 +1594,6 @@ Focus.
       eauto using wf_system__wf_fdef.
     clear - H24 Hmsim H0 Heq3' Hinscope1' HwfF Hwfpi.
     eapply mem_simulation__return; eauto.
-Unfocus.
 
 SCase "sBranch".
 Focus.
@@ -1638,8 +1636,6 @@ Focus.
     clear - H2 Hmsim EQ.
     eapply mem_simulation_update_locals in Hmsim; simpl; eauto.
 
-Unfocus.
-
 SCase "sBranch_uncond".
 Focus.
   destruct_ctx_other.
@@ -1673,7 +1669,6 @@ Focus.
       eapply switchToNewBasicBlock_doesnt_change_pid; eauto.
     clear - H0 Hmsim EQ.
     eapply mem_simulation_update_locals in Hmsim; simpl; eauto.
-Unfocus.
 
 SCase "sBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sFBop". abstract (destruct_ctx_other; dse_is_sim_common_case).

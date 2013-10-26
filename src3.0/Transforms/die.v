@@ -747,7 +747,6 @@ Focus.
     eapply returnUpdateLocals_reg_simulation with (lc:=lc);
       eauto 1.
       value_doesnt_use_did_tac.
-Unfocus.
 
 SCase "sReturnVoid".
 Focus.
@@ -762,8 +761,6 @@ Focus.
   inv Hop2;
   uniq_result.
   repeat_solve.
-
-Unfocus.
 
 SCase "sBranch". abstract die_is_sim_branch.
 SCase "sBranch_uncond". abstract die_is_sim_branch.

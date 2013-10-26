@@ -1562,7 +1562,6 @@ Focus.
       destruct Heqb2' as [l2 [ps2 [cs21 Heqb2']]]; subst.
       eapply cmds_simulation_stable; eauto.
       eapply ECs_simulation_tail_stable; eauto.
-Unfocus.
 
 Case "sReturnVoid".
 Focus.
@@ -1587,7 +1586,6 @@ Focus.
       destruct Heqb2' as [l2 [ps2 [cs21 Heqb2']]]; subst.
       eapply cmds_simulation_stable; eauto.
       eapply ECs_simulation_tail_stable; eauto.
-Unfocus.
 
 Case "sBranch". 
   abstract (left; eapply phinodes_placement_is_correct__dsBranch; eauto).

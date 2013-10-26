@@ -674,9 +674,10 @@ Proof.
          intros i0 Hin.
          destruct (in_dec id_dec i0 (getCmdOperands c1)); auto.
            elimtype False.
-           eapply operands_of_cmd__cannot_be__phis_that_cmd_doms; eauto.
-             intro J. apply in_app_or in J. destruct J; auto.
+           eapply operands_of_cmd__cannot_be__phis_that_cmd_doms; intuition eauto.
+             apply in_app_or in H as []; auto.
              eapply getIncomingValuesForBlockFromPHINodes_spec7 in HeqR1'; eauto.
+             
 Qed.
 
 Lemma inscope_of_tmn_br_aux : forall S M F l3 ps cs tmn ids0 ps' cs' tmn'
@@ -734,7 +735,7 @@ Proof.
     split; auto.
     split; auto.
       subst. simpl in J1. simpl_env in J1.
-      eapply wf_defs_br_aux in Hswitch; eauto.
+      eapply wf_defs_br_aux in Hswitch; intuition eauto.
 
   Case "cs'<>nil".
     assert (~ In (getCmdLoc c) (getPhiNodesIDs ps')) as Hnotin.
@@ -747,7 +748,7 @@ Proof.
       try solve [contradict n; auto].
     split; auto.
     split; auto.
-      subst. eapply wf_defs_br_aux in Hswitch; eauto.
+      subst. eapply wf_defs_br_aux in Hswitch; intuition eauto.
 Qed.
 
 Lemma inscope_of_tmn_br_uncond : forall S M F l3 ps cs ids0 ps' cs' tmn' 
@@ -1301,7 +1302,6 @@ Case "sReturn".
           destruct n; inv HeqR. inv H1.
           simpl in J2.
           eapply wf_defs_eq; eauto.
-Unfocus.
 
 Focus.
 Case "sReturnVoid".
@@ -1357,7 +1357,6 @@ Case "sReturnVoid".
         destruct n; inversion H1.
         simpl in HeqR. subst R.
         eapply wf_defs_eq; eauto.
-Unfocus.
 
 Case "sBranch".
   destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]].
@@ -1380,7 +1379,6 @@ Case "sBranch".
     eapply inscope_of_tmn_br in HeqR1; eauto.
     destruct HeqR1 as [ids0' [HeqR1 [J1 J2]]].
     destruct cs'; rewrite <- HeqR1; auto.
-Unfocus.
 
 Focus.
 Case "sBranch_uncond".
@@ -1406,7 +1404,6 @@ Case "sBranch_uncond".
       (tmn':=tmn') in HeqR1; eauto.
     destruct HeqR1 as [ids0' [HeqR1 [J1 J2]]].
     destruct cs'; rewrite <- HeqR1; auto.
-Unfocus.
 
 Case "sBop". 
   preservation_pure_case_tac.
@@ -1522,7 +1519,6 @@ Case "sCall".
       destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
         try solve [contradict n; auto].
       eapply preservation_dbCall_case; eauto.
-Unfocus.
 
 Case "sExCall".
   match goal with

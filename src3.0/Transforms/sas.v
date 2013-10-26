@@ -2342,7 +2342,6 @@ Focus.
       solve_non_pid_updateAddAL.
     clear - H26 Hmsim H0 H1 Heq3' Huniq EQ HBinF2.
     eapply mem_simulation__return; eauto.
-Unfocus.
 
 SCase "sReturnVoid".
 Focus.
@@ -2351,7 +2350,6 @@ Focus.
     assert (Huniq: uniqFdef F') by eauto using wf_system__uniqFdef.
     clear - H24 Hmsim H0 Heq3' Huniq HBinF2.
     eapply mem_simulation__return; eauto.
-Unfocus.
 
 SCase "sBranch".
 Focus.
@@ -2391,8 +2389,6 @@ Focus.
     clear - H2 Hmsim.
     eapply switchToNewBasicBlock_mem_simulation; eauto.
 
-Unfocus.
-
 SCase "sBranch_uncond".
 Focus.
   destruct_ctx_other.
@@ -2421,8 +2417,6 @@ Focus.
 
     clear - H0 Hmsim.
     eapply switchToNewBasicBlock_mem_simulation; eauto.
-
-Unfocus.
 
 SCase "sBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sFBop". abstract (destruct_ctx_other; dse_is_sim_common_case).

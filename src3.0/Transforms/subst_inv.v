@@ -592,7 +592,7 @@ Proof.
     split; auto.
     split; auto.
       subst. simpl in J1. simpl_env in J1.
-      eapply wf_defs_br_aux in Hswitch; eauto.
+      eapply wf_defs_br_aux in Hswitch; intuition eauto.
 
   Case "cs'<>nil".
     assert (~ In (getCmdLoc c) (getPhiNodesIDs ps')) as Hnotin.
@@ -605,7 +605,7 @@ Proof.
       try solve [contradict n; auto].
     split; auto.
     split; auto.
-      subst. eapply wf_defs_br_aux in Hswitch; eauto.
+      subst. eapply wf_defs_br_aux in Hswitch; intuition eauto.
 Qed.
 
 Lemma inscope_of_tmn_br_uncond : forall v1 v2 F0 S M F l3 ps cs ids0 ps' 
@@ -982,8 +982,6 @@ Focus.
           simpl in J2.
           eapply wf_defs_eq; eauto.
 
-Unfocus.
-
 Case "sReturnVoid".
 Focus.
 
@@ -1026,8 +1024,6 @@ Focus.
         simpl in HeqR. subst R.
         eapply wf_defs_eq; eauto.
 
-Unfocus.
-
 Case "sBranch".
 Focus.
 
@@ -1046,7 +1042,6 @@ Focus.
     destruct HeqR1 as [ids0' [HeqR1 [J1 J2]]].
     simpl in HeqR1.
     destruct cs'; rewrite <- HeqR1; auto.
-Unfocus.
 
 Case "sBranch_uncond".
 Focus.
@@ -1067,7 +1062,6 @@ Focus.
     destruct HeqR1 as [ids0' [HeqR1 [J1 J2]]].
     simpl in HeqR1.
     destruct cs'; rewrite <- HeqR1; auto.
-Unfocus.
 
 Case "sBop". abstract (eapply preservation_cmd_updated_case; eauto; auto).
 Case "sFBop".
@@ -1138,7 +1132,6 @@ Transparent inscope_of_tmn inscope_of_cmd.
       destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
         try solve [contradict n; auto].
       eapply preservation_dbCall_case; eauto.
-Unfocus.
 
 Case "sExCall".
   abstract (
@@ -1223,5 +1216,7 @@ Transparent inscope_of_tmn inscope_of_cmd.
       destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
         try solve [contradict n; auto].
       eapply initLocals__wf_defs; eauto.
+Grab Existential Variables.
+assumption. assumption.
 Qed.
 

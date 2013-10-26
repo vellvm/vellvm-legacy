@@ -1944,6 +1944,7 @@ Proof.
     subst.
     eapply dom_list_tree.dtree_edge_iff_idom with 
       (rd:=get_reachable_nodes (bound_fdef f) a2p); eauto.
+    eauto.
     SCase "rd". 
       intros.
       eapply preachable__in_get_reachable_nodes in Hdfs; eauto.
@@ -1984,10 +1985,11 @@ Proof.
     eapply pidom_aidom; eauto using a2p_p2a_spec2.
       intros.
       eapply dfs_reachable_iff_get_some in Hdfs; 
-        eauto using le_in_cfg.
+        eauto using le_in_cfg. 
   Case "wf".
     eapply create_dtree__wf_dtree with 
       (rd:=get_reachable_nodes (bound_fdef f) a2p); eauto.
+      eauto.
     SCase "rd". 
       intros.
       eapply preachable__in_get_reachable_nodes in Hdfs; eauto.

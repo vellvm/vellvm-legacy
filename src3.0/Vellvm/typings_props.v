@@ -1909,12 +1909,12 @@ Proof.
     apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
     destruct Hlkup; auto.
   assert (l0 <> l') as Hneq.
-    eapply block_in_scope__strict; eauto.
+    eapply block_in_scope__strict; eauto. apply in_app. left; auto.
   assert (blockInFdefB (l0, stmts_intro p c t0) F = true)as HbInF0.
     eauto using insnInFdefBlockB__blockInFdefB.
   assert (In l' (AlgDom.sdom F l0)) as Hindom.
     eapply domination__block_in_scope; eauto.
-  eapply sdom_acyclic in Hindom; eauto.
+  eapply sdom_acyclic in Hindom'; eauto.
   Case "i0 is args".
     assert (blockInFdefB (l', stmts_intro ps' cs' tmn') F = true) as HBinF.
       solve_blockInFdefB.
@@ -1996,6 +1996,9 @@ Proof.
     SCase "blkDom".
     destruct Hinscope as [_ [Hinscope _]].
     eapply strict_operands__in_scope; eauto.
+    rewrite app_nil_r.
+    intros. eapply Hinscope; eauto.
+    
   Case "id1 is args".
     eapply in_getArgsIDsOfFdef__inscope_of_tmn; eauto.
 Qed.
@@ -2058,6 +2061,8 @@ Proof.
     SCase "blkDom".
     destruct Hinscope as [_ [Hinscope _]].
     eapply strict_operands__in_scope; eauto.
+    rewrite app_nil_r. intros; eauto.
+    
   Case "id1 is args".
     eapply in_getArgsIDsOfFdef__inscope_of_cmd; eauto.
 Qed.
@@ -2517,12 +2522,15 @@ Proof.
   Case "2".
     destruct Hid2InScope as [J12 | [b2 [l2' [J13 [J14 J15]]]]].
     SCase "2.1".
-      clear - HeqR1 HbInF Huniq HeqR' J12 J10 J11 J11' Hnotin1.
+      clear - case subcase HeqR1 HbInF Huniq HeqR' J12 J10 J11 J11' Hnotin1.
       eapply inscope_of_block_cmds_dominates_cmd__inscope_of_cmd; eauto.
-        solve_in_list.
+        rewrite app_nil_r. auto.
+        solve_in_list. 
+        rewrite app_nil_r. simpl in *. eauto.
    SCase "2.2".
-      clear - HwfF HeqR1 J14 J15 J11 J13 J10 Hreach HbInF HeqR' J11' Huniq.
-      eapply inscope_of_block_inscope_of_block__inscope_of_block; eauto.
+   eapply inscope_of_block_inscope_of_block__inscope_of_block.
+   eauto. eauto. reflexivity. eauto. eauto. eauto. reflexivity.
+   apply J10. eauto. eauto. eauto. eauto. eauto. eauto.
 Qed.
 
 Lemma idDominates_inscope_of_tmn__inscope_of_tmn: forall (f : fdef)
@@ -2578,8 +2586,11 @@ Proof.
     SCase "2.1".
       eapply inscope_of_block_cmds_dominates_cmd__inscope_of_tmn; eauto.
         solve_in_list.
+      rewrite app_nil_r. eauto. solve_in_list. rewrite app_nil_r; eauto. 
     SCase "2.2".
-      eapply inscope_of_block_inscope_of_block__inscope_of_block; eauto.
+      eapply inscope_of_block_inscope_of_block__inscope_of_block.
+      eauto. eauto. reflexivity. eauto. eauto. eauto. reflexivity.
+      apply J10. eauto. eauto. apply J13. eauto. eauto. eauto.
 Qed.
 
 Lemma make_list_fdef_block_insn_id_spec:
@@ -3260,7 +3271,7 @@ Proof.
   unfold inscope_of_id.
   intros. 
   eapply inscope_of_blocks_with_init__id_in_reachable_block in HBinF; eauto. 
-    simpl. apply init_scope_incl with (tmn1:=tmn1); auto.
+    simpl. rewrite app_nil_r. eauto. apply init_scope_incl with (tmn1:=tmn1); auto.
 Qed.
 
 Lemma inscope_of_cmd__id_in_reachable_block: forall s m F (HwfF: wf_fdef s m F) 

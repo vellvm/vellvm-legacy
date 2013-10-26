@@ -7,6 +7,7 @@ LNGEN = lngen  # optional
 
 RELEASE = $(HOME)/src/vol
 METALIB = $(RELEASE)/theory/metatheory_8.3
+EQUATIONS = $(HOME)/src/coq-equations
 LLVM = $(HOME)/Tools/llvm-3.0/
 LLVM_LIB = $(LLVM)/lib/
 LLVM_OCAML_LIB = $(LLVM_LIB)/ocaml/

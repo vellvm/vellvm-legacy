@@ -922,7 +922,6 @@ Case "sReturn".
     exists l2. exists ps2. exists (cs2'++[c']). simpl_env. auto.
 
     eapply free_allocas_preserves_wf_ECStack; eauto.
-Unfocus.
 
 Focus.
 Case "sReturnVoid".
@@ -954,7 +953,6 @@ Case "sReturnVoid".
     eapply free_allocas_preserves_wf_rmetadata; eauto.
     exists l2. exists ps2. exists (cs2'++[c']). simpl_env. auto.
     eapply free_allocas_preserves_wf_ECStack; eauto.
-Unfocus.
 
 Focus.
 Case "sBranch".
@@ -971,7 +969,6 @@ Case "sBranch".
     eapply switchToNewBasicBlock__wf_rmetadata in H; eauto.
     exists (if isGVZero (los, nts) c then l2 else l1). exists ps'. exists nil. 
     simpl_env. auto.
-Unfocus.
 
 Focus.
 Case "sBranch_uncond".
@@ -985,7 +982,6 @@ Case "sBranch_uncond".
     eapply switchToNewBasicBlock__wf_rmap in H; eauto.
     eapply switchToNewBasicBlock__wf_rmetadata in H; eauto.
     exists l0. exists ps'. exists nil. simpl_env. auto.
-Unfocus.
 
 Case "sBop". preservation_tac.
 Case "sFBop". preservation_tac.
@@ -1217,7 +1213,6 @@ Case "sCall".
   match goal with
   | H27: ?A = _::?A |- _ => apply mismatch_cons_false in H27; inv H27
   end.
-Unfocus.
 
 Case "sExCall".
   match goal with

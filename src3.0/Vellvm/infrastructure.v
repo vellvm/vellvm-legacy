@@ -1611,8 +1611,7 @@ Qed.
 
 Lemma value_dec : forall (v1 v2:value), {v1=v2}+{~v1=v2}.
 Proof.
-  decide equality.
-    edestruct (@const_dec _ _); subst; eauto.
+  decide equality. apply const_dec.
 Qed.
 
 Lemma attribute_dec : forall (attr1 attr2:attribute),

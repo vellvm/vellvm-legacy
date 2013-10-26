@@ -2035,10 +2035,7 @@ Proof.
           assert (J':=@size_chunk_pos m).
           rewrite Zmax_spec.
           destruct (zlt 0 (size_chunk m)).
-            omega.
-            contradict z. omega.
-
-          omega.
+            omega. omega. omega. 
 
       rewrite <- EQ in H.
       rewrite HeqR in H.
@@ -2732,7 +2729,6 @@ Case "wfconst_array". Focus.
       eapply make_list_const_spec2; eauto.
     rewrite <- EQ in HeqR. subst.
     apply J1 in HeqR; eauto using make_list_const_spec4.
-Unfocus.
 
 Case "wfconst_struct". Focus.
   simpl_split lsdc lt.
@@ -2750,7 +2746,6 @@ Case "wfconst_struct". Focus.
       apply J2 in HeqR.
       destruct HeqR as [J5 [J6 J7]]; subst.
       split; eauto using uninits_valid_ptrs__disjoint_with_ptr.
-Unfocus.
 
 Case "wfconst_gid".
   split; auto.
@@ -2825,7 +2820,6 @@ Case "wfconst_gep". Focus.
       split; eauto using undef_valid_ptrs__disjoint_with_ptr.
     inv_mbind. symmetry_ctx. uniq_result. 
     split; eauto using undef_valid_ptrs__disjoint_with_ptr.
-Unfocus.
 
 Case "wfconst_select". 
   destruct_if; eauto.

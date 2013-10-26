@@ -1928,14 +1928,19 @@ Proof.
   apply PNodeSetMax.pick_remove in Hpick.
   rewrite Hpick.
   unfold psize_of_worklist.
+
+
   apply remove_cardinal in Hin.
-  zify. omega.
+  clear Hpick wrk'.
+  rewrite <- Hin. simpl.
+  rewrite 2 Pos.add_1_r. 
+  rewrite Pos.pred_succ. auto.
 Qed.
 
 Lemma Pplus_pminus_spec1: forall p1 p2 p3, 
   (p2 > p3)%positive -> (p1 + (p2 - p3) = p1 + p2 - p3)%positive.
 Proof.
-  intros. zify. omega.
+  intros. rewrite Pos.add_sub_assoc; auto. apply Pos.gt_lt. auto.
 Qed.
 
 Lemma stable_step_num_iters_aux: forall (st st': DomDS.state)
@@ -2346,11 +2351,18 @@ Proof.
         apply stable_step_decreases_wrk in Hstep; auto.
         destruct Hstep as [max Hpick].
         erewrite stable_step_num_iters_aux; eauto.
-        clear - Hbound n. zify; omega.
+        clear - Hbound n.
+        set (y:=num_iters_aux st) in *. clearbody y. 
+        zify. rewrite <- Ppred_minus, Pos2Z.inj_pred. 
+        destruct (Pos.eq_dec y 1). subst y.
+          change (1 - 1)%positive with 1%positive. omega.
+          rewrite <- Ppred_minus, Pos2Z.inj_pred. omega.
+        auto. zify. omega.
+        
       SSCase "2.2".
         eapply instable_step_num_iters_aux in Hgt; eauto.
         SSSCase "2.2.1".
-          zify; omega.
+        zify. rewrite <- !Ppred_minus, !Pos2Z.inj_pred. omega. zify; omega.
         SSSCase "2.2.2".
           apply doms_in_parants__doms_lt_psize_of_cfg; auto. 
 Qed.
@@ -3605,4 +3617,3 @@ Proof.
 Qed.
 
 End IdomSorted. End IdomSorted.
-

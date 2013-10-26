@@ -536,7 +536,7 @@ Qed.
 
 Ltac cons_self__False_tac :=
 match goal with
-| H: _::?acs=?acs |- _ => apply cons_self__False in H; inv H
+| H: _ :: ?acs = ?acs |- _ => apply cons_self__False in H; inv H
 end.
 
 (* Forall *)

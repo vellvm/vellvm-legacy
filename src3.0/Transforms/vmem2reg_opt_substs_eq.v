@@ -4027,7 +4027,6 @@ Proof.
   eapply sorted_actions__find_root_omit_pre' with (acs12:=nil)(id1:=id1)
     in Hsm; eauto.
     simpl_env in *; auto.
-    simpl_env in *; auto.
 Qed.
 
 (* Lem 67 *)

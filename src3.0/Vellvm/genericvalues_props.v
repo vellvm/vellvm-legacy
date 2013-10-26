@@ -1935,8 +1935,6 @@ Case "wfconst_array". Focus.
     split; auto.
       rewrite ZRdiv_prop8. auto.
 
-Unfocus.
-
 Case "wfconst_struct". Focus.
   simpl_split lsdc lt.
   simpl_split lsd lc.
@@ -1983,8 +1981,6 @@ Case "wfconst_struct". Focus.
 
         eauto.
 
-Unfocus.
-
 Case "wfconst_gid".
   inv_mbind. symmetry_ctx.
   split; auto.
@@ -2000,35 +1996,30 @@ Case "wfconst_trunc_int". Focus.
   split; auto.
     symmetry in HeqR0.
     eapply mtrunc_typsize in HeqR0; eauto.
-Unfocus.
 
 Case "wfconst_trunc_fp". Focus.
   inv_mbind. 
   split; auto.
     symmetry in HeqR0.
     eapply mtrunc_typsize in HeqR0; eauto.
-Unfocus.
 
 Case "wfconst_zext". Focus.
   inv_mbind. 
   split; auto.
     symmetry in HeqR0.
     eapply mext_typsize in HeqR0; eauto.
-Unfocus.
 
 Case "wfconst_sext".  Focus.
   inv_mbind. 
   split; auto.
     symmetry in HeqR0.
     eapply mext_typsize in HeqR0; eauto.
-Unfocus.
 
 Case "wfconst_fpext".  Focus.
   inv_mbind.  
   split; auto.
     symmetry in HeqR0.
     eapply mext_typsize in HeqR0; eauto.
-Unfocus.
 
 Case "wfconst_ptrtoint". Focus.
   inv_mbind. uniq_result.
@@ -2036,7 +2027,6 @@ Case "wfconst_ptrtoint". Focus.
     exists (Size.to_nat sz5).
     exists (getIntAlignmentInfo los (Size.to_nat sz5) true).
     erewrite int_typsize; eauto.
-Unfocus.
 
 Case "wfconst_inttoptr". Focus.
   inv_mbind. uniq_result.
@@ -2044,7 +2034,6 @@ Case "wfconst_inttoptr". Focus.
     exists (Size.to_nat (getPointerSizeInBits los)).
     exists (getPointerAlignmentInfo los true).
     simpl. auto.
-Unfocus.
 
 Case "wfconst_bitcast". Focus.
   inv_mbind. 
@@ -2052,7 +2041,6 @@ Case "wfconst_bitcast". Focus.
   destruct t; inv HeqR0.
   eapply H0 in Hwfg; eauto.
   destruct Hwfg; eauto.
-Unfocus.
 
 Case "wfconst_gep". Focus.
   remember (_const2GV (los, nts) gl const_5) as R1.
@@ -2098,8 +2086,6 @@ Case "wfconst_gep". Focus.
         exists (getPointerAlignmentInfo los true).
         auto.
 
-Unfocus.
-
 Case "wfconst_select". Focus.
   remember (_const2GV (los, nts) gl const0) as R0.
   remember (_const2GV (los, nts) gl const1) as R1.
@@ -2108,7 +2094,6 @@ Case "wfconst_select". Focus.
   destruct R1 as [[gv1 t1]|]; tinv Hc2g.
   destruct R2 as [[gv2 t2]|]; tinv Hc2g.
   destruct (isGVZero (los, nts) gv0); inv Hc2g; eauto.
-Unfocus.
 
 Case "wfconst_icmp". Focus.
   remember (_const2GV (los, nts) gl const1) as R1.
@@ -2120,7 +2105,6 @@ Case "wfconst_icmp". Focus.
   split; auto.
     symmetry in HeqR3.
     eapply micmp_typsize in HeqR3; try solve [eauto | constructor; auto].
-Unfocus.
 
 Case "wfconst_fcmp". Focus.
   remember (_const2GV (los, nts) gl const1) as R1.
@@ -2133,7 +2117,6 @@ Case "wfconst_fcmp". Focus.
   split; auto.
     symmetry in HeqR3.
     eapply mfcmp_typsize in HeqR3; try solve [eauto | constructor; auto]. 
-Unfocus.
 
 Case "wfconst_extractvalue". Focus.
   remember (_const2GV (los, nts) gl const_5) as R1.
@@ -2151,7 +2134,6 @@ Case "wfconst_extractvalue". Focus.
   subst.
   split; eauto.
     eapply extractGenericValue_typsize; try solve [eauto | constructor; auto].
-Unfocus.
 
 Case "wfconst_insertvalue". Focus.
   clear H1.
@@ -2174,7 +2156,6 @@ Case "wfconst_insertvalue". Focus.
       eapply insertGenericValue_typsize in HeqR3; 
         try solve [eauto | constructor; auto].
       rewrite <- HeqR3. auto.
-Unfocus.
 
 Case "wfconst_bop". Focus.
   remember (_const2GV (los, nts) gl const1) as R1.
@@ -2191,7 +2172,6 @@ Case "wfconst_bop". Focus.
     symmetry in HeqR3.
     eapply mbop_typsize in HeqR3; eauto.
 
-Unfocus.
 
 Case "wfconst_fbop". Focus.
   remember (_const2GV (los, nts) gl const1) as R1.
@@ -2207,8 +2187,6 @@ Case "wfconst_fbop". Focus.
   split; auto.
     symmetry in HeqR3.
     eapply mfbop_typsize in HeqR3; eauto.
-
-Unfocus.
 
 Case "wfconst_nil".
   intros; subst.
@@ -3073,7 +3051,6 @@ Case "wfconst_array". Focus.
       unfold gv_chunks_match_typ. simpl.
       rewrite H1 in HeqR. clear - HeqR. 
       inv_mbind. simpl in HeqR. auto.
-Unfocus.
 
 Case "wfconst_struct". Focus.
   simpl_split lsdc lt.
@@ -3151,7 +3128,6 @@ Case "wfconst_struct". Focus.
         fold flatten_typs_aux.
         rewrite HeqR2. auto.
 
-Unfocus.
 
 Case "wfconst_gid".
   inv_mbind. symmetry_ctx.
@@ -3167,7 +3143,6 @@ Case "wfconst_trunc_int". Focus.
   split; auto.
    symmetry in HeqR.
    eapply mtrunc_matches_chunks in HeqR; try solve [eauto | constructor; auto].
-Unfocus.
 
 Case "wfconst_trunc_fp". Focus.
   destruct (_const2GV targetdata5 gl const5) as [[]|]; inv H4.
@@ -3177,7 +3152,6 @@ Case "wfconst_trunc_fp". Focus.
   split; auto.
    symmetry in HeqR.
    eapply mtrunc_matches_chunks in HeqR; try solve [eauto | constructor; auto].
-Unfocus.
 
 Case "wfconst_zext". Focus.
   destruct (_const2GV targetdata5 gl const5) as [[]|]; inv H4.
@@ -3186,7 +3160,6 @@ Case "wfconst_zext". Focus.
   split; auto.
     symmetry in HeqR.
     eapply mext_matches_chunks in HeqR; try solve [eauto | constructor; auto].
-Unfocus.
 
 Case "wfconst_sext".  Focus.
   destruct (_const2GV targetdata5 gl const5) as [[]|]; inv H4.
@@ -3195,7 +3168,6 @@ Case "wfconst_sext".  Focus.
   split; auto.
     symmetry in HeqR.
     eapply mext_matches_chunks in HeqR; try solve [eauto | constructor; auto].
-Unfocus.
 
 Case "wfconst_fpext".  Focus.
   destruct (_const2GV targetdata5 gl const5) as [[]|]; inv H4.
@@ -3204,7 +3176,6 @@ Case "wfconst_fpext".  Focus.
   split; auto.
     symmetry in HeqR.
     eapply mext_matches_chunks in HeqR; try solve [eauto | constructor; auto].
-Unfocus.
 
 Case "wfconst_ptrtoint". Focus.
   destruct targetdata5. 
@@ -3212,8 +3183,6 @@ Case "wfconst_ptrtoint". Focus.
   split; auto.
     unfold gv_chunks_match_typ, vm_matches_typ. simpl. 
     constructor; auto. split; auto.  split; auto.
-      
-Unfocus.
 
 Case "wfconst_inttoptr". Focus.
   destruct targetdata5. 
@@ -3221,7 +3190,6 @@ Case "wfconst_inttoptr". Focus.
   split; auto.
     unfold gv_chunks_match_typ, vm_matches_typ. simpl. 
     constructor; auto. split; auto.  split; auto.
-Unfocus.
 
 Case "wfconst_bitcast". Focus.
   remember (_const2GV targetdata5 gl const5) as R1.
@@ -3232,7 +3200,6 @@ Case "wfconst_bitcast". Focus.
   destruct t; inv HeqR.
   eapply H0 in H4; eauto.
   destruct H4; eauto.
-Unfocus.
 
 Case "wfconst_gep". Focus.
   remember (_const2GV targetdata5 gl const_5) as R1.
@@ -3273,7 +3240,6 @@ Case "wfconst_gep". Focus.
           destruct targetdata5. simpl. 
           constructor; auto. split; auto.
           simpl. eapply mgep_has_chunk; eauto.
-Unfocus.
 
 Case "wfconst_select". Focus.
   remember (_const2GV targetdata5 gl const0) as R0.
@@ -3283,7 +3249,6 @@ Case "wfconst_select". Focus.
   destruct R1 as [[gv1 t1]|]; tinv H8.
   destruct R2 as [[gv2 t2]|]; tinv H8.
   destruct (isGVZero targetdata5 gv0); inv H8; eauto.
-Unfocus.
 
 Case "wfconst_icmp". Focus.
   remember (_const2GV targetdata5 gl const1) as R1.
@@ -3295,7 +3260,6 @@ Case "wfconst_icmp". Focus.
   split; auto.
     symmetry in HeqR3.
     eapply micmp_matches_chunks in HeqR3; try solve [eauto | constructor; auto].
-Unfocus.
 
 Case "wfconst_fcmp". Focus.
   remember (_const2GV targetdata5 gl const1) as R1.
@@ -3308,7 +3272,6 @@ Case "wfconst_fcmp". Focus.
   split; auto.
     symmetry in HeqR3.
     eapply mfcmp_matches_chunks in HeqR3; try solve [eauto | constructor; auto]. 
-Unfocus.
 
 Case "wfconst_extractvalue". Focus.
   remember (_const2GV targetdata5 gl const_5) as R1.
@@ -3328,7 +3291,6 @@ Case "wfconst_extractvalue". Focus.
     eapply extractGenericValue_matches_chunks; 
       try solve [eauto | constructor; auto].
 
-Unfocus.
 
 Case "wfconst_insertvalue". Focus.
   remember (_const2GV targetdata5 gl const_5) as R1.
@@ -3347,7 +3309,6 @@ Case "wfconst_insertvalue". Focus.
     eapply insertGenericValue_matches_chunks in HeqR3; 
       try solve [eauto | constructor; auto].
 
-Unfocus.
 
 Case "wfconst_bop". Focus.
   remember (_const2GV targetdata5 gl const1) as R1.
@@ -3364,8 +3325,6 @@ Case "wfconst_bop". Focus.
     symmetry in HeqR3.
     eapply mbop_matches_chunks in HeqR3; eauto.
 
-Unfocus.
-
 Case "wfconst_fbop". Focus.
   remember (_const2GV targetdata5 gl const1) as R1.
   remember (_const2GV targetdata5 gl const2) as R2.
@@ -3380,8 +3339,6 @@ Case "wfconst_fbop". Focus.
   split; auto.
     symmetry in HeqR3.
     eapply mfbop_matches_chunks in HeqR3; eauto.
-
-Unfocus.
 
 Case "wfconst_nil".
   intros; subst.

@@ -479,7 +479,7 @@ Qed.
 Lemma Pplus_pminus_spec1: forall p1 p2 p3, (* same *)
   (p2 > p3)%positive -> (p1 + (p2 - p3) = p1 + p2 - p3)%positive.
 Proof.
-  intros. zify. omega.
+  intros. apply Pos.add_sub_assoc. apply Pos.gt_lt; auto.
 Qed.
 
 Lemma stable_step_num_iters_aux: forall (st st': DomDS.state) max (* almost same *)
@@ -835,11 +835,13 @@ Proof.
         apply stable_step_decreases_wrk in Hstep; auto.
         destruct Hstep as [max Hpick].
         eapply stable_step_num_iters_aux in Heq; eauto.
-        clear - Hbound n Heq. zify; omega.
+        clear - Hbound n Heq. zify. rewrite Pos.sub_1_r. rewrite Pos2Z.inj_pred.
+        omega. zify. omega.
       SSCase "2.2".
         eapply instable_step_num_iters_aux in Hgt; eauto.
         SSSCase "2.2.1".
-          zify; omega.
+          zify. rewrite Pos.sub_1_r. rewrite Pos2Z.inj_pred.
+          omega. zify. omega.
         SSSCase "2.2.2".
           apply doms_in_parants__doms_lt_psize_of_cfg; auto. 
 Qed.

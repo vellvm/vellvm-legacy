@@ -357,7 +357,7 @@ Module MergeLt <: MERGE.
   
       uniq_result.
       revert Hmerge. unfold_merge_aux.
-      remember ((Xd ?= Yd)%positive Eq) as Cmp.
+      remember (Pos.compare_cont Xd Yd Eq) as Cmp.
       intro.
       destruct Cmp; subst.
         apply Hrec with (y:=(length Xsdms + length Ysdms)%nat) in Hmerge; 
@@ -368,6 +368,8 @@ Module MergeLt <: MERGE.
         rewrite rev_app_distr. simpl. 
         uniq_result'.
         repeat (split; try solve [auto | constructor; auto]).
+          symmetry in HeqCmp.
+          apply Pcompare_Eq_eq in HeqCmp. subst Yd. constructor. auto.
           intro J. apply J4 in J. f_equal; auto.
           intro J. inv J. auto.
         
@@ -444,18 +446,25 @@ Module MergeLt <: MERGE.
   
       revert Hmerge. unfold_merge_aux. intro.
       revert Hmerge'. unfold_merge_aux. intro.
-      remember ((Xd ?= Yd)%positive Eq) as Cmp.
+      remember (Pos.compare_cont Xd Yd Eq) as Cmp.
       destruct Cmp; subst.
         uniq_result'.
+        symmetry in HeqCmp. apply Pcompare_Eq_eq in HeqCmp. subst Yd.
         rewrite Pcompare_refl in Hmerge'.
         eapply Hrec with (y:=(length Xsdms + length Ysdms)%nat); 
           try solve [eauto | simpl; omega].
 
-        rewrite ZC2 in Hmerge'; auto.
+        symmetry in HeqCmp. rewrite ZC4 in HeqCmp. 
+        apply CompOpp_iff in HeqCmp. simpl in HeqCmp.
+        rewrite HeqCmp in Hmerge'.
+
         eapply Hrec with (y:=(length Xsdms + S (length Ysdms))%nat); 
           eauto; simpl; omega.
 
-        rewrite ZC1 in Hmerge'; auto.
+        symmetry in HeqCmp. rewrite ZC4 in HeqCmp. 
+        apply CompOpp_iff in HeqCmp. simpl in HeqCmp.
+        rewrite HeqCmp in Hmerge'.
+
         eapply Hrec with (y:=(S (length Xsdms) + length Ysdms)%nat); 
           eauto; simpl; omega.
   Qed.
@@ -510,10 +519,12 @@ Module MergeLt <: MERGE.
       compute. auto.
 
       unfold merge. unfold_merge_aux.
-      rewrite ZC2; auto.
+      replace (Pos.compare_cont x p Eq) with Gt.
       erewrite merge_aux_refl_aux; eauto.
       simpl_env.
       rewrite rev_involutive. auto.
+      
+      symmetry. apply Pcompare_eq_Gt. apply Pos.lt_gt. auto.
   Qed.
 
   Definition merge_aux_inter_prop (n:nat) := forall Xsdms Ysdms
@@ -536,13 +547,12 @@ Module MergeLt <: MERGE.
       compute in Hmerge. uniq_result. simpl. auto with atomset.
       compute in Hmerge. uniq_result. simpl.
         apply set_eq_trans with (y:=set_union positive_eq_dec rl2 nil).
-          apply set_eq_union; auto with atomset.
-             apply set_inter_empty_eq_empty2.
+          apply set_eq_union; auto with atomset. 
           apply set_union_empty_eq_empty2.
 
       inv Hsortx. inv Hsorty.
       revert Hmerge. unfold_merge_aux. intro.
-      remember ((Xd ?= Yd)%positive Eq) as Cmp.
+      remember (Pos.compare_cont Xd Yd Eq) as Cmp.
       destruct Cmp; subst; symmetry in HeqCmp.
       Case "1".
         uniq_result'.
@@ -564,8 +574,10 @@ Module MergeLt <: MERGE.
             apply set_inter_elim in Hin.
             destruct Hin as [Hin1 Hin2].
             simpl in Hin2.
-            destruct Hin2 as [Hin2| Hin2]; subst; auto.
+            destruct Hin2 as [Hin2| Hin2]; auto.
+            left. left. apply Pos.compare_eq in HeqCmp. subst Yd; auto.
             right. apply set_inter_intro; auto.
+            
 
           SSCase "1.1.2".
             apply Hmerge in Hin.
@@ -584,7 +596,7 @@ Module MergeLt <: MERGE.
               apply set_inter_intro; simpl; auto.
 
         SCase "1.2".
-          destruct_if; congruence.
+          destruct_if. apply Pos.compare_eq in HeqCmp. congruence.
 
       Case "2".
         destruct_if.

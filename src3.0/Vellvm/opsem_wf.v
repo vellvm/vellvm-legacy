@@ -1930,6 +1930,8 @@ Proof.
        eapply preservation_dbCall_case; eauto using wf_params_spec.
     Case "2".
     exists l'. exists ps'. exists nil. simpl_env. auto.
+    Grab Existential Variables.
+    assumption. assumption.
 Qed.
 
 Lemma preservation : forall cfg S1 S2 tr (HwfCfg: wf_Config cfg),
@@ -2061,7 +2063,6 @@ Case "sReturn".
     SSCase "1.2".
       exists l2. exists ps2. exists (cs2'++[insn_call i0 n c rt va v p]).
       simpl_env. auto.
-Unfocus.
 
 Focus.
 Case "sReturnVoid".
@@ -2124,7 +2125,6 @@ Case "sReturnVoid".
     SSCase "1.2".
       exists l2. exists ps2. exists (cs2'++[c']).
       simpl_env. auto.
-Unfocus.
 
 Focus.
 Case "sBranch".
@@ -2167,7 +2167,6 @@ Case "sBranch".
 
       exists (if isGVZero (los, nts) c then l2 else l1). 
       exists ps'. exists nil. simpl_env. auto.
-Unfocus.
 
 Focus.
 Case "sBranch_uncond".
@@ -2207,7 +2206,6 @@ Case "sBranch_uncond".
       destruct cs'; rewrite <- HeqR1; auto.
 
       exists l0. exists ps'. exists nil. simpl_env. auto.
-Unfocus.
 
 Case "sBop".
   abstract (eapply preservation_cmd_updated_case in HwfS1; simpl;
@@ -2237,7 +2235,6 @@ Focus.
     rewrite J in J2. inv J2.
     eapply getOperandValue__wf_gvs in H; eauto.
     eapply extractGenericValue__wf_gvs; eauto.
-Unfocus.
 
 Case "sInsertValue".
   eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
@@ -2392,8 +2389,6 @@ Case "sCall".
   SCase "3".
     simpl. intros b HbInBs. destruct b as [? [? ? t]].
     destruct t; auto.
-
-Unfocus.
 
 Case "sExCall".
   match goal with
@@ -2734,7 +2729,6 @@ Proof.
         apply wf_defs_elim with (id1:=vid) in Hinscope; auto.
         destruct Hinscope as [? [? [gv1 [? [Hinscope ?]]]]].
         exists gv1. auto.
-        Unfocus.
 
       destruct J1 as [gv1 J1].
       simpl. rewrite J1.
