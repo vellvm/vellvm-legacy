@@ -1,4 +1,18 @@
 ===========================================================================
+                            UPDATE 8/14
+===========================================================================
+
+This is a "sanitized" copy of the original Vellvm repo, not including
+publication sources, experiment results, and code and benchmarks that we
+don't have the right to redistribute. It is missing several dependencies
+and modified versions of third party code (e.g. the compcert memory model)
+and will not compile. The intention is to preserve the commit history and
+comments of the original development, and possibly to provide a starting 
+point for future versions of the project.
+
+See clone.sh for the git-svn command used to create this repo.
+
+===========================================================================
                         GENERAL DESCRIPTION
 ===========================================================================
 
