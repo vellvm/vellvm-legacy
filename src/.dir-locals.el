@@ -8,10 +8,11 @@
                                 ,(pre "Vellvm/ott")
                                 ,(pre "Vellvm/Dominators")
                                 ,(pre "../lib/compcert")
+                                ,(pre "../lib/cpdt")
                                 ,(pre "../lib/GraphBasics")
                                 ,(pre "../lib/metatheory_8.4")
                                 ,(pre "../lib/Coq-Equations-8.4-1/src")
-                                (rec ,(pre "../extralibs/Coq-Equations-8.4-1/theories") "Equations")))))
+                                (rec ,(pre "../lib/Coq-Equations-8.4-1/theories") "Equations")))))
               (coq-prog-args . ("-emacs-U"
                                 "-impredicative-set")))))
                                       

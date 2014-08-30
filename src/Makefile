@@ -5,8 +5,8 @@ OCAMLBUILD_OPT=-no-hygiene -no-links -j 0 -build-dir _build \
   -cflags -g,-I,$(LLVM_OCAML_LIB),-I,$(EXTRACTION_LIB) \
   -lflags -g,-I,$(LLVM_OCAML_LIB),-I,$(EXTRACTION_LIB),-cclib,-lffi,-cclib,-L$(LLVM_LIB)
 
-COQLIBS=-I Vellvm/ -I Vellvm/ott -I Vellvm/compcert -I Vellvm/Dominators \
-	-I $(LIB)/GraphBasics -I $(LIB)/compcert \
+COQLIBS=-I Vellvm -I Vellvm/ott -I Vellvm/Dominators \
+	-I $(LIB)/GraphBasics -I $(LIB)/compcert -I $(LIB)/cpdt \
 	-I $(METALIB) -R $(EQUATIONS)/theories Equations -I $(EQUATIONS)/src
 MAKECOQ=make -f Makefile.coq COQLIBS="$(COQLIBS)"
 

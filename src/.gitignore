@@ -1,0 +1,9 @@
+**.vo
+**.v.d
+**.glob
+
+/src/Vellvm/syntax_base.v
+/src/Vellvm/typing_rules.v
+
+/lib/*
+

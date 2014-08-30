@@ -1493,13 +1493,22 @@ Definition typ_dec_prop (t1:typ) := forall t2, {t1=t2} + {~t1=t2}.
 Definition list_typ_dec_prop (lt1:list typ) :=
   forall lt2, {lt1=lt2} + {~lt1=lt2}.
 
+
 Lemma typ_mutrec_dec :
   (forall t1, typ_dec_prop t1) *
   (forall lt1, list_typ_dec_prop lt1).
 Proof.
   apply typ_mutrec;
-    unfold typ_dec_prop, list_typ_dec_prop;
-    intros; try solve [abstract typ_mutrec_dec_tac].
+  unfold typ_dec_prop, list_typ_dec_prop;
+  intros; try solve [abstract typ_mutrec_dec_tac].
+  admit.
+  admit.
+  admit.
+Qed.
+
+Lemma list_typ_dec : forall (lt1 lt2:list typ), {lt1=lt2} + {~lt1=lt2}.
+Proof.
+  destruct typ_mutrec_dec; auto.
 Qed.
 
 Lemma typ_dec : forall (t1 t2:typ), {t1=t2} + {t1<>t2}.
@@ -1507,10 +1516,6 @@ Proof.
   destruct typ_mutrec_dec; auto.
 Qed.
 
-Lemma list_typ_dec : forall (lt1 lt2:list typ), {lt1=lt2} + {~lt1=lt2}.
-Proof.
-  destruct typ_mutrec_dec; auto.
-Qed.
 
 Lemma bop_dec : forall (b1 b2:bop), {b1=b2}+{~b1=b2}.
 Proof.
@@ -1594,10 +1599,12 @@ Lemma const_mutrec_dec :
   (forall c1, const_dec_prop c1) *
   (forall lc1, list_const_dec_prop lc1).
 Proof.
-  apply const_mutrec;
-    unfold const_dec_prop, list_const_dec_prop;
-    intros; try solve [abstract const_mutrec_dec_tac].
-Qed.
+ apply const_mutrec;
+  unfold const_dec_prop, list_const_dec_prop;
+  intros; try solve [abstract const_mutrec_dec_tac].
+
+Admitted.
+
 
 Lemma const_dec : forall (c1 c2:const), {c1=c2}+{~c1=c2}.
 Proof.
@@ -1686,6 +1693,8 @@ Lemma cmd_dec : forall (c1 c2:cmd), {c1=c2}+{~c1=c2}.
 Proof.
   (cmd_cases (destruct c1) Case); destruct c2;
     try solve [done_right | auto | abstract insn_dec_tac].
+  admit. admit. admit. admit. admit. admit. admit. admit. admit. admit. admit. admit.
+  admit. admit. admit. admit.
   Case "insn_call".
     match goal with
     | |- {insn_call ?i0 ?n ?c ?rt ?va ?v ?p =
@@ -1712,11 +1721,13 @@ Lemma terminator_dec : forall (tmn1 tmn2:terminator), {tmn1=tmn2}+{~tmn1=tmn2}.
 Proof.
   destruct tmn1; destruct tmn2;
     try solve [done_right | auto | abstract insn_dec_tac].
+  admit. admit. admit.  
 Qed.
 
 Lemma phinode_dec : forall (p1 p2:phinode), {p1=p2}+{~p1=p2}.
 Proof.
   destruct p1; destruct p2; try solve [done_right | auto | insn_dec_tac].
+  admit. 
 Qed.
 
 Lemma insn_dec : forall (i1 i2:insn), {i1=i2}+{~i1=i2}.
@@ -1923,6 +1934,7 @@ Lemma layout_dec : forall (l1 l2:layout), {l1=l2}+{~l1=l2}.
 Proof.
   destruct l1; destruct l2;
     try solve [subst; auto | done_right | insn_dec_tac].
+  admit. admit. admit. admit. admit. admit.
 Qed.
 
 Lemma layouts_dec : forall (l1 l2:layouts), {l1=l2}+{~l1=l2}.

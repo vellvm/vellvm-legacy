@@ -1,7 +1,5 @@
 -impredicative-set
 
-./Vellvm/monads/monad.v
-
 ./Vellvm/ott/ott_list_base.v
 ./Vellvm/ott/ott_list_core.v
 ./Vellvm/ott/ott_list_distinct.v
@@ -15,9 +13,8 @@
 ./Vellvm/ott/ott_list_takedrop.v
 ./Vellvm/ott/ott_list.v
 
-./Vellvm/tactics.v
-./Vellvm/trace.v
 ./Vellvm/analysis.v
+./Vellvm/datatype_base.v
 ./Vellvm/dopsem.v
 ./Vellvm/events.v
 ./Vellvm/external_intrinsics.v
@@ -28,6 +25,7 @@
 ./Vellvm/infrastructure.v
 ./Vellvm/interpreter.v
 ./Vellvm/memory_sim.v
+./Vellvm/monad.v
 ./Vellvm/ndopsem.v
 ./Vellvm/opsem_dom.v
 ./Vellvm/opsem_inst.v
@@ -35,11 +33,12 @@
 ./Vellvm/opsem.v
 ./Vellvm/opsem_wf.v
 ./Vellvm/static.v
-./Vellvm/datatype_base.v
 ./Vellvm/syntax_base.v
 ./Vellvm/syntax.v
+./Vellvm/tactics.v
 ./Vellvm/targetdata_props.v
 ./Vellvm/targetdata.v
+./Vellvm/trace.v
 ./Vellvm/typing_rules.v
 ./Vellvm/typings_props.v
 ./Vellvm/typings.v
@@ -54,7 +53,6 @@
 ./Vellvm/Dominators/dfs.v
 ./Vellvm/Dominators/pull_iter.v
 ./Vellvm/Dominators/push_iter.v
-./Vellvm/Dominators/cpdt_tactics.v
 ./Vellvm/Dominators/dom_set.v
 ./Vellvm/Dominators/cfg.v
 ./Vellvm/Dominators/reach.v
