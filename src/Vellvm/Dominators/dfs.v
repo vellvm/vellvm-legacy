@@ -353,7 +353,7 @@ Qed.
    automatically generates obligations to solve. Using dfs_aux_tmn, dfs defines 
    the final definition of DFS.
 *)
-Require Import cpdt_tactics.
+Require Import CpdtTactics.
 
 Program Fixpoint dfs_aux_terminates (succs: ATree.t ls)
   (visited: ATree.t unit) (po:PostOrder) (stk: list Frame) 

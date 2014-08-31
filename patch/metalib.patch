@@ -1,0 +1,258 @@
+diff -ru lib/metalib-20090714/AssocList.v lib.patched/metalib-20090714/AssocList.v
+--- lib/metalib-20090714/AssocList.v	2009-06-25 13:03:02.000000000 -0400
++++ lib.patched/metalib-20090714/AssocList.v	2014-08-30 00:29:29.629588111 -0400
+@@ -206,7 +206,7 @@
+ 
+   Lemma in_one_iff :
+     List.In x (one y) <-> x = y.
+-  Proof. clear. split. inversion 1; intuition. constructor; intuition. Qed.
++  Proof. clear. split. inversion 1; intuition. contradiction. constructor; intuition. Qed.
+ 
+   Lemma in_app_iff :
+     List.In x (l1 ++ l2) <-> List.In x l1 \/ List.In x l2.
+@@ -629,12 +629,12 @@
+   Lemma binds_one_1 :
+     binds x a (y ~ b) ->
+     x = y.
+-  Proof. clear. intros H. inversion H; intuition congruence. Qed.
++  Proof. clear. inversion 1. intuition congruence. contradiction. Qed.
+ 
+   Lemma binds_one_2 :
+     binds x a (y ~ b) ->
+     a = b.
+-  Proof. clear. intros H. inversion H; intuition congruence. Qed.
++  Proof. clear. inversion 1. intuition congruence. contradiction. Qed.
+ 
+   Lemma binds_one_3 :
+     x = y ->
+diff -ru lib/metalib-20090714/AssumeList.v lib.patched/metalib-20090714/AssumeList.v
+--- lib/metalib-20090714/AssumeList.v	2009-07-02 16:43:10.000000000 -0400
++++ lib.patched/metalib-20090714/AssumeList.v	2014-08-30 00:29:29.629588111 -0400
+@@ -650,12 +650,12 @@
+     Lemma binds_one_1 :
+       binds x a (one (VarAsn B y b)) ->
+       x = y.
+-    Proof. clear. intros H1. inversion H1; intuition congruence. Qed.
++    Proof. clear. inversion 1; [congruence | contradiction]. Qed.
+ 
+     Lemma binds_one_2 :
+       binds x a (one (VarAsn B y b)) ->
+       a = b.
+-    Proof. clear. intros H1. inversion H1; intuition congruence. Qed.
++    Proof. clear. inversion 1; [congruence | contradiction]. Qed.
+ 
+     Lemma binds_one_iff :
+       binds x a (one (VarAsn B y b)) <-> x = y /\ a = b.
+diff -ru lib/metalib-20090714/CoqEqDec.v lib.patched/metalib-20090714/CoqEqDec.v
+--- lib/metalib-20090714/CoqEqDec.v	2009-06-23 13:49:50.000000000 -0400
++++ lib.patched/metalib-20090714/CoqEqDec.v	2014-08-30 00:29:29.629588111 -0400
+@@ -25,22 +25,22 @@
+ 
+ (** The [EqDec] class is defined in Coq's standard library. *)
+ 
+-Lemma equiv_reflexive' : forall `{EqDec A} (x : A),
++Lemma equiv_reflexive' : forall (A : Type) `{EqDec A} (x : A),
+   x === x.
+ Proof. intros. apply equiv_reflexive. Qed.
+ 
+-Lemma equiv_symmetric' : forall `{EqDec A} (x y : A),
++Lemma equiv_symmetric' : forall (A : Type) `{EqDec A} (x y : A),
+   x === y ->
+   y === x.
+ Proof. intros. apply equiv_symmetric; assumption. Qed.
+ 
+-Lemma equiv_transitive' : forall `{EqDec A} (x y z : A),
++Lemma equiv_transitive' : forall (A : Type) `{EqDec A} (x y z : A),
+   x === y ->
+   y === z ->
+   x === z.
+ Proof. intros. eapply @equiv_transitive; eassumption. Qed.
+ 
+-Lemma equiv_decidable : forall `{EqDec A} (x y : A),
++Lemma equiv_decidable : forall (A : Type) `{EqDec A} (x y : A),
+   decidable (x === y).
+ Proof. intros. unfold decidable. destruct (x == y); auto. Defined.
+ 
+@@ -73,5 +73,5 @@
+ Class EqDec_eq (A : Type) :=
+   eq_dec : forall (x y : A), {x = y} + {x <> y}.
+ 
+-Instance EqDec_eq_of_EqDec `(@EqDec A eq eq_equivalence) : EqDec_eq A.
++Instance EqDec_eq_of_EqDec (A : Type) `(@EqDec A eq eq_equivalence) : EqDec_eq A.
+ Proof. trivial. Defined.
+diff -ru lib/metalib-20090714/CoqFSetInterface.v lib.patched/metalib-20090714/CoqFSetInterface.v
+--- lib/metalib-20090714/CoqFSetInterface.v	2009-06-05 16:55:23.000000000 -0400
++++ lib.patched/metalib-20090714/CoqFSetInterface.v	2014-08-30 00:29:29.629588111 -0400
+@@ -280,7 +280,7 @@
+ 
+ Module Type WS.
+   Declare Module E : DecidableType.
+-  Include Type WSfun E.
++  Include WSfun E.
+ End WS.
+ 
+ 
+@@ -291,7 +291,7 @@
+     and some stronger specifications for other functions. *)
+ 
+ Module Type Sfun (E : OrderedType).
+-  Include Type WSfun E.
++  Include WSfun E.
+ 
+   Parameter lt : t -> t -> Prop.
+   Parameter compare : forall s s' : t, Compare lt eq s s'.
+@@ -354,7 +354,7 @@
+ 
+ Module Type S.
+   Declare Module E : OrderedType.
+-  Include Type Sfun E.
++  Include Sfun E.
+ End S.
+ 
+ 
+diff -ru lib/metalib-20090714/CoqListFacts.v lib.patched/metalib-20090714/CoqListFacts.v
+--- lib/metalib-20090714/CoqListFacts.v	2009-06-10 11:53:56.000000000 -0400
++++ lib.patched/metalib-20090714/CoqListFacts.v	2014-08-30 00:29:29.629588111 -0400
+@@ -9,6 +9,7 @@
+ 
+ Require Import Coq.Lists.List.
+ Require Import Coq.Lists.SetoidList.
++Require Import Coq.Classes.RelationClasses.
+ 
+ Require Import CoqUniquenessTac.
+ 
+@@ -126,7 +127,10 @@
+ 
+ Lemma InA_iff_In : forall (A : Type) (x : A) (xs : list A),
+   InA (@eq _) x xs <-> In x xs.
+-Proof. split; auto using InA_In, SetoidList.In_InA. Qed.
++Proof. 
++  split; auto using InA_In. 
++  apply SetoidList.In_InA. apply eq_equivalence.
++Qed.
+ 
+ (** Whether a list is sorted is a decidable proposition. *)
+ 
+@@ -186,7 +190,9 @@
+     intros xs ys ? ? ?.
+     cut (eqlistA (@eq _) xs ys).
+     auto using eqlist_eq.
+-    eauto using trans_eq, SetoidList.SortA_equivlistA_eqlistA.
++    apply SetoidList.SortA_equivlistA_eqlistA with (ltA := ltA); eauto.
++      apply eq_equivalence. firstorder.
++      reduce. subst. split; auto.
+   Qed.
+ 
+   Lemma Sort_In_eq : forall xs ys,
+@@ -197,7 +203,8 @@
+   Proof with auto using In_InA, InA_In.
+     intros ? ? ? ? H.
+     apply Sort_InA_eq...
+-    intros a; specialize (H a); intuition...
++    intros a; specialize (H a).
++    split; intros; apply In_InA; intuition...
+   Qed.
+ 
+ End SortedListEquality.
+diff -ru lib/metalib-20090714/CoqUniquenessTac.v lib.patched/metalib-20090714/CoqUniquenessTac.v
+--- lib/metalib-20090714/CoqUniquenessTac.v	2009-06-23 13:49:50.000000000 -0400
++++ lib.patched/metalib-20090714/CoqUniquenessTac.v	2014-08-30 00:29:29.629588111 -0400
+@@ -42,9 +42,9 @@
+   : res.
+ (* begin show *)
+ Proof.
+-  induction xs as [ | ? ? IH ]; simpl; intros res f arg.
++  induction xs as [ | ? ? IH ]; simpl.
+   exact f.
+-  exact (IH res (f (fst arg)) (snd arg)).
++  exact (IH (f (fst arg)) (snd arg)).
+ Defined.
+ (* end show *)
+ 
+@@ -75,9 +75,10 @@
+   : tuple (tr_list_rev xs acc).
+ (* begin show *)
+ Proof.
+-  induction xs as [ | ? ? IH ]; simpl; intros ab acc acc'.
++  generalize dependent acc.
++  induction xs as [ | ? ? IH ]; simpl; intros acc acc'.
+   exact acc'.
+-  exact (IH (snd ab) (cons a acc) (fst ab, acc')).
++  exact (IH (snd ab) (a :: acc) (fst ab, acc')).
+ Defined.
+ (* end show *)
+ 
+diff -ru lib/metalib-20090714/.depend lib.patched/metalib-20090714/.depend
+--- lib/metalib-20090714/.depend	2009-07-14 16:36:49.000000000 -0400
++++ lib.patched/metalib-20090714/.depend	2014-08-30 00:29:29.629588111 -0400
+@@ -1,22 +1,22 @@
+-AssocList.vo: AssocList.v CoqFSetDecide.vo CoqListFacts.vo LibTactics.vo
+-CoqEqDec.vo: CoqEqDec.v
+-CoqFSetDecide.vo: CoqFSetDecide.v
+-CoqFSetInterface.vo: CoqFSetInterface.v
+-CoqListFacts.vo: CoqListFacts.v CoqUniquenessTac.vo
+-CoqUniquenessTac.vo: CoqUniquenessTac.v
+-CoqUniquenessTacEx.vo: CoqUniquenessTacEx.v CoqUniquenessTac.vo
+-FSetExtra.vo: FSetExtra.v CoqFSetInterface.vo
+-FSetWeakNotin.vo: FSetWeakNotin.v CoqFSetDecide.vo
+-LibDefaultSimp.vo: LibDefaultSimp.v
+-LibLNgen.vo: LibLNgen.v LibDefaultSimp.vo Metatheory.vo
+-LibTactics.vo: LibTactics.v
+-MetatheoryAtom.vo: MetatheoryAtom.v CoqFSetDecide.vo CoqListFacts.vo FSetExtra.vo FSetWeakNotin.vo LibTactics.vo
+-Metatheory.vo: Metatheory.v AssocList.vo CoqEqDec.vo CoqListFacts.vo LibTactics.vo MetatheoryAtom.vo
+-AssumeList.vo: AssumeList.v CoqFSetDecide.vo CoqListFacts.vo LibTactics.vo MetatheoryAtom.vo
+-MetatheoryAlt.vo: MetatheoryAlt.v CoqEqDec.vo CoqListFacts.vo LibTactics.vo MetatheoryAtom.vo AssumeList.vo
+-Fsub_LetSum_Definitions.vo: Fsub_LetSum_Definitions.v Metatheory.vo
+-Fsub_LetSum_Infrastructure.vo: Fsub_LetSum_Infrastructure.v Fsub_LetSum_Definitions.vo
+-Fsub_LetSum_Lemmas.vo: Fsub_LetSum_Lemmas.v Fsub_LetSum_Infrastructure.vo
+-Fsub_LetSum_Soundness.vo: Fsub_LetSum_Soundness.v Fsub_LetSum_Lemmas.vo
+-CoqIntro.vo: CoqIntro.v
+-STLCsol.vo: STLCsol.v Metatheory.vo
++AssocList.vo AssocList.glob AssocList.v.beautified: AssocList.v CoqFSetDecide.vo CoqListFacts.vo LibTactics.vo
++CoqEqDec.vo CoqEqDec.glob CoqEqDec.v.beautified: CoqEqDec.v
++CoqFSetDecide.vo CoqFSetDecide.glob CoqFSetDecide.v.beautified: CoqFSetDecide.v
++CoqFSetInterface.vo CoqFSetInterface.glob CoqFSetInterface.v.beautified: CoqFSetInterface.v
++CoqListFacts.vo CoqListFacts.glob CoqListFacts.v.beautified: CoqListFacts.v CoqUniquenessTac.vo
++CoqUniquenessTac.vo CoqUniquenessTac.glob CoqUniquenessTac.v.beautified: CoqUniquenessTac.v
++CoqUniquenessTacEx.vo CoqUniquenessTacEx.glob CoqUniquenessTacEx.v.beautified: CoqUniquenessTacEx.v CoqUniquenessTac.vo
++FSetExtra.vo FSetExtra.glob FSetExtra.v.beautified: FSetExtra.v CoqFSetInterface.vo
++FSetWeakNotin.vo FSetWeakNotin.glob FSetWeakNotin.v.beautified: FSetWeakNotin.v CoqFSetDecide.vo
++LibDefaultSimp.vo LibDefaultSimp.glob LibDefaultSimp.v.beautified: LibDefaultSimp.v
++LibLNgen.vo LibLNgen.glob LibLNgen.v.beautified: LibLNgen.v LibDefaultSimp.vo Metatheory.vo
++LibTactics.vo LibTactics.glob LibTactics.v.beautified: LibTactics.v
++MetatheoryAtom.vo MetatheoryAtom.glob MetatheoryAtom.v.beautified: MetatheoryAtom.v CoqFSetDecide.vo CoqListFacts.vo FSetExtra.vo FSetWeakNotin.vo LibTactics.vo
++Metatheory.vo Metatheory.glob Metatheory.v.beautified: Metatheory.v AssocList.vo CoqEqDec.vo CoqListFacts.vo LibTactics.vo MetatheoryAtom.vo
++AssumeList.vo AssumeList.glob AssumeList.v.beautified: AssumeList.v CoqFSetDecide.vo CoqListFacts.vo LibTactics.vo MetatheoryAtom.vo
++MetatheoryAlt.vo MetatheoryAlt.glob MetatheoryAlt.v.beautified: MetatheoryAlt.v CoqEqDec.vo CoqListFacts.vo LibTactics.vo MetatheoryAtom.vo AssumeList.vo
++Fsub_LetSum_Definitions.vo Fsub_LetSum_Definitions.glob Fsub_LetSum_Definitions.v.beautified: Fsub_LetSum_Definitions.v Metatheory.vo
++Fsub_LetSum_Infrastructure.vo Fsub_LetSum_Infrastructure.glob Fsub_LetSum_Infrastructure.v.beautified: Fsub_LetSum_Infrastructure.v Fsub_LetSum_Definitions.vo
++Fsub_LetSum_Lemmas.vo Fsub_LetSum_Lemmas.glob Fsub_LetSum_Lemmas.v.beautified: Fsub_LetSum_Lemmas.v Fsub_LetSum_Infrastructure.vo
++Fsub_LetSum_Soundness.vo Fsub_LetSum_Soundness.glob Fsub_LetSum_Soundness.v.beautified: Fsub_LetSum_Soundness.v Fsub_LetSum_Lemmas.vo
++CoqIntro.vo CoqIntro.glob CoqIntro.v.beautified: CoqIntro.v
++STLCsol.vo STLCsol.glob STLCsol.v.beautified: STLCsol.v Metatheory.vo
+Only in lib/metalib-20090714/doc: changes.html
+Only in lib/metalib-20090714/doc: css
+Only in lib/metalib-20090714/doc: html
+Only in lib/metalib-20090714/doc: index.html
+Only in lib/metalib-20090714/doc: logo.gif
+diff -ru lib/metalib-20090714/MetatheoryAtom.v lib.patched/metalib-20090714/MetatheoryAtom.v
+--- lib/metalib-20090714/MetatheoryAtom.v	2009-06-24 23:33:54.000000000 -0400
++++ lib.patched/metalib-20090714/MetatheoryAtom.v	2014-08-30 00:29:29.629588111 -0400
+@@ -10,7 +10,7 @@
+ Require Import Coq.Arith.Max.
+ Require Import Coq.Classes.EquivDec.
+ Require Import Coq.Lists.List.
+-Require Import Coq.Logic.DecidableTypeEx.
++Require Import Coq.Structures.DecidableTypeEx.
+ 
+ Require Import CoqFSetDecide.
+ Require Import CoqListFacts.
+@@ -107,6 +107,8 @@
+ Instance EqDec_atom : @EqDec atom eq eq_equivalence.
+ Proof. exact eq_atom_dec. Defined.
+ 
++Instance EqDec_nat : @EqDec nat eq eq_equivalence.
++Proof. exact eq_nat_dec. Defined.
+ 
+ (* ********************************************************************** *)
+ (** * Finite sets of atoms *)

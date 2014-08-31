@@ -1,0 +1,1114 @@
+diff -ruN lib/Coq-Equations-8.4/doc/equations.tex lib.patched/Coq-Equations-8.4-1/doc/equations.tex
+--- lib/Coq-Equations-8.4/doc/equations.tex	2014-01-17 13:10:26.000000000 -0500
++++ lib.patched/Coq-Equations-8.4-1/doc/equations.tex	2014-08-30 00:29:29.619588295 -0400
+@@ -9,13 +9,11 @@
+ \usepackage{natbib}
+ \usepackage{minitoc}
+ \usepackage{utf}
++\usepackage{utf}
+ 
+-% \makeatletter
+-% \renewcommand{\tableofcontents}{\noindent\@starttoc{toc}}
+-% \makeatother
+-
+-\usepackage{code}
+-\usepackage{coq}
++\makeatletter
++\renewcommand{\tableofcontents}{\noindent\@starttoc{toc}}
++\makeatother
+ 
+ \author{\myname}
+ \date{\today}
+diff -ruN lib/Coq-Equations-8.4/doc/manual.tex lib.patched/Coq-Equations-8.4-1/doc/manual.tex
+--- lib/Coq-Equations-8.4/doc/manual.tex	2014-01-17 13:10:26.000000000 -0500
++++ lib.patched/Coq-Equations-8.4-1/doc/manual.tex	2014-08-30 00:29:29.619588295 -0400
+@@ -1,40 +0,0 @@
+-\section{Vernacular Commands}
+-
+-\subsection{Derive}
+-
+-\Equations comes with a suite of deriving commands that take inductive
+-families and generate definitions based on them. The common syntax for
+-these is:
+-
+-\begin{verbatim}
+-Derive C for Ind.
+-\end{verbatim}
+-
+-Which will (try to) generate an instance of type class \ind{C} on
+-inductive type \ind{Ind}. We assume $\ind{C} : Π Δ. s$.
+-The derivations provided by \Equations are:
+-
+-\begin{itemize}
+-\item \ind{DependentEliminationPackage}
+-\item \ind{Signature}
+-\item \ind{NoConfusion}
+-\item \ind{Equality}. 
+-  This derives a decidable equality on $C$, assuming decidable equality 
+-  instances for the parameters and supposing any primitive inductive
+-  type used in the definition also has decidable equality. If
+-  successful it generates an instance of the class:
+-\begin{verbatim}
+-Class EqDec (A : Type) :=
+-  eq_dec : forall x y : A, { x = y } + { x <> y }.
+-\end{verbatim}
+-  
+-\item \ind{Subterm}
+-\end{itemize}
+-
+-
+-
+-%%% Local Variables: 
+-%%% mode: latex
+-%%% TeX-master: "equations"
+-%%% TeX-PDF-mode: t
+-%%% End: 
+diff -ruN lib/Coq-Equations-8.4/examples/lf.v lib.patched/Coq-Equations-8.4-1/examples/lf.v
+--- lib/Coq-Equations-8.4/examples/lf.v	2014-01-17 13:10:26.000000000 -0500
++++ lib.patched/Coq-Equations-8.4-1/examples/lf.v	2014-08-30 00:29:29.619588295 -0400
+@@ -248,21 +248,66 @@
+ 
+ Hint Constructors value : term.
+ 
++Inductive eval_context : Set :=
++| eval_hole
++| eval_app_left : term -> eval_context -> eval_context
++| eval_app_right (c : eval_context) (u : term) : value u -> eval_context
++| eval_fst (t : eval_context) : eval_context
++| eval_snd (t : eval_context) : eval_context.
++
++Equations apply_context (e : eval_context) (t : term) : term :=
++apply_context eval_hole t := t ;
++apply_context (eval_app_left t c) u := @(t, apply_context c u) ;
++apply_context (eval_app_right c t _) u := @(apply_context c t, u) ;
++apply_context (eval_fst c) t := Fst (apply_context c t) ;
++apply_context (eval_snd c) t := Snd (apply_context c t).
++
+ Inductive reduce_congr : relation term :=
+ | reduce1 t u : reduce t u -> reduce_congr t u
+-| reduce_app_l t t' u : reduce_congr t t' -> 
+-  reduce_congr (@(t, u)) (@(t', u))
+-| reduce_app_r t u u' : reduce_congr u u' -> 
+-  reduce_congr (@(t, u)) (@(t, u'))
+-| reduce_pair_l t t' u : reduce_congr t t' -> 
+-  reduce_congr (<< t, u >>) (<< t', u >>)
+-| reduce_pair_r t u u' : reduce_congr u u' ->
+-  reduce_congr (<< t, u >>) (<< t, u' >>)
++| reduce_app t t' u u' : reduce_congr t t' -> reduce_congr u u' ->
++  reduce_congr (@(t, u)) (@(t', u'))
++| reduce_pair t t' u u' : reduce_congr t t' -> reduce_congr u u' ->
++  reduce_congr (<< t, u >>) (<< t', u' >>)
+ | reduce_fst t t' : reduce_congr t t' -> reduce_congr (Fst t) (Fst t')
+-| reduce_snd t t' : reduce_congr t t' -> reduce_congr (Snd t) (Snd t').
++| reduce_snd t t' : reduce_congr t t' -> reduce_congr (Snd t) (Snd t')
++.
++
++(*
++Obligation Tactic := auto with term.
++
++Equations find_redex (t : term) : (eval_context * term) + { value t } :=
++find_redex (Var i) := inright _ ;
++find_redex (App t u) with find_redex u := {
++  | inright vu with find_redex t := {
++    | inright (val_lambda t') := inleft (eval_hole, @(Lambda t', u)) ;
++    | inright vt := inright _ ;
++    | inleft (pair c t') := inleft (eval_app_right c u vu, t') } ;
++  | inleft (pair c u') := inleft (eval_app_left t c, u') } ;
++find_redex (Lambda t) := inright _ ;
++find_redex (Pair t u) := inright _ ;
++find_redex (Fst t) with find_redex t := {
++  | inleft (pair c t') := inleft (eval_fst c, t') ;
++  | inright vt := inleft (eval_hole, Fst t) } ;
++find_redex (Snd t) with find_redex t := {
++  | inleft (pair c t') := inleft (eval_snd c, t') ;
++  | inright vt := inleft (eval_hole, Snd t) } ;
++find_redex Tt := inright _.
++
++*)
+ 
+ Derive NoConfusion for term type.
+ 
++(* Remark *)
++Instance: Irreflexive reduce.
++Proof. intros x H. depind H.
++  induction t; simp subst in H; try discriminate.
++  destruct (nat_compare_spec n 0). subst.
++  simp subst lift in H. admit.
++  absurd omega. simp subst in H. destruct n; discriminate.
++  noconf H. admit.
++  admit. admit.
++Qed.
++
+ Ltac find_empty := 
+   match goal with 
+       [ H : _ |- _ ] => solve [ depelim H ]
+@@ -290,30 +335,6 @@
+ 
+ Lemma subject_reduction Γ t τ : Γ |-- t : τ → forall u, t -->* u → Γ |-- u : τ.
+ Proof. induction 2; eauto using preserves_red1. Qed.
+-Hint Constructors reduce reduce_congr : term.
+-Lemma progress_ t τ : nil |-- t : τ → (exists t', reduce_congr t t') \/ value t.
+-Proof.
+-  intros H; depind H; auto with term.
+-
+-  destruct IHtypes1 as [[t' tt']|vt].
+-  left; eauto with term.
+-  destruct IHtypes2 as [[u' uu']|vu].
+-  left; eauto with term.
+-  depelim vt; depelim H. depelim H.
+-  left. exists ([u]t). eauto with term. 
+-
+-
+-  destruct IHtypes1 as [[t' tt']|vt]; eauto with term.
+-  destruct IHtypes2 as [[u' uu']|vu]; eauto with term.
+-
+-  destruct IHtypes as [[t' tt']|vt]; eauto with term.
+-  depelim vt; depelim H;
+-  eauto with term. depelim H.
+-
+-  destruct IHtypes as [[t' tt']|vt]; eauto with term.
+-  depelim vt; depelim H;
+-  eauto with term. depelim H.
+-Qed.
+ 
+ Reserved Notation " Γ |-- t => A " (at level 70, t, A at next level).
+ Reserved Notation " Γ |-- t <= A " (at level 70, t, A at next level).
+@@ -470,7 +491,6 @@
+ Instance wf_nat : WellFounded lt := lt_wf.
+ 
+ Derive Subterm for term.
+-Hint Constructors lexprod : subterm_relation.
+ 
+ Require Import Lexicographic_Product.
+ 
+@@ -497,8 +517,6 @@
+ Definition her_order : relation (type * term * term) :=
+   lexicographic (lexicographic type_subterm term_subterm) term_subterm.  
+ 
+-Hint Unfold her_order lexicographic : subterm_relation.
+-
+ Obligation Tactic := program_simpl.
+ 
+ (* Ltac solve_rec ::= idtac. *)
+@@ -538,13 +556,8 @@
+   apply IHl. auto with arith.
+ Qed.
+ 
+-Definition her_type (t : type * term * term) :=
+-  let u' := fst (fst t) in
+-   { u : type | u = u' \/ type_subterm u u' }.
+-(* { u : type | u = (fst (fst t)) \/ type_subterm u (fst (fst t)) }  := *)
+-
+ Equations hereditary_subst (t : type * term * term) (k : nat) :
+-  term * option (her_type t) :=
++  term * option { u : type | u = (fst (fst t)) \/ type_subterm u (fst (fst t)) }  :=
+ hereditary_subst t k by rec t her_order :=
+ 
+ hereditary_subst (pair (pair A a) t) k with t := {
+@@ -591,96 +604,36 @@
+   | Tt := (Tt, None) }.
+ 
+ (* Next Obligation. intros. simpl. auto. Defined.  *)
+-Solve Obligations using 
+-   unfold her_type;
+-   intros; apply hereditary_subst; constructor 2; do 2 constructor.
++Solve Obligations using intros; apply hereditary_subst; constructor 2; constructor.
+ 
+-Remove Hints t_step : subterm_relation.
+-Remove Hints clos_trans_stepr : subterm_relation.
+-
+-Ltac apply_step :=
+-  match goal with 
+-    |- clos_trans ?A ?R ?x ?y => not_evar y; eapply t_step
+-  end.
+-Hint Extern 30 (clos_trans _ _ _ _) => apply_step : subterm_relation.
+-
+-Lemma clos_trans_inv {A} R (x y z : A) :
+-  clos_trans A R y z → clos_trans A R x y → clos_trans A R x z.
+-Proof. eauto using t_trans. Qed.
+-
+-Ltac apply_transitivity :=
+-  match goal with 
+-    |- clos_trans ?A ?R ?x ?y => 
+-    not_evar x; not_evar y; eapply clos_trans_inv
+-  end.
+-Hint Extern 30 (clos_trans _ _ _ _) => apply_transitivity : subterm_relation.
+-
+-Next Obligation. 
+-  apply hereditary_subst. destruct prf; subst; eauto 10 with subterm_relation.
++Next Obligation. intros. apply hereditary_subst.
++  destruct prf. simpl in *. subst. repeat constructor.
++  simpl in t0. do 2 constructor 1. apply type_direct_subterm_0_0 with (A' ---> B'); eauto using type_direct_subterm.
+ Defined.
+ 
+-Hint Unfold her_type : subterm_relation.
+-
+-Solve Obligations using unfold her_type;
+-      simpl; intros; 
+-      match goal with 
+-        |- _ \/ _ => intuition (subst; eauto 7 with subterm_relation)
+-      end.
++Next Obligation. simpl; intros.
++  destruct prf. subst. right. constructor.
++  right. apply type_direct_subterm_0_0 with (A' ---> B'); eauto using type_direct_subterm.
++Defined.
+ 
+-Hint Unfold const : subterm_relation.
++(* Next Obligation. intros. apply hereditary_subst.   *)
++(*   destruct prf. simpl in H. subst. repeat constructor. *)
++(*   simpl in H. do 2 constructor 1. apply type_direct_subterm_0_0 with (A' ---> B'); eauto using type_direct_subterm. *)
++(* Defined. *)
++
++Next Obligation. simpl; intros. 
++  destruct prf. subst. right. constructor. 
++  right. apply type_direct_subterm_0_0 with (a0 × b); eauto using type_direct_subterm.
++Defined.
+ 
++Next Obligation. simpl; intros. 
++  destruct prf. subst. right. constructor. 
++  right. apply type_direct_subterm_0_0 with (a0 × b); eauto using type_direct_subterm.
++Defined.
+ Solve All Obligations.
+-Ltac autoh :=
+-  unfold type_subterm in * ; try typeclasses eauto with hereditary_subst subterm_relation.
+-Ltac simph := 
+-  try (rewrite_strat (innermost (hints hereditary_subst))); 
+-  autoh.
+-
+-Hint Transparent type_subterm : subterm_relation.
+-
+-Obligation Tactic := idtac.
+-Next Obligation.
+-Proof.
+-  intros.
+-  rec_wf_rel t hsubst her_order.
+-  depelim x. depelim p. simph. 
+-  constructor. depelim t1.
+-  constructor. 
+-  destruct (nat_compare n k); try constructor.
+-
+-  simph. 
+ 
+-  constructor; autoh.
+-
+-  set(foo:=(hereditary_subst (t, t0, t1_1) k)). clearbody foo.
+-  constructor.
+-  set(fr:=is_lambda foo). clearbody fr. 
+-  depelim fr. depelim i.
+-  rewrite_strat (innermost (hints hereditary_subst)).
+-  constructor. autoh.
+-
+-  simpl in prf. apply hsubst. 
+-  intuition subst. autoh.
+-  autoh.
+-
+-  simph. 
+-
+-  simph.
+-
+-  constructor. autoh. 
+-  constructor. 
+-  destruct (is_pair (hereditary_subst (t, t0, t1) k)).
+-  destruct i; simph. 
+-  simph.
+-
+-  constructor. autoh. 
+-  constructor. 
+-  destruct (is_pair (hereditary_subst (t, t0, t1) k)).
+-  destruct i; simph. 
+-  simph.
+-
+-  simph.
+-Defined.
++Next Obligation. simpl; intros. admit. Defined. 
++Next Obligation. intros. admit. Defined.
+ 
+ Ltac invert_term := 
+   match goal with
+@@ -693,12 +646,17 @@
+         | Lambda _ => depelim H
+         | App _ _ => depelim H
+         | Pair _ _ => depelim H
+-        | Fst _ => depelim H
+-        | Snd _ => depelim H
++        | (Fst _ | Snd _) => depelim H
+         | Tt => depelim H
+       end
+   end.
+ 
++
++Ltac simp_hsubst := try (rewrite_strat (bottomup (hints hereditary_subst))); 
++  rewrite <- ?hereditary_subst_equation_1.
++
++
++
+ Lemma hereditary_subst_type Γ Γ' t T u U : Γ |-- u : U -> Γ' @ (U :: Γ) |-- t : T ->
+   forall t' o, hereditary_subst (U, u, t) (length Γ') = (t', o) ->
+     (Γ' @ Γ |-- t' : T /\ (forall ty prf, o = Some (exist ty prf) -> ty = T)). 
+@@ -717,11 +675,11 @@
+ 
+   depelim H0; term.
+ 
+-  depelim H0.
++  depelim H2.
+   (* Var *)
+   apply nat_compare_eq in Heq; subst n.
+   rewrite !nth_length. split. term. intros. 
+-  noconf H1.
++  noconf H3.
+  
+   (* Lt *)
+   apply nat_compare_lt in Heq. depelim H0.
+@@ -751,21 +709,20 @@
+ 
+   (* App no redex *)
+   apply is_lambda_inr in Heq. revert Heq. 
+-  on_call hereditary_subst ltac:(fun c => remember c as hsubst; destruct hsubst; simpl in *). 
+-  intros.
++  on_call hereditary_subst ltac:(fun c => remember c as hsubst; destruct hsubst; simpl in *). intros.
+   subst t3. 
+   depelim H1.
+   apply application with A; eauto. 
+   eapply Hind; eauto.
+-  destruct_call hereditary_subst.
++  on_call hereditary_subst ltac:(fun c => remember c as hsubst; destruct hsubst; simpl in *). 
+   eapply H; eauto.
+ 
+   simpl in *.
+   (* Fst redex *) clear Heq.
+-  depelim H0. specialize (Hind _ _ H H0).
++  clear H H0. depelim H2. specialize (Hind _ _ H1 H2).
+   rewrite Heq0 in Hind. specialize (Hind _ _ eq_refl).
+-  destruct Hind. depelim H1. intuition auto. noconf H1.
+-  specialize (H2 _ _ eq_refl). noconf H2.
++  destruct Hind. depelim H. intuition auto. noconf H4.
++  specialize (H1 _ _ eq_refl). noconf H1.
+ 
+   (* Fst no redex *)
+   apply is_pair_inr in Heq. 
+@@ -774,10 +731,10 @@
+   specialize (Hind _ _ H H0); eauto. now apply pair_elim_fst with B.
+ 
+   (* Snd redex *) clear Heq.
+-  depelim H0. specialize (Hind _ _ H H0).
++  clear H H0. depelim H2. specialize (Hind _ _ H1 H2).
+   rewrite Heq0 in Hind. specialize (Hind _ _ eq_refl).
+-  destruct Hind. depelim H1. intuition auto. noconf H1.
+-  specialize (H2 _ _ eq_refl). noconf H2.
++  destruct Hind. depelim H. intuition auto. noconf H4.
++  specialize (H1 _ _ eq_refl). noconf H1.
+ 
+   (* Snd no redex *)
+   apply is_pair_inr in Heq. 
+@@ -788,6 +745,7 @@
+ 
+ Instance: subrelation eq (flip impl).
+ Proof. reduce. subst; auto. Qed.
++Ltac simp_hsubst ::= try (rewrite_strat (bottomup (hints hereditary_subst))); rewrite <- ?hereditary_subst_equation_1.
+ 
+ Lemma hereditary_subst_subst U u t Γ' :
+   (forall Γ T, Γ |-- u <= U ->
+@@ -997,7 +955,7 @@
+ Lemma synth_liftn {Γ Γ' t T} : Γ |-- t => T -> Γ' @ Γ |-- lift 0 (length Γ') t => T.
+ Proof. intros. apply (synthetize_lift Γ t T [] H Γ'). Qed.
+ Hint Resolve @check_liftn @synth_liftn : term.
+-(* Write normalization function *)
++
+ Lemma types_normalizes Γ t T : Γ |-- t : T → ∃ u, Γ |-- u <= T.
+ Proof. induction 1. (* eta-exp *)
+ 
+diff -ruN lib/Coq-Equations-8.4/Make lib.patched/Coq-Equations-8.4-1/Make
+--- lib/Coq-Equations-8.4/Make	2014-01-17 13:10:26.000000000 -0500
++++ lib.patched/Coq-Equations-8.4-1/Make	2014-08-30 00:29:29.619588295 -0400
+@@ -21,6 +21,6 @@
+ theories/Equations.v
+ theories/Fin.v
+ theories/FunctionalInduction.v
+-test-suite/Basics.v
+-test-suite/rec.v
+-test-suite/f91.v
++# test-suite/Basics.v
++# test-suite/rec.v
++# test-suite/f91.v
+diff -ruN lib/Coq-Equations-8.4/Makefile lib.patched/Coq-Equations-8.4-1/Makefile
+--- lib/Coq-Equations-8.4/Makefile	1969-12-31 19:00:00.000000000 -0500
++++ lib.patched/Coq-Equations-8.4-1/Makefile	2014-08-30 00:29:29.619588295 -0400
+@@ -0,0 +1,374 @@
++#############################################################################
++##  v      #                   The Coq Proof Assistant                     ##
++## <O___,, #                INRIA - CNRS - LIX - LRI - PPS                 ##
++##   \VV/  #                                                               ##
++##    //   #  Makefile automagically generated by coq_makefile V8.4pl4     ##
++#############################################################################
++
++# WARNING
++#
++# This Makefile has been automagically generated
++# Edit at your own risks !
++#
++# END OF WARNING
++
++#
++# This Makefile was generated by the command line :
++# coq_makefile -f Make -o Makefile 
++#
++
++.DEFAULT_GOAL := all
++
++# 
++# This Makefile may take arguments passed as environment variables:
++# COQBIN to specify the directory where Coq binaries resides;
++# ZDEBUG/COQDEBUG to specify debug flags for ocamlc&ocamlopt/coqc;
++# DSTROOT to specify a prefix to install path.
++
++# Here is a hack to make $(eval $(shell works:
++define donewline
++
++
++endef
++includecmdwithout@ = $(eval $(subst @,$(donewline),$(shell { $(1) | tr -d '\r' | tr '\n' '@'; })))
++$(call includecmdwithout@,$(COQBIN)coqtop -config)
++
++##########################
++#                        #
++# Libraries definitions. #
++#                        #
++##########################
++
++OCAMLLIBS?=-I src
++COQLIBS?=-I src -R theories Equations
++COQDOCLIBS?=-R theories Equations
++
++##########################
++#                        #
++# Variables definitions. #
++#                        #
++##########################
++
++
++OPT?=
++COQDEP?=$(COQBIN)coqdep -c
++COQFLAGS?=-q $(OPT) $(COQLIBS) $(OTHERFLAGS) $(COQ_XML)
++COQCHKFLAGS?=-silent -o
++COQDOCFLAGS?=-interpolate -utf8
++COQC?=$(COQBIN)coqc
++GALLINA?=$(COQBIN)gallina
++COQDOC?=$(COQBIN)coqdoc
++COQCHK?=$(COQBIN)coqchk
++
++COQSRCLIBS?=-I $(COQLIB)kernel -I $(COQLIB)lib \
++  -I $(COQLIB)library -I $(COQLIB)parsing \
++  -I $(COQLIB)pretyping -I $(COQLIB)interp \
++  -I $(COQLIB)proofs -I $(COQLIB)tactics \
++  -I $(COQLIB)toplevel \
++  -I $(COQLIB)plugins/cc \
++  -I $(COQLIB)plugins/decl_mode \
++  -I $(COQLIB)plugins/extraction \
++  -I $(COQLIB)plugins/field \
++  -I $(COQLIB)plugins/firstorder \
++  -I $(COQLIB)plugins/fourier \
++  -I $(COQLIB)plugins/funind \
++  -I $(COQLIB)plugins/micromega \
++  -I $(COQLIB)plugins/nsatz \
++  -I $(COQLIB)plugins/omega \
++  -I $(COQLIB)plugins/quote \
++  -I $(COQLIB)plugins/ring \
++  -I $(COQLIB)plugins/romega \
++  -I $(COQLIB)plugins/rtauto \
++  -I $(COQLIB)plugins/setoid_ring \
++  -I $(COQLIB)plugins/subtac \
++  -I $(COQLIB)plugins/subtac/test \
++  -I $(COQLIB)plugins/syntax \
++  -I $(COQLIB)plugins/xml
++ZFLAGS=$(OCAMLLIBS) $(COQSRCLIBS) -I $(CAMLP4LIB)
++
++CAMLC?=$(OCAMLC) -c -rectypes
++CAMLOPTC?=$(OCAMLOPT) -c -rectypes
++CAMLLINK?=$(OCAMLC) -rectypes
++CAMLOPTLINK?=$(OCAMLOPT) -rectypes
++GRAMMARS?=grammar.cma
++CAMLP4EXTEND?=pa_extend.cmo pa_macro.cmo q_MLast.cmo
++CAMLP4OPTIONS?=-loc loc
++PP?=-pp "$(CAMLP4BIN)$(CAMLP4)o -I $(CAMLLIB) -I . $(COQSRCLIBS) $(CAMLP4EXTEND) $(GRAMMARS) $(CAMLP4OPTIONS) -impl"
++
++##################
++#                #
++# Install Paths. #
++#                #
++##################
++
++ifdef USERINSTALL
++XDG_DATA_HOME?=$(HOME)/.local/share
++COQLIBINSTALL=$(XDG_DATA_HOME)/coq
++COQDOCINSTALL=$(XDG_DATA_HOME)/doc/coq
++else
++COQLIBINSTALL=${COQLIB}user-contrib
++COQDOCINSTALL=${DOCDIR}user-contrib
++endif
++
++######################
++#                    #
++# Files dispatching. #
++#                    #
++######################
++
++VFILES:=theories/FunctionalInduction.v\
++  theories/Fin.v\
++  theories/Equations.v\
++  theories/Subterm.v\
++  theories/Below.v\
++  theories/FunctionalInduction.v\
++  theories/NoConfusion.v\
++  theories/DepElimDec.v\
++  theories/DepElim.v\
++  theories/EqDec.v\
++  theories/Signature.v\
++  theories/Init.v
++
++-include $(addsuffix .d,$(VFILES))
++.SECONDARY: $(addsuffix .d,$(VFILES))
++
++VOFILES:=$(VFILES:.v=.vo)
++VOFILES1=$(patsubst theories/%,%,$(filter theories/%,$(VOFILES)))
++GLOBFILES:=$(VFILES:.v=.glob)
++VIFILES:=$(VFILES:.v=.vi)
++GFILES:=$(VFILES:.v=.g)
++HTMLFILES:=$(VFILES:.v=.html)
++GHTMLFILES:=$(VFILES:.v=.g.html)
++ML4FILES:=src/equations.ml4\
++  src/depelim.ml4\
++  src/eqdec.ml4\
++  src/subterm.ml4\
++  src/sigma.ml4\
++  src/equations_common.ml4
++
++-include $(addsuffix .d,$(ML4FILES))
++.SECONDARY: $(addsuffix .d,$(ML4FILES))
++
++MLFILES:=src/equations_plugin_mod.ml
++
++-include $(addsuffix .d,$(MLFILES))
++.SECONDARY: $(addsuffix .d,$(MLFILES))
++
++MLLIBFILES:=src/equations_plugin.mllib
++
++-include $(addsuffix .d,$(MLLIBFILES))
++.SECONDARY: $(addsuffix .d,$(MLLIBFILES))
++
++ALLCMOFILES:=$(ML4FILES:.ml4=.cmo) $(MLFILES:.ml=.cmo)
++CMOFILES=$(filter-out $(addsuffix .cmo,$(foreach lib,$(MLLIBFILES:.mllib=_MLLIB_DEPENDENCIES) $(MLPACKFILES:.mlpack=_MLPACK_DEPENDENCIES),$($(lib)))),$(ALLCMOFILES))
++CMOFILESINC=$(filter $(wildcard src/*),$(CMOFILES)) 
++CMXFILES=$(CMOFILES:.cmo=.cmx)
++OFILES=$(CMXFILES:.cmx=.o)
++CMAFILES:=$(MLLIBFILES:.mllib=.cma)
++CMAFILESINC=$(filter $(wildcard src/*),$(CMAFILES)) 
++CMXAFILES:=$(CMAFILES:.cma=.cmxa)
++CMIFILES=$(ALLCMOFILES:.cmo=.cmi)
++CMIFILESINC=$(filter $(wildcard src/*),$(CMIFILES)) 
++CMXSFILES=$(CMXFILES:.cmx=.cmxs) $(CMXAFILES:.cmxa=.cmxs)
++CMXSFILESINC=$(filter $(wildcard src/*),$(CMXSFILES)) 
++ifeq '$(HASNATDYNLINK)' 'true'
++HASNATDYNLINK_OR_EMPTY := yes
++else
++HASNATDYNLINK_OR_EMPTY :=
++endif
++
++#######################################
++#                                     #
++# Definition of the toplevel targets. #
++#                                     #
++#######################################
++
++all: $(VOFILES) $(CMOFILES) $(CMAFILES) $(if $(HASNATDYNLINK_OR_EMPTY),$(CMXSFILES)) coqtop
++
++spec: $(VIFILES)
++
++gallina: $(GFILES)
++
++html: $(GLOBFILES) $(VFILES)
++	- mkdir -p html
++	$(COQDOC) -toc $(COQDOCFLAGS) -html $(COQDOCLIBS) -d html $(VFILES)
++
++gallinahtml: $(GLOBFILES) $(VFILES)
++	- mkdir -p html
++	$(COQDOC) -toc $(COQDOCFLAGS) -html -g $(COQDOCLIBS) -d html $(VFILES)
++
++all.ps: $(VFILES)
++	$(COQDOC) -toc $(COQDOCFLAGS) -ps $(COQDOCLIBS) -o $@ `$(COQDEP) -sort -suffix .v $^`
++
++all-gal.ps: $(VFILES)
++	$(COQDOC) -toc $(COQDOCFLAGS) -ps -g $(COQDOCLIBS) -o $@ `$(COQDEP) -sort -suffix .v $^`
++
++all.pdf: $(VFILES)
++	$(COQDOC) -toc $(COQDOCFLAGS) -pdf $(COQDOCLIBS) -o $@ `$(COQDEP) -sort -suffix .v $^`
++
++all-gal.pdf: $(VFILES)
++	$(COQDOC) -toc $(COQDOCFLAGS) -pdf -g $(COQDOCLIBS) -o $@ `$(COQDEP) -sort -suffix .v $^`
++
++validate: $(VOFILES)
++	$(COQCHK) $(COQCHKFLAGS) $(COQLIBS) $(notdir $(^:.vo=))
++
++beautify: $(VFILES:=.beautified)
++	for file in $^; do mv $${file%.beautified} $${file%beautified}old && mv $${file} $${file%.beautified}; done
++	@echo 'Do not do "make clean" until you are sure that everything went well!'
++	@echo 'If there were a problem, execute "for file in $$(find . -name \*.v.old -print); do mv $${file} $${file%.old}; done" in your shell/'
++
++.PHONY: all opt byte archclean clean install userinstall depend html validate
++
++###################
++#                 #
++# Custom targets. #
++#                 #
++###################
++
++coqtop: src/equations_plugin.cma
++	$(COQBIN)coqmktop -o $@ $(COQLIB)/plugins/subtac/subtac_plugin.cma $(COQLIB)/plugins/cc/cc_plugin.cma $^
++
++####################
++#                  #
++# Special targets. #
++#                  #
++####################
++
++byte:
++	$(MAKE) all "OPT:=-byte"
++
++opt:
++	$(MAKE) all "OPT:=-opt"
++
++userinstall:
++	+$(MAKE) USERINSTALL=true install
++
++install-natdynlink:
++	install -d $(DSTROOT)$(COQLIBINSTALL)/Equations; \
++	for i in $(CMXSFILESINC); do \
++	 install -m 0644 $$i $(DSTROOT)$(COQLIBINSTALL)/Equations/`basename $$i`; \
++	done
++
++install:$(if $(HASNATDYNLINK_OR_EMPTY),install-natdynlink)
++	cd theories; for i in $(VOFILES1); do \
++	 install -d `dirname $(DSTROOT)$(COQLIBINSTALL)/Equations/$$i`; \
++	 install -m 0644 $$i $(DSTROOT)$(COQLIBINSTALL)/Equations/$$i; \
++	done
++	install -d $(DSTROOT)$(COQLIBINSTALL)/Equations; \
++	for i in $(CMOFILESINC); do \
++	 install -m 0644 $$i $(DSTROOT)$(COQLIBINSTALL)/Equations/`basename $$i`; \
++	done
++	install -d $(DSTROOT)$(COQLIBINSTALL)/Equations; \
++	for i in $(CMIFILESINC); do \
++	 install -m 0644 $$i $(DSTROOT)$(COQLIBINSTALL)/Equations/`basename $$i`; \
++	done
++	install -d $(DSTROOT)$(COQLIBINSTALL)/Equations; \
++	for i in $(CMAFILESINC); do \
++	 install -m 0644 $$i $(DSTROOT)$(COQLIBINSTALL)/Equations/`basename $$i`; \
++	done
++
++install-doc:
++	install -d $(DSTROOT)$(COQDOCINSTALL)/Equations/html
++	for i in html/*; do \
++	 install -m 0644 $$i $(DSTROOT)$(COQDOCINSTALL)/Equations/$$i;\
++	done
++
++clean:
++	rm -f $(ALLCMOFILES) $(CMIFILES) $(CMAFILES)
++	rm -f $(ALLCMOFILES:.cmo=.cmx) $(CMXAFILES) $(CMXSFILES) $(ALLCMOFILES:.cmo=.o) $(CMXAFILES:.cmxa=.a)
++	rm -f $(addsuffix .d,$(MLFILES) $(MLIFILES) $(ML4FILES) $(MLLIBFILES) $(MLPACKFILES))
++	rm -f $(VOFILES) $(VIFILES) $(GFILES) $(VFILES:.v=.v.d) $(VFILES:=.beautified) $(VFILES:=.old)
++	rm -f all.ps all-gal.ps all.pdf all-gal.pdf all.glob $(VFILES:.v=.glob) $(VFILES:.v=.tex) $(VFILES:.v=.g.tex) all-mli.tex
++	- rm -rf html mlihtml
++	- rm -rf coqtop
++
++archclean:
++	rm -f *.cmx *.o
++
++printenv:
++	@$(COQBIN)coqtop -config
++	@echo CAMLC =	$(CAMLC)
++	@echo CAMLOPTC =	$(CAMLOPTC)
++	@echo PP =	$(PP)
++	@echo COQFLAGS =	$(COQFLAGS)
++	@echo COQLIBINSTALL =	$(COQLIBINSTALL)
++	@echo COQDOCINSTALL =	$(COQDOCINSTALL)
++
++Makefile: Make
++	mv -f $@ $@.bak
++	$(COQBIN)coq_makefile -f $< -o $@
++
++
++###################
++#                 #
++# Implicit rules. #
++#                 #
++###################
++
++%.cmo: %.ml4
++	$(CAMLC) $(ZDEBUG) $(ZFLAGS) $(PP) -impl $<
++
++%.cmx: %.ml4
++	$(CAMLOPTC) $(ZDEBUG) $(ZFLAGS) $(PP) -impl $<
++
++%.ml4.d: %.ml4
++	$(COQDEP) -slash $(OCAMLLIBS) "$<" > "$@" || ( RV=$$?; rm -f "$@"; exit $${RV} )
++
++%.cmo: %.ml
++	$(CAMLC) $(ZDEBUG) $(ZFLAGS) $<
++
++%.cmx: %.ml
++	$(CAMLOPTC) $(ZDEBUG) $(ZFLAGS) $<
++
++%.ml.d: %.ml
++	$(OCAMLDEP) -slash $(OCAMLLIBS) "$<" > "$@" || ( RV=$$?; rm -f "$@"; exit $${RV} )
++
++%.cmxs: %.cmxa
++	$(CAMLOPTLINK) $(ZDEBUG) $(ZFLAGS) -linkall -shared -o $@ $<
++
++%.cmxs: %.cmx
++	$(CAMLOPTLINK) $(ZDEBUG) $(ZFLAGS) -shared -o $@ $<
++
++%.cma: | %.mllib
++	$(CAMLLINK) $(ZDEBUG) $(ZFLAGS) -a -o $@ $^
++
++%.cmxa: | %.mllib
++	$(CAMLOPTLINK) $(ZDEBUG) $(ZFLAGS) -a -o $@ $^
++
++%.mllib.d: %.mllib
++	$(COQDEP) -slash $(COQLIBS) -c "$<" > "$@" || ( RV=$$?; rm -f "$@"; exit $${RV} )
++
++%.vo %.glob: %.v
++	$(COQC) $(COQDEBUG) $(COQFLAGS) $*
++
++%.vi: %.v
++	$(COQC) -i $(COQDEBUG) $(COQFLAGS) $*
++
++%.g: %.v
++	$(GALLINA) $<
++
++%.tex: %.v
++	$(COQDOC) $(COQDOCFLAGS) -latex $< -o $@
++
++%.html: %.v %.glob
++	$(COQDOC) $(COQDOCFLAGS) -html $< -o $@
++
++%.g.tex: %.v
++	$(COQDOC) $(COQDOCFLAGS) -latex -g $< -o $@
++
++%.g.html: %.v %.glob
++	$(COQDOC)$(COQDOCFLAGS)  -html -g $< -o $@
++
++%.v.d: %.v
++	$(COQDEP) -slash $(COQLIBS) "$<" > "$@" || ( RV=$$?; rm -f "$@"; exit $${RV} )
++
++%.v.beautified:
++	$(COQC) $(COQDEBUG) $(COQFLAGS) -beautify $*
++
++# WARNING
++#
++# This Makefile has been automagically generated
++# Edit at your own risks !
++#
++# END OF WARNING
++
+diff -ruN lib/Coq-Equations-8.4/NOTE lib.patched/Coq-Equations-8.4-1/NOTE
+--- lib/Coq-Equations-8.4/NOTE	1969-12-31 19:00:00.000000000 -0500
++++ lib.patched/Coq-Equations-8.4-1/NOTE	2014-08-30 00:29:29.606255381 -0400
+@@ -0,0 +1 @@
++tests don't build with coq 8.4 / ocaml 4.01 and are currently commented out in ./Make
+diff -ruN lib/Coq-Equations-8.4/src/equations.ml4 lib.patched/Coq-Equations-8.4-1/src/equations.ml4
+--- lib/Coq-Equations-8.4/src/equations.ml4	2014-01-17 13:10:26.000000000 -0500
++++ lib.patched/Coq-Equations-8.4-1/src/equations.ml4	2014-08-30 00:29:29.609588614 -0400
+@@ -171,14 +171,7 @@
+   | Some b -> subst1 b c
+ 
+ let it_mkProd_or_subst ty ctx = 
+-  nf_beta Evd.empty (List.fold_left 
+-		       (fun c d -> whd_betalet Evd.empty (mkProd_or_LetIn d c)) ty ctx)
+-
+-let it_mkProd_or_clean ty ctx = 
+-  nf_beta Evd.empty (List.fold_left 
+-		       (fun c (na,_,_ as d) -> whd_betalet Evd.empty 
+-			 (if na = Anonymous then subst1 mkProp c
+-			  else (mkProd_or_LetIn d c))) ty ctx)
++  nf_beta Evd.empty (List.fold_left (fun c d -> whd_betalet Evd.empty (mkProd_or_LetIn d c)) ty ctx)
+ 
+ let it_mkLambda_or_subst ty ctx = 
+   whd_betalet Evd.empty
+@@ -837,8 +830,8 @@
+     let envb = push_rel_context before (Global.env()) in
+     let IndType (indf, args) = find_rectype envb !evars ty in
+     let ind, params = dest_ind_family indf in
+-    let vs = map (Tacred.whd_simpl envb !evars) args in
+-    let params = map (Tacred.whd_simpl envb !evars) params in
++    let vs = map (Tacred.hnf_constr envb !evars) args in
++    let params = map (Tacred.hnf_constr envb !evars) params in
+     let newty = applistc (mkInd ind) (params @ vs) in
+     let cstrs = Inductiveops.type_of_constructors envb ind in
+     let cstrs = 
+@@ -1709,7 +1702,7 @@
+ let autorewrites b = tclREPEAT (Autorewrite.autorewrite tclIDTAC [b])
+ 
+ let autorewrite_one b = Rewrite.cl_rewrite_clause_strat 
+-  (Rewrite.Strategies.innermost (Rewrite.Strategies.hints b))
++  (Rewrite.one_subterm (Rewrite.Strategies.hints b))
+   None
+ 
+ type term_info = {
+@@ -1777,7 +1770,6 @@
+ 	    let last_arg = args.(Array.length args - 1) in
+ 	    let f, args = destApp last_arg in
+ 	    let _, elim = find_helper_arg info f args in
+-	    let id = pf_get_new_id id gl in
+ 	      tclTHENLIST
+ 		[letin_tac None (Name id) elim None allHypsAndConcl; 
+ 		 clear_body [id]; aux_ind_fun info s] gl
+@@ -1791,7 +1783,7 @@
+       tclTHENLIST [intros_reducing; find_empty_tac ()]
+ 	
+   | Compute (_, _, _) ->
+-      tclTHENLIST [intros_reducing; autorewrite_one info.base_id; eauto_with_below [info.base_id]]
++      tclTHENLIST [intros_reducing; simp_eqns [info.base_id]]
+ 	
+   (* | Compute ((ctx,_,_), _, REmpty id) -> *)
+   (*     let (na,_,_) = nth ctx (pred id) in *)
+@@ -2088,7 +2080,7 @@
+ 	  let len = List.length ctx in
+ 	  let hyps, hypslen, c' = abstract_rec_calls is_rec len protos (nf_beta Evd.empty c) in
+ 	    Some (it_mkProd_or_clear
+-		     (it_mkProd_or_clean
++		     (it_mkProd_or_subst
+ 			 (applistc (mkRel (len + (lenprotos - i) + hypslen))
+ 			     (lift_constrs hypslen pats @ [c']))
+ 			 hyps) ctx)
+@@ -2236,7 +2228,7 @@
+ 			  lifthyps) args)
+ 		  in
+ 		    it_mkLambda_or_LetIn
+-		      (app (it_mkProd_or_clean (lift (length indhyps) papp) 
++		      (app (it_mkProd_or_subst (lift (length indhyps) papp) 
+ 			       (lift_rel_context lenargs indhyps)))
+ 		      ctx
+ 		in
+@@ -2463,7 +2455,6 @@
+ 	      let f1, arg1 = destApp term1 and f2, arg2 = destApp term2 in
+ 	      let _, a1 = find_helper_arg info f1 arg1 
+ 	      and ev2, a2 = find_helper_arg info f2 arg2 in
+-	      let id = pf_get_new_id id gl in
+ 		if ev2 = ev then 
+ 	  	  tclTHENLIST
+ 	  	    [Equality.replace_by a1 a2
+@@ -2819,7 +2810,7 @@
+ open Compat
+ open Tok
+ 
+-GEXTEND Gram
++EXTEND Gram
+   GLOBAL: pattern deppat_equations binders_let2 equation_options;
+  
+   deppat_equations:
+diff -ruN lib/Coq-Equations-8.4/src/subterm.ml4 lib.patched/Coq-Equations-8.4-1/src/subterm.ml4
+--- lib/Coq-Equations-8.4/src/subterm.ml4	2014-01-17 13:10:26.000000000 -0500
++++ lib.patched/Coq-Equations-8.4-1/src/subterm.ml4	2014-08-30 00:29:29.609588614 -0400
+@@ -171,8 +171,8 @@
+     in Auto.add_hints false [subterm_relation_base]
+       (Auto.HintsResolveEntry (List.concat constrhints));
+       (* Proof of Well-foundedness *)
++      let id = add_prefix "well_founded_" (List.hd inds).mind_entry_typename in
+       let relid = add_suffix (Nametab.basename_of_global (IndRef ind)) "_subterm" in
+-      let id = add_prefix "well_founded_" relid in
+       let evm = ref Evd.empty in
+       let env = Global.env () in
+       let env' = push_rel_context parambinders env in
+diff -ruN lib/Coq-Equations-8.4/test-suite/Basics.v lib.patched/Coq-Equations-8.4-1/test-suite/Basics.v
+--- lib/Coq-Equations-8.4/test-suite/Basics.v	2014-01-17 13:10:26.000000000 -0500
++++ lib.patched/Coq-Equations-8.4-1/test-suite/Basics.v	2014-08-30 00:29:29.609588614 -0400
+@@ -12,9 +12,6 @@
+   }.
+   
+   Next Obligation. exact IH. Defined.
+-  (* bug forgot to backport from trunk in obligations.ml *)
+-  Solve Obligations.
+-
+ End TestF.
+ 
+ Instance eqsig {A} (x : A) : Signature (x = x) A :=
+@@ -143,9 +140,6 @@
+ unzip_dec A B _ _ ?(S n) (cons (pair x y) n v) with unzip_dec v := {
+   | pair xs ys := (cons x xs, cons y ys) }.
+ 
+-(* Bug *)
+-Solve Obligations.
+-
+ Typeclasses Transparent vector_subterm.
+ 
+ Equations unzip {A B} {n} (v : vector (A * B) n) : vector A n * vector B n :=
+@@ -183,6 +177,7 @@
+   equal (S n) (S m) (right p) := in_right } ;
+ equal x y := in_right.
+ 
++(* Print Assumptions equal. *)
+ Import List.
+ Equations app_with {A} (l l' : list A) : list A :=
+ app_with A nil l := l ;
+@@ -386,7 +381,7 @@
+   Inductive univ : Set :=
+   | ubool | unat | uarrow (from:univ) (to:univ).
+ 
+-  Equations (nocomp) interp (u : univ) : Set :=
++  Equations (nocomp) interp (u : univ) : Type :=
+   interp ubool := bool; interp unat := nat;
+   interp (uarrow from to) := interp from -> interp to.
+ 
+diff -ruN lib/Coq-Equations-8.4/test-suite/f91.v lib.patched/Coq-Equations-8.4-1/test-suite/f91.v
+--- lib/Coq-Equations-8.4/test-suite/f91.v	2014-01-17 13:10:26.000000000 -0500
++++ lib.patched/Coq-Equations-8.4-1/test-suite/f91.v	2014-08-30 00:29:29.609588614 -0400
+@@ -33,23 +33,22 @@
+   
+ Next Obligation. destruct le_lt_dec. intros. destruct_call f91_comp_proj. simpl. 
+   destruct_call f91_comp_proj. simpl in *. destruct le_lt_dec. subst. simpl in y. auto.
+-  subst x0. destruct le_lt_dec; auto.
++  subst x0. destruct le_lt_dec. auto.
+   subst x. simpl. omega.
+ 
+   elimtype False. omega.
+ Qed.
+ 
+ Next Obligation. destruct le_lt_dec. intros. omega. omega. Defined.
+-Solve Obligations.
+ 
+-(** MS: Bug, this should be derivable, but needs the user's proofs as hints (omega calls) *)
+-Next Obligation.
++Next Obligation. 
+ Proof. intros.
+   rec_wf_rel n IH f91_rel.
+   simp f91. constructor. destruct le_lt_dec. constructor. intros. apply IH.
+   do 2 red; omega.
+-  apply IH. do 2 red. destruct_call f91. simpl proj1_sig.
++  apply IH. do 2 red; omega.
++  apply IH. do 2 red. destruct_call f91. simpl proj1_sig. 
+   destruct le_lt_dec; subst; omega.
+-  constructor. 
++  apply IH.
++  simp f91.
+ Defined.
+-
+diff -ruN lib/Coq-Equations-8.4/test-suite/gcd.v lib.patched/Coq-Equations-8.4-1/test-suite/gcd.v
+--- lib/Coq-Equations-8.4/test-suite/gcd.v	2014-01-17 13:10:26.000000000 -0500
++++ lib.patched/Coq-Equations-8.4-1/test-suite/gcd.v	1969-12-31 19:00:00.000000000 -0500
+@@ -1,103 +0,0 @@
+-Require Import Equations.
+-Require Import Relations.
+-
+-Definition gcd_order (p : nat * nat) : nat := let (x,y) := p in x+y.
+-
+-
+-Definition measure {A B} (f : A -> B) (R : relation B) : relation A :=
+-  fun x y => R (f x) (f y).
+-
+-Definition gcd_rel : relation (nat * nat) :=
+-  MR lt gcd_order.
+-
+-Instance gt_bound_wf : WellFounded gcd_rel.
+-Proof. red. apply measure_wf. apply Wf_nat.lt_wf. Defined.
+-
+-Require Import Omega.
+-
+-Hint Extern 5 => 
+-  unfold gcd_rel, gcd_order, MR; omega : Below.
+-
+-Equations gcd (p : nat * nat) : nat :=
+-gcd p by rec p gcd_rel :=
+-gcd (pair 0 _) := 0 ;
+-gcd (pair _ 0) := 0 ;
+-gcd (pair x y) with gt_eq_gt_dec x y := {
+-  | inleft (left ygtx) := gcd (x, y - x) ;
+-  | inleft (right refl) := x ;
+-  | inright xgty := gcd (x - y, y) }.
+-
+-Require Import Utf8.
+-Lemma FixF_eq A (R : A -> A -> Prop) P (F : (∀ x : A, (∀ y : A, R y x → P y) → P x)) t step step' : 
+-  @Fix_F A R P F t (Acc_intro t step) =
+-  F t (fun y rel => @Fix_F A R P F y (step' y rel)).
+-Proof. simpl. apply f_equal. extensionality y; extensionality h. 
+-       apply f_equal. apply proof_irrelevance.
+-Defined.
+-
+-Lemma FixWf_eq A (R : A -> A -> Prop) wfr P (F : (∀ x : A, (∀ y : A, R y x → P y) → P x)) t : 
+-  @FixWf A R wfr P F t =
+-  F t (fun y rel => @FixWf A R wfr P F y).
+-Proof. unfold FixWf, Fix. unfold wellfounded.        
+-       destruct (wfr t). apply FixF_eq.
+-Defined.
+-Obligation Tactic := idtac.
+-Next Obligation. (*MS: Bug *) intros. admit. Defined.
+-
+-(*   intros. *)
+-(*   rec_wf_rel p IH gcd_rel. *)
+-(*   setoid_rewrite FixWf_eq.  *)
+-(*   change ( gcd_obligation_8 x *)
+-(*      (λ (y : nat * nat) (_ : gcd_rel y x), gcd y) = gcd_unfold x). *)
+-(*   Opaque gcd. *)
+-(*   depelim x. depelim n. reflexivity. *)
+-(*   depelim n0. reflexivity. *)
+-(*   simpl. simpl_equations.  *)
+-(*   simpl. *)
+-(*   destruct_call gt_eq_gt_dec. destruct s. *)
+-(*   simpl. simpl. unfold gcd_comp_proj. unfold gcd_obligation_1. *)
+-
+-(*   autounfold with gcd. specialize (IH (S n, n - n)). *)
+-(*   symmetry. rewrite IH. Focus 2. do 3 red; unfold gcd_order. omega.  *)
+-(*   unfold gcd_comp_proj. *)
+-(*   Transparent gcd gcd_unfold. apply IH. *)
+-(* Solve Obligations.  *)
+-Next Obligation. 
+-  intros. 
+-  eapply (@gcd_ind_mut P P0); eauto. 
+-  apply gcd_ind_fun.
+-Defined.
+-
+-Lemma gcd_ref x : gcd (x,x) = x.
+-Proof.
+-  funelim (gcd (x, x)); now (try (exfalso; omega)). 
+-Qed.
+-
+-Module Function.    
+-Require Import Recdef.
+-Function gcd (p : nat * nat) {measure gcd_order p} : nat :=
+- match p with
+-   | (0,_) => 0
+-   | (_,0) => 0
+-   | (x,y) => match gt_eq_gt_dec x y with
+-                | inleft (left _) => gcd (x, y-x)
+-                | inleft (right _) => x
+-                | inright xgty => gcd (x-y, y)
+-              end
+- end.
+-- unfold gcd_order ; intros ; omega.
+-- unfold gcd_order ; intros ; omega.
+-Defined.
+-
+-Lemma gcd_ref x : gcd (x,x) = x.
+-Proof.
+-  functional induction (gcd (x, x)). Abort.
+-
+-Lemma gcd_ref x : gcd (x,x) = x.
+-Proof.
+-  generalize (@eq_refl _ (x, x)).
+-  generalize (x, x) at 1 3. intros p; revert x.
+-  functional induction (gcd p); intros; noconf H.
+-  red in _x. omega. omega.
+-Qed.
+-End Function.
+\ No newline at end of file
+diff -ruN lib/Coq-Equations-8.4/theories/Subterm.v lib.patched/Coq-Equations-8.4-1/theories/Subterm.v
+--- lib/Coq-Equations-8.4/theories/Subterm.v	2014-01-17 13:10:26.000000000 -0500
++++ lib.patched/Coq-Equations-8.4-1/theories/Subterm.v	2014-08-30 00:29:29.606255381 -0400
+@@ -93,9 +93,7 @@
+ Hint Extern 4 (_ = _) => reflexivity : solve_subterm.
+ Hint Extern 10 => eapply_hyp : solve_subterm.
+ 
+-Ltac solve_subterm := 
+-  apply Transitive_Closure.wf_clos_trans;
+-  red; intros; on_last_hyp ltac:(fun H => induction H); constructor;
++Ltac solve_subterm := red; intros; on_last_hyp ltac:(fun H => induction H); constructor;
+   intros; on_last_hyp ltac:(fun HR => generalize_eqs HR; induction HR); simplify_dep_elim;
+     try typeclasses eauto with solve_subterm.
+ 

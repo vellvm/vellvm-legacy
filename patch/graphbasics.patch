@@ -1,0 +1,3291 @@
+diff -ru lib/GraphBasics/Acyclic.v lib.patched/GraphBasics/Acyclic.v
+--- lib/GraphBasics/Acyclic.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Acyclic.v	2014-08-30 00:29:04.076255531 -0400
+@@ -21,8 +21,10 @@
+ 
+ Section ACYCLIC.
+ 
+-Inductive Acyclic : V_set -> A_set -> Set :=
+-  | AC_empty : Acyclic V_empty A_empty
++Variable A:Set.
++
++Inductive Acyclic : @V_set A -> @A_set A -> Set :=
++  | AC_empty : Acyclic (@V_empty A) (@A_empty A)
+   | AC_vertex :
+       forall (v : V_set) (a : A_set) (ac : Acyclic v a) (x : Vertex),
+       ~ v x -> Acyclic (V_union (V_single x) v) a
+@@ -63,7 +65,7 @@
+  Acyclic v a -> a (A_ends x y) -> v x.
+ Proof.
+         intros v a x y ac H;
+-         apply (G_ina_inv1 v a (Acyclic_Isa_Graph v a ac) x y); 
++         apply (G_ina_inv1 v a (Acyclic_Isa_Graph v a ac) x y);
+          trivial.
+ Qed.
+ 
+@@ -72,19 +74,29 @@
+  Acyclic v a -> a (A_ends x y) -> v y.
+ Proof.
+         intros v a x y ac H;
+-         apply (G_ina_inv2 v a (Acyclic_Isa_Graph v a ac) x y); 
++         apply (G_ina_inv2 v a (Acyclic_Isa_Graph v a ac) x y);
+          trivial.
+ Qed.
+ 
+ End ACYCLIC.
+ 
++Implicit Arguments Acyclic [A].
++Implicit Arguments AC_ina_inv1 [A].
++Implicit Arguments AC_ina_inv2 [A].
++Implicit Arguments Acyclic_Isa_Graph [A].
++Implicit Arguments AC_vertex [A].
++Implicit Arguments AC_leaf [A].
++
+ Section ACYCLIC_AND_DEGREES.
+ 
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
+ Remark AC_vertex_isolated :
+  forall (v : V_set) (a : A_set) (x : Vertex),
+  Acyclic v a ->
+  ~ v x ->
+- Acyclic (V_union (V_single x) v) a -> forall y : Vertex, ~ a (A_ends x y).
++ Acyclic (V_union (V_single x) v) a -> forall y : @Vertex A, ~ a (A_ends x y).
+ Proof.
+         intros; red in |- *; intros.
+         elim H0; apply (AC_ina_inv1 v a x y); trivial.
+@@ -92,7 +104,7 @@
+ 
+ Lemma AC_vertex_degree_zero :
+  forall (v : V_set) (a : A_set) (ac : Acyclic v a) (x : Vertex) (Hn : ~ v x),
+- degree x (V_union (V_single x) v) a
++ degree eq_a_dec x (V_union (V_single x) v) a
+    (Acyclic_Isa_Graph (V_union (V_single x) v) a (AC_vertex v a ac x Hn)) = 0.
+ Proof.
+         intros; apply Degree_isolated; unfold isolated in |- *.
+@@ -101,7 +113,7 @@
+ Qed.
+ 
+ Remark AC_edge_pendant :
+- forall (v : V_set) (a : A_set) (x y : Vertex),
++ forall (v : V_set) (a : A_set) (x y : @Vertex A),
+  Acyclic v a ->
+  v x ->
+  ~ v y ->
+@@ -118,9 +130,9 @@
+ Qed.
+ 
+ Lemma AC_edge_degree_one :
+- forall (v : V_set) (a : A_set) (ac : Acyclic v a) 
++ forall (v : V_set) (a : A_set) (ac : Acyclic v a)
+    (x y : Vertex) (Hp : v x) (Hn : ~ v y),
+- degree y (V_union (V_single y) v) (A_union (E_set x y) a)
++ degree eq_a_dec y (V_union (V_single y) v) (A_union (E_set x y) a)
+    (Acyclic_Isa_Graph (V_union (V_single y) v) (A_union (E_set x y) a)
+       (AC_leaf v a ac x y Hp Hn)) = 1.
+ Proof.
+@@ -143,9 +155,9 @@
+ Qed.
+ 
+ Lemma Acyclic_no_cycle :
+- forall (v : V_set) (a : A_set) (Ac : Acyclic v a) 
++ forall (v : V_set) (a : A_set) (Ac : Acyclic v a)
+    (x y : Vertex) (vl : V_list) (el : E_list) (p : Path v a x y vl el),
+- Cycle v a x y vl el p -> vl = V_nil.
++ Cycle v a x y vl el p -> vl = @V_nil A.
+ Proof.
+         intros v a Ac; elim Ac; intros.
+         inversion p.
+@@ -153,9 +165,9 @@
+ 
+         inversion H2.
+ 
+-        case (V_in_dec x (x0 :: vl)); intros.
++        case (V_in_dec eq_a_dec x (x0 :: vl)); intros.
+         apply
+-         (Path_degree_zero_nil (V_union (V_single x) v0) a0
++         (Path_degree_zero_nil eq_a_dec (V_union (V_single x) v0) a0
+             (Acyclic_Isa_Graph (V_union (V_single x) v0) a0
+                (AC_vertex v0 a0 ac x n)) x0 y vl el p).
+         split with x.
+@@ -174,9 +186,9 @@
+ 
+         red in |- *; intros; elim n0; simpl in |- *; auto.
+ 
+-        case (V_in_dec y (x0 :: vl)); intros.
++        case (V_in_dec eq_a_dec y (x0 :: vl)); intros.
+         apply
+-         (Cycle_degree_one_nil (V_union (V_single y) v0)
++         (Cycle_degree_one_nil eq_a_dec (V_union (V_single y) v0)
+             (A_union (E_set x y) a0)
+             (Acyclic_Isa_Graph (V_union (V_single y) v0)
+                (A_union (E_set x y) a0) (AC_leaf v0 a0 ac x y v1 n)) x0 y0 vl
+@@ -200,15 +212,16 @@
+         red in |- *; intros; elim n0; simpl in |- *; auto.
+ 
+         red in |- *; intros; elim n0;
+-         apply (P_inxyel_inyvl _ _ _ _ _ _ p x y); 
++         apply (P_inxyel_inyvl _ _ _ _ _ _ p x y);
+          trivial.
+ 
+         red in |- *; intros; elim n0;
+-         apply (P_inxyel_inxvl _ _ _ _ _ _ p y x); 
++         apply (P_inxyel_inxvl _ _ _ _ _ _ p y x);
+          trivial.
+ 
+         generalize H; rewrite e; rewrite e0; intros.
+         apply (H1 _ _ _ _ p H0).
+ Qed.
+ 
+-End ACYCLIC_AND_DEGREES.
+\ No newline at end of file
++End ACYCLIC_AND_DEGREES.
++
+diff -ru lib/GraphBasics/Arcs.v lib.patched/GraphBasics/Arcs.v
+--- lib/GraphBasics/Arcs.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Arcs.v	2014-08-30 00:29:04.076255531 -0400
+@@ -29,14 +29,17 @@
+ 
+ Section ARC.
+ 
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
+ Inductive Arc : Set :=
+-    A_ends : Vertex -> Vertex -> Arc.
++    A_ends : @Vertex A -> @Vertex A -> Arc.
+ 
+ Lemma A_eq_dec : forall a b : Arc, {a = b} + {a <> b}.
+ Proof.
+         simple destruct a; simple destruct b; intros.
+-        case (V_eq_dec v v1); intros.
+-        case (V_eq_dec v0 v2); intros.
++        case (V_eq_dec eq_a_dec v v1); intros.
++        case (V_eq_dec eq_a_dec v0 v2); intros.
+         left; rewrite e; rewrite e0; trivial.
+ 
+         right; injection; auto.
+@@ -162,7 +165,7 @@
+   match la with
+   | nil => V_nil
+   | A_ends x' y' :: la' =>
+-      if V_eq_dec x y'
++      if V_eq_dec eq_a_dec x y'
+       then x' :: A_in_neighborhood x la'
+       else A_in_neighborhood x la'
+   end.
+@@ -172,7 +175,7 @@
+   match la with
+   | nil => V_nil
+   | A_ends x' y' :: la' =>
+-      if V_eq_dec x x'
++      if V_eq_dec eq_a_dec x x'
+       then y' :: A_out_neighborhood x la'
+       else A_out_neighborhood x la'
+   end.
+@@ -187,3 +190,27 @@
+ Qed.
+ 
+ End ARC.
++
++Implicit Arguments Arc [A].
++Implicit Arguments A_set [A].
++Implicit Arguments A_nil [A].
++Implicit Arguments A_union [A].
++Implicit Arguments A_single [A].
++Implicit Arguments A_eq_dec [A].
++Implicit Arguments A_empty [A].
++Implicit Arguments A_ends [A].
++Implicit Arguments A_list [A].
++Implicit Arguments A_union_assoc [A].
++Implicit Arguments A_union_absorb [A].
++Implicit Arguments A_included [A].
++Implicit Arguments A_inter [A].
++Implicit Arguments A_eq_set [A].
++Implicit Arguments A_union_commut [A].
++Implicit Arguments A_union_inversion [A].
++Implicit Arguments V_included [A].
++Implicit Arguments A_not_in_union [A].
++Implicit Arguments A_empty_nothing [A].
++Implicit Arguments A_inter_commut [A].
++Hint Unfold A_union A_empty A_inter.
++
++
+Only in lib/GraphBasics: bench.log
+diff -ru lib/GraphBasics/Connected.v lib.patched/GraphBasics/Connected.v
+--- lib/GraphBasics/Connected.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Connected.v	2014-08-30 00:29:04.076255531 -0400
+@@ -26,8 +26,11 @@
+ 
+ Section CONNECTED.
+ 
+-Inductive Connected : V_set -> A_set -> Set :=
+-  | C_isolated : forall x : Vertex, Connected (V_single x) A_empty
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
++Inductive Connected : (@V_set A) -> (@A_set A) -> Set :=
++  | C_isolated : forall x : Vertex, Connected (V_single x) (@A_empty A)
+   | C_leaf :
+       forall (v : V_set) (a : A_set) (co : Connected v a) (x y : Vertex),
+       v x ->
+@@ -44,12 +47,12 @@
+       v = v' -> a = a' -> Connected v a -> Connected v' a'.
+ 
+ Lemma Connected_not_empty :
+- forall (v : V_set) (a : A_set), Connected v a -> v <> V_empty.
++ forall (v : V_set) (a : A_set), Connected v a -> v <> (@V_empty A).
+ Proof.
+         intros v a c; elim c; red in |- *; intros.
+-        elim (V_empty_nothing x); fold V_empty in |- *; rewrite <- H;
++        elim (V_empty_nothing x); fold (@V_empty A) in |- *; rewrite <- H;
+          apply V_in_single.
+-        elim (V_empty_nothing y); fold V_empty in |- *; rewrite <- H0;
++        elim (V_empty_nothing y); fold (@V_empty A) in |- *; rewrite <- H0;
+          apply V_in_left; apply V_in_single.
+ 
+         elim H; trivial.
+@@ -61,13 +64,14 @@
+  forall (v : V_set) (a : A_set), Connected v a -> Graph v a.
+ Proof.
+         intros v a c; elim c; intros.
+-        apply G_eq with (v := V_union (V_single x) V_empty) (a := A_empty).
++        apply G_eq with (v := V_union (V_single x) (@V_empty A)) (a := (@A_empty A)).
++        autounfold.
+         rewrite V_union_commut; apply V_union_neutral.
+ 
+         trivial.
+ 
+         apply G_vertex.
+-        exact G_empty.
++        exact (@G_empty A).
+ 
+         compute in |- *. tauto.
+ 
+@@ -94,7 +98,7 @@
+  {v x} + {~ v x}.
+ Proof.
+         intros; generalize (Connected_Isa_Graph v a c); intros g.
+-        apply (G_v_dec v a g x).
++        apply (G_v_dec eq_a_dec v a g x).
+ Qed.
+ 
+ Lemma C_a_dec :
+@@ -102,7 +106,7 @@
+  {a x} + {~ a x}.
+ Proof.
+         intros; generalize (Connected_Isa_Graph v a c); intros g.
+-        apply (G_a_dec v a g x).
++        apply (G_a_dec eq_a_dec v a g x).
+ Qed.
+ 
+ Lemma C_ina_inv1 :
+@@ -121,23 +125,28 @@
+ 
+ End CONNECTED.
+ 
++Implicit Arguments Connected [A].
++
+ Require Export Paths.
+ 
+ Section CONNECTED_BY_EDGES.
+ 
+-Remark V_included_union' : forall E F : V_set, V_included F (V_union E F).
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
++Remark V_included_union' : forall E F : @V_set A, V_included F (V_union E F).
+ Proof.
+-        intros; rewrite V_union_commut; apply V_included_union.
++        intros; autounfold; rewrite V_union_commut; apply V_included_union.
+ Qed.
+ 
+-Remark A_included_union' : forall E F : A_set, A_included F (A_union E F).
++Remark A_included_union' : forall E F : @A_set A, A_included F (A_union E F).
+ Proof.
+-        intros; rewrite A_union_commut; apply A_included_union.
++        intros; repeat autounfold; rewrite A_union_commut; apply A_included_union.
+ Qed.
+ 
+ Lemma Connected_walk :
+  forall (v : V_set) (a : A_set) (c : Connected v a) (x y : Vertex),
+- v x -> v y -> {vl : V_list &  {el : E_list &  Walk v a x y vl el}}.
++ v x -> v y -> {vl : V_list &  {el : @E_list A &  Walk v a x y vl el}}.
+ Proof.
+         intros v a c; elim c; intros.
+         split with V_nil; split with E_nil.
+@@ -146,8 +155,8 @@
+         apply W_null.
+         apply V_in_single.
+ 
+-        case (V_union_single_dec _ _ _ n H0);
+-         case (V_union_single_dec _ _ _ n H1); intros.
++        case (V_union_single_dec eq_a_dec _ _ _ n H0);
++         case (V_union_single_dec eq_a_dec _ _ _ n H1); intros.
+         split with V_nil; split with E_nil.
+         rewrite <- e; rewrite <- e0; apply W_null.
+         apply V_in_left; apply V_in_single.
+@@ -199,7 +208,7 @@
+         split with x1; elim p; intros.
+         split with x2;
+          apply (Walk_subgraph _ v0 _ (A_union (E_set x y) a0) _ _ _ _ p0).
+-        unfold V_included, Included in |- *; auto.
++        unfold V_included, Included, Ensembles.Included in |- *; auto.
+ 
+         apply A_included_union'.
+ 
+@@ -214,26 +223,32 @@
+ 
+ Lemma Connected_path :
+  forall (v : V_set) (a : A_set) (g : Connected v a) (x y : Vertex),
+- v x -> v y -> {vl : V_list &  {el : E_list &  Path v a x y vl el}}.
++ v x -> v y -> {vl : V_list &  {el : @E_list A &  Path v a x y vl el}}.
+ Proof.
+         intros; elim (Connected_walk v a g x y H H0); intros.
+         elim p; intros.
+-        apply (Walk_to_path v a x y x0 x1 p0).
++        apply (Walk_to_path eq_a_dec v a x y x0 x1 p0).
+ Qed.
+ 
+ End CONNECTED_BY_EDGES.
+ 
++Implicit Arguments C_ina_inv2 [A].
++Implicit Arguments C_ina_inv1 [A].
++
+ Section INVERSION_CONNECTED.
+ 
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
+ Lemma C_minus_isolated :
+  forall (v : V_set) (a : A_set) (c : Connected v a) (x : Vertex),
+  v x ->
+- (forall y : Vertex, ~ a (A_ends x y)) -> v = V_single x /\ a = A_empty.
++ (forall y : Vertex, ~ a (A_ends x y)) -> v = V_single x /\ a = @A_empty A.
+ Proof.
+         intros v a c; elim c; intros.
+         inversion H; auto.
+ 
+-        case (V_union_single_dec _ _ _ n H0); intros.
++        case (V_union_single_dec eq_a_dec _ _ _ n H0); intros.
+         elim (H1 x); rewrite e; apply A_in_left; apply E_left.
+ 
+         generalize (A_not_in_union _ _ _ H1); intros.
+@@ -254,14 +269,14 @@
+ 
+ Lemma C_minus_isolated_left :
+  forall (v : V_set) (a : A_set) (c : Connected v a) (x : Vertex),
+- v x -> (forall y : Vertex, ~ a (A_ends x y)) -> v = V_single x.
++ v x -> (forall y : @Vertex A, ~ a (A_ends x y)) -> v = V_single x.
+ Proof.
+         intros; elim (C_minus_isolated v a c x); auto.
+ Qed.
+ 
+ Lemma C_minus_isolated_right :
+  forall (v : V_set) (a : A_set) (c : Connected v a) (x : Vertex),
+- v x -> (forall y : Vertex, ~ a (A_ends x y)) -> a = A_empty.
++ v x -> (forall y : Vertex, ~ a (A_ends x y)) -> a = @A_empty A.
+ Proof.
+         intros; elim (C_minus_isolated v a c x); auto.
+ Qed.
+@@ -270,7 +285,7 @@
+  forall (v : V_set) (a : A_set) (c : Connected v a) (x y z : Vertex),
+  ~ v y ->
+  (forall t : Vertex, A_union (E_set x y) a (A_ends z t) -> t = y) ->
+- forall t : Vertex, ~ a (A_ends z t).
++ forall t : @Vertex A, ~ a (A_ends z t).
+ Proof.
+         intros; red in |- *; intros; elim H.
+         generalize (H0 t); intros.
+@@ -284,7 +299,7 @@
+  forall (v : V_set) (a : A_set) (c : Connected v a) (x y : Vertex),
+  v y ->
+  ~ a (A_ends y x) ->
+- (forall z : Vertex, A_union (E_set x y) a (A_ends y z) -> z = x) ->
++ (forall z : @Vertex A, A_union (E_set x y) a (A_ends y z) -> z = x) ->
+  v = V_single y.
+ Proof.
+         intros; apply (C_minus_isolated_left _ _ c y H).
+@@ -303,12 +318,12 @@
+  ~ a (A_ends y x) ->
+  v x' ->
+  v y' ->
+- (forall z : Vertex, A_union (E_set x y) a (A_ends y' z) -> z = x') ->
++ (forall z : @Vertex A, A_union (E_set x y) a (A_ends y' z) -> z = x') ->
+  E_set x y <> E_set x' y'.
+ Proof.
+         intros; red in |- *; intros.
+         generalize H6; rewrite H7; intros.
+-        generalize (E_eq_not_in' _ _ _ _ _ H2 H3 H7); intros.
++        generalize (E_eq_not_in' _ _ _ _ _ _ H2 H3 H7); intros.
+         generalize (E_pendant_quasi_isolated _ _ c x' y' H5 H9 H8); intros.
+         elim H1.
+         rewrite H10 in H; inversion H.
+@@ -320,7 +335,7 @@
+  forall (v : V_set) (a : A_set) (c : Connected v a) (x y : Vertex),
+  v x ->
+  v y ->
+- (forall z : Vertex, a (A_ends y z) -> z = x) ->
++ (forall z : @Vertex A, a (A_ends y z) -> z = x) ->
+  forall (v' : V_set) (a' : A_set),
+  ~ v' y ->
+  v = V_union (V_single y) v' ->
+@@ -329,9 +344,9 @@
+ Proof.
+         intros v a c; elim c; intros.
+         elim (A_empty_nothing (A_ends x0 y)).
+-        fold A_empty in |- *; rewrite H6; apply A_in_left; apply E_right.
++        fold (@A_empty A) in |- *; rewrite H6; apply A_in_left; apply E_right.
+ 
+-        case (V_union_single_dec _ _ _ n H1); intros.
++        case (V_union_single_dec eq_a_dec _ _ _ n H1); intros.
+         apply C_eq with (v := v0) (a := a0).
+         apply (V_union_inversion (V_single y)).
+         apply V_single_disjoint; trivial.
+@@ -352,20 +367,20 @@
+ 
+         apply A_in_left; apply E_left.
+ 
+-        fold A_union in |- *; rewrite H7; rewrite e; rewrite H8.
++        fold (Union (@Arc A)) (@A_union A) in |- *; rewrite H7; rewrite e; rewrite H8.
+         trivial.
+ 
+         apply A_in_left; apply E_left.
+ 
+         trivial.
+ 
+-        case (V_union_single_dec _ _ _ n H0); intros.
++        case (V_union_single_dec eq_a_dec _ _ _ n H0); intros.
+         rewrite <- e in H2;
+-         generalize (C_pendant_isolated _ _ co x y y0 n H2); 
++         generalize (C_pendant_isolated _ _ co x y y0 n H2);
+          intros.
+         generalize (C_minus_isolated _ _ co y0 v2 H8); intros.
+         decompose [and] H9.
+-        apply C_eq with (v := V_single y) (a := A_empty).
++        apply C_eq with (v := V_single y) (a := @A_empty A).
+         symmetry  in |- *; apply (V_union_single_single v' y y0).
+         red in |- *; intros Heq; elim n; rewrite Heq; trivial.
+ 
+@@ -420,7 +435,7 @@
+ 
+         red in |- *; intros Hi; elim H3; inversion Hi; trivial.
+ 
+-        symmetry  in |- *; rewrite V_inter_commut;
++        symmetry in |- *; autounfold; rewrite V_inter_commut;
+          apply (V_union_single_inter y0 y).
+         trivial.
+ 
+@@ -434,6 +449,7 @@
+         unfold A_inter in |- *.
+         rewrite (A_inter_commut a0 a'); apply A_not_inter; trivial.
+ 
++        repeat autounfold;
+         rewrite A_inter_commut; symmetry  in |- *;
+          apply (A_union_single_inter x0 y0 x y).
+         trivial.
+@@ -448,7 +464,7 @@
+         apply V_in_inter.
+         trivial.
+ 
+-        case (V_union_single_dec y0 x v'); intros.
++        case (V_union_single_dec eq_a_dec y0 x v'); intros.
+         trivial.
+ 
+         rewrite <- H4; apply V_in_right; trivial.
+@@ -484,6 +500,7 @@
+         unfold A_inter in |- *.
+         rewrite (A_inter_commut a0 a'); apply A_not_inter; trivial.
+ 
++        repeat autounfold.
+         rewrite A_inter_commut; symmetry  in |- *;
+          apply (A_union_single_inter x0 y0 x y); auto.
+ 
+@@ -530,3 +547,8 @@
+ Qed.
+ 
+ End INVERSION_CONNECTED.
++
++Implicit Arguments Connected_not_empty [A].
++Implicit Arguments C_minus_isolated_left [A].
++Implicit Arguments C_minus_isolated_right [A].
++Implicit Arguments C_minus_pendant [A].
+diff -ru lib/GraphBasics/Degrees.v lib.patched/GraphBasics/Degrees.v
+--- lib/GraphBasics/Degrees.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Degrees.v	2014-08-30 00:29:04.076255531 -0400
+@@ -34,9 +34,11 @@
+ 
+ Section NEIGHBOR.
+ 
+-Variable v : V_set.
++Variable A:Set.
+ 
+-Variable a : A_set.
++Variable v : @V_set A.
++
++Variable a : @A_set A.
+ 
+ Definition In_neighbor (x y : Vertex) := a (A_ends y x).
+ 
+@@ -61,8 +63,8 @@
+ Lemma In_and_out_neighbor :
+  forall x y : Vertex, In_neighbor x y -> Out_neighbor x y -> Neighbor x y.
+ Proof.
+-        unfold Neighbor, A_included, Included, In_neighbor, Out_neighbor
+-         in |- *; intros.
++        unfold Neighbor, A_included, Included, Ensembles.Included, In_neighbor,
++         Out_neighbor in |- *; intros.
+         inversion H1; auto.
+ Qed.
+ 
+@@ -70,52 +72,55 @@
+ 
+ Section DEGREE.
+ 
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
+ Fixpoint In_neighborhood (x : Vertex) (v : V_set) (a : A_set)
+  (d : Digraph v a) {struct d} : V_list :=
+   match d with
+   | D_empty => V_nil
+   | D_vertex v' a' d' x' _ => In_neighborhood x v' a' d'
+   | D_arc v' a' d' x' y' _ _ _ =>
+-      if V_eq_dec x y'
++      if V_eq_dec eq_a_dec x y'
+       then x' :: In_neighborhood x v' a' d'
+       else In_neighborhood x v' a' d'
+   | D_eq v' _ a' _ _ _ d' => In_neighborhood x v' a' d'
+   end.
+ 
+-Fixpoint Out_neighborhood (x : Vertex) (v : V_set) 
++Fixpoint Out_neighborhood (x : Vertex) (v : V_set)
+  (a : A_set) (d : Digraph v a) {struct d} : V_list :=
+   match d with
+   | D_empty => V_nil
+   | D_vertex v' a' d' x' _ => Out_neighborhood x v' a' d'
+   | D_arc v' a' d' x' y' _ _ _ =>
+-      if V_eq_dec x x'
++      if V_eq_dec eq_a_dec x x'
+       then y' :: Out_neighborhood x v' a' d'
+       else Out_neighborhood x v' a' d'
+   | D_eq v' _ a' _ _ _ d' => Out_neighborhood x v' a' d'
+   end.
+ 
+-Fixpoint neighborhood (x : Vertex) (v : V_set) (a : A_set) 
++Fixpoint neighborhood (x : Vertex) (v : V_set) (a : A_set)
+  (g : Graph v a) {struct g} : V_list :=
+   match g with
+   | G_empty => V_nil
+   | G_vertex v' a' g' x' _ => neighborhood x v' a' g'
+   | G_edge v' a' g' x' y' _ _ _ _ _ =>
+-      if V_eq_dec x x'
++      if V_eq_dec eq_a_dec x x'
+       then y' :: neighborhood x v' a' g'
+       else
+-       if V_eq_dec x y'
++       if V_eq_dec eq_a_dec x y'
+        then x' :: neighborhood x v' a' g'
+        else neighborhood x v' a' g'
+   | G_eq v' _ a' _ _ _ g' => neighborhood x v' a' g'
+   end.
+ 
+-Fixpoint In_degree (x : Vertex) (v : V_set) (a : A_set) 
++Fixpoint In_degree (x : Vertex) (v : V_set) (a : A_set)
+  (d : Digraph v a) {struct d} : nat :=
+   match d with
+   | D_empty => 0
+   | D_vertex v' a' d' x' _ => In_degree x v' a' d'
+   | D_arc v' a' d' x' y' _ _ _ =>
+-      if V_eq_dec x y'
++      if V_eq_dec eq_a_dec x y'
+       then S (In_degree x v' a' d')
+       else In_degree x v' a' d'
+   | D_eq v' _ a' _ _ _ d' => In_degree x v' a' d'
+@@ -130,18 +135,18 @@
+ 
+         trivial.
+ 
+-        case (V_eq_dec x y); rewrite H; auto.
++        case (V_eq_dec eq_a_dec x y); rewrite H; auto.
+ 
+         trivial.
+ Qed.
+ 
+-Fixpoint Out_degree (x : Vertex) (v : V_set) (a : A_set) 
++Fixpoint Out_degree (x : Vertex) (v : V_set) (a : A_set)
+  (d : Digraph v a) {struct d} : nat :=
+   match d with
+   | D_empty => 0
+   | D_vertex v' a' d' x' _ => Out_degree x v' a' d'
+   | D_arc v' a' d' x' y' _ _ _ =>
+-      if V_eq_dec x x'
++      if V_eq_dec eq_a_dec x x'
+       then S (Out_degree x v' a' d')
+       else Out_degree x v' a' d'
+   | D_eq v' _ a' _ _ _ d' => Out_degree x v' a' d'
+@@ -156,21 +161,21 @@
+ 
+         trivial.
+ 
+-        case (V_eq_dec x x0); rewrite H; auto.
++        case (V_eq_dec eq_a_dec x x0); rewrite H; auto.
+ 
+         trivial.
+ Qed.
+ 
+-Fixpoint degree (x : Vertex) (v : V_set) (a : A_set) 
++Fixpoint degree (x : Vertex) (v : V_set) (a : A_set)
+  (g : Graph v a) {struct g} : nat :=
+   match g with
+   | G_empty => 0
+   | G_vertex v' a' g' x' _ => degree x v' a' g'
+   | G_edge v' a' g' x' y' _ _ _ _ _ =>
+-      if V_eq_dec x x'
++      if V_eq_dec eq_a_dec x x'
+       then S (degree x v' a' g')
+       else
+-	if V_eq_dec x y'
++	if V_eq_dec eq_a_dec x y'
+ 	then S (degree x v' a' g')
+ 	else degree x v' a' g'
+   | G_eq v' _ a' _ _ _ g' => degree x v' a' g'
+@@ -185,37 +190,42 @@
+ 
+         trivial.
+ 
+-        case (V_eq_dec x x0); intros.
++        case (V_eq_dec eq_a_dec x x0); intros.
+         rewrite H; auto.
+ 
+-        case (V_eq_dec x y); rewrite H; auto.
++        case (V_eq_dec eq_a_dec x y); rewrite H; auto.
+ 
+         trivial.
+ Qed.
+ 
+ End DEGREE.
+ 
++Implicit Arguments degree [A].
++
+ Section REMARKABLE_DEGREE.
+ 
+-Definition isolated (x : Vertex) (v : V_set) (a : A_set) 
+-  (g : Graph v a) := forall y : Vertex, ~ a (A_ends x y).
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
++Definition isolated (x : Vertex) (v : V_set) (a : A_set)
++  (g : Graph v a) := forall y : @Vertex A, ~ a (A_ends x y).
+ 
+ Lemma Degree_isolated :
+  forall (v : V_set) (a : A_set) (g : Graph v a) (x : Vertex),
+- isolated x v a g -> degree x v a g = 0.
++ isolated x v a g -> degree eq_a_dec x v a g = 0.
+ Proof.
+         unfold isolated in |- *; simple induction g; simpl in |- *; intros.
+         trivial.
+ 
+         auto.
+ 
+-        case (V_eq_dec x0 x); intros.
++        case (V_eq_dec eq_a_dec x0 x); intros.
+         absurd (A_union (E_set x y) a0 (A_ends x0 y)).
+         auto.
+ 
+         rewrite e; apply A_in_left; apply E_right.
+ 
+-        case (V_eq_dec x0 y); intros.
++        case (V_eq_dec eq_a_dec x0 y); intros.
+         absurd (A_union (E_set x y) a0 (A_ends x0 x)).
+         auto.
+ 
+@@ -227,14 +237,14 @@
+         apply (H x); rewrite e0; trivial.
+ Qed.
+ 
+-Definition pendant (x : Vertex) (v : V_set) (a : A_set) 
++Definition pendant (x : Vertex) (v : V_set) (a : A_set)
+   (g : Graph v a) :=
+   exists2 y : Vertex,
+-    a (A_ends x y) & (forall z : Vertex, a (A_ends x z) -> z = y).
++    a (A_ends x y) & (forall z : @Vertex A, a (A_ends x z) -> z = y).
+ 
+ Lemma Degree_pendant :
+  forall (v : V_set) (a : A_set) (g : Graph v a) (x : Vertex),
+- pendant x v a g -> degree x v a g = 1.
++ pendant x v a g -> degree eq_a_dec x v a g = 1.
+ Proof.
+         unfold pendant in |- *; simple induction g; simpl in |- *; intros.
+         elim H; intros.
+@@ -242,7 +252,7 @@
+ 
+         auto.
+ 
+-        case (V_eq_dec x0 x); intros.
++        case (V_eq_dec eq_a_dec x0 x); intros.
+         rewrite (Degree_isolated v0 a0 d x0).
+         trivial.
+ 
+@@ -258,7 +268,7 @@
+ 
+         apply H2; apply A_in_right; trivial.
+ 
+-        case (V_eq_dec x0 y); intros.
++        case (V_eq_dec eq_a_dec x0 y); intros.
+         rewrite (Degree_isolated v0 a0 d x0).
+         trivial.
+ 
+@@ -286,7 +296,7 @@
+ 
+ Lemma Degree_not_isolated :
+  forall (v : V_set) (a : A_set) (g : Graph v a) (x : Vertex),
+- (exists y : Vertex, a (A_ends x y)) -> degree x v a g > 0.
++ (exists y : Vertex, a (A_ends x y)) -> degree eq_a_dec x v a g > 0.
+ Proof.
+         simple induction g; simpl in |- *; intros.
+         elim H; intros.
+@@ -294,10 +304,10 @@
+ 
+         auto.
+ 
+-        case (V_eq_dec x0 x); intros.
++        case (V_eq_dec eq_a_dec x0 x); intros.
+         omega.
+ 
+-        case (V_eq_dec x0 y); intros.
++        case (V_eq_dec eq_a_dec x0 y); intros.
+         omega.
+ 
+         apply H; elim H0; intros.
+@@ -312,7 +322,7 @@
+  forall (v : V_set) (a : A_set) (g : Graph v a) (x : Vertex),
+  (exists2 y : Vertex,
+     a (A_ends x y) & (exists2 z : Vertex, a (A_ends x z) & y <> z)) ->
+- degree x v a g > 1.
++ degree eq_a_dec x v a g > 1.
+ Proof.
+         simple induction g; simpl in |- *; intros.
+         elim H; intros.
+@@ -320,10 +330,10 @@
+ 
+         auto.
+ 
+-        case (V_eq_dec x0 x); intros.
++        case (V_eq_dec eq_a_dec x0 x); intros.
+         apply gt_n_S; apply Degree_not_isolated.
+         elim H0; rewrite e; intros.
+-        case (V_eq_dec x1 y); intros.
++        case (V_eq_dec eq_a_dec x1 y); intros.
+         elim H2; rewrite e0; intros.
+         split with x2.
+         apply (A_in_union_edge _ _ _ _ _ H3).
+@@ -333,10 +343,10 @@
+         apply (A_in_union_edge _ _ _ _ _ H1).
+         apply E_not_set_eq24; auto.
+ 
+-        case (V_eq_dec x0 y); intros.
++        case (V_eq_dec eq_a_dec x0 y); intros.
+         apply gt_n_S; apply Degree_not_isolated.
+         elim H0; rewrite e; intros.
+-        case (V_eq_dec x x1); intros.
++        case (V_eq_dec eq_a_dec x x1); intros.
+         elim H2; rewrite e0; intros.
+         split with x2; apply (A_in_union_edge _ _ _ _ _ H3).
+         apply E_not_set_eq14; trivial.
+@@ -359,4 +369,5 @@
+         apply H; rewrite e0; trivial.
+ Qed.
+ 
+-End REMARKABLE_DEGREE.
+\ No newline at end of file
++End REMARKABLE_DEGREE.
++
+Only in lib/GraphBasics: description
+diff -ru lib/GraphBasics/Digraphs.v lib.patched/GraphBasics/Digraphs.v
+--- lib/GraphBasics/Digraphs.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Digraphs.v	2014-08-30 00:29:04.076255531 -0400
+@@ -33,8 +33,11 @@
+ 
+ Section DIGRAPH.
+ 
+-Inductive Digraph : V_set -> A_set -> Set :=
+-  | D_empty : Digraph V_empty A_empty
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
++Inductive Digraph : @V_set A -> @A_set A -> Set :=
++  | D_empty : Digraph (@V_empty A) (@A_empty A)
+   | D_vertex :
+       forall (v : V_set) (a : A_set) (d : Digraph v a) (x : Vertex),
+       ~ v x -> Digraph (V_union (V_single x) v) a
+@@ -81,7 +84,7 @@
+         case (H x0); intros.
+         left; apply V_in_right; trivial.
+ 
+-        case (V_eq_dec x x0); intros.
++        case (V_eq_dec eq_a_dec x x0); intros.
+         left; apply V_in_left; rewrite e; apply V_in_single.
+ 
+         right; red in |- *; intros; inversion H0.
+@@ -108,7 +111,7 @@
+         case (H x0); intros.
+         left; apply A_in_right; trivial.
+ 
+-        case (A_eq_dec (A_ends x y) x0); intros.
++        case (A_eq_dec eq_a_dec (A_ends x y) x0); intros.
+         left; apply A_in_left; rewrite e; apply A_in_single.
+ 
+         right; red in |- *; intros; inversion H0.
+@@ -124,10 +127,17 @@
+ 
+ End DIGRAPH.
+ 
++Implicit Arguments Digraph [A].
++Implicit Arguments D_v_dec [A].
++Implicit Arguments D_a_dec [A].
++
+ Section UNION_DIGRAPHS.
+ 
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
+ Lemma D_union :
+- forall (v1 v2 : V_set) (a1 a2 : A_set),
++ forall (v1 v2 : V_set) (a1 a2 : @A_set A),
+  Digraph v1 a1 -> Digraph v2 a2 -> Digraph (V_union v1 v2) (A_union a1 a2).
+ Proof.
+         intros; elim H; intros.
+@@ -138,8 +148,9 @@
+ 
+         trivial.
+ 
+-        case (D_v_dec v2 a2 H0 x); intros.
++        case (D_v_dec eq_a_dec v2 a2 H0 x); intros.
+         apply D_eq with (v := V_union v v2) (a := A_union a a2).
++        autounfold.
+         rewrite V_union_assoc; rewrite (V_union_absorb (V_single x)); trivial.
+         apply V_included_single; apply V_in_right; trivial.
+ 
+@@ -159,12 +170,13 @@
+ 
+         apply V_not_union; trivial.
+ 
+-        case (D_a_dec v2 a2 H0 (A_ends x y)); intros.
++        case (D_a_dec eq_a_dec v2 a2 H0 (A_ends x y)); intros.
+         apply D_eq with (v := V_union v v2) (a := A_union a a2).
+         trivial.
+ 
++        repeat autounfold. 
+         rewrite A_union_assoc;
+-         rewrite (A_union_absorb (A_single (A_ends x y))); 
++         rewrite (A_union_absorb (A_single (A_ends x y)));
+          trivial.
+         apply A_included_single; apply A_in_right; trivial.
+ 
+@@ -196,4 +208,9 @@
+         trivial.
+ Qed.
+ 
+-End UNION_DIGRAPHS.
+\ No newline at end of file
++End UNION_DIGRAPHS.
++
++Implicit Arguments D_empty [A].
++Implicit Arguments D_vertex [A].
++Implicit Arguments D_eq [A].
++Implicit Arguments D_arc [A].
+diff -ru lib/GraphBasics/Dipaths.v lib.patched/GraphBasics/Dipaths.v
+--- lib/GraphBasics/Dipaths.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Dipaths.v	2014-08-30 00:29:04.076255531 -0400
+@@ -26,41 +26,44 @@
+ (*              constructors : DP_null, DP_step;                        *)
+ (*      - D_closed_walk, D_closed_trail, D_cycle.                       *)
+ 
+-Require Import Digraphs.
++Require Export Digraphs.
+ 
+ Section DIRECTED_PATHES.
+ 
+-Variable v : V_set.
++Variable A:Set.
++Variable v : @V_set A.
++Variable a : @A_set A.
+ 
+-Variable a : A_set.
+-
+-Inductive D_walk : Vertex -> Vertex -> V_list -> A_list -> Set :=
++Inductive D_walk : @Vertex A-> @Vertex A-> @V_list A-> @A_list A-> Prop :=
+   | DW_null : forall x : Vertex, v x -> D_walk x x V_nil A_nil
+   | DW_step :
+       forall (x y z : Vertex) (vl : V_list) (al : A_list),
+       D_walk y z vl al ->
+-      a (A_ends x y) -> D_walk x z (y :: vl) (A_ends x y :: al).
++      v x -> a (A_ends x y) -> D_walk x z (y :: vl) (A_ends x y :: al).
+ 
+ Definition D_closed_walk :=
+   forall (x : Vertex) (vl : V_list) (al : A_list), D_walk x x vl al.
+ 
+-Inductive D_trail : Vertex -> Vertex -> V_list -> A_list -> Set :=
++Inductive D_trail : @Vertex A-> @Vertex A-> @V_list A-> @A_list A-> Prop :=
+   | DT_null : forall x : Vertex, v x -> D_trail x x V_nil A_nil
+   | DT_step :
+       forall (x y z : Vertex) (vl : V_list) (al : A_list),
+       D_trail y z vl al ->
++      v x ->
+       a (A_ends x y) ->
+       ~ In (A_ends x y) al -> D_trail x z (y :: vl) (A_ends x y :: al).
+ 
+ Definition D_closed_trail :=
+   forall (x : Vertex) (vl : V_list) (al : A_list), D_trail x x vl al.
+ 
+-Inductive D_path : Vertex -> Vertex -> V_list -> A_list -> Set :=
++Inductive D_path : @Vertex A-> @Vertex A-> @V_list A-> @A_list A-> Prop :=
+   | DP_null : forall x : Vertex, v x -> D_path x x V_nil A_nil
+   | DP_step :
+       forall (x y z : Vertex) (vl : V_list) (al : A_list),
+       D_path y z vl al ->
++      v x ->
+       a (A_ends x y) ->
++      x <> y ->
+       ~ In y vl ->
+       (In x vl -> x = z) ->
+       ~ In (A_ends x y) al -> D_path x z (y :: vl) (A_ends x y :: al).
+@@ -89,4 +92,848 @@
+         apply DT_step; trivial.
+ Qed.
+ 
++Lemma D_path_isa_walk :
++ forall (x y : Vertex) (vl : V_list) (al : A_list) (p : D_path x y vl al),
++ D_walk x y vl al.
++Proof.
++   intros. apply D_trail_isa_walk. apply D_path_isa_trail; auto.
++Qed.
++
++Lemma DW_iny_vl :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_walk x y vl al -> vl <> V_nil -> In y vl.
++Proof.
++        intros x y vl al d; elim d; intros.
++        absurd (V_nil = @V_nil A); auto.
++
++        inversion H.
++        simpl in |- *; auto.
++
++        rewrite H9; simpl in |- *; right.
++        apply H0; rewrite <- H9; discriminate.
++Qed.
++
++Lemma DW_endx_inv :
++ forall (x y : Vertex) (vl : V_list) (al : A_list), D_walk x y vl al -> v x.
++Proof.
++        intros x y vl el d; elim d; auto.
++Qed.
++
++Lemma DW_endy_inv :
++ forall (x y : Vertex) (vl : V_list) (al : A_list), D_walk x y vl al -> v y.
++Proof.
++        intros x y vl el d; elim d; auto.
++Qed.
++
++Lemma DW_invl_inv :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_walk x y vl al -> forall z : Vertex, In z vl -> v z.
++Proof.
++        intros x y vl al d; elim d; intros.
++        inversion H0.
++
++        inversion H3; subst; auto.
++        apply (DW_endx_inv _ _ _ _ H).
++Qed.
++
++Lemma DW_inel_ina :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_walk x y vl al ->
++ forall x' y' : Vertex, In (A_ends x' y') al -> a (A_ends x' y').
++Proof.
++        intros x y vl el d; elim d; intros.
++        inversion H0.
++
++        inversion H3; auto.
++        inversion H4; subst; auto.
++Qed.
++
++Lemma DW_inxyel_inxvl :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_walk x y vl al ->
++ forall x' y' : Vertex, In (A_ends x' y') al -> In x' (x :: vl).
++Proof.
++        intros x y vl al d; elim d; intros.
++        inversion H0.
++
++        inversion H3.
++          inversion H4.
++          simpl in |- *; auto.
++
++          simpl in |- *; right.
++          apply (H0 x' y'); auto.
++Qed.
++
++Lemma DW_inxyel_inyvl :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_walk x y vl al ->
++ forall x' y' : Vertex, In (A_ends x' y') al -> In y' (x :: vl).
++Proof.
++        intros x y vl el d; elim d; intros.
++        inversion H0.
++
++        inversion H3.
++          inversion H4.
++          simpl in |- *; auto.
++
++          simpl in |- *; right.
++          apply (H0 x' y'); auto.
++Qed.
++
++Lemma DW_backstep :
++ forall (x y z : Vertex) (vl : V_list) (al : A_list),
++ D_walk x z (y :: vl) al ->
++   exists al' : A_list, D_walk y z vl al' /\ (al = (A_ends x y) ::al').
++Proof.
++        intros; inversion H.
++        split with al0. split; auto.
++Qed.
++
++Lemma DW_neq_ends_inv :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_walk x y vl al -> x <> y -> vl <> V_nil /\ al <> A_nil.
++Proof.
++        intros; inversion H; subst; auto.
++          split; intro J; inversion J.
++Qed.
++
++Lemma DW_Vnil_inv :
++ forall (x y : Vertex) (al : A_list),
++ D_walk x y V_nil al -> x = y /\ al = A_nil.
++Proof.
++        intros; inversion H; subst; auto.
++Qed.
++
++Lemma DW_Anil_inv :
++ forall (x y : Vertex) (vl : V_list),
++ D_walk x y vl A_nil -> x = y /\ vl = V_nil.
++Proof.
++        intros; inversion H; subst; auto.
++Qed.
++
++Lemma DP_iny_vl :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_path x y vl al -> vl <> V_nil -> In y vl.
++Proof.
++        intros x y vl al d; elim d; intros.
++        absurd (V_nil = @V_nil A); auto.
++
++        inversion H.
++          simpl in |- *; auto.
++
++          rewrite H17; simpl in |- *; right.
++          apply H0; rewrite <- H17; discriminate.
++Qed.
++
++Lemma DP_endx_inv :
++ forall (x y : Vertex) (vl : V_list) (al : A_list), D_path x y vl al -> v x.
++Proof.
++        intros x y vl el d; elim d; auto.
++Qed.
++
++Lemma DP_endy_inv :
++ forall (x y : Vertex) (vl : V_list) (al : A_list), D_path x y vl al -> v y.
++Proof.
++        intros x y vl el d; elim d; auto.
++Qed.
++
++Lemma DP_invl_inv :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_path x y vl al -> forall z : Vertex, In z vl -> v z.
++Proof.
++        intros x y vl al d; elim d; intros.
++        inversion H0.
++
++        inversion H7; subst; auto.
++        apply (DP_endx_inv _ _ _ _ H).
++Qed.
++
++Lemma DP_inel_ina :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_path x y vl al ->
++ forall x' y' : Vertex, In (A_ends x' y') al -> a (A_ends x' y').
++Proof.
++        intros x y vl el d; elim d; intros.
++        inversion H0.
++
++        inversion H7; subst; auto.
++        inversion H8; subst; auto.
++Qed.
++
++Lemma DP_inxyel_inxvl :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_path x y vl al ->
++ forall x' y' : Vertex, In (A_ends x' y') al -> In x' (x :: vl).
++Proof.
++        intros x y vl al d; elim d; intros.
++        inversion H0.
++
++        inversion H7.
++          inversion H8; subst.
++          simpl in |- *; auto.
++
++          simpl in |- *; right.
++          apply (H0 x' y'); auto.
++Qed.
++
++Lemma DP_inxyel_inyvl :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_path x y vl al ->
++ forall x' y' : Vertex, In (A_ends x' y') al -> In y' (x :: vl).
++Proof.
++        intros x y vl el d; elim d; intros.
++        inversion H0.
++
++        inversion H7.
++          inversion H8; subst.
++          simpl in |- *; auto.
++
++          simpl in |- *; right.
++          apply (H0 x' y'); auto.
++Qed.
++
++Lemma DP_endx_ninV :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_path x y vl al -> x <> y -> ~ In x vl.
++Proof.
++  intros x y vl el d Hneq. inversion d; subst; simpl; auto.
++  intro J.
++  destruct J as [J | J]; subst; auto.
++Qed.
++
++Lemma DP_backstep :
++ forall (x y z : Vertex) (vl : V_list) (al : A_list),
++ D_path x z (y :: vl) al -> exists al' : A_list, D_path y z vl al'.
++Proof.
++        intros; inversion H.
++        split with al0; trivial.
++Qed.
++
++Lemma DP_prefix_no_head:  forall (y z : Vertex) (vl : V_list) (al : A_list) 
++ (H: D_path y z vl al), 
++ vl = V_nil \/ (exists vl', vl = vl' ++ z::nil /\ ~ In z vl').
++Proof.
++  intros.
++  induction H; auto.
++    right.
++    destruct IHD_path as [J | [vl' [J1 J2]]]; subst.
++      inversion H; subst.
++      exists nil. split; auto.
++
++      exists (y::vl').
++      split; auto.
++        simpl.
++        intro J.
++        destruct J as [J | J]; subst; auto.
++          apply H3. apply in_or_app; simpl; auto.
++Qed.
++
+ End DIRECTED_PATHES.
++
++Implicit Arguments D_walk [A].
++Implicit Arguments DW_backstep [A].
++Implicit Arguments D_path [A].
++Implicit Arguments DP_backstep [A].
++Implicit Arguments DP_endx_inv [A].
++Implicit Arguments DP_inxyel_inxvl [A].
++
++Require Export Paths.
++
++Section DEXTRACTED.
++
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
++Variable v : @V_set A.
++Variable a : @A_set A.
++
++Lemma DW_extract :
++ forall (x y z : Vertex) (vl : V_list) (al : A_list),
++ D_walk v a y z vl al ->
++ In x (y :: vl) ->
++ exists al' : A_list, D_walk v a x z (V_extract eq_a_dec x (y :: vl)) al'.
++Proof.
++        intros x y z vl; generalize y; elim vl; simpl in |- *; intros.
++        split with al.
++        replace x with y0; auto.
++        case (V_in_dec eq_a_dec y0 nil); auto.
++
++        tauto.
++
++        elim (DW_backstep _ _ _ _ _ _ _ H0); intros.
++        destruct H2 as [H2 Heq]; subst.
++        case (V_in_dec eq_a_dec x (a0 :: l)). intros.
++        apply (H a0 x0); auto.
++
++        simpl in |- *. intros.
++        split with (A_ends y0 a0 :: x0).
++        replace x with y0.
++          trivial.
++
++          tauto.
++Qed.
++
++Lemma DW_cut :
++ forall (y z: Vertex) (vl : V_list) (al : A_list),
++ D_walk v a y z vl al -> vl <> V_nil ->
++ forall x w,
++ In x (y :: vl) ->
++ In w (y :: vl) ->
++ x <> y -> w <> y -> x <> w ->
++    exists al1 : A_list, exists al2 : A_list, exists vl1 : V_list,
++    exists vl2 : V_list,
++      (D_walk v a y x vl1 al1 /\ D_walk v a x z vl2 al2 /\
++       (al1 ++ al2 = al) /\ (vl1 ++ vl2 = vl) /\ ~ In w (y::vl1)) \/
++      (D_walk v a y w vl1 al1 /\ D_walk v a w z vl2 al2 /\
++       (al1 ++ al2 = al) /\ (vl1 ++ vl2 = vl) /\ ~ In x (y::vl1)).
++Proof.
++  induction 1; simpl in *; intros.
++    congruence.
++
++    destruct H3 as [H3 | H3]; try congruence; subst.
++    destruct H4 as [H4 | H4]; try congruence; subst.
++    destruct vl.
++      inversion H; subst.
++      destruct H3 as [H3 | H3]; try solve [inversion H3]; subst.
++      destruct H4 as [H4 | H4]; try solve [inversion H4]; subst.
++      congruence.
++
++      destruct (V_eq_dec eq_a_dec y w); subst.
++        exists (A_ends x w::nil). exists al. exists (w::nil). exists (v0::vl).
++        right.
++        split. constructor; auto. constructor; auto. apply DW_endx_inv in H; auto.
++        split; auto.
++        split; auto.
++        split; auto.
++          intro J.
++          destruct J as [J | J]; subst.
++            congruence.
++            simpl in J.
++            destruct J as [J | J]; subst; auto.
++
++      destruct (V_eq_dec eq_a_dec y x0); subst.
++        exists (A_ends x x0::nil). exists al. exists (x0::nil). exists (v0::vl).
++        left.
++        split. constructor; auto. constructor; auto. apply DW_endx_inv in H; auto.
++        split; auto.
++        split; auto.
++        split; auto.
++          intro J.
++          destruct J as [J | J]; subst.
++            congruence.
++            simpl in J.
++            destruct J as [J | J]; subst; auto.
++
++          eapply IHD_walk in H3; eauto.
++            clear IHD_walk.
++            destruct H3 as [al1 [al2 [vl1 [vl2
++              [[J1 [J2 [J3 [J4 J5]]]]|[J1 [J2 [J3 [J4 J5]]]]]]]]]; subst.
++              exists (A_ends x y::al1). exists al2. exists (y::vl1). exists vl2.
++              right. rewrite <- J4.
++              split. constructor; auto.
++              split; auto.
++              split; auto.
++              split; auto.
++                intro J.
++                destruct J as [J | J]; subst.
++                  congruence.
++                  apply J5. simpl in J. auto.
++
++              exists (A_ends x y::al1). exists al2. exists (y::vl1). exists vl2.
++              left. rewrite <- J4.
++              split. constructor; auto.
++              split; auto.
++              split; auto.
++              split; auto.
++                intro J.
++                destruct J as [J | J]; subst.
++                  congruence.
++                  apply J5. simpl in J. auto.
++            intro J. inversion J.
++Qed.
++
++Lemma DW_split :
++ forall (x y z : Vertex) (vl : V_list) (al : A_list),
++ D_walk v a y z vl al ->
++ In x (y :: vl) ->
++    exists al1 : A_list, exists al2 : A_list, exists vl1 : V_list,
++    exists vl2 : V_list,
++      D_walk v a y x vl1 al1 /\ D_walk v a x z vl2 al2 /\
++      (al1 ++ al2 = al) /\ (vl1 ++ vl2 = vl).
++Proof.
++  intros.
++  induction H.
++    assert (x0 = x) as EQ.
++      simpl in H0.
++      destruct H0 as [H0 | H0]; inversion H0; auto.
++    clear H0. subst.
++    exists A_nil. exists A_nil. exists V_nil. exists V_nil.
++    repeat split; try solve [auto | constructor; auto].
++
++    destruct (V_eq_dec eq_a_dec x x0); subst.
++      exists A_nil. exists (A_ends x0 y :: al). exists V_nil. exists (y::vl).
++      repeat split; try solve [auto | constructor; auto].
++
++      assert (In x (y::vl)) as Hin.
++        simpl in H0.
++        destruct H0 as [H0 | H0]; auto; try congruence.
++      clear H0.
++      apply IHD_walk in Hin.
++      destruct Hin as [al1 [al2 [vl1 [vl2 [J1 [J2 [J3 J4]]]]]]]; subst.
++      exists (A_ends x0 y::al1). exists al2. exists (y::vl1). exists vl2.
++      repeat split; try solve [auto | constructor; auto].
++Qed.
++
++Lemma DP_extract :
++ forall (x y z : Vertex) (vl : V_list) (al : A_list),
++ D_path v a y z vl al ->
++ In x (y :: vl) ->
++ exists al' : A_list,  D_path v a x z (V_extract eq_a_dec x (y :: vl)) al'.
++Proof.
++        intros x y z vl; generalize y; elim vl; simpl in |- *; intros.
++        split with al.
++        replace x with y0; auto.
++        case (V_in_dec eq_a_dec y0 nil); auto.
++
++        tauto.
++
++        elim (DP_backstep _ _ _ _ _ _ _ H0); intros.
++        case (V_in_dec eq_a_dec x (a0 :: l)). intros.
++        apply (H a0 x0); auto.
++
++        simpl in |- *. intros. split with al. replace x with y0.
++        trivial.
++
++        tauto.
++Qed.
++
++Remark DP_when_cycle :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_path v a x y vl al -> In x vl -> x = y.
++Proof.
++        intros x y vl al H; inversion H; intros.
++        trivial.
++
++        inversion H11.
++        absurd (x = y0); auto.
++
++        auto.
++Qed.
++
++Lemma DP_split :
++ forall v a (x y z : Vertex) (vl : V_list) (al : A_list) 
++ (H: D_path v a y z vl al),
++ In x (y :: vl) ->
++    exists al1 : A_list, exists al2 : @A_list A, exists vl1 : V_list,
++    exists vl2 : V_list,
++      D_path v a y x vl1 al1 /\ D_path v a x z vl2 al2 /\
++      (al1 ++ al2 = al) /\ (vl1 ++ vl2 = vl).
++Proof.
++  intros.
++  induction H; intros.
++    assert (x0 = x) as EQ.
++      simpl in H0.
++      destruct H0 as [H0 | H0]; inversion H0; auto.
++    clear H0. subst.
++    exists A_nil. exists A_nil. exists V_nil. exists V_nil.
++    repeat split; try solve [auto | constructor; auto].
++
++    destruct (V_eq_dec eq_a_dec x x0); subst.
++      exists A_nil. exists (A_ends x0 y :: al). exists V_nil. exists (y::vl).
++      repeat split; try solve [auto | constructor; auto].
++
++      assert (In x (y::vl)) as Hin.
++        simpl in H0.
++        destruct H0 as [H0 | H0]; auto; try congruence.
++      clear H0.
++      apply IHD_path in Hin; auto.
++      destruct Hin as [al1 [al2 [vl1 [vl2 [J1 [J2 [J3 J4]]]]]]]; subst.
++      exists (A_ends x0 y::al1). exists al2. exists (y::vl1). exists vl2.
++      repeat split; try solve [auto | constructor; auto].
++      constructor; auto.
++        intro J. apply H4. apply in_or_app. auto.
++
++        intro J. 
++        assert (In x0 (vl1++vl2)) as Hin. 
++          apply in_or_app. auto.
++        apply H5 in Hin. subst. 
++        assert (J2':=J2).
++        apply DP_prefix_no_head in J2'.
++        destruct J2' as [EQ | [vl' [EQ Hnotin]]]; subst.
++          inversion J2; subst; auto.
++          
++          apply DP_prefix_no_head in H.
++          destruct H as [EQ | [v2' [EQ Hnotin']]]; subst.
++            assert (In z V_nil) as G.
++              rewrite <- EQ.
++              apply in_or_app. right. apply in_or_app; simpl; auto.
++            inversion G.
++        
++            rewrite app_assoc in EQ.
++            apply app_inj_tail in EQ.
++            destruct EQ; subst.
++            contradict Hnotin'.
++            apply in_or_app; auto.
++        
++        intro J. apply H6. apply in_or_app. auto.
++Qed.
++
++Lemma DWalk_to_dpath' :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_walk v a x y vl al ->
++ exists vl0 : V_list, exists al0 : A_list, 
++    D_path v a x y vl0 al0 /\
++    (forall vx, In vx vl0 -> In vx vl).
++Proof.
++  intros x y vl al w; elim w; intros.
++    split with V_nil; split with A_nil. 
++    split; auto.
++     apply DP_null; trivial.
++
++    elim H0; clear H0; intros vl' H0.
++    elim H0; clear H0; intros al' H0.
++    destruct H0 as [H0 Hinv].           
++    case (V_in_dec eq_a_dec x0 (y0 :: vl')); intros.
++      elim (DP_extract _ _ _ _ _ H0 i); intros.
++      split with (V_extract eq_a_dec x0 (y0 :: vl')); split with x1.
++      split; auto.
++        intros vx Hinvx.
++        apply V_extract_spec'' in Hinvx.
++        simpl in *.
++        destruct Hinvx; auto.
++
++      case (V_in_dec eq_a_dec y0 vl'); intros.
++        split with (y0 :: V_nil); split with (A_ends x0 y0 :: A_nil).
++        split; try solve [
++           intros vx Hinvx; simpl in Hinvx; simpl; destruct Hinvx; 
++           try solve [auto | tauto]
++        ].
++        apply DP_step.
++          replace z with y0.
++            apply DP_null; apply (DP_endx_inv _ _ _ _ _ _ H0).
++
++            apply (DP_when_cycle _ _ _ _ H0); auto.
++
++          trivial.
++
++          trivial.
++
++          red in |- *; intros; elim n; subst; simpl in |- *; auto.
++
++          tauto.
++
++          simpl in |- *. tauto.
++
++          tauto.
++
++        split with (y0 :: vl'); split with (A_ends x0 y0 :: al').
++        split; try solve [
++           intros vx Hinvx; simpl in Hinvx; simpl; destruct Hinvx; auto
++        ].
++        apply DP_step.
++          trivial.
++
++          trivial.
++
++          trivial.
++
++          red in |- *; intros; elim n; subst; simpl in |- *; auto.
++
++          trivial.
++
++          intros; absurd (In x0 vl').
++            red in |- *; intros; elim n; simpl in |- *; auto.
++
++            trivial.
++
++            red in |- *; intros.
++            elim n; inversion w; apply (DP_inxyel_inxvl _ _ _ _ _ _ H0 x0 y0); auto.
++Qed.
++
++Lemma DWalk_to_dpath :
++ forall (x y : Vertex) (vl : V_list) (al : A_list),
++ D_walk v a x y vl al ->
++ exists vl0 : V_list, exists al0 : A_list, D_path v a x y vl0 al0.
++Proof.
++  intros.
++  apply DWalk_to_dpath' in H.
++  destruct H as [? [? [? ?]]]; eauto.
++Qed.
++
++End DEXTRACTED.
++
++Implicit Arguments D_trail [A].
++
++Section DPATH_EQ.
++
++Variable A:Set.
++
++Lemma DWalk_eq :
++ forall (v v' : V_set) (a a' : @A_set A) (x y : Vertex)
++   (vl : V_list) (al : A_list),
++ D_walk v a x y vl al -> v = v' -> a = a' -> D_walk v' a' x y vl al.
++Proof.
++        intros; elim H; intros.
++        apply DW_null.
++        rewrite <- H0; trivial.
++
++        apply DW_step.
++        trivial.
++
++        rewrite <- H0; trivial.
++
++        rewrite <- H1; trivial.
++Qed.
++
++Lemma DTrail_eq :
++ forall (v v' : V_set) (a a' : @A_set A) (x y : Vertex)
++   (vl : V_list) (al : A_list),
++ D_trail v a x y vl al -> v = v' -> a = a' -> D_trail v' a' x y vl al.
++Proof.
++        intros; elim H; intros.
++        apply DT_null.
++        rewrite <- H0; trivial.
++
++        intros; apply DT_step.
++        trivial.
++
++        rewrite <- H0; trivial.
++
++        rewrite <- H1; trivial.
++
++        trivial.
++Qed.
++
++Lemma DPath_eq :
++ forall (v v' : V_set) (a a' : @A_set A) (x y : Vertex)
++   (vl : V_list) (al : A_list),
++ D_path v a x y vl al -> v = v' -> a = a' -> D_path v' a' x y vl al.
++Proof.
++        intros; elim H; intros.
++        apply DP_null.
++        rewrite <- H0; trivial.
++
++        intros; apply DP_step.
++        trivial.
++
++        rewrite <- H0; trivial.
++
++        rewrite <- H1; trivial.
++
++        trivial.
++
++        trivial.
++
++        trivial.
++
++        trivial.
++Qed.
++
++End DPATH_EQ.
++
++Section APPEND_DWALKS.
++
++Variable A:Set.
++Variable v : @V_set A.
++Variable a : @A_set A.
++
++Lemma DWalk_append :
++ forall (x y z : Vertex) (vl vl' : V_list) (al al' : A_list),
++ D_walk v a x y vl al ->
++ D_walk v a y z vl' al' -> D_walk v a x z (vl ++ vl') (al ++ al').
++Proof.
++        intros x y z vl vl' al al' Hw; elim Hw; simpl in |- *; intros.
++        trivial.
++
++        apply DW_step; auto.
++Qed.
++
++End APPEND_DWALKS.
++
++Lemma D_walk_iff: forall A v1 a1 x y vl al v2 a2
++  (H1: forall x, v2 x <-> v1 x)
++  (H2: forall x, a2 x <-> a1 x),
++  @D_walk A v1 a1 x y vl al <->
++  D_walk v2 a2 x y vl al.
++Proof.
++  intros.
++  split; intro J.
++    induction J; constructor; auto.
++      apply H1; auto.
++      apply H1; auto.
++      apply H2; auto.
++    induction J; constructor; auto.
++      apply H1; auto.
++      apply H1; auto.
++      apply H2; auto.
++Qed.
++
++Lemma D_walk_sub: forall A x y vl al (v1 v2:@V_set A) (a1 a2:@A_set A)
++  (H1: forall x, v2 x -> v1 x)
++  (H2: forall x, a2 x -> a1 x)
++  (J: @D_walk A v2 a2 x y vl al),
++  D_walk v1 a1 x y vl al.
++Proof.
++  intros.
++  induction J; constructor; auto.
++Qed.
++
++Require Import Metatheory.
++Require Import util.
++Require Import vellvm_tactics.
++
++Lemma DW_last_split: forall (A:Set) 
++  v a vl v1 v2 (al : @A_list A) 
++  (Hw : D_walk v a v2 v1 (vl ++ v1::nil) al),
++  exists v1', exists al',
++    D_walk v a v2 v1' vl al' /\
++    D_walk v a v1' v1 (v1::nil) (A_ends v1' v1::nil) /\
++    al = al' ++ (A_ends v1' v1::nil).
++Proof.
++  induction vl; intros.
++  (*base*)
++    assert (v v1) as J.
++      apply DW_endy_inv in Hw; auto.
++    inversion Hw; subst. inversion H1; subst.
++    exists v2. exists nil.
++    split.
++      constructor; auto.
++    split; auto.
++  (*ind*)
++    inversion Hw; subst.
++    apply IHvl in H1; auto.
++    destruct H1 as [v1' [al2 [Hw1 [Hw2 EQ]]]]; subst.
++    exists v1'. exists (A_ends v2 a0::al2).
++    split; auto.
++      constructor; auto. 
++Qed.
++
++Lemma DW_head_inversion :
++ forall A v a (z: Vertex) (vl : @V_list A) (x: Vertex) (al : @A_list A)
++ (Hw: D_walk v a x z vl al) (Hnnil: vl <> nil),
++ exists y, exists vl', exists al',
++   D_walk v a x y vl' al' /\
++   vl = vl' ++ (z::nil) /\
++   al = al' ++ (A_ends y z::nil) /\
++   a (A_ends y z) /\ v y.
++Proof.
++  intros.
++  apply nnil_inv in Hnnil.
++  destruct Hnnil as [vl' [v' EQ]]; subst.
++  generalize dependent x.
++  generalize dependent al.
++  induction vl'; intros.
++  (*base*)
++    assert (v z) as J.
++      apply DW_endy_inv in Hw; auto.
++    inversion Hw; subst. inversion H1; subst.
++    exists x. exists nil. exists nil.
++    split.
++      constructor; auto.
++    split; auto.
++  (*ind*)
++    inversion Hw; subst.
++    apply IHvl' in H1; auto.
++    destruct H1 as [v1' [vl2 [al2 [Hw1 [Hw2 [EQ1 [EQ2 J]]]]]]]; subst.
++    exists v1'. exists (a0::vl2). exists (A_ends x a0::al2).
++    split. constructor; auto. 
++    split. simpl_env. rewrite Hw2. auto. 
++    split; auto.
++Qed.
++
++Lemma DW_Forall_head: forall A v (a:@A_set A) v1 v2 vl al P 
++  (Hw: D_walk v a v1 v2 vl al)
++  (Hforall: Forall P (v1 :: vl)), P v2.
++Proof.
++  intros.
++  apply Forall_forall with (x:=v2) in Hforall; auto.
++  assert (Hw':=Hw).
++  inversion Hw; subst.
++    simpl; auto.
++
++    apply DW_iny_vl in Hw'.
++      simpl in *. tauto.
++
++      intro J. inversion J.
++Qed.
++
++Lemma DW_split' :
++ forall A v a (x z : Vertex) vl1 vl2 (vl : @V_list A) (al : @A_list A) 
++ (y: Vertex),
++ D_walk v a y z vl al ->
++ vl = vl2 ++ x :: vl1 ->
++    exists al1 : A_list, exists al2 : A_list, 
++      D_walk v a x z vl1 al1 /\ D_walk v a y x (vl2 ++ [x]) al2 /\
++      (al2 ++ al1 = al).
++Proof.
++  induction vl2; intros; subst.
++  Case "base".
++    inversion H; subst.
++    exists al0. exists [A_ends y x].
++    split; auto.
++    split; auto.
++      constructor; auto.
++      constructor; auto.
++        apply DW_endx_inv in H2; auto.
++  Case "ind".
++    simpl_env in H.
++    inversion H; subst.
++    apply IHvl2 in H2; auto.
++    destruct H2 as [al1 [al2 [Hw1 [Hw2 EQ]]]]; subst.
++    exists al1. exists (A_ends y a0::al2).
++    split; auto.
++    split; auto.
++      simpl_env. simpl. constructor; auto.     
++Qed.
++
++Lemma DW_split'' :
++ forall A v a (x z : Vertex) (vl : @V_list A) (al : @A_list A) 
++ (y: Vertex) (Hw: D_walk v a y z vl al) (Hin: In x vl),
++ exists vl2, exists vl1, exists al1 : A_list, exists al2 : A_list, 
++   vl = vl2 ++ x :: vl1 /\
++   D_walk v a x z vl1 al1 /\ D_walk v a y x (vl2 ++ [x]) al2 /\
++   (al2 ++ al1 = al).
++Proof.
++  intros.
++  apply in_split in Hin.
++  destruct Hin as [vl2 [vl1 EQ]].
++  exists vl2. exists vl1.
++  eapply DW_split' in Hw; eauto.
++  destruct Hw as [al1 [al2 [Hw1 [Hw2 EQ']]]].
++  exists al1. exists al2. auto.
++Qed.
++
++Lemma DW_chunk :
++ forall A v a (x z : Vertex) vl1 vl3 vl2 (vl : @V_list A) (al : @A_list A) 
++ (y: Vertex) (Hw: D_walk v a y z vl al) 
++ (EQ: y :: vl = vl2 ++ x :: vl3 ++ x :: vl1),
++ exists al3 : A_list, D_walk v a x x (vl3 ++ [x]) al3.
++Proof.
++  intros.
++  destruct vl2; inversion EQ; subst.
++  Case "base".
++    eapply DW_split' in Hw; eauto.
++    destruct Hw as [al1 [al2 [Hw1 [Hw2 EQ']]]]; subst. eauto.
++  Case "ind".
++    eapply DW_split' in Hw; eauto.
++    destruct Hw as [al1 [al2 [Hw1 [Hw2 EQ']]]]; subst. 
++    eapply DW_split' in Hw1; eauto.
++    destruct Hw1 as [al11 [al12 [Hw11 [Hw12 EQ']]]]; subst. eauto.
++Qed.
++
++Lemma D_walk_weakening: forall A x y vl al (v1 v2:@V_set A) (a1 a2:@A_set A)
++  (H1: forall z, In z (x::vl) -> v1 z)
++  (H2: forall z, In z al -> a1 z)
++  (J: @D_walk A v2 a2 x y vl al),
++  D_walk v1 a1 x y vl al.
++Proof.
++  intros.
++  induction J; constructor.
++    apply H1; simpl; auto.
++    apply IHJ.
++      intros. apply H1. simpl; auto.
++      intros. apply H2. simpl; auto.
++    apply H1; simpl; auto.
++    apply H2; simpl; auto.
++Qed.
++ 
+diff -ru lib/GraphBasics/Edges.v lib.patched/GraphBasics/Edges.v
+--- lib/GraphBasics/Edges.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Edges.v	2014-08-30 00:29:04.076255531 -0400
+@@ -29,7 +29,10 @@
+ 
+ Section EDGE.
+ 
+-Inductive E_set (x y : Vertex) : A_set :=
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
++Inductive E_set (x y : @Vertex A) : @A_set A :=
+   | E_right : E_set x y (A_ends x y)
+   | E_left : E_set x y (A_ends y x).
+ 
+@@ -97,14 +100,14 @@
+  forall x x' y y' : Vertex,
+  {E_set x y = E_set x' y'} + {E_set x y <> E_set x' y'}.
+ Proof.
+-        intros; case (V_eq_dec x x'); intros.
+-        case (V_eq_dec y y'); intros.
++        intros; case (V_eq_dec eq_a_dec x x'); intros.
++        case (V_eq_dec eq_a_dec y y'); intros.
+         left; rewrite e; rewrite e0; trivial.
+ 
+         right; apply E_set_eq_diff; trivial.
+ 
+-        case (V_eq_dec x y'); intros.
+-        case (V_eq_dec y x'); intros.
++        case (V_eq_dec eq_a_dec x y'); intros.
++        case (V_eq_dec eq_a_dec y x'); intros.
+         left; rewrite e; rewrite e0; apply E_set_eq.
+ 
+         right; rewrite (E_set_eq x y); apply E_set_diff_eq; trivial.
+@@ -144,10 +147,17 @@
+ 
+ End EDGE.
+ 
++Implicit Arguments E_set [A].
++Implicit Arguments E_right [A].
++Implicit Arguments E_left [A].
++
+ Section LIST_OF_EDGES.
+ 
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
+ Inductive Edge : Set :=
+-    E_ends : Vertex -> Vertex -> Edge.
++    E_ends : @Vertex A -> @Vertex A -> Edge.
+ 
+ Inductive E_eq : Edge -> Edge -> Prop :=
+   | E_refl : forall u : Edge, E_eq u u
+@@ -160,8 +170,8 @@
+ Lemma E_eq_dec : forall u v : Edge, {E_eq u v} + {~ E_eq u v}.
+ Proof.
+         simple destruct u; intros a b; simple destruct v; intros c d.
+-        case (V_eq_dec a c); intros.
+-        case (V_eq_dec b d); intros.
++        case (V_eq_dec eq_a_dec a c); intros.
++        case (V_eq_dec eq_a_dec b d); intros.
+         left; rewrite e; rewrite e0; apply E_refl.
+ 
+         right; red in |- *; intros; inversion H.
+@@ -169,8 +179,8 @@
+ 
+         elim n; rewrite H3; rewrite <- H4; auto.
+ 
+-        case (V_eq_dec a d); intros.
+-        case (V_eq_dec b c); intros.
++        case (V_eq_dec eq_a_dec a d); intros.
++        case (V_eq_dec eq_a_dec b c); intros.
+         left; rewrite e; rewrite e0; apply E_rev.
+ 
+         right; red in |- *; intros; inversion H.
+@@ -191,7 +201,7 @@
+   end.
+ 
+ Lemma E_add_edge :
+- forall (a : A_set) (x y : Vertex),
++ forall (a : @A_set A) (x y : Vertex),
+  A_union (E_set x y) a =
+  A_union (A_single (A_ends x y)) (A_union (A_single (A_ends y x)) a).
+ Proof.
+@@ -220,16 +230,19 @@
+ 
+ Section E_PROPERTIES.
+ 
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
+ Lemma E_inclusion :
+- forall (a : A_set) (x y : Vertex),
++ forall (a : A_set) (x y : @Vertex A),
+  a (A_ends x y) -> a (A_ends y x) -> A_included (E_set x y) a.
+ Proof.
+-        unfold A_included, Included in |- *; intros.
++        unfold A_included, Included, Ensembles.Included in |- *; intros.
+         inversion H1; auto.
+ Qed.
+ 
+ Lemma E_union_absorb :
+- forall (a : A_set) (x y : Vertex),
++ forall (a : A_set) (x y : @Vertex A),
+  a (A_ends x y) -> a (A_ends y x) -> A_union (E_set x y) a = a.
+ Proof.
+         intros; apply A_union_absorb.
+@@ -238,7 +251,7 @@
+ 
+ Lemma E_inter_empty :
+  forall x x' y y' : Vertex,
+- E_set x y <> E_set x' y' -> A_inter (E_set x y) (E_set x' y') = A_empty.
++ E_set x y <> E_set x' y' -> A_inter (E_set x y) (E_set x' y') = @A_empty A.
+ Proof.
+         intros; apply A_set_eq; split; intros.
+         inversion H0.
+@@ -258,7 +271,7 @@
+ 
+ Lemma E_set_disjoint :
+  forall (x y : Vertex) (a : A_set),
+- ~ a (A_ends x y) -> ~ a (A_ends y x) -> A_inter (E_set x y) a = A_empty.
++ ~ a (A_ends x y) -> ~ a (A_ends y x) -> A_inter (E_set x y) a = @A_empty A.
+ Proof.
+         intros; apply A_set_eq; split; intros.
+         inversion H1.
+@@ -271,7 +284,7 @@
+ Qed.
+ 
+ Lemma A_in_union_edge :
+- forall (x y x' y' : Vertex) (a : A_set),
++ forall (x y x' y' : @Vertex A) (a : A_set),
+  A_union (E_set x y) a (A_ends x' y') ->
+  ~ E_set x y (A_ends x' y') -> a (A_ends x' y').
+ Proof.
+@@ -285,8 +298,8 @@
+  forall (a a' : A_set) (x y : Vertex),
+  ~ a' (A_ends x y) ->
+  ~ a' (A_ends y x) ->
+- a = A_empty ->
+- A_union (E_set x y) a = A_union (E_set x y) a' -> A_empty = a'.
++ a = @A_empty A ->
++ A_union (E_set x y) a = A_union (E_set x y) a' -> @A_empty A = a'.
+ Proof.
+         intros; apply A_union_inversion with (E := E_set x y).
+         apply A_inter_empty.
+@@ -297,7 +310,7 @@
+ Qed.
+ 
+ Lemma E_eq_not_in :
+- forall (a : A_set) (x y x' y' : Vertex),
++ forall (a : A_set) (x y x' y' : @Vertex A),
+  ~ a (A_ends x y) ->
+  ~ a (A_ends y x) -> E_set x y = E_set x' y' -> ~ a (A_ends x' y').
+ Proof.
+@@ -307,7 +320,7 @@
+ Qed.
+ 
+ Lemma E_eq_not_in' :
+- forall (a : A_set) (x y x' y' : Vertex),
++ forall (a : A_set) (x y x' y' : @Vertex A),
+  ~ a (A_ends x y) ->
+  ~ a (A_ends y x) -> E_set x y = E_set x' y' -> ~ a (A_ends y' x').
+ Proof.
+@@ -316,4 +329,13 @@
+         inversion H2; trivial.
+ Qed.
+ 
+-End E_PROPERTIES.
+\ No newline at end of file
++End E_PROPERTIES.
++
++Implicit Arguments E_list [A].
++Implicit Arguments E_nil [A].
++Implicit Arguments E_ends [A].
++Implicit Arguments E_set_eq_dec [A].
++Implicit Arguments A_in_union_edge [A].
++Implicit Arguments Edge [A].
++Implicit Arguments E_eq [A].
++Implicit Arguments A_union_edge_edge [A].
+diff -ru lib/GraphBasics/Enumerated.v lib.patched/GraphBasics/Enumerated.v
+--- lib/GraphBasics/Enumerated.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Enumerated.v	2014-08-30 00:29:04.076255531 -0400
+@@ -76,3 +76,4 @@
+ Defined.
+ 
+ End ENUMERATION.
++
+diff -ru lib/GraphBasics/Graphs.v lib.patched/GraphBasics/Graphs.v
+--- lib/GraphBasics/Graphs.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Graphs.v	2014-08-30 00:29:04.076255531 -0400
+@@ -33,8 +33,11 @@
+ 
+ Section GRAPH.
+ 
+-Inductive Graph : V_set -> A_set -> Set :=
+-  | G_empty : Graph V_empty A_empty
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
++Inductive Graph : @V_set A -> @A_set A -> Set :=
++  | G_empty : Graph (@V_empty _) (@A_empty _)
+   | G_vertex :
+       forall (v : V_set) (a : A_set) (d : Graph v a) (x : Vertex),
+       ~ v x -> Graph (V_union (V_single x) v) a
+@@ -91,7 +94,7 @@
+         case (H x0); intros.
+         left; apply V_in_right; trivial.
+ 
+-        case (V_eq_dec x x0); intros.
++        case (V_eq_dec eq_a_dec x x0); intros.
+         left; apply V_in_left; rewrite e; apply V_in_single.
+ 
+         right; red in |- *; intros; inversion H0.
+@@ -118,10 +121,10 @@
+         case (H x0); intros.
+         left; apply A_in_right; trivial.
+ 
+-        case (A_eq_dec (A_ends x y) x0); intros.
++        case (A_eq_dec eq_a_dec (A_ends x y) x0); intros.
+         left; apply A_in_left; rewrite <- e; apply E_right; trivial.
+ 
+-        case (A_eq_dec (A_ends y x) x0); intros.
++        case (A_eq_dec eq_a_dec (A_ends y x) x0); intros.
+         left; apply A_in_left; rewrite <- e; apply E_left; trivial.
+ 
+         right; red in |- *; intros; inversion H0.
+@@ -155,6 +158,7 @@
+         apply E_right.
+ 
+         apply A_in_right; auto.
++        apply H. auto.
+ 
+         generalize H0; elim e0; auto.
+ Qed.
+@@ -195,10 +199,15 @@
+ 
+ End GRAPH.
+ 
++Implicit Arguments Graph [A].
++
+ Section GRAPH_TO_DIGRAPH.
+ 
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
+ Lemma graph_isa_digraph :
+- forall (v : V_set) (a : A_set) (d : Graph v a), Digraph v a.
++ forall (v : V_set) (a : @A_set A) (d : Graph v a), Digraph v a.
+ Proof.
+         intros v a d; elim d; intros.
+         exact D_empty.
+@@ -208,7 +217,7 @@
+         apply
+          (D_eq v0 v0
+             (A_union (A_single (A_ends x y))
+-               (A_union (A_single (A_ends y x)) a0)) 
++               (A_union (A_single (A_ends y x)) a0))
+             (A_union (E_set x y) a0)).
+         trivial.
+ 
+@@ -232,10 +241,19 @@
+ 
+ End GRAPH_TO_DIGRAPH.
+ 
++Implicit Arguments G_v_dec [A].
++Implicit Arguments G_a_dec [A].
++Implicit Arguments G_non_directed [A].
++Implicit Arguments G_ina_inv2 [A].
++Implicit Arguments G_ina_inv1 [A].
++
+ Section UNION_GRAPHS.
+ 
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
+ Lemma G_union :
+- forall (v1 v2 : V_set) (a1 a2 : A_set),
++ forall (v1 v2 : V_set) (a1 a2 : @A_set A),
+  Graph v1 a1 -> Graph v2 a2 -> Graph (V_union v1 v2) (A_union a1 a2).
+ Proof.
+         intros; elim H; intros.
+@@ -246,8 +264,9 @@
+ 
+         trivial.
+ 
+-        case (G_v_dec v2 a2 H0 x); intros.
++        case (G_v_dec eq_a_dec v2 a2 H0 x); intros.
+         apply G_eq with (v := V_union v v2) (a := A_union a a2).
++        autounfold.
+         rewrite V_union_assoc; rewrite (V_union_absorb (V_single x)); trivial.
+         apply V_included_single; apply V_in_right; trivial.
+ 
+@@ -267,10 +286,11 @@
+ 
+         apply V_not_union; trivial.
+ 
+-        case (G_a_dec v2 a2 H0 (A_ends x y)); intros.
++        case (G_a_dec eq_a_dec v2 a2 H0 (A_ends x y)); intros.
+         apply G_eq with (v := V_union v v2) (a := A_union a a2).
+         trivial.
+ 
++        repeat autounfold.
+         rewrite A_union_assoc; rewrite (A_union_absorb (E_set x y)); trivial.
+         apply E_inclusion.
+         apply A_in_right; trivial.
+@@ -314,15 +334,20 @@
+ 
+ Section INVERSION_GRAPH.
+ 
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
+ Lemma G_empty_empty :
+- forall (v : V_set) (a : A_set), Graph v a -> v = V_empty -> a = A_empty.
++ forall (v : V_set) (a : A_set), Graph v a -> v = (@V_empty A) -> a = (@A_empty _).
+ Proof.
+         intros v a g; elim g; intros.
+         trivial.
+-
++     
++        autounfold in *.
+         elim (V_empty_nothing x); fold V_empty in |- *; rewrite <- H0;
+          apply V_in_left; apply V_in_single.
+ 
++        autounfold in *.
+         elim (V_empty_nothing x); fold V_empty in |- *; rewrite <- H0;
+          trivial.
+ 
+@@ -330,18 +355,21 @@
+ Qed.
+ 
+ Lemma V_union_single_inter :
+- forall (x y : Vertex) (v v' : V_set),
++ forall (x y : Vertex) (v v' : @V_set A),
+  ~ v x ->
+  x <> y ->
+  V_union (V_single x) v = V_union (V_single y) v' ->
+  V_union (V_single x) (V_inter v v') = v'.
+ Proof.
+-        intros; rewrite V_distributivity_union_inter.
+-        fold V_union in |- *; rewrite H1;
++        intros; autounfold; rewrite V_distributivity_union_inter.
++        fold (Union (@Vertex A)) (@V_inter A) (@V_union A) in |- *; rewrite H1;
++         autounfold;
+          rewrite (V_union_commut (V_single x));
+          rewrite (V_union_commut (V_single y));
+          rewrite <- V_distributivity_union_inter.
++        fold (Union (@Vertex A)) V_union in |- *. unfold V_single.
+         rewrite V_single_single_disjoint.
++        autounfold.
+         rewrite V_union_commut; apply V_union_neutral.
+ 
+         auto.
+@@ -350,13 +378,13 @@
+ Lemma G_minus_vertex :
+  forall (v : V_set) (a : A_set) (g : Graph v a) (x : Vertex),
+  v x ->
+- (forall y : Vertex, ~ a (A_ends x y)) ->
++ (forall y : @Vertex A, ~ a (A_ends x y)) ->
+  forall v' : V_set, ~ v' x -> v = V_union (V_single x) v' -> Graph v' a.
+ Proof.
+ intros v a g; elim g; intros.
+ elim (V_empty_nothing x); trivial.
+ 
+-case (V_union_single_dec x x0 v0 n H0); intros.
++case (V_union_single_dec eq_a_dec x x0 v0 n H0); intros.
+ apply G_eq with (v := v0) (a := a0).
+ apply V_union_inversion with (E := V_single x).
+ apply V_single_disjoint; trivial.
+@@ -385,6 +413,7 @@
+ unfold V_inter in |- *.
+ rewrite (V_inter_commut v0 v'); apply V_not_inter; trivial.
+ 
++autounfold.
+ rewrite V_inter_commut; symmetry  in |- *; apply (V_union_single_inter x0 x).
+ trivial.
+ 
+@@ -437,37 +466,39 @@
+ Qed.
+ 
+ Lemma A_union_single_inter :
+- forall (x y x' y' : Vertex) (a a' : A_set),
++ forall (x y x' y' : Vertex) (a a' : @A_set A),
+  ~ a (A_ends x y) ->
+  ~ a (A_ends y x) ->
+  E_set x y <> E_set x' y' ->
+  A_union (E_set x y) a = A_union (E_set x' y') a' ->
+  A_union (E_set x y) (A_inter a a') = a'.
+ Proof.
+-        intros; rewrite A_distributivity_union_inter.
+-        fold A_union in |- *; rewrite H2;
++        intros; repeat autounfold; rewrite A_distributivity_union_inter.
++        fold (Union (@Arc A)) (@A_union A) (@A_inter A) in |- *; rewrite H2;
++         repeat autounfold;
+          rewrite (A_union_commut (E_set x y));
+          rewrite (A_union_commut (E_set x' y'));
+          rewrite <- A_distributivity_union_inter.
+-        rewrite E_inter_empty.
++        fold (Union (@Arc A)) (@A_inter A). rewrite E_inter_empty.
++        repeat autounfold; 
+         rewrite A_union_commut; apply A_union_neutral.
+ 
+         auto.
+ Qed.
+ 
+ Lemma G_minus_edge :
+- forall (v : V_set) (a : A_set) (g : Graph v a) (x y : Vertex),
++ forall (v : V_set) (a : A_set) (g : Graph v a) (x y : @Vertex A),
+  a (A_ends x y) ->
+  forall a' : A_set,
+  ~ a' (A_ends x y) ->
+  ~ a' (A_ends y x) -> a = A_union (E_set x y) a' -> Graph v a'.
+ Proof.
+ intros v a g; elim g.
+-unfold A_empty in |- *; tauto.
++unfold A_empty, Empty in |- *; tauto.
+ 
+ intros; apply G_vertex; eauto 2.
+ 
+-intros; case (E_set_eq_dec x x0 y y0); intros.
++intros; case (E_set_eq_dec eq_a_dec x x0 y y0); intros.
+ apply G_eq with (v := v0) (a := a0).
+ trivial.
+ 
+@@ -502,6 +533,7 @@
+ 
+ red in |- *; intros Ha; inversion Ha; elim H2; trivial.
+ 
++repeat autounfold.
+ rewrite A_inter_commut; symmetry  in |- *;
+  apply A_union_single_inter with (x' := x) (y' := y).
+ trivial.
+@@ -539,3 +571,6 @@
+ Qed.
+ 
+ End INVERSION_GRAPH.
++
++Implicit Arguments V_union_single_inter [A].
++Implicit Arguments A_union_single_inter [A].
+Only in lib/GraphBasics: LICENSE
+Only in lib/GraphBasics: Make
+Only in lib/GraphBasics: Makefile
+diff -ru lib/GraphBasics/Paths.v lib.patched/GraphBasics/Paths.v
+--- lib/GraphBasics/Paths.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Paths.v	2014-08-30 00:29:04.076255531 -0400
+@@ -32,20 +32,22 @@
+ 
+ Section PATH.
+ 
+-Variable v : V_set.
+-Variable a : A_set.
++Variable A:Set.
+ 
+-Inductive Walk : Vertex -> Vertex -> V_list -> E_list -> Set :=
++Variable v : @V_set A.
++Variable a : @A_set A.
++
++Inductive Walk : @Vertex A -> @Vertex A -> @V_list A -> @E_list A -> Set :=
+   | W_null : forall x : Vertex, v x -> Walk x x V_nil E_nil
+   | W_step :
+       forall (x y z : Vertex) (vl : V_list) (el : E_list),
+       Walk y z vl el ->
+       v x -> a (A_ends x y) -> Walk x z (y :: vl) (E_ends x y :: el).
+ 
+-Definition Closed_walk (x y : Vertex) (vl : V_list) 
++Definition Closed_walk (x y : Vertex) (vl : V_list)
+   (el : E_list) (w : Walk x y vl el) := x = y.
+ 
+-Inductive Trail : Vertex -> Vertex -> V_list -> E_list -> Set :=
++Inductive Trail : @Vertex A -> @Vertex A -> @V_list A -> @E_list A -> Set :=
+   | T_null : forall x : Vertex, v x -> Trail x x V_nil E_nil
+   | T_step :
+       forall (x y z : Vertex) (vl : V_list) (el : E_list),
+@@ -55,10 +57,10 @@
+       (forall u : Edge, In u el -> ~ E_eq u (E_ends x y)) ->
+       Trail x z (y :: vl) (E_ends x y :: el).
+ 
+-Definition Closed_trail (x y : Vertex) (vl : V_list) 
++Definition Closed_trail (x y : Vertex) (vl : V_list)
+   (el : E_list) (t : Trail x y vl el) := x = y.
+ 
+-Inductive Path : Vertex -> Vertex -> V_list -> E_list -> Set :=
++Inductive Path : @Vertex A -> @Vertex A -> @V_list A -> @E_list A -> Set :=
+   | P_null : forall x : Vertex, v x -> Path x x V_nil E_nil
+   | P_step :
+       forall (x y z : Vertex) (vl : V_list) (el : E_list),
+@@ -79,7 +81,7 @@
+  Path x y vl el -> vl <> V_nil -> In y vl.
+ Proof.
+         intros x y vl el p; elim p; intros.
+-        absurd (V_nil = V_nil); auto.
++        absurd (V_nil = @V_nil A); auto.
+ 
+         inversion p0.
+         simpl in |- *; auto.
+@@ -188,20 +190,64 @@
+         apply T_step; trivial.
+ Qed.
+ 
++Lemma Path_isa_walk :
++ forall (x y : Vertex) (vl : V_list) (el : E_list)
++ (Hp: Path x y vl el), Walk x y vl el.
++Proof.
++ intros.
++ apply Path_isa_trail in Hp.
++ apply Trail_isa_walk; auto.
++Qed.
++
+ End PATH.
+ 
++Implicit Arguments Path [A].
++Implicit Arguments Walk [A].
++Implicit Arguments P_backstep [A].
++Implicit Arguments P_endx_inv [A].
++Implicit Arguments P_inxyel_inxvl [A].
++Implicit Arguments P_inxyel_inyvl [A].
++
+ Section EXTRACTED.
+ 
+-Variable v : V_set.
+-Variable a : A_set.
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
++Variable v : @V_set A.
++Variable a : @A_set A.
+ 
+ Fixpoint V_extract (x : Vertex) (vl : V_list) {struct vl} : V_list :=
+   match vl with
+   | nil => V_nil
+   | y :: vl' =>
+-      if V_in_dec x vl' then V_extract x vl' else vl'
++      if V_in_dec eq_a_dec x vl' then V_extract x vl' else vl'
+   end.
+ 
++Lemma V_extract_spec: forall v1 v2 vl,
++  In v1 (V_extract v2 vl) ->  v1 <> v2 ->
++  In v1 vl.
++Proof.
++  induction vl; simpl; intros; auto.
++    destruct (V_in_dec eq_a_dec v2 vl); auto.
++Qed.
++
++Lemma V_extract_spec': forall v1 v2 vl,
++  In v1 (V_extract v2 (v1::vl)) ->  v1 <> v2 ->
++  In v1 vl.
++Proof.
++  induction vl; simpl; intros.
++    destruct (V_in_dec eq_a_dec v2 nil); auto.
++    destruct (V_in_dec eq_a_dec v2 (a0::vl)); auto.
++Qed.
++
++Lemma V_extract_spec'': forall v1 v2 vl,
++  In v1 (V_extract v2 vl) ->
++  In v1 vl.
++Proof.
++  induction vl; simpl; intros; auto.
++    destruct (V_in_dec eq_a_dec v2 vl); auto.
++Qed.
++
+ Lemma P_extract :
+  forall (x y z : Vertex) (vl : V_list) (el : E_list),
+  Path v a y z vl el ->
+@@ -210,17 +256,17 @@
+         intros x y z vl; generalize y; elim vl; simpl in |- *; intros.
+         split with el.
+         replace x with y0; auto.
+-        case (V_in_dec y0 nil); auto.
++        case (V_in_dec eq_a_dec y0 nil); auto.
+ 
+         tauto.
+ 
+         elim (P_backstep _ _ _ _ _ _ _ H0); intros.
+-        case (V_in_dec x (a0 :: l)). intros.
++        case (V_in_dec eq_a_dec x (a0 :: l)). intros.
+         apply (H a0 x0); auto.
+ 
+         simpl in |- *. intros. split with el. replace x with y0.
+         trivial.
+-	
++
+         tauto.
+ Qed.
+ 
+@@ -248,11 +294,11 @@
+ 
+         elim H; clear H; intros vl' H.
+         elim H; clear H; intros el' H.
+-        case (V_in_dec x0 (y0 :: vl')); intros.
++        case (V_in_dec eq_a_dec x0 (y0 :: vl')); intros.
+         elim (P_extract _ _ _ _ _ H i); intros.
+         split with (V_extract x0 (y0 :: vl')); split with x1; auto.
+ 
+-        case (V_in_dec y0 vl'); intros.
++        case (V_in_dec eq_a_dec y0 vl'); intros.
+         split with (y0 :: V_nil); split with (E_ends x0 y0 :: E_nil). apply P_step.
+         replace z with y0.
+         apply P_null; apply (P_endx_inv _ _ _ _ _ _ H).
+@@ -299,15 +345,21 @@
+ 
+ End EXTRACTED.
+ 
++Implicit Arguments Cycle [A].
++Implicit Arguments P_inel_ina [A]. 
++Implicit Arguments P_iny_vl [A]. 
++
+ Section PATH_AND_DEGREE.
+ 
+-Variable v : V_set.
+-Variable a : A_set.
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++Variable v : (@V_set A).
++Variable a : (@A_set A).
+ Variable g : Graph v a.
+ 
+ Lemma Path_degree_one :
+  forall (x y : Vertex) (vl : V_list) (el : E_list),
+- Path v a x y vl el -> forall z : Vertex, In z vl -> degree z v a g > 0.
++ Path v a x y vl el -> forall z : Vertex, In z vl -> degree eq_a_dec z v a g > 0.
+ Proof.
+         intros x y vl el p; elim p; intros.
+         inversion H.
+@@ -322,10 +374,10 @@
+ Lemma Path_consx_degree_one :
+  forall (x y : Vertex) (vl : V_list) (el : E_list),
+  Path v a x y vl el ->
+- vl <> V_nil -> forall z : Vertex, In z (x :: vl) -> degree z v a g > 0.
++ vl <> V_nil -> forall z : Vertex, In z (x :: vl) -> degree eq_a_dec z v a g > 0.
+ Proof.
+         simple destruct vl; intros.
+-        absurd (nil = V_nil); auto.
++        absurd (nil = @V_nil A); auto.
+ 
+         inversion H1.
+         rewrite <- H2; apply Degree_not_isolated.
+@@ -337,7 +389,7 @@
+ Lemma Path_degree_two :
+  forall (x y : Vertex) (vl : V_list) (el : E_list),
+  Path v a x y vl el ->
+- forall z : Vertex, In z vl -> z <> y -> degree z v a g > 1.
++ forall z : Vertex, In z vl -> z <> y -> degree eq_a_dec z v a g > 1.
+ Proof.
+         intros x y vl el p; elim p; intros.
+         inversion H.
+@@ -386,9 +438,9 @@
+ 
+ Lemma Cycle_degree_two :
+  forall (x y : Vertex) (vl : V_list) (el : E_list) (p : Path v a x y vl el),
+- Cycle v a x y vl el p -> forall z : Vertex, In z vl -> degree z v a g > 1.
++ Cycle v a x y vl el p -> forall z : Vertex, In z vl -> degree eq_a_dec z v a g > 1.
+ Proof.
+-        intros; case (V_eq_dec z y); intros.
++        intros; case (V_eq_dec eq_a_dec z y); intros.
+         rewrite e; apply Degree_not_pendant.
+         inversion p.
+         rewrite <- H4 in H0; inversion H0.
+@@ -422,7 +474,7 @@
+  forall (x y : Vertex) (vl : V_list) (el : E_list) (p : Path v a x y vl el),
+  vl <> V_nil ->
+  Cycle v a x y vl el p ->
+- forall z : Vertex, In z (x :: vl) -> degree z v a g > 1.
++ forall z : Vertex, In z (x :: vl) -> degree eq_a_dec z v a g > 1.
+ Proof.
+         intros; inversion H1.
+         rewrite <- H2; inversion H0.
+@@ -435,13 +487,13 @@
+ Lemma Path_degree_zero_nil :
+  forall (x y : Vertex) (vl : V_list) (el : E_list),
+  Path v a x y vl el ->
+- (exists2 z : Vertex, In z (x :: vl) & degree z v a g = 0) -> vl = V_nil.
++ (exists2 z : Vertex, In z (x :: vl) & degree eq_a_dec z v a g = 0) -> vl = V_nil.
+ Proof.
+         simple destruct vl; intros.
+         trivial.
+ 
+         elim H0; intros.
+-        absurd (degree x0 v a g > 0).
++        absurd (degree eq_a_dec x0 v a g > 0).
+         omega.
+ 
+         apply (Path_consx_degree_one _ _ _ _ H).
+@@ -453,13 +505,13 @@
+ Lemma Cycle_degree_one_nil :
+  forall (x y : Vertex) (vl : V_list) (el : E_list) (p : Path v a x y vl el),
+  Cycle v a x y vl el p ->
+- (exists2 z : Vertex, In z (x :: vl) & degree z v a g <= 1) -> vl = V_nil.
++ (exists2 z : Vertex, In z (x :: vl) & degree eq_a_dec z v a g <= 1) -> vl = V_nil.
+ Proof.
+         simple destruct vl; intros.
+         trivial.
+ 
+         elim H0; intros.
+-        absurd (degree x0 v a g > 1).
++        absurd (degree eq_a_dec x0 v a g > 1).
+         omega.
+ 
+         apply (Cycle_consx_degree_two _ _ _ _ p).
+@@ -472,10 +524,14 @@
+ 
+ End PATH_AND_DEGREE.
+ 
++Implicit Arguments Trail [A].
++
+ Section PATH_EQ.
+ 
++Variable A:Set.
++
+ Lemma Walk_eq :
+- forall (v v' : V_set) (a a' : A_set) (x y : Vertex) 
++ forall (v v' : V_set) (a a' : @A_set A) (x y : Vertex)
+    (vl : V_list) (el : E_list),
+  Walk v a x y vl el -> v = v' -> a = a' -> Walk v' a' x y vl el.
+ Proof.
+@@ -492,7 +548,7 @@
+ Qed.
+ 
+ Lemma Trail_eq :
+- forall (v v' : V_set) (a a' : A_set) (x y : Vertex) 
++ forall (v v' : V_set) (a a' : @A_set A) (x y : Vertex)
+    (vl : V_list) (el : E_list),
+  Trail v a x y vl el -> v = v' -> a = a' -> Trail v' a' x y vl el.
+ Proof.
+@@ -511,7 +567,7 @@
+ Qed.
+ 
+ Lemma Path_eq :
+- forall (v v' : V_set) (a a' : A_set) (x y : Vertex) 
++ forall (v v' : V_set) (a a' : @A_set A) (x y : Vertex)
+    (vl : V_list) (el : E_list),
+  Path v a x y vl el -> v = v' -> a = a' -> Path v' a' x y vl el.
+ Proof.
+@@ -539,8 +595,10 @@
+ 
+ Section PATH_IN_A_SUBGRAPH.
+ 
++Variable A:Set.
++
+ Lemma Walk_subgraph :
+- forall (v v' : V_set) (a a' : A_set) (x y : Vertex) 
++ forall (v v' : V_set) (a a' : @A_set A) (x y : Vertex)
+    (vl : V_list) (el : E_list),
+  Walk v a x y vl el ->
+  V_included v v' -> A_included a a' -> Walk v' a' x y vl el.
+@@ -557,7 +615,7 @@
+ Qed.
+ 
+ Lemma Trail_subgraph :
+- forall (v v' : V_set) (a a' : A_set) (x y : Vertex) 
++ forall (v v' : V_set) (a a' : @A_set A) (x y : Vertex)
+    (vl : V_list) (el : E_list),
+  Trail v a x y vl el ->
+  V_included v v' -> A_included a a' -> Trail v' a' x y vl el.
+@@ -576,7 +634,7 @@
+ Qed.
+ 
+ Lemma Path_subgraph :
+- forall (v v' : V_set) (a a' : A_set) (x y : Vertex) 
++ forall (v v' : V_set) (a a' : @A_set A) (x y : Vertex)
+    (vl : V_list) (el : E_list),
+  Path v a x y vl el ->
+  V_included v v' -> A_included a a' -> Path v' a' x y vl el.
+@@ -601,7 +659,7 @@
+ Qed.
+ 
+ Lemma Path_supergraph_vertex :
+- forall (v v' : V_set) (a : A_set) (x y : Vertex) (vl : V_list) (el : E_list),
++ forall (v v' : V_set) (a : A_set) (x y : Vertex) (vl : V_list) (el : @E_list A),
+  Path v a x y vl el ->
+  v' x -> (forall z : Vertex, In z vl -> v' z) -> Path v' a x y vl el.
+ Proof.
+@@ -628,7 +686,7 @@
+ Qed.
+ 
+ Lemma Path_supergraph_cons_vertex :
+- forall (v : V_set) (a : A_set) (x y z : Vertex) (vl : V_list) (el : E_list),
++ forall (v : V_set) (a : A_set) (x y z : Vertex) (vl : V_list) (el : @E_list A),
+  Path (V_union (V_single z) v) a x y vl el ->
+  z <> x -> ~ In z vl -> Path v a x y vl el.
+ Proof.
+@@ -663,8 +721,8 @@
+ Qed.
+ 
+ Lemma Path_supergraph_arc :
+- forall (v v' : V_set) (a a' : A_set) (x y : Vertex) 
+-   (vl : V_list) (el : E_list),
++ forall (v v' : V_set) (a a' : A_set) (x y : Vertex)
++   (vl : V_list) (el : @E_list A),
+  Path v a x y vl el ->
+  Graph v' a' ->
+  v' x ->
+@@ -697,8 +755,8 @@
+ Qed.
+ 
+ Lemma Path_supergraph_cons_arc :
+- forall (v : V_set) (a : A_set) (x y x' y' : Vertex) 
+-   (vl : V_list) (el : E_list),
++ forall (v : V_set) (a : A_set) (x y x' y' : Vertex)
++   (vl : V_list) (el : @E_list A),
+  Path v (A_union (E_set x' y') a) x y vl el ->
+  ~ In (E_ends x' y') el -> ~ In (E_ends y' x') el -> Path v a x y vl el.
+ Proof.
+@@ -741,8 +799,9 @@
+ 
+ Section APPEND_WALKS.
+ 
+-Variable v : V_set.
+-Variable a : A_set.
++Variable A:Set.
++Variable v : @V_set A.
++Variable a : @A_set A.
+ 
+ Lemma Walk_append :
+  forall (x y z : Vertex) (vl vl' : V_list) (el el' : E_list),
+@@ -757,13 +816,18 @@
+ 
+ End APPEND_WALKS.
+ 
++Implicit Arguments Walk_append [A].
++
+ Section REVERSE_WALK.
+ 
+-Variable v : V_set.
+-Variable a : A_set.
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
++Variable v : @V_set A.
++Variable a : @A_set A.
+ Variable g : Graph v a.
+ 
+-Definition cdr (vl : V_list) : V_list :=
++Definition cdr (vl : @V_list A) : V_list :=
+   match vl with
+   | nil => V_nil
+   | x :: vl' => vl'
+@@ -773,7 +837,7 @@
+  forall vl vl' : V_list, vl <> V_nil -> cdr (vl ++ vl') = cdr vl ++ vl'.
+ Proof.
+         simple induction vl; simpl in |- *; intros.
+-        absurd (V_nil = V_nil); auto.
++        absurd (V_nil = @V_nil A); auto.
+ 
+         trivial.
+ Qed.
+@@ -781,7 +845,7 @@
+ Fixpoint E_reverse (el : E_list) : E_list :=
+   match el with
+   | nil => E_nil
+-  | E_ends x y :: el' => E_reverse el' ++ E_ends y x :: E_nil
++  | E_ends x y :: el' => E_reverse el' ++ E_ends y x :: @E_nil A
+   end.
+ 
+ Lemma G_ends_in : forall x y : Vertex, a (A_ends x y) -> v x.
+@@ -789,7 +853,7 @@
+         elim g; intros.
+         inversion H.
+ 
+-        case (V_eq_dec x x0); intros.
++        case (V_eq_dec eq_a_dec x x0); intros.
+         rewrite e; apply V_in_left; apply V_in_single.
+ 
+         apply V_in_right; apply (H x0 y); trivial.
+@@ -825,3 +889,10 @@
+ 
+ End REVERSE_WALK.
+ 
++Implicit Arguments Path_degree_zero_nil [A].
++Implicit Arguments Cycle_degree_one_nil [A].
++Implicit Arguments Walk_subgraph [A].
++Implicit Arguments Walk_to_path [A].
++Implicit Arguments V_extract [A].
++
++
+diff -ru lib/GraphBasics/Sets.v lib.patched/GraphBasics/Sets.v
+--- lib/GraphBasics/Sets.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Sets.v	2014-08-30 00:29:04.076255531 -0400
+@@ -35,56 +35,63 @@
+ 
+ Require Export Omega.
+ Require Export Peano_dec.
++Require Import Ensembles.
++Require Import Constructive_sets.
+ 
+ Section U_SETS.
+ 
+-Variable U : Set.
++Variable U : Type.
+ 
+-Definition U_set := U -> Prop.
++Definition U_set := Ensemble U.
+ 
+-Axiom U_set_eq : forall E F : U_set, (forall x : U, E x <-> F x) -> E = F.
++Lemma U_set_eq : forall E F : U_set, (forall x : U, E x <-> F x) -> E = F.
++Proof.
++  intros.
++  apply Extensionality_Ensembles.
++  split; intros; intro x; eapply H; eauto.
++Qed.
+ 
+ Lemma U_eq_set : forall E F : U_set, E = F -> forall x : U, E x -> F x.
+ Proof.
+-        intros; rewrite <- H; trivial.
++  intros; rewrite <- H; trivial.
+ Qed.
+ 
+ Lemma U_set_eq_commut : forall E F : U_set, E = F -> F = E.
+ Proof.
+-        auto.
++  auto.
+ Qed.
+ 
+ Lemma U_set_diff_commut : forall E F : U_set, E <> F -> F <> E.
+ Proof.
+-        intros; red in |- *; intros.
+-        elim H; apply U_set_eq_commut; trivial.
++  intros; red in |- *; intros.
++  elim H; apply U_set_eq_commut; trivial.
+ Qed.
+ 
+-Inductive Empty : U_set :=.
++Definition Empty := Empty_set U.
+ 
+-Inductive Full : U_set :=
+-    In_full : forall x : U, Full x.
++Definition Full := Full_set U.
+ 
+-Inductive Single (x : U) : U_set :=
+-    In_single : Single x x.
++Definition Single := Singleton U.
++
++Definition In_single := In_singleton.
+ 
+ Lemma Single_equal : forall x y : U, Single x y -> x = y.
+ Proof.
+-        intros; inversion H; trivial.
++  intros; inversion H; trivial.
+ Qed.
+ 
+ Lemma Single_equal_single : forall x y : U, Single x = Single y -> x = y.
+ Proof.
+-        intros; generalize (U_eq_set _ _ H x).
+-        intros; elim H0.
+-        trivial.
+-
+-        apply In_single.
++  intros; generalize (U_eq_set _ _ H x).
++  intros; elim H0.
++  trivial.
++  
++  apply In_singleton.
+ Qed.
+ 
+ Lemma Empty_nothing : forall x : U, ~ Empty x.
+ Proof.
+-        tauto.
++  unfold Empty. tauto.
+ Qed.
+ 
+ Lemma U_set_diff : forall E F : U_set, (exists x : U, E x /\ ~ F x) -> E <> F.
+@@ -95,33 +102,24 @@
+         elim H3; rewrite <- H0; auto.
+ Qed.
+ 
+-        Section INCLUSION.
+-
+-Definition Included (E F : U_set) : Prop := forall x : U, E x -> F x.
+-
+ Lemma Included_single :
+- forall (E : U_set) (x : U), E x -> Included (Single x) E.
++ forall (E : U_set) (x : U), E x -> Included _ (Single x) E.
+ Proof.
+         unfold Included in |- *; intros.
+         inversion H0; rewrite <- H1; trivial.
+ Qed.
+ 
+-        End INCLUSION.
+-
+-        Section UNION.
+-
+-Inductive Union (E F : U_set) : U_set :=
+-  | In_left : forall x : U, E x -> Union E F x
+-  | In_right : forall x : U, F x -> Union E F x.
++Definition In_right := Union_intror.
++Definition In_left := Union_introl.
+ 
+ Lemma Union_eq :
+- forall E F E' F' : U_set, E = E' -> F = F' -> Union E F = Union E' F'.
++ forall E F E' F' : U_set, E = E' -> F = F' -> Union _ E F = Union _ E' F'.
+ Proof.
+         intros; elim H.
+         elim H0; trivial.
+ Qed.
+ 
+-Lemma Union_neutral : forall e : U_set, Union Empty e = e.
++Lemma Union_neutral : forall e : U_set, Union _ Empty e = e.
+ Proof.
+         intros; apply U_set_eq; split; intros.
+         inversion H.
+@@ -129,40 +127,40 @@
+ 
+         trivial.
+ 
+-        apply In_right; trivial.
++        apply Union_intror; trivial.
+ Qed.
+ 
+-Lemma Union_commut : forall e1 e2 : U_set, Union e1 e2 = Union e2 e1.
++Lemma Union_commut : forall e1 e2 : U_set, Union _ e1 e2 = Union _ e2 e1.
+ Proof.
+         intros; apply U_set_eq; split; intros.
+-        inversion H; [ apply In_right | apply In_left ]; trivial.
++        inversion H; [ apply Union_intror | apply Union_introl ]; trivial.
+ 
+-        inversion H; [ apply In_right | apply In_left ]; trivial.
++        inversion H; [ apply Union_intror | apply Union_introl ]; trivial.
+ Qed.
+ 
+-Lemma Union_assoc :
+- forall e1 e2 e3 : U_set, Union (Union e1 e2) e3 = Union e1 (Union e2 e3).
++Lemma Union_assoc : forall e1 e2 e3 : U_set, 
++  Union _ (Union _ e1 e2) e3 = Union _ e1 (Union _ e2 e3).
+ Proof.
+         intros; apply U_set_eq; split; intros.
+         inversion H.
+         inversion H0.
+-        apply In_left; trivial.
++        apply Union_introl; trivial.
+ 
+-        apply In_right; apply In_left; trivial.
++        apply Union_intror; apply Union_introl; trivial.
+ 
+-        apply In_right; apply In_right; trivial.
++        apply Union_intror; apply Union_intror; trivial.
+ 
+         inversion H.
+-        apply In_left; apply In_left; trivial.
++        apply Union_introl; apply Union_introl; trivial.
+ 
+         inversion H0.
+-        apply In_left; apply In_right; trivial.
++        apply Union_introl; apply Union_intror; trivial.
+ 
+-        apply In_right; trivial.
++        apply Union_intror; trivial.
+ Qed.
+ 
+ Lemma Not_union :
+- forall (E1 E2 : U_set) (x : U), ~ E1 x -> ~ E2 x -> ~ Union E1 E2 x.
++ forall (E1 E2 : U_set) (x : U), ~ E1 x -> ~ E2 x -> ~ Union _ E1 E2 x.
+ Proof.
+         intros; red in |- *; intros.
+         inversion H1.
+@@ -173,7 +171,7 @@
+ 
+ Lemma Union_dec :
+  forall (e1 e2 : U_set) (x : U),
+- {e1 x} + {~ e1 x} -> {e2 x} + {~ e2 x} -> Union e1 e2 x -> {e1 x} + {e2 x}.
++ {e1 x} + {~ e1 x} -> {e2 x} + {~ e2 x} -> Union _ e1 e2 x -> {e1 x} + {e2 x}.
+ Proof.
+         intros; case H.
+         left; trivial.
+@@ -181,32 +179,30 @@
+         intros; case H0; intros.
+         right; trivial.
+ 
+-        absurd (Union e1 e2 x).
++        absurd (Union _ e1 e2 x).
+         apply Not_union; trivial.
+ 
+         trivial.
+ Qed.
+ 
+-Lemma Included_union : forall E F : U_set, Included E (Union E F).
++Lemma Included_union : forall E F : U_set, Included _ E (Union _ E F).
+ Proof.
+         unfold Included in |- *; intros.
+-        apply In_left; trivial.
++        apply Union_introl; trivial.
+ Qed.
+ 
+-Lemma Union_absorb : forall E F : U_set, Included E F -> Union E F = F.
++Lemma Union_absorb : forall E F : U_set, Included _ E F -> Union _ E F = F.
+ Proof.
+         intros; apply U_set_eq; split; intros.
+-        inversion H0; auto.
++        inversion H0; subst; auto.
++        apply H; auto.
+ 
+-        apply In_right; trivial.
++        apply Union_intror; trivial.
+ Qed.
+ 
+-        End UNION.
++Definition Inter := Intersection U.
+ 
+-        Section INTERSECTION.
+-
+-Inductive Inter (E F : U_set) : U_set :=
+-    In_inter : forall x : U, E x -> F x -> Inter E F x.
++Definition In_inter := Intersection_intro.
+ 
+ Lemma Inter_eq :
+  forall E F E' F' : U_set, E = E' -> F = F' -> Inter E F = Inter E' F'.
+@@ -220,8 +216,8 @@
+         intros; apply U_set_eq; split; intros.
+         inversion H; trivial.
+ 
+-        apply In_inter.
+-        apply In_full; trivial.
++        apply Intersection_intro.
++        apply Full_intro; trivial.
+ 
+         trivial.
+ Qed.
+@@ -237,9 +233,9 @@
+ Lemma Inter_commut : forall e1 e2 : U_set, Inter e1 e2 = Inter e2 e1.
+ Proof.
+         intros; apply U_set_eq; split; intros.
+-        inversion H; apply In_inter; trivial.
++        inversion H; apply Intersection_intro; trivial.
+ 
+-        inversion H; apply In_inter; trivial.
++        inversion H; apply Intersection_intro; trivial.
+ Qed.
+ 
+ Lemma Inter_assoc :
+@@ -247,12 +243,12 @@
+ Proof.
+         intros; apply U_set_eq; split; intros.
+         inversion H; inversion H0.
+-        apply In_inter; trivial.
+-        apply In_inter; trivial.
++        apply Intersection_intro; trivial.
++        apply Intersection_intro; trivial.
+ 
+         inversion H; inversion H1.
+-        apply In_inter; trivial.
+-        apply In_inter; trivial.
++        apply Intersection_intro; trivial.
++        apply Intersection_intro; trivial.
+ Qed.
+ 
+ Lemma Not_inter : forall (E1 E2 : U_set) (x : U), ~ E1 x -> ~ Inter E1 E2 x.
+@@ -262,26 +258,21 @@
+         elim H; trivial.
+ Qed.
+ 
+-Lemma Included_inter : forall E F : U_set, Included (Inter E F) E.
++Lemma Included_inter : forall E F : U_set, Included _ (Inter E F) E.
+ Proof.
+         unfold Included in |- *; intros.
+         inversion H; trivial.
+ Qed.
+ 
+-Lemma Inter_absorb : forall E F : U_set, Included E F -> Inter E F = E.
++Lemma Inter_absorb : forall E F : U_set, Included _ E F -> Inter E F = E.
+ Proof.
+         intros; apply U_set_eq; split; intros.
+         inversion H0; auto.
+ 
+-        apply In_inter; auto.
++        apply Intersection_intro; auto.
+ Qed.
+ 
+-        End INTERSECTION.
+-
+-        Section DIFFERENCE.
+-
+-Inductive Differ (E F : U_set) : U_set :=
+-    In_differ : forall x : U, E x -> ~ F x -> Differ E F x.
++Definition Differ := Setminus U.
+ 
+ Lemma Differ_E_E : forall E : U_set, Differ E E = Empty.
+ Proof.
+@@ -297,94 +288,86 @@
+         intros; apply U_set_eq; split; intros.
+         inversion H; trivial.
+ 
+-        apply In_differ.
+-        trivial.
+-
+-        tauto.
++        split; auto.
++          intro J. inversion J.
+ Qed.
+ 
+ Lemma Union_differ_inter :
+- forall E F : U_set,
+- (forall x : U, {F x} + {~ F x}) -> Union (Differ E F) (Inter E F) = E.
++ forall (E F : U_set)
++ (H: forall x : U, {F x} + {~ F x}), Union _ (Differ E F) (Inter E F) = E.
+ Proof.
+         intros; apply U_set_eq; split; intros.
+-        inversion H0.
+-        inversion H1; trivial.
+-
+-        inversion H1; trivial.
++        inversion H0; inversion H1; trivial.
+ 
+         case (H x); intros.
+-        apply In_right; apply In_inter; trivial.
+-
+-        apply In_left; apply In_differ; trivial.
++          apply Union_intror; apply Intersection_intro; trivial.
++          apply Union_introl; apply Setminus_intro; trivial.
+ Qed.
+ 
+-        End DIFFERENCE.
+-
+         Section MIXED_PROPERTIES.
+ 
+ Lemma Distributivity_inter_union :
+- forall E F G : U_set, Inter E (Union F G) = Union (Inter E F) (Inter E G).
++  forall E F G : U_set, Inter E (Union _ F G) = Union _ (Inter E F) (Inter E G).
+ Proof.
+         intros; apply U_set_eq; split; intros.
+         inversion H; inversion H1.
+-        apply In_left; apply In_inter; auto.
++        apply Union_introl; apply Intersection_intro; auto.
+ 
+-        apply In_right; apply In_inter; auto.
++        apply Union_intror; apply Intersection_intro; auto.
+ 
+         inversion H; inversion H0.
+-        apply In_inter.
++        apply Intersection_intro.
+         trivial.
+ 
+-        apply In_left; trivial.
++        apply Union_introl; trivial.
+ 
+-        apply In_inter.
++        apply Intersection_intro.
+         trivial.
+ 
+-        apply In_right; trivial.
++        apply Union_intror; trivial.
+ Qed.
+ 
+ Lemma Distributivity_union_inter :
+- forall E F G : U_set, Union E (Inter F G) = Inter (Union E F) (Union E G).
++ forall E F G : U_set, Union _ E (Inter F G) = Inter (Union _ E F) (Union _ E G).
+ Proof.
+         intros; apply U_set_eq; split; intros.
+         inversion H.
+-        apply In_inter; apply In_left; trivial.
++        apply Intersection_intro; apply Union_introl; trivial.
+ 
+-        inversion H0; apply In_inter; apply In_right; trivial.
++        inversion H0; apply Intersection_intro; apply Union_intror; trivial.
+ 
+         inversion H.
+         inversion H0.
+-        apply In_left; trivial.
++        apply Union_introl; trivial.
+ 
+         inversion H1.
+-        apply In_left; trivial.
++        apply Union_introl; trivial.
+ 
+-        apply In_right; apply In_inter; trivial.
++        apply Union_intror; apply Intersection_intro; trivial.
+ Qed.
+ 
+ Lemma Union_inversion :
+  forall E F G : U_set,
+- Inter E F = Empty -> Inter E G = Empty -> Union E F = Union E G -> F = G.
++ Inter E F = Empty -> Inter E G = Empty -> Union _ E F = Union _ E G -> F = G.
+ Proof.
+         intros; apply U_set_eq; split; intros.
+-        generalize (In_right E F x H2).
++        generalize (Union_intror _ E F x H2).
+         rewrite H1; intros.
+         inversion H3.
+         absurd (Inter E F x).
+-        rewrite H; tauto.
++        rewrite H. apply Empty_nothing.
+ 
+-        apply In_inter; auto.
++        apply Intersection_intro; auto.
+ 
+         trivial.
+ 
+-        generalize (In_right E G x H2).
++        generalize (Union_intror _ E G x H2).
+         rewrite <- H1; intros.
+         inversion H3.
+         absurd (Inter E G x).
+-        rewrite H0; tauto.
++        rewrite H0. apply Empty_nothing.
+ 
+-        apply In_inter; auto.
++        apply Intersection_intro; auto.
+ 
+         trivial.
+ Qed.
+@@ -393,24 +376,24 @@
+  forall E F G H : U_set,
+  Inter E F = Empty ->
+  Inter E G = Empty ->
+- Inter G H = Empty -> Union E F = Union G H -> F = Union G (Inter F H).
++ Inter G H = Empty -> Union _ E F = Union _ G H -> F = Union _ G (Inter F H).
+ Proof.
+         intros; apply U_set_eq; split; intros.
+-        generalize (In_right E F x H4).
++        generalize (Union_intror _ E F x H4).
+         rewrite H3; intros.
+         inversion H5.
+-        apply In_left; trivial.
++        apply Union_introl; trivial.
+ 
+-        apply In_right; apply In_inter; trivial.
++        apply Union_intror; apply Intersection_intro; trivial.
+ 
+         inversion H4.
+-        generalize (In_left G H x H5).
++        generalize (Union_introl _ G H x H5).
+         rewrite <- H3; intros.
+         inversion H7.
+         absurd (Inter E G x).
+-        rewrite H1; tauto.
++        rewrite H1. apply Empty_nothing.
+ 
+-        apply In_inter; trivial.
++        apply Intersection_intro; trivial.
+ 
+         trivial.
+ 
+@@ -440,7 +423,7 @@
+ Lemma Union_single_single :
+  forall (e : U_set) (x y : U),
+  x <> y ->
+- ~ e y -> Union (Single x) (Single y) = Union (Single y) e -> e = Single x.
++ ~ e y -> Union _ (Single x) (Single y) = Union _ (Single y) e -> e = Single x.
+ Proof.
+         intros; symmetry  in |- *; apply (Union_inversion (Single y)).
+         apply Single_single_disjoint; auto.
+@@ -452,4 +435,8 @@
+ 
+         End MIXED_PROPERTIES.
+ 
++Definition Included := Ensembles.Included U.
++Definition Union := Ensembles.Union U.
++
+ End U_SETS.
++
+diff -ru lib/GraphBasics/Trees.v lib.patched/GraphBasics/Trees.v
+--- lib/GraphBasics/Trees.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Trees.v	2014-08-30 00:29:04.076255531 -0400
+@@ -21,8 +21,10 @@
+ 
+ Section TREE.
+ 
+-Inductive Tree : V_set -> A_set -> Set :=
+-  | T_root : forall r : Vertex, Tree (V_single r) A_empty
++Variable A:Set.
++
++Inductive Tree : @V_set A-> @A_set A-> Set :=
++  | T_root : forall r : Vertex, Tree (V_single r) (@A_empty A)
+   | T_leaf :
+       forall (v : V_set) (a : A_set) (t : Tree v a) (f n : Vertex),
+       v n -> ~ v f -> Tree (V_union (V_single f) v) (A_union (E_set n f) a)
+@@ -33,7 +35,8 @@
+ Lemma Tree_isa_graph : forall (v : V_set) (a : A_set), Tree v a -> Graph v a.
+ Proof.
+         intros v a t; elim t; intros.
+-        apply G_eq with (v := V_union (V_single r) V_empty) (a := A_empty).
++        apply G_eq with (v := V_union (V_single r) (@V_empty A)) (a := (@A_empty A)).
++        autounfold.
+         rewrite V_union_commut; apply V_union_neutral.
+ 
+         trivial.
+@@ -75,7 +78,8 @@
+  forall (v : V_set) (a : A_set), Tree v a -> Acyclic v a.
+ Proof.
+         intros v a t; elim t; intros.
+-        apply AC_eq with (v := V_union (V_single r) V_empty) (a := A_empty).
++        apply AC_eq with (v := V_union (V_single r) (@V_empty A)) (a := (@A_empty A)).
++        autounfold.
+         rewrite V_union_commut; apply V_union_neutral.
+ 
+         trivial.
+@@ -92,22 +96,27 @@
+ 
+ End TREE.
+ 
++Implicit Arguments Tree [A].
++
+ Section CONNECTED_AND_ACYCLIC.
+ 
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
+ Lemma Acyclic_connected_isa_tree :
+- forall (v : V_set) (a : A_set), Acyclic v a -> Connected v a -> Tree v a.
++ forall (v : V_set) (a : @A_set A), Acyclic v a -> Connected v a -> Tree v a.
+ Proof.
+         intros v a ac; elim ac; intros.
+         elim (Connected_not_empty _ _ H); auto.
+ 
+-        apply T_eq with (v := V_single x) (a := A_empty).
+-        symmetry  in |- *; apply (C_minus_isolated_left _ _ H0 x).
++        apply T_eq with (v := V_single x) (a := @A_empty A).
++        symmetry  in |- *; apply (C_minus_isolated_left eq_a_dec _ _ H0 x).
+         apply V_in_left; apply V_in_single.
+ 
+         intros; red in |- *; intros; elim n.
+         apply (AC_ina_inv1 _ _ _ _ ac0 H1).
+ 
+-        symmetry  in |- *; apply (C_minus_isolated_right _ _ H0 x).
++        symmetry  in |- *; apply (C_minus_isolated_right eq_a_dec _ _ H0 x).
+         apply V_in_left; apply V_in_single.
+ 
+         intros; red in |- *; intros; elim n.
+@@ -117,7 +126,7 @@
+ 
+         apply T_leaf.
+         apply H.
+-        apply (C_minus_pendant _ _ H0 x y).
++        apply (C_minus_pendant eq_a_dec _ _ H0 x y).
+         apply V_in_right; trivial.
+ 
+         apply V_in_left; apply V_in_single.
+@@ -150,4 +159,5 @@
+         apply H; apply C_eq with (v := v') (a := a'); auto.
+ Qed.
+ 
+-End CONNECTED_AND_ACYCLIC.
+\ No newline at end of file
++End CONNECTED_AND_ACYCLIC.
++
+diff -ru lib/GraphBasics/Vertices.v lib.patched/GraphBasics/Vertices.v
+--- lib/GraphBasics/Vertices.v	2009-02-16 08:25:46.000000000 -0500
++++ lib.patched/GraphBasics/Vertices.v	2014-08-30 00:29:04.076255531 -0400
+@@ -28,16 +28,18 @@
+ 
+ Section VERTEX.
+ 
++Variable A:Set.
++Variable eq_a_dec: forall x y : A, {x = y} + {x <> y}.
++
+ Inductive Vertex : Set :=
+-    index : nat -> Vertex.
++    index : forall (a:A), Vertex.
+ 
+ Lemma V_eq_dec : forall x y : Vertex, {x = y} + {x <> y}.
+ Proof.
+         simple destruct x; simple destruct y; intros.
+-        case (eq_nat_dec n n0); intros.
++        case (eq_a_dec a a0); intros.
+         left; rewrite e; trivial.
+-
+-        right; injection; trivial.
++        right; intros; injection; trivial.
+ Qed.
+ 
+ Definition V_list := list Vertex.
+@@ -159,4 +161,27 @@
+         trivial.
+ Qed.
+ 
+-End VERTEX.
+\ No newline at end of file
++End VERTEX.
++
++Implicit Arguments Vertex [A].
++Implicit Arguments V_set [A].
++Implicit Arguments V_nil [A].
++Implicit Arguments V_union [A].
++Implicit Arguments V_single [A].
++Implicit Arguments V_eq_dec [A].
++Implicit Arguments V_empty [A].
++Implicit Arguments V_list [A].
++Implicit Arguments V_union_assoc [A].
++Implicit Arguments V_union_absorb [A].
++Implicit Arguments V_empty_nothing [A].
++Implicit Arguments V_inter [A].
++Implicit Arguments V_union_commut [A].
++Implicit Arguments V_union_single_dec [A].
++Implicit Arguments V_inter_commut [A].
++Implicit Arguments V_in_dec [A].
++Implicit Arguments V_included [A].
++Implicit Arguments V_union_single_dec [A].
++Implicit Arguments V_union_inversion [A].
++Implicit Arguments V_union_single_single [A].
++Implicit Arguments index [A].
++Hint Unfold V_union Union V_empty V_inter.

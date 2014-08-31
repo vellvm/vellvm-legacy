@@ -1,0 +1,15 @@
+diff -ru lib/cpdtlib/CpdtTactics.v lib.patched/cpdtlib/CpdtTactics.v
+--- lib/cpdtlib/CpdtTactics.v	2014-02-02 12:48:22.000000000 -0500
++++ lib.patched/cpdtlib/CpdtTactics.v	2014-08-30 00:39:34.506238146 -0400
+@@ -214,7 +214,7 @@
+   let x := fresh "x" in
+     remember E as x; simpl in x; dependent destruction x;
+       try match goal with
+-            | [ H : _ = E |- _ ] => try rewrite <- H in *; clear H
++            | [ H : _ = E |- _ ] => rewrite <- H in *; clear H
+           end.
+ 
+ (** Nuke all hypotheses that we can get away with, without invalidating the goal statement. *)
+Only in lib/cpdtlib: DepList.v
+Only in lib/cpdtlib: LICENSE
+Only in lib/cpdtlib: MoreSpecif.v

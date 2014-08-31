@@ -60,88 +60,104 @@ GALLINA?=$(COQBIN)gallina
 COQDOC?=$(COQBIN)coqdoc
 COQCHK?=$(COQBIN)coqchk
 
-##################
-#                #
-# Install Paths. #
-#                #
-##################
-
-ifdef USERINSTALL
-XDG_DATA_HOME?=$(HOME)/.local/share
-COQLIBINSTALL=$(XDG_DATA_HOME)/coq
-COQDOCINSTALL=$(XDG_DATA_HOME)/doc/coq
-else
-COQLIBINSTALL=${COQLIB}user-contrib
-COQDOCINSTALL=${DOCDIR}user-contrib
-endif
-
 ######################
 #                    #
 # Files dispatching. #
 #                    #
 ######################
 
-VFILES:=Vellvm/Dominators/dom_list_df.v\
-  Vellvm/Dominators/dom_list_tree_wf.v\
-  Vellvm/Dominators/dom_set_tree.v\
-  Vellvm/Dominators/dom_list_tree.v\
-  Vellvm/Dominators/dom_tree.v\
-  Vellvm/Dominators/dom_list.v\
-  Vellvm/Dominators/dom_decl.v\
-  Vellvm/Dominators/reach.v\
-  Vellvm/Dominators/cfg.v\
-  Vellvm/Dominators/dom_set.v\
-  Vellvm/Dominators/push_iter.v\
-  Vellvm/Dominators/pull_iter.v\
-  Vellvm/Dominators/dfs.v\
-  Vellvm/Dominators/dom_libs.v\
-  Vellvm/Dominators/dom_type.v\
-  Vellvm/program_sim.v\
-  Vellvm/memory_props.v\
-  Vellvm/vellvm.v\
-  Vellvm/vellvm_tactics.v\
-  Vellvm/util.v\
-  Vellvm/typings.v\
-  Vellvm/typings_props.v\
-  Vellvm/typing_rules.v\
-  Vellvm/trace.v\
-  Vellvm/targetdata.v\
-  Vellvm/targetdata_props.v\
-  Vellvm/tactics.v\
-  Vellvm/syntax.v\
-  Vellvm/syntax_base.v\
-  Vellvm/static.v\
-  Vellvm/opsem_wf.v\
-  Vellvm/opsem.v\
-  Vellvm/opsem_props.v\
-  Vellvm/opsem_inst.v\
-  Vellvm/opsem_dom.v\
-  Vellvm/ndopsem.v\
-  Vellvm/monad.v\
-  Vellvm/memory_sim.v\
-  Vellvm/interpreter.v\
-  Vellvm/infrastructure.v\
-  Vellvm/infrastructure_props.v\
-  Vellvm/genericvalues.v\
-  Vellvm/genericvalues_props.v\
-  Vellvm/genericvalues_inject.v\
-  Vellvm/external_intrinsics.v\
-  Vellvm/events.v\
-  Vellvm/dopsem.v\
-  Vellvm/datatype_base.v\
-  Vellvm/analysis.v\
-  Vellvm/ott/ott_list.v\
-  Vellvm/ott/ott_list_takedrop.v\
-  Vellvm/ott/ott_list_support.v\
-  Vellvm/ott/ott_list_repeat.v\
-  Vellvm/ott/ott_list_predicate.v\
-  Vellvm/ott/ott_list_nth.v\
-  Vellvm/ott/ott_list_mem.v\
-  Vellvm/ott/ott_list_flat_map.v\
-  Vellvm/ott/ott_list_eq_dec.v\
-  Vellvm/ott/ott_list_distinct.v\
-  Vellvm/ott/ott_list_core.v\
-  Vellvm/ott/ott_list_base.v
+VFILES:=src/Vellvm/Dominators/dom_list_df.v\
+  src/Vellvm/Dominators/dom_list_tree_wf.v\
+  src/Vellvm/Dominators/dom_set_tree.v\
+  src/Vellvm/Dominators/dom_list_tree.v\
+  src/Vellvm/Dominators/dom_tree.v\
+  src/Vellvm/Dominators/dom_list.v\
+  src/Vellvm/Dominators/dom_decl.v\
+  src/Vellvm/Dominators/reach.v\
+  src/Vellvm/Dominators/cfg.v\
+  src/Vellvm/Dominators/dom_set.v\
+  src/Vellvm/Dominators/push_iter.v\
+  src/Vellvm/Dominators/pull_iter.v\
+  src/Vellvm/Dominators/dfs.v\
+  src/Vellvm/Dominators/dom_libs.v\
+  src/Vellvm/Dominators/dom_type.v\
+  src/Vellvm/program_sim.v\
+  src/Vellvm/memory_props.v\
+  src/Vellvm/vellvm.v\
+  src/Vellvm/vellvm_tactics.v\
+  src/Vellvm/util.v\
+  src/Vellvm/typings.v\
+  src/Vellvm/typings_props.v\
+  src/Vellvm/typing_rules.v\
+  src/Vellvm/trace.v\
+  src/Vellvm/targetdata.v\
+  src/Vellvm/targetdata_props.v\
+  src/Vellvm/tactics.v\
+  src/Vellvm/syntax.v\
+  src/Vellvm/syntax_base.v\
+  src/Vellvm/static.v\
+  src/Vellvm/opsem_wf.v\
+  src/Vellvm/opsem.v\
+  src/Vellvm/opsem_props.v\
+  src/Vellvm/opsem_inst.v\
+  src/Vellvm/opsem_dom.v\
+  src/Vellvm/ndopsem.v\
+  src/Vellvm/monad.v\
+  src/Vellvm/memory_sim.v\
+  src/Vellvm/interpreter.v\
+  src/Vellvm/infrastructure.v\
+  src/Vellvm/infrastructure_props.v\
+  src/Vellvm/genericvalues.v\
+  src/Vellvm/genericvalues_props.v\
+  src/Vellvm/genericvalues_inject.v\
+  src/Vellvm/external_intrinsics.v\
+  src/Vellvm/events.v\
+  src/Vellvm/dopsem.v\
+  src/Vellvm/datatype_base.v\
+  src/Vellvm/analysis.v\
+  src/Vellvm/ott/ott_list.v\
+  src/Vellvm/ott/ott_list_takedrop.v\
+  src/Vellvm/ott/ott_list_support.v\
+  src/Vellvm/ott/ott_list_repeat.v\
+  src/Vellvm/ott/ott_list_predicate.v\
+  src/Vellvm/ott/ott_list_nth.v\
+  src/Vellvm/ott/ott_list_mem.v\
+  src/Vellvm/ott/ott_list_flat_map.v\
+  src/Vellvm/ott/ott_list_eq_dec.v\
+  src/Vellvm/ott/ott_list_distinct.v\
+  src/Vellvm/ott/ott_list_core.v\
+  src/Vellvm/ott/ott_list_base.v\
+  lib/GraphBasics/Paths.v\
+  lib/GraphBasics/Acyclic.v\
+  lib/GraphBasics/Connected.v\
+  lib/GraphBasics/Vertices.v\
+  lib/GraphBasics/Enumerated.v\
+  lib/GraphBasics/Trees.v\
+  lib/GraphBasics/Arcs.v\
+  lib/GraphBasics/Graphs.v\
+  lib/GraphBasics/Digraphs.v\
+  lib/GraphBasics/Edges.v\
+  lib/GraphBasics/Degrees.v\
+  lib/GraphBasics/Dipaths.v\
+  lib/GraphBasics/Sets.v\
+  lib/compcert-1.9/Integers.v\
+  lib/compcert-1.9/Memory.v\
+  lib/compcert-1.9/Memdata.v\
+  lib/compcert-1.9/Kildall.v\
+  lib/compcert-1.9/Lattice.v\
+  lib/compcert-1.9/Errors.v\
+  lib/compcert-1.9/alist.v\
+  lib/compcert-1.9/Ordered.v\
+  lib/compcert-1.9/Values.v\
+  lib/compcert-1.9/Memtype.v\
+  lib/compcert-1.9/Axioms.v\
+  lib/compcert-1.9/Floats.v\
+  lib/compcert-1.9/Intv.v\
+  lib/compcert-1.9/Coqlib.v\
+  lib/compcert-1.9/Maps.v\
+  lib/compcert-1.9/AST.v\
+  lib/compcert-1.9/Iteration.v\
+  lib/cpdtlib/CpdtTactics.v
 
 -include $(addsuffix .d,$(VFILES))
 .SECONDARY: $(addsuffix .d,$(VFILES))
@@ -211,17 +227,6 @@ byte:
 
 opt:
 	$(MAKE) all "OPT:=-opt"
-
-userinstall:
-	+$(MAKE) USERINSTALL=true install
-
-install:
-
-install-doc:
-	install -d $(DSTROOT)$(COQDOCINSTALL)/$(INSTALLDEFAULTROOT)/html
-	for i in html/*; do \
-	 install -m 0644 $$i $(DSTROOT)$(COQDOCINSTALL)/$(INSTALLDEFAULTROOT)/$$i;\
-	done
 
 clean:
 	rm -f $(VOFILES) $(VIFILES) $(GFILES) $(VFILES:.v=.v.d) $(VFILES:=.beautified) $(VFILES:=.old)

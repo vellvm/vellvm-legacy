@@ -249,7 +249,7 @@ match goal with
 | _ => uniq_result
 end.
 
-Require Import cpdt_tactics.
+Require Import CpdtTactics.
 
 Ltac fill_holes_in_ctx :=
 let fill e H :=
