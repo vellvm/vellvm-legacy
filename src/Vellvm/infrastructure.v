@@ -1451,20 +1451,20 @@ Ltac destruct_wrt_type1 a1 a2:=
 
 Ltac destruct_dec_tac f :=
   match goal with
-  | |- { _ ?a1 = _ ?a2 } + { _ ?a1 <> _ ?a2 } =>
+  | |- { ?c ?a1 = ?c ?a2 } + { ?c ?a1 <> ?c ?a2 } =>
       f a1 a2
-  | |- { _ ?a1 ?b1 = _ ?a2 ?b2 } + { _ ?a1 ?b1 <> _ ?a2 ?b2 } =>
+  | |- { ?c ?a1 ?b1 = ?c ?a2 ?b2 } + { ?c ?a1 ?b1 <> ?c ?a2 ?b2 } =>
       f a1 a2; f b1 b2
-  | |- { _ ?a1 ?b1 ?c1 = _ ?a2 ?b2 ?c2 } + { _ ?a1 ?b1 ?c1 <> _ ?a2 ?b2 ?c2 } =>
+  | |- { ?c ?a1 ?b1 ?c1 = ?c ?a2 ?b2 ?c2 } + { ?c ?a1 ?b1 ?c1 <> ?c ?a2 ?b2 ?c2 } =>
       f a1 a2; f b1 b2; f c1 c2
-  | |- { _ ?a1 ?b1 ?c1 ?d1 = _ ?a2 ?b2 ?c2 ?d2 }  +
-       { _ ?a1 ?b1 ?c1 ?d1 <> _ ?a2 ?b2 ?c2 ?d2 } =>
+  | |- { ?c ?a1 ?b1 ?c1 ?d1 = ?c ?a2 ?b2 ?c2 ?d2 }  +
+       { ?c ?a1 ?b1 ?c1 ?d1 <> ?c ?a2 ?b2 ?c2 ?d2 } =>
       f a1 a2; f b1 b2; f c1 c2; f d1 d2
-  | |- { _ ?a1 ?b1 ?c1 ?d1 ?e1 = _ ?a2 ?b2 ?c2 ?d2 ?e2 } +
-       { _ ?a1 ?b1 ?c1 ?d1 ?e1 <> _ ?a2 ?b2 ?c2 ?d2 ?e2 } =>
+  | |- { ?c ?a1 ?b1 ?c1 ?d1 ?e1 = ?c ?a2 ?b2 ?c2 ?d2 ?e2 } +
+       { ?c ?a1 ?b1 ?c1 ?d1 ?e1 <> ?c ?a2 ?b2 ?c2 ?d2 ?e2 } =>
       f a1 a2; f b1 b2; f c1 c2; f d1 d2;f e1 e2
-  | |- { _ ?a1 ?b1 ?c1 ?d1 ?e1 ?f1 = _ ?a2 ?b2 ?c2 ?d2 ?e2 ?f2 } +
-       { _ ?a1 ?b1 ?c1 ?d1 ?e1 ?f1 <> _ ?a2 ?b2 ?c2 ?d2 ?e2 ?f2 } =>
+  | |- { ?c ?a1 ?b1 ?c1 ?d1 ?e1 ?f1 = ?c ?a2 ?b2 ?c2 ?d2 ?e2 ?f2 } +
+       { ?c ?a1 ?b1 ?c1 ?d1 ?e1 ?f1 <> ?c ?a2 ?b2 ?c2 ?d2 ?e2 ?f2 } =>
       f a1 a2; f b1 b2; f c1 c2; f d1 d2; f e1 e2; f f1 f2
   | |- {?a1 :: ?b1 = ?a2 :: ?b2} +
        {?a1 :: ?b1 <> ?a2 :: ?b2} =>
@@ -1501,9 +1501,6 @@ Proof.
   apply typ_mutrec;
   unfold typ_dec_prop, list_typ_dec_prop;
   intros; try solve [abstract typ_mutrec_dec_tac].
-  admit.
-  admit.
-  admit.
 Qed.
 
 Lemma list_typ_dec : forall (lt1 lt2:list typ), {lt1=lt2} + {~lt1=lt2}.
@@ -1602,9 +1599,7 @@ Proof.
  apply const_mutrec;
   unfold const_dec_prop, list_const_dec_prop;
   intros; try solve [abstract const_mutrec_dec_tac].
-
-Admitted.
-
+Qed.
 
 Lemma const_dec : forall (c1 c2:const), {c1=c2}+{~c1=c2}.
 Proof.
@@ -1693,8 +1688,6 @@ Lemma cmd_dec : forall (c1 c2:cmd), {c1=c2}+{~c1=c2}.
 Proof.
   (cmd_cases (destruct c1) Case); destruct c2;
     try solve [done_right | auto | abstract insn_dec_tac].
-  admit. admit. admit. admit. admit. admit. admit. admit. admit. admit. admit. admit.
-  admit. admit. admit. admit.
   Case "insn_call".
     match goal with
     | |- {insn_call ?i0 ?n ?c ?rt ?va ?v ?p =
@@ -1721,13 +1714,11 @@ Lemma terminator_dec : forall (tmn1 tmn2:terminator), {tmn1=tmn2}+{~tmn1=tmn2}.
 Proof.
   destruct tmn1; destruct tmn2;
     try solve [done_right | auto | abstract insn_dec_tac].
-  admit. admit. admit.  
 Qed.
 
 Lemma phinode_dec : forall (p1 p2:phinode), {p1=p2}+{~p1=p2}.
 Proof.
   destruct p1; destruct p2; try solve [done_right | auto | insn_dec_tac].
-  admit. 
 Qed.
 
 Lemma insn_dec : forall (i1 i2:insn), {i1=i2}+{~i1=i2}.
@@ -1934,7 +1925,6 @@ Lemma layout_dec : forall (l1 l2:layout), {l1=l2}+{~l1=l2}.
 Proof.
   destruct l1; destruct l2;
     try solve [subst; auto | done_right | insn_dec_tac].
-  admit. admit. admit. admit. admit. admit.
 Qed.
 
 Lemma layouts_dec : forall (l1 l2:layouts), {l1=l2}+{~l1=l2}.
