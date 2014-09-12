@@ -1,4 +1,4 @@
-include ./Makefile.config
+OTT ?= ott
 
 COQLIBS=-I src/Vellvm -I src/Vellvm/ott -I src/Vellvm/Dominators \
 	-I lib/GraphBasics -I lib/compcert-1.9 -I lib/cpdtlib -I lib/metalib-20090714 \
@@ -6,6 +6,10 @@ COQLIBS=-I src/Vellvm -I src/Vellvm/ott -I src/Vellvm/Dominators \
 MAKECOQ=make -f Makefile.coq COQLIBS="$(COQLIBS)"
 
 all: theories
+
+libs: lib/Coq-Equations-8.4 lib/metalib-20090714
+	make -C lib/Coq-Equations-8.4
+	make -C lib/metalib-20090714
 
 depend: Makefile.coq src/Vellvm/syntax_base.v src/Vellvm/typing_rules.v
 	+$(MAKECOQ) depend
@@ -34,4 +38,4 @@ src/Vellvm/typing_rules.v: src/Vellvm/syntax_base.ott src/Vellvm/typing_rules.ot
 	    -i typing_rules.ott -o typing_rules.v && \
 	rm _tmp_syntax_base.v
 
-.PHONY: all clean theories
+.PHONY: all clean theories libs

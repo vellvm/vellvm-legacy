@@ -16,13 +16,11 @@ LIBS="https://github.com/mattam82/Coq-Equations/archive/8.4.zip,Coq-Equations-8.
 prep_Coq-Equations-8.4() {
     unzip -qqo $SRC/$1
     patch -p1 < ../patch/equations.patch
-    make -C Coq-Equations-8.4 >> log
 }
 
 prep_metalib-20090714() {
     unzip -qqo $SRC/$1
     patch -p1 < ../patch/metalib.patch
-    make -C metalib-20090714 >> log
 }
 
 prep_cpdtlib() {
@@ -47,21 +45,22 @@ prep_compcert-1.9() {
     patch -p1 < ../patch/compcert.patch
 }
 
-echo "Downloading sources..."
 for p in $LIBS; do
   u=${p%,*}; f=${p#*,}
-  echo -n "$SRC/$f"
+  echo -n "Downloading $SRC/$f"
   if [ -f $SRC/$f ]; then
-      echo " exists, skipping..."
+      echo " ... archive exists, skipping"
   else
       echo; curl -L# "$u" -o $SRC/$f
   fi
-done
 
-echo "Extracting and patching..."
-for p in $LIBS; do
-  f=${p#*,}
-  eval prep_${f%.*} $f
+  d=${f%.*}
+  echo -n "Extracting to $d"
+  if [ -d $d ]; then
+      echo " ... target dir exists, skipping"
+  else
+      eval prep_$d $f      
+  fi
 done
 
 echo "Done!"
