@@ -764,10 +764,10 @@ Definition feasible_typs_aux_weaken_prop (lt:list typ) :=
   feasible_typs_aux los (nm2++nm1) lt.
 
 Lemma feasible_typ_aux_weaken_mutrec :
-  (forall t, feasible_typ_aux_weaken_prop t) *
+  (forall t, feasible_typ_aux_weaken_prop t) /\
   (forall lt, feasible_typs_aux_weaken_prop lt).
 Proof.
-  (typ_cases (apply typ_mutrec; 
+  (typ_cases (apply typ_mutind; 
     unfold feasible_typ_aux_weaken_prop, 
            feasible_typs_aux_weaken_prop) Case);
     intros; simpl in *; try solve [eauto | inversion H | inversion H1 ].
@@ -912,10 +912,10 @@ Definition feasible_typs_aux__getListTypeSizeInBits_and_Alignment_prop'
     ((sz > 0)%nat -> (al > 0)%nat).
 
 Lemma feasible_typ_aux__getTypeSizeInBits_and_Alignment_mutrec' :
-  (forall t, feasible_typ_aux__getTypeSizeInBits_and_Alignment_prop' t) *
+  (forall t, feasible_typ_aux__getTypeSizeInBits_and_Alignment_prop' t) /\
   (forall lt, feasible_typs_aux__getListTypeSizeInBits_and_Alignment_prop' lt).
 Proof.
-  (typ_cases (apply typ_mutrec;
+  (typ_cases (apply typ_mutind;
     unfold feasible_typ_aux__getTypeSizeInBits_and_Alignment_prop', 
            feasible_typs_aux__getListTypeSizeInBits_and_Alignment_prop') Case);
     intros;

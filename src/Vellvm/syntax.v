@@ -154,7 +154,7 @@ Definition list_const_rec2 (P : const -> Set) (P0 : list const -> Set)
     | c :: l => f19 c (F c) l (F0 l)
     end.
 
-Definition const_mutrec P P' :=
+Definition const_mutrec (P : const -> Set) (P' : list const -> Set) :=
   fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21=>
       (pair (@const_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21)
             (@list_const_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21)).
@@ -212,7 +212,7 @@ Definition list_typ_rec2 (P : typ -> Set) (P0 : list typ -> Set)
     | t :: l0 => f10 t (F t) l0 (F0 l0)
   end.
 
-Definition typ_mutrec P P' :=
+Definition typ_mutrec (P : typ -> Set) (P' : list typ -> Set) :=
   fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 =>
       (pair (@typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12)
             (@list_typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12)).
