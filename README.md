@@ -16,7 +16,7 @@ way to parse LLVM bitcode into a Vellvm AST.
 ## Dependencies
 
 - camlp4 (For equations plugin -- no longer included with OCaml as of 4.02)
-- Coq 8.4pl4
+- Coq 8.4pl4, configured with `-usecamlp4` option
 - [ott 0.24](http://www.cl.cam.ac.uk/~pes20/ott/)
 
 ## Building
