@@ -3,7 +3,13 @@ set -e
 
 LIB=./lib
 SRC=./src
+if [[ $OSTYPE =~ "darwin" ]]; then
+  MKTEMP=gmktemp
+else
+  MKTEMP=mktemp
+fi
 
+mkdir -p $LIB
 cd $LIB
 mkdir -p $SRC
 
@@ -34,7 +40,7 @@ prep_GraphBasics() {
 }
 
 prep_compcert-1.9() {
-    TMP=$(mktemp -dp.)
+    TMP=$($MKTEMP -dp.)
     tar xzf $SRC/$1
     cp compcert-1.9/common/{AST,Errors,Memdata,Memory,Memtype,Values}.v \
        compcert-1.9/lib/{Axioms,Coqlib,Floats,Integers,Intv,Iteration,Lattice,Maps,Ordered}.v \
