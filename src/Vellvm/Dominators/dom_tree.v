@@ -82,12 +82,12 @@ match dts with
     is_dtree_edge dt0 parent child || is_dtrees_edge dts0 parent child
 end.
 
-Scheme dtree_rec2 := Induction for DTree Sort Set
-  with dtrees_rec2 := Induction for DTrees Sort Set.
+Scheme dtree_rec2 := Induction for DTree Sort Prop
+  with dtrees_rec2 := Induction for DTrees Sort Prop.
 
 Definition dtree_mutrec P P' :=
   fun h1 h2 h3 =>
-    (pair (@dtree_rec2 P P' h1 h2 h3) (@dtrees_rec2 P P' h1 h2 h3)).
+    (conj (@dtree_rec2 P P' h1 h2 h3) (@dtrees_rec2 P P' h1 h2 h3)).
 (* Check if (p0,ch0) is an edge of chain. *)
 Fixpoint is_chain_edge (chain:list A) p0 ch0 : Prop :=
 match chain with
@@ -279,7 +279,7 @@ forall ch tl p0 ch0,
   is_dtrees_edge dts p0 ch0 = true \/ is_chain_edge (ch::tl) p0 ch0.
 
 Lemma dtree_insert__is_dtree_edge_mutrec :
-  (forall dt, dtree_insert__is_dtree_edge_prop dt) *
+  (forall dt, dtree_insert__is_dtree_edge_prop dt) /\
   (forall dts, dtrees_insert__is_dtrees_edge_prop dts).
 Proof.
   apply dtree_mutrec;
@@ -692,7 +692,7 @@ Proof.
 Qed.
 
 Lemma dtree_insert__disjoint_children_mutrec :
-  (forall dt, dtree_insert__disjoint_children_prop dt) *
+  (forall dt, dtree_insert__disjoint_children_prop dt) /\
   (forall dts, dtrees_insert__disjoint_children_prop dts).
 Proof.
   apply dtree_mutrec;
@@ -937,7 +937,7 @@ Definition in_dtrees_dom__is_dtrees_walk_prop (dts:DTrees) :=
   exists dt, in_children dt dts /\ dtree_walk dt l0.
 
 Lemma in_dtree_dom__is_dtree_walk_mutrec :
-  (forall dt, in_dtree_dom__is_dtree_walk_prop dt) *
+  (forall dt, in_dtree_dom__is_dtree_walk_prop dt) /\
   (forall dts, in_dtrees_dom__is_dtrees_walk_prop dts).
 Proof.
   apply dtree_mutrec;
@@ -1234,7 +1234,7 @@ Definition reachable_dtrees_intro_prop (dts:DTrees) :=
   reachable_dtrees dts.
       
 Lemma reachable_dtree_intro_mutrec :
-  (forall dt, reachable_dtree_intro_prop dt) *
+  (forall dt, reachable_dtree_intro_prop dt) /\
   (forall dts, reachable_dtrees_intro_prop dts).
 Proof.
   apply dtree_mutrec;
@@ -1302,7 +1302,7 @@ Proof.
 Qed. 
 
 Lemma dtree_insert__reachable_dtree_mutrec :
-  (forall dt, dtree_insert__reachable_dtree_prop dt) *
+  (forall dt, dtree_insert__reachable_dtree_prop dt) /\
   (forall dts, dtrees_insert__reachable_dtrees_prop dts).
 Proof.
   apply dtree_mutrec;
@@ -1386,7 +1386,7 @@ Definition reachable_dtrees_elim_prop (dts:DTrees) :=
     TCfg.reachable succs entry x.
 
 Lemma reachable_dtree_elim_mutrec :
-  (forall dt, reachable_dtree_elim_prop dt) *
+  (forall dt, reachable_dtree_elim_prop dt) /\
   (forall dts, reachable_dtrees_elim_prop dts).
 Proof.
   apply dtree_mutrec;
@@ -1487,7 +1487,7 @@ Definition create_dtree__wf_dtrees_prop (dts:DTrees) :=
     wf_dtrees dts /\ disjoint_dtrees Hdec dts.
 
 Lemma create_dtree__wf_dtree_mutrec :
-  (forall dt, create_dtree__wf_dtree_prop dt) *
+  (forall dt, create_dtree__wf_dtree_prop dt) /\
   (forall dts, create_dtree__wf_dtrees_prop dts).
 Proof.
   apply dtree_mutrec;
@@ -1574,7 +1574,7 @@ Definition wf_dtree__uniq_dtrees_prop (dts:DTrees) :=
   forall (Hp: wf_dtrees dts), uniq_dtrees Hdec dts.
 
 Lemma wf_dtree__uniq_dtree_mutrec :
-  (forall dt, wf_dtree__uniq_dtree_prop dt) *
+  (forall dt, wf_dtree__uniq_dtree_prop dt) /\
   (forall dts, wf_dtree__uniq_dtrees_prop dts).
 Proof.
   apply dtree_mutrec;
@@ -1658,7 +1658,7 @@ Definition sdtrees_tdtrees_is_total_prop (sdts:DTrees) :=
   sdtrees_tdtrees sdts <> None.
 
 Lemma sdtree_tdtree_is_total_mutrec :
-  (forall sdt, sdtree_tdtree_is_total_prop sdt) *
+  (forall sdt, sdtree_tdtree_is_total_prop sdt) /\
   (forall sdts, sdtrees_tdtrees_is_total_prop sdts).
 Proof.
   apply dtree_mutrec;
@@ -1721,7 +1721,7 @@ Hypothesis s2t_injective: forall s1 s2 t (Hget1: PTree.get s1 s2t = Some t)
   (Hgets: PTree.get s2 s2t = Some t), s1 = s2.
 
 Lemma in_tdtree_dom__in_sdtree_dom_mutrec :
-  (forall sdt, in_tdtree_dom__in_sdtree_dom_prop sdt) *
+  (forall sdt, in_tdtree_dom__in_sdtree_dom_prop sdt) /\
   (forall sdts, in_tdtrees_dom__in_sdtrees_dom_prop sdts).
 Proof.
   apply dtree_mutrec;
@@ -1791,7 +1791,7 @@ Definition in_tdtrees_dom__ex_in_sdtrees_dom_prop (sdts:DTrees) :=
     exists s, PTree.get s s2t = Some t /\ In s (dtrees_dom Sdec sdts).
 
 Lemma in_tdtree_dom__ex_in_sdtree_dom_mutrec :
-  (forall sdt, in_tdtree_dom__ex_in_sdtree_dom_prop sdt) *
+  (forall sdt, in_tdtree_dom__ex_in_sdtree_dom_prop sdt) /\
   (forall sdts, in_tdtrees_dom__ex_in_sdtrees_dom_prop sdts).
 Proof.
   apply dtree_mutrec;
@@ -1938,7 +1938,7 @@ Definition is_tdtrees_edge__ex_is_sdtrees_prop (sdts:DTrees) :=
     is_dtrees_edge Sdec sdts sp sch = true.
 
 Lemma is_tdtree_edge__ex_is_sdtree_mutrec :
-  (forall sdt, is_tdtree_edge__ex_is_sdtree_prop sdt) *
+  (forall sdt, is_tdtree_edge__ex_is_sdtree_prop sdt) /\
   (forall sdts, is_tdtrees_edge__ex_is_sdtrees_prop sdts).
 Proof.
   apply dtree_mutrec;
@@ -2028,7 +2028,7 @@ Definition is_sdtrees_edge__is_tdtrees_edge_prop (sdts:DTrees) :=
   is_dtrees_edge Tdec tdts tp tch = true.
 
 Lemma is_sdtree_edge__is_tdtree_edge_mutrec :
-  (forall sdt, is_sdtree_edge__is_tdtree_edge_prop sdt) *
+  (forall sdt, is_sdtree_edge__is_tdtree_edge_prop sdt) /\
   (forall sdts, is_sdtrees_edge__is_tdtrees_edge_prop sdts).
 Proof.
   apply dtree_mutrec;
@@ -2095,7 +2095,7 @@ Definition wf_sdtrees__wf_tdtrees_prop (sdts:DTrees) :=
   ADProps.wf_dtrees tsuccs tentry Tdec tdts.
 
 Lemma wf_sdtree__wf_tdtree_mutrec :
-  (forall sdt, wf_sdtree__wf_tdtree_prop sdt) *
+  (forall sdt, wf_sdtree__wf_tdtree_prop sdt) /\
   (forall sdts, wf_sdtrees__wf_tdtrees_prop sdts).
 Proof.
   apply dtree_mutrec;

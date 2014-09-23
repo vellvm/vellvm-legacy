@@ -1061,7 +1061,7 @@ forall i0 ch tl,
   i0 `in` (dtrees_dom (dtrees_insert eq_atom_dec dts ch tl)).
 
 Lemma in_dtree_dom__in_dtree_insert_dom_mutrec :
-  (forall dt, in_dtree_dom__in_dtree_insert_dom_prop dt) *
+  (forall dt, in_dtree_dom__in_dtree_insert_dom_prop dt) /\
   (forall dts, in_dtrees_dom__in_dtrees_insert_dom_prop dts).
 Proof.
   apply dtree_mutrec;
