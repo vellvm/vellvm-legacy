@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<launchConfiguration type="Ocaml.launchConfigurationType">
+<stringAttribute key="attr_ocaml_launch_args" value=""/>
+<stringAttribute key="attr_ocaml_launch_project_name" value="Parser"/>
+<stringAttribute key="attr_ocaml_run_full_path" value="/home/jianzhou/SVN/sol/vol/src/Parser/main.d.byte"/>
+</launchConfiguration>

@@ -1,0 +1,4 @@
+#Wed May 02 19:51:17 EDT 2012
+eclipse.preferences.version=1
+org.eclipse.debug.ui.PREF_LAUNCH_PERSPECTIVES=<?xml version\="1.0" encoding\="UTF-8" standalone\="no"?>\n<launchPerspectives/>\n
+org.eclipse.debug.ui.user_view_bindings=<?xml version\="1.0" encoding\="UTF-8" standalone\="no"?>\n<viewBindings>\n<view id\="org.eclipse.ui.console.ConsoleView">\n<perspective id\="ocaml.perspectives.OcamlDebugPerspective" userAction\="opened"/>\n</view>\n</viewBindings>\n

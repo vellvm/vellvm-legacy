@@ -1,0 +1,15 @@
+-I ../Vellvm/
+-I ../Vellvm/ott/
+-I ../Vellvm/monads
+-I ../TV/
+-I ../SoftBound
+-I ../Transforms
+-I ../Vellvm/compcert/
+-I ../Vellvm/GraphBasics/
+-I ../Vellvm/Dominators/
+-impredicative-set
+extraction_core.v
+extraction_sb.v
+extraction_trans.v
+extraction_tv.v
+extraction_dom.v

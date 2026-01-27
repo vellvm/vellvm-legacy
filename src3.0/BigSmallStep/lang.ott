@@ -1,0 +1,140 @@
+metavar expvar, x, y, z ::= {{ repr-locally-nameless }}
+
+grammar
+
+exp, e, f, g :: '' ::=
+  | c             ::   :: const
+  | x             ::   :: var
+  | \ x . e       ::   :: abs (+ bind x in e +)
+  | e1 e2         ::   :: app
+  | ( e )         :: S :: paren {{ coq ([[e]]) }}
+  | { e2 / x } e1 :: M :: subst {{ coq (open_exp_wrt_exp [[x e1]] [[e2]]) }}
+
+substitutions
+  single e x :: subst
+
+freevars
+  e x :: fv
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+grammar
+
+value, v :: value_ ::=
+  | c       :: :: int
+  | \ x . e :: :: abs (+ bind x in e +)
+
+object, o :: object_ ::=
+  | bot     :: :: bot
+  | err     :: :: err
+  | c       :: :: const
+  | \ x . e :: :: abs (+ bind x in e +)
+
+terminals :: 'terminals_' ::=
+  | -->                  ::   :: reduce
+  | -->*                 ::   :: mreduce       
+  | ==>                  ::   :: evaluate
+  | ==>X                 ::   :: evaluatewrong
+  | <=                   ::   :: objectorder
+
+formula :: formula_ ::=
+  | judgement      ::   :: judgement
+
+subrules
+  v <:: e
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+defns
+Jsmallstep :: '' ::=
+
+defn
+e1 --> e2
+:: :: smallstep :: smallstep_ by
+
+e1 --> e1'
+----------------- :: app_1
+e1 e2 --> e1' e2
+
+e2 --> e2'
+----------------- :: app_2
+v1 e2 --> v1 e2'
+                                                                                                           
+----------------------------- :: beta
+(\x.e1) v2 --> {v2 / x} e1
+
+defns
+Jsmallstep_converging :: '' ::=
+
+defn
+e1 -->* e2
+:: :: smallstep_converging :: smallstep_c_ by
+
+----------------- :: refl
+e -->* e
+
+e --> e'   
+e' -->* e''
+--------------------- :: trans
+e -->* e''
+                                                                                                          
+defns
+Jbigstep_converging :: '' ::=
+
+defn
+e1 ==> e2
+:: :: bigstep_converging :: bigstep_c_ by
+
+-------- :: const
+c ==> c
+
+------------- :: abs
+\x.e ==> \x.e 
+
+e1 ==> (\x.e1')
+e2 ==> v2
+{v2/x}e1' ==> v
+----------------- :: app
+e1 e2 ==> v
+
+defns
+Jbigstep_goingwrong :: '' ::=
+
+defn
+e ==>X
+:: :: bigstep_goingwrong :: bigstep_w_ by
+
+e1 ==>X
+----------------- :: app1_wrong
+e1 e2 ==>X
+
+e1 ==> c
+----------------- :: app1_const
+e1 e2 ==>X
+
+
+e1 ==> (\x. e1')
+e2 ==>X
+----------------- :: app2_wrong
+e1 e2 ==>X
+
+e1 ==> (\x.e1')
+e2 ==> v2
+{v2/x}e1' ==>X
+----------------- :: appf
+e1 e2 ==>X
+
+defns
+Jobjects_order :: '' ::=
+
+defn
+o <= o'
+:: :: objects_order :: object_order_ by
+
+------- :: refl
+o <= o
+
+-------- :: bot
+bot <= o
+
+
